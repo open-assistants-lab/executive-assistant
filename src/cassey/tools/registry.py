@@ -7,12 +7,29 @@ from cassey.storage.file_sandbox import list_files, read_file, write_file
 
 async def get_file_tools() -> list[BaseTool]:
     """Get file operation tools."""
-    return [read_file, write_file, list_files]
+    from cassey.storage.file_sandbox import (
+        read_file,
+        write_file,
+        list_files,
+        create_folder,
+        delete_folder,
+        rename_folder,
+        move_file,
+    )
+    return [
+        read_file,
+        write_file,
+        list_files,
+        create_folder,
+        delete_folder,
+        rename_folder,
+        move_file,
+    ]
 
 
-async def get_duckdb_tools() -> list[BaseTool]:
-    """Get DuckDB tabular data tools."""
-    from cassey.storage.duckdb_tools import (
+async def get_db_tools() -> list[BaseTool]:
+    """Get database tabular data tools."""
+    from cassey.storage.db_tools import (
         create_table,
         insert_table,
         query_table,
@@ -32,6 +49,30 @@ async def get_duckdb_tools() -> list[BaseTool]:
         export_table,
         import_table,
     ]
+
+
+async def get_time_tools() -> list[BaseTool]:
+    """Get time and date tools."""
+    from cassey.tools.time_tool import get_current_time, get_current_date, list_timezones
+    return [get_current_time, get_current_date, list_timezones]
+
+
+async def get_reminder_tools() -> list[BaseTool]:
+    """Get reminder tools."""
+    from cassey.tools.reminder_tools import get_reminder_tools as _get
+    return _get()
+
+
+async def get_python_tools() -> list[BaseTool]:
+    """Get Python code execution tools."""
+    from cassey.tools.python_tool import get_python_tools as _get
+    return _get()
+
+
+async def get_search_tools() -> list[BaseTool]:
+    """Get web search tools."""
+    from cassey.tools.search_tool import get_search_tools as _get
+    return _get()
 
 
 async def get_mcp_tools() -> list[BaseTool]:
@@ -128,10 +169,16 @@ async def get_all_tools() -> list[BaseTool]:
     Get all available tools for the agent.
 
     Aggregates tools from:
-    - File operations (read, write, list)
-    - DuckDB operations (create_table, query_table, etc.)
-    - MCP servers (Firecrawl, Chrome DevTools, Meilisearch)
+    - File operations (read, write, list, create_folder, delete_folder, rename_folder, move_file)
+    - Database operations (create_table, query_table, etc.)
+    - Time tools (get_current_time, get_current_date, list_timezones)
+    - Reminder tools (set_reminder, list_reminders, cancel_reminder, edit_reminder)
+    - Python execution (execute_python for calculations and data processing)
+    - Web search (web_search via SearXNG)
     - Standard tools (calculator, search)
+
+    Note: MCP tools are available via get_mcp_tools() but not loaded by default.
+    They can be loaded manually if needed for specific use cases.
 
     Returns:
         List of all available LangChain tools.
@@ -141,11 +188,22 @@ async def get_all_tools() -> list[BaseTool]:
     # Add file tools
     all_tools.extend(await get_file_tools())
 
-    # Add DuckDB tools
-    all_tools.extend(await get_duckdb_tools())
+    # Add database tools
+    all_tools.extend(await get_db_tools())
 
-    # Add MCP tools
-    all_tools.extend(await get_mcp_tools())
+    # Add time tools
+    all_tools.extend(await get_time_tools())
+
+    # Add reminder tools
+    all_tools.extend(await get_reminder_tools())
+
+    # Add python tools
+    all_tools.extend(await get_python_tools())
+
+    # Add search tools
+    all_tools.extend(await get_search_tools())
+
+    # MCP tools are NOT loaded by default - use get_mcp_tools() manually if needed
 
     # Add standard tools
     all_tools.extend(get_standard_tools())

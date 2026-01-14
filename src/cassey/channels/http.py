@@ -124,10 +124,10 @@ class HttpChannel(BaseChannel):
         @self.app.get("/conversations/{conversation_id}", response_model=ConversationResponse)
         async def get_conversation(conversation_id: str, limit: int = 100) -> ConversationResponse:
             """Get conversation history (audit endpoint)."""
-            from cassey.storage.audit import AuditStorage
+            from cassey.storage.user_registry import UserRegistry
 
-            audit = AuditStorage()
-            history = await audit.get_conversation_history(conversation_id, limit)
+            registry = UserRegistry()
+            history = await registry.get_conversation_history(conversation_id, limit)
 
             return ConversationResponse(
                 conversation_id=conversation_id,

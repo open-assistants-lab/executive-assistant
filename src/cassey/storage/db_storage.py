@@ -1,4 +1,4 @@
-"""DuckDB storage for tabular data with thread/user isolation."""
+"""Database storage for tabular data with thread/user isolation."""
 
 from pathlib import Path
 from typing import Any
@@ -10,33 +10,33 @@ from cassey.storage.file_sandbox import get_thread_id
 from cassey.storage.user_registry import sanitize_thread_id
 
 
-class DuckDBStorage:
+class DBStorage:
     """
-    DuckDB storage for tabular data.
+    Database storage for tabular data.
 
-    Each thread has its own isolated DuckDB database file.
+    Each thread has its own isolated database file.
     Supports thread/user separation and merge/remove operations.
     """
 
     def __init__(self, root: Path | None = None) -> None:
         """
-        Initialize DuckDB storage.
+        Initialize database storage.
 
         Args:
-            root: Root directory for DuckDB database files.
+            root: Root directory for database files.
         """
-        self.root = (root or settings.DUCKDB_ROOT).resolve()
+        self.root = (root or settings.DB_ROOT).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
 
     def _get_db_path(self, thread_id: str | None = None) -> Path:
         """
-        Get the DuckDB database path for a thread.
+        Get the database path for a thread.
 
         Args:
             thread_id: Thread identifier. If None, uses current context thread_id.
 
         Returns:
-            Path to the DuckDB database file.
+            Path to the database file.
         """
         if thread_id is None:
             thread_id = get_thread_id()
@@ -50,13 +50,13 @@ class DuckDBStorage:
 
     def get_connection(self, thread_id: str | None = None) -> duckdb.DuckDBPyConnection:
         """
-        Get a DuckDB connection for the current thread.
+        Get a database connection for the current thread.
 
         Args:
             thread_id: Thread identifier. If None, uses current context thread_id.
 
         Returns:
-            DuckDB connection object.
+            Database connection object.
         """
         db_path = self._get_db_path(thread_id)
         return duckdb.connect(str(db_path))
@@ -115,26 +115,30 @@ class DuckDBStorage:
             columns: Column names (required if data is list of tuples).
             thread_id: Thread identifier. If None, uses current context thread_id.
         """
+        import pandas as pd
+
         conn = self.get_connection(thread_id)
         try:
             # Drop table if exists
             conn.execute(f"DROP TABLE IF EXISTS {table_name}")
 
             if isinstance(data, list) and len(data) > 0:
-                if isinstance(data[0], dict):
-                    # List of dicts - keys become columns
-                    conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM data")
-                elif isinstance(data[0], (tuple, list)):
-                    # List of tuples - use provided column names
-                    if not columns:
-                        raise ValueError("columns parameter required for tuple data")
-                    # Create a DataFrame and register it
-                    import pandas as pd
+                # Convert to pandas DataFrame
+                if columns:
                     df = pd.DataFrame(data, columns=columns)
-                    conn.register("df", df)
-                    conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM df")
                 else:
-                    raise ValueError(f"Unsupported data type: {type(data[0])}")
+                    df = pd.DataFrame(data)
+
+                # Register and create table
+                conn.register("df_data", df)
+                conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM df_data")
+            else:
+                # Empty data - create table with no rows
+                if columns:
+                    col_defs = ", ".join(f"{col} VARCHAR" for col in columns)
+                    conn.execute(f"CREATE TABLE {table_name} ({col_defs})")
+                else:
+                    raise ValueError("Cannot create table: no data and no columns provided")
         finally:
             conn.close()
 
@@ -164,7 +168,7 @@ class DuckDBStorage:
 
     def list_tables(self, thread_id: str | None = None) -> list[str]:
         """
-        List all tables in the thread's DuckDB database.
+        List all tables in the thread's database.
 
         Args:
             thread_id: Thread identifier. If None, uses current context thread_id.
@@ -266,7 +270,7 @@ class DuckDBStorage:
 
     def delete_db(self, thread_id: str) -> bool:
         """
-        Delete the DuckDB database file for a thread.
+        Delete the database file for a thread.
 
         Args:
             thread_id: Thread identifier.
@@ -286,7 +290,7 @@ class DuckDBStorage:
         target_thread_id: str,
     ) -> dict[str, Any]:
         """
-        Merge DuckDB databases from multiple threads into one.
+        Merge databases from multiple threads into one.
 
         Copies tables from source databases into the target database.
         Tables are prefixed with source thread name to avoid conflicts.
@@ -355,10 +359,10 @@ class DuckDBStorage:
         }
 
 
-# Global DuckDB storage instance
-_duckdb_storage = DuckDBStorage()
+# Global database storage instance
+_db_storage = DBStorage()
 
 
-def get_duckdb_storage() -> DuckDBStorage:
-    """Get the global DuckDB storage instance."""
-    return _duckdb_storage
+def get_db_storage() -> DBStorage:
+    """Get the global database storage instance."""
+    return _db_storage

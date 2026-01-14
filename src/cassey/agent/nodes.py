@@ -166,7 +166,10 @@ async def summarize_conversation(
     Summarize old messages and replace them with a condensed summary.
 
     Keeps recent messages (last 6 exchanges) and summarizes older ones.
+    Also persists the summary to PostgreSQL for audit purposes.
     """
+    from cassey.storage.db_storage import get_thread_id
+
     messages = state["messages"]
     current_summary = state.get("summary", "")
 
@@ -203,6 +206,17 @@ async def summarize_conversation(
             combined = f"{current_summary}\n\n[Newer conversation]\n{new_summary}"
         else:
             combined = new_summary
+
+        # Persist summary to PostgreSQL if we have a registry
+        thread_id = get_thread_id()
+        if thread_id:
+            try:
+                from cassey.storage.user_registry import UserRegistry
+                registry = UserRegistry()
+                await registry.update_summary(thread_id, combined)
+            except Exception:
+                # Fail silently - summary is still in checkpoint state
+                pass
 
         return {
             "messages": recent_messages,

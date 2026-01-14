@@ -6,7 +6,7 @@ from typing import Any
 from langchain_core.messages import BaseMessage, HumanMessage
 from langgraph.types import Runnable
 
-from cassey.storage.file_sandbox import set_thread_id
+from cassey.storage.file_sandbox import set_thread_id, clear_thread_id
 from cassey.storage.user_registry import UserRegistry
 
 
@@ -161,51 +161,55 @@ class BaseChannel(ABC):
         # Set thread_id context for file sandbox operations
         set_thread_id(thread_id)
 
-        # Log incoming message if audit is enabled
-        if self.registry:
-            await self.registry.log_message(
-                conversation_id=thread_id,
-                user_id=message.user_id,
-                channel=channel,
-                message=HumanMessage(content=message.content),
-                message_id=message.message_id,
-                metadata=message.metadata,
-            )
+        try:
+            # Log incoming message if audit is enabled
+            if self.registry:
+                await self.registry.log_message(
+                    conversation_id=thread_id,
+                    user_id=message.user_id,
+                    channel=channel,
+                    message=HumanMessage(content=message.content),
+                    message_id=message.message_id,
+                    metadata=message.metadata,
+                )
 
-        # Build state
-        state = {
-            "messages": [HumanMessage(content=message.content)],
-            "summary": "",  # Initialize with empty summary
-            "iterations": 0,
-            "user_id": message.user_id,
-            "channel": channel,
-        }
+            # Build state
+            state = {
+                "messages": [HumanMessage(content=message.content)],
+                "summary": "",  # Initialize with empty summary
+                "iterations": 0,
+                "user_id": message.user_id,
+                "channel": channel,
+            }
 
-        # Stream agent responses
-        messages = []
-        async for event in self.agent.astream(state, config):
-            # Check all possible keys for messages
-            for key in event:
-                if key == "messages":
-                    for msg in event["messages"]:
-                        messages.append(msg)
-                        # Log each response message if audit is enabled
-                        if self.registry:
-                            await self.registry.log_message(
-                                conversation_id=thread_id,
-                                user_id=message.user_id,
-                                channel=channel,
-                                message=msg,
-                            )
-                elif key == "agent" and isinstance(event["agent"], dict) and "messages" in event["agent"]:
-                    for msg in event["agent"]["messages"]:
-                        messages.append(msg)
-                        if self.registry:
-                            await self.registry.log_message(
-                                conversation_id=thread_id,
-                                user_id=message.user_id,
-                                channel=channel,
-                                message=msg,
-                            )
+            # Stream agent responses
+            messages = []
+            async for event in self.agent.astream(state, config):
+                # Check all possible keys for messages
+                for key in event:
+                    if key == "messages":
+                        for msg in event["messages"]:
+                            messages.append(msg)
+                            # Log each response message if audit is enabled
+                            if self.registry:
+                                await self.registry.log_message(
+                                    conversation_id=thread_id,
+                                    user_id=message.user_id,
+                                    channel=channel,
+                                    message=msg,
+                                )
+                    elif key == "agent" and isinstance(event["agent"], dict) and "messages" in event["agent"]:
+                        for msg in event["agent"]["messages"]:
+                            messages.append(msg)
+                            if self.registry:
+                                await self.registry.log_message(
+                                    conversation_id=thread_id,
+                                    user_id=message.user_id,
+                                    channel=channel,
+                                    message=msg,
+                                )
 
-        return messages
+            return messages
+        finally:
+            # Clear thread_id to prevent leaking between conversations
+            clear_thread_id()

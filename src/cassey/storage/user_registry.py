@@ -1,5 +1,6 @@
-"""User registry for tracking ownership across threads, files, and DuckDB data."""
+"""User registry for tracking ownership across threads, files, and database data."""
 
+import json
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -79,8 +80,8 @@ class FilePath:
 
 
 @dataclass
-class DuckDBPath:
-    """A DuckDB database ownership record."""
+class DBPath:
+    """A database ownership record."""
 
     db_path: str
     thread_id: str
@@ -96,7 +97,7 @@ class UserRegistry:
     Provides:
     - Message/conversation logging for audit
     - File path ownership tracking
-    - DuckDB database ownership tracking
+    - Database ownership tracking
     - Merge operations (link threads to user)
     - Remove operations (unlink threads)
     """
@@ -176,6 +177,15 @@ class UserRegistry:
         if metadata:
             message_metadata = {**(message_metadata or {}), **metadata}
 
+        # Estimate token count (rough approximation: ~4 chars per token)
+        # This is adequate for cost tracking without requiring tiktoken
+        token_count = int(len(content) / 4) if content else 0
+
+        # Add metadata JSON size to token count
+        if message_metadata:
+            metadata_json = json.dumps(message_metadata)
+            token_count += int(len(metadata_json) / 4)
+
         conn = await asyncpg.connect(self._conn_string)
         try:
             async with conn.transaction():
@@ -189,10 +199,12 @@ class UserRegistry:
 
                 # Insert message (trigger handles conversation update)
                 msg_id = await conn.fetchval(
-                    """INSERT INTO messages (conversation_id, message_id, role, content, metadata)
-                       VALUES ($1, $2, $3, $4, $5)
+                    """INSERT INTO messages (conversation_id, message_id, role, content, metadata, token_count)
+                       VALUES ($1, $2, $3, $4, $5, $6)
                        RETURNING id""",
-                    conversation_id, message_id, role, content, message_metadata
+                    conversation_id, message_id, role, content,
+                    json.dumps(message_metadata) if message_metadata else None,
+                    token_count
                 )
 
                 return msg_id
@@ -397,26 +409,26 @@ class UserRegistry:
         finally:
             await conn.close()
 
-    # ==================== DuckDB Path Tracking ====================
+    # ==================== Database Path Tracking ====================
 
-    async def register_duckdb_path(
+    async def register_db_path(
         self,
         thread_id: str,
         channel: str,
         db_path: str,
     ) -> None:
         """
-        Register a DuckDB database for a thread (ownership tracking).
+        Register a database for a thread (ownership tracking).
 
         Args:
             thread_id: Thread identifier
             channel: Channel name
-            db_path: Path to the DuckDB database file
+            db_path: Path to the database file
         """
         conn = await asyncpg.connect(self._conn_string)
         try:
             await conn.execute(
-                """INSERT INTO duckdb_paths (db_path, thread_id, channel)
+                """INSERT INTO db_paths (db_path, thread_id, channel)
                    VALUES ($1, $2, $3)
                    ON CONFLICT (thread_id) DO UPDATE SET db_path = EXCLUDED.db_path""",
                 db_path, thread_id, channel
@@ -424,21 +436,21 @@ class UserRegistry:
         finally:
             await conn.close()
 
-    async def get_duckdb_path(self, thread_id: str) -> DuckDBPath | None:
+    async def get_db_path(self, thread_id: str) -> DBPath | None:
         """
-        Get DuckDB path info for a thread.
+        Get database path info for a thread.
 
         Args:
             thread_id: Thread identifier
 
         Returns:
-            DuckDBPath record or None
+            DBPath record or None
         """
         conn = await asyncpg.connect(self._conn_string)
         try:
             row = await conn.fetchrow(
                 """SELECT db_path, thread_id, user_id, channel, created_at
-                   FROM duckdb_paths
+                   FROM db_paths
                    WHERE thread_id = $1""",
                 thread_id,
             )
@@ -446,7 +458,7 @@ class UserRegistry:
             if not row:
                 return None
 
-            return DuckDBPath(
+            return DBPath(
                 db_path=row["db_path"],
                 thread_id=row["thread_id"],
                 user_id=row["user_id"],
@@ -479,6 +491,14 @@ class UserRegistry:
         conn = await asyncpg.connect(self._conn_string)
         try:
             async with conn.transaction():
+                # Log the merge operation to user_registry table
+                op_id = await conn.fetchval(
+                    """INSERT INTO user_registry (operation_type, source_thread_ids, target_user_id, status)
+                       VALUES ($1, $2, $3, 'in_progress')
+                       RETURNING id""",
+                    "merge", source_thread_ids, target_user_id
+                )
+
                 # Update conversations
                 conv_result = await conn.execute(
                     """UPDATE conversations
@@ -495,9 +515,9 @@ class UserRegistry:
                     target_user_id, source_thread_ids
                 )
 
-                # Update duckdb_paths
-                duckdb_result = await conn.execute(
-                    """UPDATE duckdb_paths
+                # Update db_paths
+                db_result = await conn.execute(
+                    """UPDATE db_paths
                        SET user_id = $1
                        WHERE thread_id = ANY($2)""",
                     target_user_id, source_thread_ids
@@ -506,15 +526,36 @@ class UserRegistry:
                 # Parse counts from results
                 conv_count = int(conv_result.split()[-1]) if conv_result else 0
                 file_count = int(file_result.split()[-1]) if file_result else 0
-                duckdb_count = int(duckdb_result.split()[-1]) if duckdb_result else 0
+                db_count = int(db_result.split()[-1]) if db_result else 0
+
+                # Mark operation as completed
+                await conn.execute(
+                    """UPDATE user_registry
+                       SET status = 'completed', completed_at = NOW()
+                       WHERE id = $1""",
+                    op_id
+                )
 
                 return {
+                    "operation_id": op_id,
                     "target_user_id": target_user_id,
                     "source_thread_ids": source_thread_ids,
                     "conversations_updated": conv_count,
                     "file_paths_updated": file_count,
-                    "duckdb_paths_updated": duckdb_count,
+                    "db_paths_updated": db_count,
                 }
+        except Exception as e:
+            # Mark operation as failed
+            try:
+                await conn.execute(
+                    """UPDATE user_registry
+                       SET status = 'failed', error_message = $1, completed_at = NOW()
+                       WHERE id = (SELECT id FROM user_registry ORDER BY created_at DESC LIMIT 1)""",
+                    str(e)
+                )
+            except Exception:
+                pass
+            raise
         finally:
             await conn.close()
 
@@ -533,6 +574,14 @@ class UserRegistry:
         conn = await asyncpg.connect(self._conn_string)
         try:
             async with conn.transaction():
+                # Log the remove operation to user_registry table
+                op_id = await conn.fetchval(
+                    """INSERT INTO user_registry (operation_type, source_thread_ids, status)
+                       VALUES ($1, $2, 'in_progress')
+                       RETURNING id""",
+                    "remove", [thread_id]
+                )
+
                 # Update conversation status
                 conv_result = await conn.execute(
                     """UPDATE conversations
@@ -548,19 +597,40 @@ class UserRegistry:
                     thread_id
                 )
 
-                # Remove from duckdb_paths
-                duckdb_result = await conn.execute(
-                    """DELETE FROM duckdb_paths
+                # Remove from db_paths
+                db_result = await conn.execute(
+                    """DELETE FROM db_paths
                        WHERE thread_id = $1""",
                     thread_id
                 )
 
+                # Mark operation as completed
+                await conn.execute(
+                    """UPDATE user_registry
+                       SET status = 'completed', completed_at = NOW()
+                       WHERE id = $1""",
+                    op_id
+                )
+
                 return {
+                    "operation_id": op_id,
                     "thread_id": thread_id,
                     "conversations_updated": int(conv_result.split()[-1]) if conv_result else 0,
                     "file_paths_deleted": int(file_result.split()[-1]) if file_result else 0,
-                    "duckdb_paths_deleted": int(duckdb_result.split()[-1]) if duckdb_result else 0,
+                    "db_paths_deleted": int(db_result.split()[-1]) if db_result else 0,
                 }
+        except Exception as e:
+            # Mark operation as failed
+            try:
+                await conn.execute(
+                    """UPDATE user_registry
+                       SET status = 'failed', error_message = $1, completed_at = NOW()
+                       WHERE id = (SELECT id FROM user_registry ORDER BY created_at DESC LIMIT 1)""",
+                    str(e)
+                )
+            except Exception:
+                pass
+            raise
         finally:
             await conn.close()
 
@@ -655,28 +725,28 @@ class UserRegistry:
         finally:
             await conn.close()
 
-    async def get_user_duckdbs(self, user_id: str) -> list[DuckDBPath]:
+    async def get_user_dbs(self, user_id: str) -> list[DBPath]:
         """
-        Get all DuckDB databases owned by a user.
+        Get all databases owned by a user.
 
         Args:
             user_id: User identifier
 
         Returns:
-            List of DuckDBPath records
+            List of DBPath records
         """
         conn = await asyncpg.connect(self._conn_string)
         try:
             rows = await conn.fetch(
                 """SELECT db_path, thread_id, user_id, channel, created_at
-                   FROM duckdb_paths
+                   FROM db_paths
                    WHERE user_id = $1
                    ORDER BY created_at DESC""",
                 user_id
             )
 
             return [
-                DuckDBPath(
+                DBPath(
                     db_path=row["db_path"],
                     thread_id=row["thread_id"],
                     user_id=row["user_id"],

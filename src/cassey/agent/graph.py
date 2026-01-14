@@ -20,26 +20,31 @@ def route_agent(state: AgentState) -> str:
     Route after agent node: tools, summarize, or end.
 
     Priority:
-    1. If tool calls needed -> tools
-    2. If summarization enabled and threshold exceeded -> summarize
-    3. Otherwise -> END
+    1. If message count is 2x threshold (urgent) -> summarize immediately
+    2. If tool calls needed AND not at urgent threshold -> tools
+    3. If summarization enabled and threshold exceeded -> summarize
+    4. Otherwise -> END
     """
     from langchain_core.messages import AIMessage, HumanMessage
 
-    # First check if we need to call tools
     messages = state["messages"]
     iterations = state.get("iterations", 0)
 
-    # Check iteration limit first
+    # Count human/AI messages for threshold checking
+    message_count = len([m for m in messages if isinstance(m, (HumanMessage, AIMessage))])
+
+    # Urgent summarization: if we're at 2x threshold, force summarize even with pending tools
+    if settings.ENABLE_SUMMARIZATION and message_count >= settings.SUMMARY_THRESHOLD * 2:
+        return "summarize"
+
+    # Check iteration limit and tool calls
     if iterations < MAX_ITERATIONS:
-        # Check last message for tool calls
         last_message = messages[-1]
         if isinstance(last_message, AIMessage) and hasattr(last_message, "tool_calls") and last_message.tool_calls:
             return "tools"
 
-    # Check if we should summarize before ending
+    # Normal summarization check
     if settings.ENABLE_SUMMARIZATION:
-        message_count = len([m for m in messages if isinstance(m, (HumanMessage, AIMessage))])
         if message_count >= settings.SUMMARY_THRESHOLD:
             return "summarize"
 

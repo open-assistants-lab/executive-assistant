@@ -18,12 +18,12 @@ from cassey.storage.user_registry import (
     MessageLog,
     ConversationLog,
     FilePath,
-    DuckDBPath,
+    DBPath,
     sanitize_thread_id,
 )
-from cassey.storage.duckdb_storage import (
-    DuckDBStorage,
-    get_duckdb_storage,
+from cassey.storage.db_storage import (
+    DBStorage,
+    get_db_storage,
 )
 
 __all__ = [
@@ -40,8 +40,8 @@ __all__ = [
     "MessageLog",
     "ConversationLog",
     "FilePath",
-    "DuckDBPath",
+    "DBPath",
     "sanitize_thread_id",
-    "DuckDBStorage",
-    "get_duckdb_storage",
+    "DBStorage",
+    "get_db_storage",
 ]

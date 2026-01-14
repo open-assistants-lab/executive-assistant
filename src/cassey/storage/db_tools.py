@@ -1,4 +1,4 @@
-"""DuckDB tools for tabular data operations."""
+"""Database tools for tabular data operations."""
 
 from contextvars import ContextVar
 from pathlib import Path
@@ -7,12 +7,13 @@ from typing import Any, Literal
 from langchain_core.tools import tool
 
 from cassey.config import settings
-from cassey.storage.duckdb_storage import DuckDBStorage, sanitize_thread_id
+from cassey.storage.db_storage import DBStorage
 from cassey.storage.file_sandbox import get_thread_id
+from cassey.storage.user_registry import sanitize_thread_id
 
 
-# Global DuckDB storage instance
-_duckdb_storage = DuckDBStorage()
+# Global database storage instance
+_db_storage = DBStorage()
 
 
 # Context variable for thread_id - shared with file_sandbox
@@ -25,7 +26,7 @@ def _get_current_thread_id() -> str:
     if thread_id is None:
         raise ValueError(
             "No thread_id in context. "
-            "DuckDB tools must be called from within a channel message handler."
+            "Database tools must be called from within a channel message handler."
         )
     return thread_id
 
@@ -37,7 +38,7 @@ def create_table(
     columns: str = "",
 ) -> str:
     """
-    Create a DuckDB table from tabular data.
+    Create a database table from tabular data.
 
     The data should be provided as a JSON array of objects or JSON array of arrays.
 
@@ -76,7 +77,7 @@ def create_table(
 
     try:
         thread_id = _get_current_thread_id()
-        _duckdb_storage.create_table_from_data(table_name, parsed_data, column_list, thread_id)
+        _db_storage.create_table_from_data(table_name, parsed_data, column_list, thread_id)
         return f"Table '{table_name}' created with {len(parsed_data)} rows"
     except Exception as e:
         return f"Error creating table: {str(e)}"
@@ -88,7 +89,7 @@ def insert_table(
     data: str,
 ) -> str:
     """
-    Insert data into an existing DuckDB table.
+    Insert data into an existing database table.
 
     The data should be provided as a JSON array of objects with keys matching table columns.
 
@@ -115,10 +116,10 @@ def insert_table(
 
     try:
         thread_id = _get_current_thread_id()
-        if not _duckdb_storage.table_exists(table_name, thread_id):
+        if not _db_storage.table_exists(table_name, thread_id):
             return f"Error: Table '{table_name}' does not exist"
 
-        _duckdb_storage.append_to_table(table_name, parsed_data, thread_id)
+        _db_storage.append_to_table(table_name, parsed_data, thread_id)
         return f"Inserted {len(parsed_data)} row(s) into '{table_name}'"
     except Exception as e:
         return f"Error inserting data: {str(e)}"
@@ -129,7 +130,7 @@ def query_table(
     sql: str,
 ) -> str:
     """
-    Execute a SQL query on the thread's DuckDB database.
+    Execute a SQL query on the thread's database.
 
     Args:
         sql: SQL query to execute (can be SELECT, SHOW TABLES, etc.).
@@ -146,7 +147,7 @@ def query_table(
     """
     try:
         thread_id = _get_current_thread_id()
-        results = _duckdb_storage.execute(sql, thread_id)
+        results = _db_storage.execute(sql, thread_id)
 
         if not results:
             return "Query returned no results"
@@ -170,7 +171,7 @@ def query_table(
 @tool
 def list_tables() -> str:
     """
-    List all tables in the thread's DuckDB database.
+    List all tables in the thread's database.
 
     Returns:
         List of table names.
@@ -181,7 +182,7 @@ def list_tables() -> str:
     """
     try:
         thread_id = _get_current_thread_id()
-        tables = _duckdb_storage.list_tables(thread_id)
+        tables = _db_storage.list_tables(thread_id)
 
         if not tables:
             return "No tables found in current thread's database"
@@ -210,10 +211,10 @@ def describe_table(table_name: str) -> str:
     try:
         thread_id = _get_current_thread_id()
 
-        if not _duckdb_storage.table_exists(table_name, thread_id):
+        if not _db_storage.table_exists(table_name, thread_id):
             return f"Error: Table '{table_name}' does not exist"
 
-        columns = _duckdb_storage.get_table_info(table_name, thread_id)
+        columns = _db_storage.get_table_info(table_name, thread_id)
 
         lines = [f"Table '{table_name}' schema:"]
         for col in columns:
@@ -230,7 +231,7 @@ def describe_table(table_name: str) -> str:
 @tool
 def drop_table(table_name: str) -> str:
     """
-    Drop a table from the thread's DuckDB database.
+    Drop a table from the thread's database.
 
     Args:
         table_name: Name of the table to drop.
@@ -245,10 +246,10 @@ def drop_table(table_name: str) -> str:
     try:
         thread_id = _get_current_thread_id()
 
-        if not _duckdb_storage.table_exists(table_name, thread_id):
+        if not _db_storage.table_exists(table_name, thread_id):
             return f"Error: Table '{table_name}' does not exist"
 
-        _duckdb_storage.drop_table(table_name, thread_id)
+        _db_storage.drop_table(table_name, thread_id)
         return f"Table '{table_name}' dropped"
 
     except Exception as e:
@@ -279,7 +280,7 @@ def export_table(
     try:
         thread_id = _get_current_thread_id()
 
-        if not _duckdb_storage.table_exists(table_name, thread_id):
+        if not _db_storage.table_exists(table_name, thread_id):
             return f"Error: Table '{table_name}' does not exist"
 
         # Get file path for current thread
@@ -294,11 +295,11 @@ def export_table(
         output_path = files_dir / filename
 
         # Get row count
-        count_result = _duckdb_storage.execute(f"SELECT COUNT(*) FROM {table_name}", thread_id)
+        count_result = _db_storage.execute(f"SELECT COUNT(*) FROM {table_name}", thread_id)
         row_count = count_result[0][0] if count_result else 0
 
         # Export
-        _duckdb_storage.export_table(table_name, output_path, format, thread_id)
+        _db_storage.export_table(table_name, output_path, format, thread_id)
 
         return f"Exported '{table_name}' to {filename} ({row_count} rows)"
 
@@ -312,7 +313,7 @@ def import_table(
     filename: str,
 ) -> str:
     """
-    Import a CSV file into a new DuckDB table.
+    Import a CSV file into a new database table.
 
     The file must exist in the thread's file directory.
 
@@ -338,8 +339,8 @@ def import_table(
         if not input_path.exists():
             return f"Error: File '{filename}' not found in thread's files directory"
 
-        # Use DuckDB to import
-        conn = _duckdb_storage.get_connection(thread_id)
+        # Use database to import
+        conn = _db_storage.get_connection(thread_id)
         try:
             # Drop table if exists
             conn.execute(f"DROP TABLE IF EXISTS {table_name}")
@@ -360,8 +361,8 @@ def import_table(
 
 
 # Export list of tools for use in agent
-async def get_duckdb_tools() -> list:
-    """Get all DuckDB tools for use in the agent."""
+async def get_db_tools() -> list:
+    """Get all database tools for use in the agent."""
     return [
         create_table,
         insert_table,
