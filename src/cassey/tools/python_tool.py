@@ -154,20 +154,23 @@ def execute_python(code: str) -> str:
     safe_globals = _setup_safe_globals()
 
     try:
-        # Set timeout (macOS/Linux only)
+        # Set timeout using multiprocessing or threading (signals don't work in threads)
+        # For threaded environments, skip signal-based timeout
+        timeout_enabled = False
         try:
             old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
             signal.alarm(30)
-        except (AttributeError, OSError):
-            # SIGALRM not available (Windows) or restricted
-            old_handler = None
+            timeout_enabled = True
+        except (AttributeError, OSError, ValueError):
+            # SIGALRM not available: Windows, threads, or restricted environments
+            pass
 
         # Execute code
         try:
             exec(code, safe_globals)
         finally:
             # Clear timeout
-            if old_handler is not None:
+            if timeout_enabled:
                 signal.alarm(0)
                 signal.signal(signal.SIGALRM, old_handler)
 
