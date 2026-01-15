@@ -58,6 +58,9 @@ class TelegramChannel(BaseChannel):
             MessageHandler(filters.Document.ALL | filters.PHOTO, self._file_handler)
         )
 
+        # Clean up any corrupted checkpoints at startup
+        await self._cleanup_corrupted_checkpoints()
+
         # Start polling
         await self.application.initialize()
         await self.application.start()
@@ -69,6 +72,78 @@ class TelegramChannel(BaseChannel):
             await self.application.updater.stop()
             await self.application.stop()
             await self.application.shutdown()
+
+    async def _cleanup_corrupted_checkpoints(self) -> None:
+        """Clean up corrupted checkpoints at startup.
+
+        Checks for checkpoints with orphaned tool_calls (AIMessage with tool_calls
+        not followed by ToolMessage responses) and removes them.
+        """
+        try:
+            from cassey.agent.checkpoint_utils import detect_corrupted_messages
+
+            # Get the checkpointer from the agent
+            if not self.agent or not hasattr(self.agent, 'graph'):
+                return
+
+            graph = self.agent.graph
+            if not hasattr(graph, 'checkpointer') or not graph.checkpointer:
+                return
+
+            # Get all thread_ids from checkpoint_blobs
+            import asyncpg
+            from cassey.config import settings
+
+            conn_str = (
+                f"postgresql://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}@"
+                f"{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
+            )
+
+            conn = await asyncpg.connect(conn_str)
+            try:
+                # Get all unique thread_ids
+                rows = await conn.fetch(
+                    "SELECT DISTINCT thread_id FROM checkpoint_blobs WHERE thread_id LIKE 'telegram:%'"
+                )
+
+                corrupted_threads = []
+                for row in rows:
+                    thread_id = row["thread_id"]
+                    try:
+                        config = {"configurable": {"thread_id": thread_id}}
+                        checkpoint_config = await graph.checkpointer.aget_tuple(config)
+
+                        if checkpoint_config and checkpoint_config.checkpoint:
+                            state = checkpoint_config.checkpoint.get("channel_values", {})
+                            messages = state.get("messages", [])
+
+                            issues = detect_corrupted_messages(messages)
+                            if issues:
+                                corrupted_threads.append(thread_id)
+                    except Exception:
+                        # If we can't even read the checkpoint, it's corrupted
+                        corrupted_threads.append(thread_id)
+
+                # Delete corrupted checkpoints
+                if corrupted_threads:
+                    for thread_id in corrupted_threads:
+                        await conn.execute(
+                            "DELETE FROM checkpoint_blobs WHERE thread_id = $1",
+                            thread_id
+                        )
+                        await conn.execute(
+                            "DELETE FROM checkpoints WHERE thread_id = $1",
+                            thread_id
+                        )
+                    print(f"Cleaned up {len(corrupted_threads)} corrupted checkpoints at startup")
+
+            finally:
+                await conn.close()
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            # Don't fail startup if cleanup fails
 
     @staticmethod
     def _convert_markdown_to_telegram(text: str) -> str:
@@ -217,6 +292,22 @@ class TelegramChannel(BaseChannel):
                 action="typing"
             )
 
+            # Check for checkpoint corruption BEFORE loading
+            # Note: We also clear checkpoints on any error during processing
+            thread_id = self.get_thread_id(message)
+            corruption_check = await self._check_checkpoint_corruption(thread_id)
+
+            if corruption_check:
+                # Auto-reset the corrupted checkpoint
+                await self._clear_checkpoint(thread_id)
+                await self.send_message(
+                    message.conversation_id,
+                    "🔄 *Conversation auto-reset due to state issue*\n\n"
+                    "The corrupted conversation history has been cleared. Please send your message again.\n\n"
+                    "Your data is preserved: • Files  • KB  • DB tables"
+                )
+                return
+
             # Stream agent response
             messages = await self.stream_agent_response(message)
 
@@ -229,10 +320,25 @@ class TelegramChannel(BaseChannel):
         except Exception as e:
             import traceback
             traceback.print_exc()
-            await self.send_message(
-                message.conversation_id,
-                f"Sorry, an error occurred: {e}",
-            )
+
+            # Clear checkpoint on ANY error to prevent corruption cascade
+            thread_id = self.get_thread_id(message)
+            await self._clear_checkpoint(thread_id)
+
+            # Check if error is related to corrupted state
+            error_str = str(e)
+            if "tool_call" in error_str or "toolcallid" in error_str or "tool_calls" in error_str:
+                await self.send_message(
+                    message.conversation_id,
+                    "🔄 *Conversation auto-reset due to state error*\n\n"
+                    "The corrupted conversation history has been cleared. Please send your message again.\n\n"
+                    "Your data is preserved: • Files  • KB  • DB tables"
+                )
+            else:
+                await self.send_message(
+                    message.conversation_id,
+                    f"Sorry, an error occurred: {e}",
+                )
         finally:
             # Stop typing indicator
             if typing_task:
@@ -316,9 +422,114 @@ class TelegramChannel(BaseChannel):
         context: ContextTypes.DEFAULT_TYPE,
     ) -> None:
         """Handle /reset command to clear conversation."""
-        # Note: This is a soft reset - actual state clearing would need
-        # access to the checkpointer to delete the thread
-        await update.message.reply_text("🔄 Conversation reset! Start fresh.")
+        try:
+            # Actually clear the checkpoint from database
+            thread_id = f"telegram:{update.effective_chat.id}"
+
+            # Get checkpointer from agent if available
+            if hasattr(self, 'agent') and hasattr(self.agent, 'graph'):
+                graph = self.agent.graph
+                if hasattr(graph, 'checkpointer') and graph.checkpointer:
+                    # Try to delete the checkpoint
+                    config = {"configurable": {"thread_id": thread_id}}
+                    try:
+                        # LangGraph checkpointer doesn't have a direct delete method
+                        # So we access the underlying connection if it's PostgresSaver
+                        checkpointer = graph.checkpointer
+                        if hasattr(checkpointer, 'conn'):
+                            # Direct database access
+                            await checkpointer.conn.execute(
+                                "DELETE FROM checkpoints WHERE thread_id = $1",
+                                thread_id
+                            )
+                    except Exception:
+                        pass  # Fall through to success message
+
+            await update.message.reply_text(
+                "🔄 Conversation history cleared!\n\n"
+                "You can start fresh. Note that KB and file data are preserved."
+            )
+        except Exception as e:
+            await update.message.reply_text(f"🔄 Reset attempted. If issues persist, try: {e}")
+
+    async def _check_checkpoint_corruption(self, thread_id: str) -> str | None:
+        """
+        Check if the checkpoint for this thread is corrupted.
+
+        Returns:
+            Error message if corrupted, None if OK
+        """
+        try:
+            from cassey.agent.checkpoint_utils import detect_corrupted_messages
+
+            # Get the current state from checkpoint
+            if not hasattr(self, 'agent') or not hasattr(self.agent, 'graph'):
+                return None
+
+            graph = self.agent.graph
+            if not hasattr(graph, 'checkpointer') or not graph.checkpointer:
+                return None
+
+            config = {"configurable": {"thread_id": thread_id}}
+
+            # Try to get the checkpoint state
+            try:
+                checkpoint_config = await graph.checkpointer.aget_tuple(config)
+                if checkpoint_config and checkpoint_config.checkpoint:
+                    state = checkpoint_config.checkpoint.get("channel_values", {})
+                    messages = state.get("messages", [])
+
+                    # Check for corruption
+                    issues = detect_corrupted_messages(messages)
+                    if issues:
+                        return "Corrupted conversation state detected:\n• " + "\n• ".join(issues[:3])
+
+            except Exception:
+                # If we can't read the checkpoint, it might be corrupted
+                pass
+
+            return None
+
+        except Exception:
+            return None
+
+    async def _clear_checkpoint(self, thread_id: str) -> bool:
+        """
+        Clear the checkpoint for a given thread_id.
+
+        Args:
+            thread_id: Thread ID to clear
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Direct database deletion - most reliable method
+            import os
+            from cassey.config.settings import settings
+
+            conn_str = (
+                f"postgresql://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}@"
+                f"{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
+            )
+
+            # Use subprocess to call psql directly
+            import subprocess
+            result = subprocess.run(
+                [
+                    "psql", conn_str, "-c",
+                    f"DELETE FROM checkpoints WHERE thread_id = '{thread_id}'"
+                ],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+
+            return result.returncode == 0
+
+        except Exception as e:
+            print(f"Failed to clear checkpoint: {e}")
+            return False
 
     async def _message_handler(
         self,

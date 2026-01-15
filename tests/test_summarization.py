@@ -64,6 +64,10 @@ class TestSummarizationThreshold:
         state: AgentState = {
             "messages": messages,
             "iterations": 0,
+            "summary": "",
+            "structured_summary": None,
+            "user_id": "test_user",
+            "channel": "test",
         }
 
         result = route_agent(state)
@@ -76,6 +80,10 @@ class TestSummarizationThreshold:
         state: AgentState = {
             "messages": messages,
             "iterations": 0,
+            "summary": "",
+            "structured_summary": None,
+            "user_id": "test_user",
+            "channel": "test",
         }
 
         result = route_agent(state)
@@ -89,22 +97,35 @@ class TestSummarizationThreshold:
         state: AgentState = {
             "messages": messages,
             "iterations": 0,
+            "summary": "",
+            "structured_summary": None,
+            "user_id": "test_user",
+            "channel": "test",
         }
 
         result = route_agent(state)
         assert result == "tools", "Tool calls should take priority at threshold"
 
     def test_urgent_threshold_forces_summarize_even_with_tools(self, mock_settings):
-        """Test that 2x threshold forces summarize even with pending tools."""
+        """Test that 2x threshold with pending tools routes to tools (safety first).
+
+        Note: After the checkpoint corruption fix, we prioritize completing
+        pending tool calls over urgent summarization to prevent state corruption.
+        """
         # Create state with 10 messages (2x threshold of 5) - with tool calls
         messages = self.create_message_sequence(human_count=5, ai_count=5, with_tools=True)
         state: AgentState = {
             "messages": messages,
             "iterations": 0,
+            "summary": "",
+            "structured_summary": None,
+            "user_id": "test_user",
+            "channel": "test",
         }
 
         result = route_agent(state)
-        assert result == "summarize", "Urgent threshold should force summarize even with tools"
+        # With pending tool calls, we route to tools first (safety over urgency)
+        assert result == "tools", "Pending tool calls take priority over urgent summarization"
 
     def test_urgent_threshold_with_mixed_messages(self, mock_settings):
         """Test urgent threshold with mixed human/ai/tool messages."""
@@ -122,6 +143,10 @@ class TestSummarizationThreshold:
         state: AgentState = {
             "messages": messages,
             "iterations": 0,
+            "summary": "",
+            "structured_summary": None,
+            "user_id": "test_user",
+            "channel": "test",
         }
 
         result = route_agent(state)
@@ -136,6 +161,10 @@ class TestSummarizationThreshold:
         state: AgentState = {
             "messages": messages,
             "iterations": 0,
+            "summary": "",
+            "structured_summary": None,
+            "user_id": "test_user",
+            "channel": "test",
         }
 
         result = route_agent(state)
@@ -150,6 +179,10 @@ class TestSummarizationThreshold:
         state: AgentState = {
             "messages": messages,
             "iterations": mock_settings.MAX_ITERATIONS,  # At max iterations
+            "summary": "",
+            "structured_summary": None,
+            "user_id": "test_user",
+            "channel": "test",
         }
 
         result = route_agent(state)
@@ -177,16 +210,22 @@ class TestSummarizationThreshold:
         state: AgentState = {
             "messages": messages,
             "iterations": 0,
+            "summary": "",
+            "structured_summary": None,
+            "user_id": "test_user",
+            "channel": "test",
         }
 
         result = route_agent(state)
         assert result == "summarize", "Only human/AI messages should count toward threshold"
 
     def test_exactly_urgent_threshold(self, mock_settings):
-        """Test behavior exactly at 2x threshold."""
-        # 10 human + 10 AI = 20 messages (exactly 2x threshold of 5, counting human+ai = 10)
-        # Wait, let me recalculate - threshold counts only Human + AI
-        # At threshold 5, urgent is 10
+        """Test behavior exactly at 2x threshold with pending tools.
+
+        Note: After the checkpoint corruption fix, pending tool calls take priority.
+        """
+        # 5 human + 5 ai = 10 messages (exactly 2x threshold of 5)
+        # All AI messages have tool calls
         messages = []
         for i in range(5):  # 5 human + 5 ai = 10 messages
             messages.append(HumanMessage(content=f"Query {i+1}"))
@@ -195,7 +234,12 @@ class TestSummarizationThreshold:
         state: AgentState = {
             "messages": messages,
             "iterations": 0,
+            "summary": "",
+            "structured_summary": None,
+            "user_id": "test_user",
+            "channel": "test",
         }
 
         result = route_agent(state)
-        assert result == "summarize", "Exactly at urgent threshold should summarize"
+        # With pending tool calls at the last message, route to tools first
+        assert result == "tools", "Exactly at urgent threshold with tools routes to tools (safety first)"

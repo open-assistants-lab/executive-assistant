@@ -32,8 +32,14 @@ def route_agent(state: AgentState) -> str:
     # Count human/AI messages for threshold checking
     message_count = len([m for m in messages if isinstance(m, (HumanMessage, AIMessage))])
 
-    # Urgent summarization: if we're at 2x threshold, force summarize even with pending tools
-    if settings.ENABLE_SUMMARIZATION and message_count >= settings.SUMMARY_THRESHOLD * 2:
+    # Urgent summarization: if we're at 2x threshold, force summarize
+    # But NOT if there are pending tool calls (must respond to tool_calls first)
+    has_pending_tool_calls = (
+        isinstance(messages[-1], AIMessage) and
+        hasattr(messages[-1], "tool_calls") and
+        messages[-1].tool_calls
+    )
+    if settings.ENABLE_SUMMARIZATION and message_count >= settings.SUMMARY_THRESHOLD * 2 and not has_pending_tool_calls:
         return "summarize"
 
     # Check iteration limit and tool calls

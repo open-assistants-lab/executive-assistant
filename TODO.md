@@ -91,6 +91,11 @@ With APScheduler integrated, we could add:
 
 - **Email Channel** - Extend notification system for email delivery
 - **MCP Tool Integration** - Add more MCP server integrations
+- **BYO MCP (Thread-First)** - Self-serve MCP servers per thread, share after merge
+  - Postgres `mcp_servers` table with `thread_id`, `user_id`, `config_version`
+  - Self-serve CRUD (UI/API + optional LLM tool) with manifest validation and SSRF guardrails
+  - Tool registry rebuild per `(owner_key, max(config_version))`
+  - Merge behavior: set `user_id` for thread-owned servers and dedupe by `(server_url, name)`
 - **Conversation Export** - Export conversations to markdown/PDF
 - **Analytics Dashboard** - Web UI for viewing statistics
 - **Multi-Language Support** - Detect and respond in user's language

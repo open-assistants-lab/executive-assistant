@@ -36,14 +36,22 @@ Multi-channel AI agent platform with LangGraph ReAct agent.
 - `glob_files` - Find files by pattern (`*.py`, `**/*.json`)
 - `grep_files` - Search file contents with regex
 
-**Database Operations:**
-- `create_table` - Create table with column definitions
-- `query_table` - Execute SQL queries
-- `insert_table` - Insert rows
-- `update_table` / `delete_table` - Modify data
-- `list_tables` - Show all tables
-- `describe_table` - Show table schema
-- `export_table` / `import_table` - Data export/import
+**Workspace Database (per-thread, temporary):**
+- `db_create_table` - Create table from JSON data
+- `db_query` - Execute SQL queries
+- `db_insert_table` - Insert rows into existing table
+- `db_list_tables` - Show all tables in workspace
+- `db_describe_table` - Show table schema
+- `db_drop_table` - Delete a table
+- `db_export_table` / `db_import_table` - Data export/import
+
+**Knowledge Base (per-thread, full-text search):**
+- `kb_store` - Store documents with FTS indexing (BM25 search)
+- `kb_search` - Search documents using full-text search
+- `kb_add_documents` - Add more documents to existing KB table
+- `kb_list` - List all KB tables with document counts
+- `kb_describe` - Show KB table schema and samples
+- `kb_delete` - Delete a KB table
 
 **Time & Reminders:**
 - `get_current_time` - Current time in any timezone
@@ -186,9 +194,9 @@ grep_files("API_KEY", output_mode="content") # Show matching lines
 grep_files("error", output_mode="count")     # Count matches
 ```
 
-## Database Operations
+## Workspace Database (DB)
 
-Each thread gets its own database:
+Each thread gets its own workspace database for temporary working data:
 
 ```
 data/db/
@@ -197,23 +205,53 @@ data/db/
 ```
 
 Available tools:
-- `create_table(name, columns)` - Create table with column definitions
-- `create_table_from_data(name, data)` - Create from Python data
-- `query_table(sql)` - Execute SQL query
-- `insert_table(name, data)` - Insert rows
-- `update_table(name, data, condition)` - Update rows
-- `delete_table(name, condition)` - Delete rows
-- `list_tables()` - Show all tables
-- `describe_table(name)` - Show table schema
+- `db_create_table(table_name, data, columns)` - Create table from JSON
+- `db_query(sql)` - Execute SQL query
+- `db_insert_table(table_name, data)` - Insert rows
+- `db_list_tables()` - Show all tables
+- `db_describe_table(table_name)` - Show table schema
+- `db_drop_table(table_name)` - Delete a table
+- `db_export_table(table_name, filename, format)` - Export to CSV/JSON/Parquet
+- `db_import_table(table_name, filename)` - Import from CSV
 
-## Knowledge Base Storage
+## Knowledge Base (KB)
 
-KB files follow the same per-thread layout as databases, but live under a separate root:
+The KB is per-thread (like workspace DB) and persists across sessions. Each conversation has its own KB stored under `data/kb/{thread_id}.db`. It uses DuckDB's Full-Text Search (FTS) for fast document retrieval with BM25 ranking.
 
 ```
 data/kb/
-  telegram_123456789.db
-  http_abc123.db
+  telegram_123456789.db  (KB for this conversation)
+  http_abc123.db         (KB for this conversation)
+```
+
+KB vs Workspace DB:
+- **Workspace DB** (`db_*` tools): Temporary working data during analysis
+- **Knowledge Base** (`kb_*` tools): Longer-term reference data for retrieval
+
+Available tools:
+- `kb_store(table_name, documents)` - Store documents with FTS indexing
+- `kb_search(query, table_name, limit)` - Full-text search with relevance scores
+- `kb_add_documents(table_name, documents)` - Add more documents to existing table
+- `kb_list()` - List all KB tables with document counts
+- `kb_describe(table_name)` - Show table schema and sample documents
+- `kb_delete(table_name)` - Delete a KB table
+
+**Example usage:**
+```python
+# Store documents
+kb_store("notes", '[{"content": "Meeting: Q1 revenue was $1.2M", "metadata": "finance"}]')
+
+# Search
+kb_search("revenue Q1", "notes")
+# Returns: [1.5] Meeting: Q1 revenue was $1.2M [metadata: finance]
+
+# Add more documents
+kb_add_documents("notes", '[{"content": "Q2 revenue projection: $1.5M"}]')
+
+# List all tables
+kb_list()
+# Returns: Knowledge Base tables:
+# - notes: 2 documents
 ```
 
 ## Python Code Execution

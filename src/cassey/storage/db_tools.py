@@ -1,4 +1,4 @@
-"""Database tools for tabular data operations."""
+"""Database tools for tabular data operations (workspace/thread-scoped)."""
 
 from contextvars import ContextVar
 from pathlib import Path
@@ -37,13 +37,16 @@ def _get_current_thread_id() -> str:
 
 
 @tool
-def create_table(
+def db_create_table(
     table_name: str,
     data: str,
     columns: str = "",
 ) -> str:
     """
-    Create a database table from tabular data.
+    Create a table in the thread's workspace database.
+
+    The workspace database is for temporary working data specific to this conversation.
+    For persistent knowledge base storage, use kb_create_table instead.
 
     The data should be provided as a JSON array of objects or JSON array of arrays.
 
@@ -58,10 +61,10 @@ def create_table(
         Success message with row count.
 
     Examples:
-        >>> create_table("users", '[{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]')
+        >>> db_create_table("users", '[{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]')
         "Table 'users' created with 2 rows"
 
-        >>> create_table("products", '[["Apple", 1.99], ["Banana", 0.99]]', columns="name,price")
+        >>> db_create_table("products", '[["Apple", 1.99], ["Banana", 0.99]]', columns="name,price")
         "Table 'products' created with 2 rows"
     """
     import json
@@ -89,12 +92,12 @@ def create_table(
 
 
 @tool
-def insert_table(
+def db_insert_table(
     table_name: str,
     data: str,
 ) -> str:
     """
-    Insert data into an existing database table.
+    Insert data into an existing table in the workspace database.
 
     The data should be provided as a JSON array of objects with keys matching table columns.
 
@@ -106,7 +109,7 @@ def insert_table(
         Success message with row count.
 
     Examples:
-        >>> insert_table("users", '[{"name": "Charlie", "age": 35}]')
+        >>> db_insert_table("users", '[{"name": "Charlie", "age": 35}]')
         "Inserted 1 row into 'users'"
     """
     import json
@@ -131,11 +134,11 @@ def insert_table(
 
 
 @tool
-def query_table(
+def db_query(
     sql: str,
 ) -> str:
     """
-    Execute a SQL query on the thread's database.
+    Execute a SQL query on the thread's workspace database.
 
     Args:
         sql: SQL query to execute (can be SELECT, SHOW TABLES, etc.).
@@ -144,10 +147,10 @@ def query_table(
         Query results formatted as text table.
 
     Examples:
-        >>> query_table("SELECT * FROM users LIMIT 10")
+        >>> db_query("SELECT * FROM users LIMIT 10")
         "name  | age\\nAlice | 30\\nBob   | 25"
 
-        >>> query_table("SHOW TABLES")
+        >>> db_query("SHOW TABLES")
         "users\\nproducts"
     """
     try:
@@ -174,34 +177,34 @@ def query_table(
 
 
 @tool
-def list_tables() -> str:
+def db_list_tables() -> str:
     """
-    List all tables in the thread's database.
+    List all tables in the thread's workspace database.
 
     Returns:
         List of table names.
 
     Examples:
-        >>> list_tables()
-        "Tables in current thread:\\n- users\\n- products"
+        >>> db_list_tables()
+        "Tables in workspace:\\n- users\\n- products"
     """
     try:
         thread_id = _get_current_thread_id()
         tables = _db_storage.list_tables(thread_id)
 
         if not tables:
-            return "No tables found in current thread's database"
+            return "No tables found in workspace database"
 
-        return "Tables in current thread:\n" + "\n".join(f"- {table}" for table in tables)
+        return "Tables in workspace:\n" + "\n".join(f"- {table}" for table in tables)
 
     except Exception as e:
         return f"Error listing tables: {str(e)}"
 
 
 @tool
-def describe_table(table_name: str) -> str:
+def db_describe_table(table_name: str) -> str:
     """
-    Get schema information for a table.
+    Get schema information for a workspace table.
 
     Args:
         table_name: Name of the table to describe.
@@ -210,7 +213,7 @@ def describe_table(table_name: str) -> str:
         Table schema with column names and types.
 
     Examples:
-        >>> describe_table("users")
+        >>> db_describe_table("users")
         "Table 'users' schema:\\n- name: VARCHAR\\n- age: INTEGER"
     """
     try:
@@ -234,9 +237,9 @@ def describe_table(table_name: str) -> str:
 
 
 @tool
-def drop_table(table_name: str) -> str:
+def db_drop_table(table_name: str) -> str:
     """
-    Drop a table from the thread's database.
+    Drop a table from the workspace database.
 
     Args:
         table_name: Name of the table to drop.
@@ -245,7 +248,7 @@ def drop_table(table_name: str) -> str:
         Success message or error.
 
     Examples:
-        >>> drop_table("old_table")
+        >>> db_drop_table("old_table")
         "Table 'old_table' dropped"
     """
     try:
@@ -262,13 +265,13 @@ def drop_table(table_name: str) -> str:
 
 
 @tool
-def export_table(
+def db_export_table(
     table_name: str,
     filename: str,
     format: Literal["csv", "parquet", "json"] = "csv",
 ) -> str:
     """
-    Export a table to a file in the thread's file directory.
+    Export a workspace table to a file in the thread's file directory.
 
     Args:
         table_name: Name of the table to export.
@@ -279,7 +282,7 @@ def export_table(
         Success message with file path.
 
     Examples:
-        >>> export_table("users", "my_data", "csv")
+        >>> db_export_table("users", "my_data", "csv")
         "Exported 'users' to files/.../my_data.csv (2 rows)"
     """
     try:
@@ -313,12 +316,12 @@ def export_table(
 
 
 @tool
-def import_table(
+def db_import_table(
     table_name: str,
     filename: str,
 ) -> str:
     """
-    Import a CSV file into a new database table.
+    Import a CSV file into a new workspace database table.
 
     The file must exist in the thread's file directory.
 
@@ -330,7 +333,7 @@ def import_table(
         Success message with row count.
 
     Examples:
-        >>> import_table("sales", "sales_data.csv")
+        >>> db_import_table("sales", "sales_data.csv")
         "Imported 'sales_data.csv' into table 'sales' (150 rows)"
     """
     try:
@@ -367,14 +370,14 @@ def import_table(
 
 # Export list of tools for use in agent
 async def get_db_tools() -> list:
-    """Get all database tools for use in the agent."""
+    """Get all workspace database tools for use in the agent."""
     return [
-        create_table,
-        insert_table,
-        query_table,
-        list_tables,
-        describe_table,
-        drop_table,
-        export_table,
-        import_table,
+        db_create_table,
+        db_insert_table,
+        db_query,
+        db_list_tables,
+        db_describe_table,
+        db_drop_table,
+        db_export_table,
+        db_import_table,
     ]

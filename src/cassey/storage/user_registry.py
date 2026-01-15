@@ -351,6 +351,81 @@ class UserRegistry:
         finally:
             await conn.close()
 
+    async def update_structured_summary(
+        self,
+        conversation_id: str,
+        structured_summary: dict[str, Any],
+    ) -> None:
+        """
+        Update the structured summary (JSONB) for a conversation.
+
+        Args:
+            conversation_id: Thread/conversation identifier
+            structured_summary: The structured summary dict
+        """
+        conn = await asyncpg.connect(self._conn_string)
+        try:
+            await conn.execute(
+                """UPDATE conversations
+                   SET structured_summary = $2::jsonb
+                   WHERE conversation_id = $1""",
+                conversation_id, json.dumps(structured_summary)
+            )
+        finally:
+            await conn.close()
+
+    async def update_active_request(
+        self,
+        conversation_id: str,
+        active_request: str,
+    ) -> None:
+        """
+        Update the active request (intent-first) for a conversation.
+
+        Args:
+            conversation_id: Thread/conversation identifier
+            active_request: The current user request text
+        """
+        conn = await asyncpg.connect(self._conn_string)
+        try:
+            await conn.execute(
+                """UPDATE conversations
+                   SET active_request = $2
+                   WHERE conversation_id = $1""",
+                conversation_id, active_request
+            )
+        finally:
+            await conn.close()
+
+    async def get_structured_summary(
+        self,
+        conversation_id: str,
+    ) -> dict[str, Any] | None:
+        """
+        Get the structured summary for a conversation.
+
+        Args:
+            conversation_id: Thread/conversation identifier
+
+        Returns:
+            Structured summary dict or None
+        """
+        conn = await asyncpg.connect(self._conn_string)
+        try:
+            row = await conn.fetchrow(
+                """SELECT structured_summary
+                   FROM conversations
+                   WHERE conversation_id = $1""",
+                conversation_id,
+            )
+
+            if not row or not row.get("structured_summary"):
+                return None
+
+            return row["structured_summary"]
+        finally:
+            await conn.close()
+
     # ==================== File Path Tracking ====================
 
     async def register_file_path(

@@ -5,6 +5,12 @@ from langchain_core.tools import BaseTool
 from cassey.storage.file_sandbox import list_files, read_file, write_file
 
 
+async def get_confirmation_tools() -> list[BaseTool]:
+    """Get user confirmation tools for large operations."""
+    from cassey.tools.confirmation_tool import request_confirmation
+    return [request_confirmation]
+
+
 async def get_file_tools() -> list[BaseTool]:
     """Get file operation tools."""
     from cassey.storage.file_sandbox import (
@@ -32,26 +38,26 @@ async def get_file_tools() -> list[BaseTool]:
 
 
 async def get_db_tools() -> list[BaseTool]:
-    """Get database tabular data tools."""
+    """Get workspace database tabular data tools (thread-scoped)."""
     from cassey.storage.db_tools import (
-        create_table,
-        insert_table,
-        query_table,
-        list_tables,
-        describe_table,
-        drop_table,
-        export_table,
-        import_table,
+        db_create_table,
+        db_insert_table,
+        db_query,
+        db_list_tables,
+        db_describe_table,
+        db_drop_table,
+        db_export_table,
+        db_import_table,
     )
     return [
-        create_table,
-        insert_table,
-        query_table,
-        list_tables,
-        describe_table,
-        drop_table,
-        export_table,
-        import_table,
+        db_create_table,
+        db_insert_table,
+        db_query,
+        db_list_tables,
+        db_describe_table,
+        db_drop_table,
+        db_export_table,
+        db_import_table,
     ]
 
 
@@ -83,6 +89,12 @@ async def get_orchestrator_tools() -> list[BaseTool]:
     """Get orchestrator tools for delegation."""
     from cassey.tools.orchestrator_tools import get_orchestrator_tools as _get
     return _get()
+
+
+async def get_kb_tools() -> list[BaseTool]:
+    """Get Knowledge Base tools with full-text search."""
+    from cassey.storage.kb_tools import get_kb_tools as _get
+    return await _get()
 
 
 async def get_mcp_tools() -> list[BaseTool]:
@@ -180,12 +192,14 @@ async def get_all_tools() -> list[BaseTool]:
 
     Aggregates tools from:
     - File operations (read, write, list, create_folder, delete_folder, rename_folder, move_file, glob_files, grep_files)
-    - Database operations (create_table, query_table, etc.)
+    - Database operations (db_create_table, db_query, etc.)
+    - Knowledge Base (kb_store, kb_search, kb_list, etc.)
     - Time tools (get_current_time, get_current_date, list_timezones)
     - Reminder tools (set_reminder, list_reminders, cancel_reminder, edit_reminder)
     - Python execution (execute_python for calculations and data processing)
     - Web search (web_search via SearXNG)
     - Orchestrator (delegate_to_orchestrator for scheduling and workflows)
+    - Confirmation (request_confirmation for large operations)
     - Standard tools (calculator, search)
 
     Note: MCP tools are available via get_mcp_tools() but not loaded by default.
@@ -202,6 +216,9 @@ async def get_all_tools() -> list[BaseTool]:
     # Add database tools
     all_tools.extend(await get_db_tools())
 
+    # Add KB tools
+    all_tools.extend(await get_kb_tools())
+
     # Add time tools
     all_tools.extend(await get_time_tools())
 
@@ -216,6 +233,9 @@ async def get_all_tools() -> list[BaseTool]:
 
     # Add orchestrator tools
     all_tools.extend(await get_orchestrator_tools())
+
+    # Add confirmation tools
+    all_tools.extend(await get_confirmation_tools())
 
     # MCP tools are NOT loaded by default - use get_mcp_tools() manually if needed
 

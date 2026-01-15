@@ -40,7 +40,8 @@ class TestIterationsCounter:
 
     def test_iterations_respects_max_iterations(self):
         """Test that max iterations limit is enforced."""
-        from cassey.config.constants import MAX_ITERATIONS
+        from cassey.config.settings import settings
+        MAX_ITERATIONS = settings.MAX_ITERATIONS
 
         # Create state at max iterations with tool calls
         messages = [
@@ -421,7 +422,8 @@ class TestIntegrationScenarios:
         2. Checkpointer state is preserved
         3. Max iterations is enforced
         """
-        from cassey.config.constants import MAX_ITERATIONS
+        from cassey.config.settings import settings
+        MAX_ITERATIONS = settings.MAX_ITERATIONS
 
         # Simulate multiple tool execution cycles
         state: AgentState = {

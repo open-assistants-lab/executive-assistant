@@ -52,24 +52,67 @@ async def call_model(
     # Bind tools to model
     model_with_tools = model.bind_tools(tools)
 
-    # Build system prompt with summary if available
+    # Build system prompt with summary
     prompt = system_prompt or get_system_prompt(state.get("channel"))
-    summary = state.get("summary", "")
-    if summary:
-        prompt += f"\n\nPrevious conversation summary:\n{summary}"
+
+    # Get structured summary and intent for KB-first routing
+    structured_summary = state.get("structured_summary")
+    intent = "hybrid"  # Default
+
+    if structured_summary:
+        # Extract intent from active topic if available
+        active_topics = [
+            t for t in structured_summary.get("topics", [])
+            if t.get("status") == "active"
+        ]
+        if active_topics:
+            intent = active_topics[0].get("intent", "hybrid")
+
+        # For factual queries, use minimal summary context (KB-first mode)
+        if intent == "factual":
+            # Only show current request, skip the rest of the summary
+            # This prevents context contamination for factual lookups
+            active_request = structured_summary.get("active_request", {})
+            if isinstance(active_request, dict) and active_request.get("text"):
+                prompt += f"\n\n[Current Request]\n{active_request['text']}"
+                prompt += "\n\nNote: For this factual query, prioritize KB results over conversation context."
+        else:
+            # For conversational/hybrid, show full summary
+            from cassey.agent.topic_classifier import StructuredSummaryBuilder
+            rendered = StructuredSummaryBuilder.render_for_prompt(structured_summary)
+            if rendered:
+                prompt += f"\n\n{rendered}"
+    else:
+        # Legacy summary format
+        summary = state.get("summary", "")
+        if summary:
+            prompt += f"\n\nPrevious conversation summary:\n{summary}"
 
     # Trim messages to fit context window (keep recent, preserve continuity)
-    try:
-        trimmed = trim_messages(
-            messages,
-            strategy="last",
-            max_tokens=settings.MAX_CONTEXT_TOKENS,
-            start_on="human",
-            end_on=("human", "tool", "ai"),
-        )
-    except Exception:
-        # Fallback to original messages if trimming fails
+    # IMPORTANT: Don't trim if there are pending tool calls to avoid checkpoint corruption
+    last_message = messages[-1] if messages else None
+    has_pending_tool_calls = (
+        isinstance(last_message, AIMessage) and
+        hasattr(last_message, "tool_calls") and
+        last_message.tool_calls
+    )
+
+    if has_pending_tool_calls:
+        # Don't trim - we have pending tool calls that need ToolMessage responses
+        # Trimming here could cut off the responses and cause checkpoint corruption
         trimmed = messages
+    else:
+        try:
+            trimmed = trim_messages(
+                messages,
+                strategy="last",
+                max_tokens=settings.MAX_CONTEXT_TOKENS,
+                start_on="human",
+                end_on=("human", "tool", "ai"),
+            )
+        except Exception:
+            # Fallback to original messages if trimming fails
+            trimmed = messages
 
     # Build message list with system prompt
     messages_to_send = [SystemMessage(content=prompt)] + list(trimmed)
@@ -177,15 +220,23 @@ async def summarize_conversation(
     model: BaseChatModel,
 ) -> dict[str, Any]:
     """
-    Summarize old messages and replace them with a condensed summary.
+    Summarize old messages using the structured summary schema.
+
+    Key improvements over legacy summarization:
+    - Topic-based: Separate summaries by topic, not just chronologically
+    - Intent-first: active_request always shows current user intent
+    - Active/inactive topics: Old topics fade when new ones dominate
+    - Source binding: Each summary item tied to message IDs
 
     Keeps recent messages (last 6 exchanges) and summarizes older ones.
     Also persists the summary to PostgreSQL for audit purposes.
     """
     from cassey.storage.db_storage import get_thread_id
+    from cassey.agent.summary_extractor import update_structured_summary
+    from cassey.agent.topic_classifier import StructuredSummaryBuilder
 
     messages = state["messages"]
-    current_summary = state.get("summary", "")
+    current_summary = state.get("structured_summary") or state.get("summary")
 
     # Filter to human/AI messages (skip tool messages for summary)
     conversation_messages = [m for m in messages if isinstance(m, (HumanMessage, AIMessage))]
@@ -194,48 +245,75 @@ async def summarize_conversation(
         # Not enough to summarize yet
         return {}
 
+    # Get thread_id for persistence
+    thread_id = get_thread_id()
+
+    # Update structured summary with new messages
+    new_structured_summary = await update_structured_summary(
+        current_summary if isinstance(current_summary, dict) else None,
+        messages,
+        model,
+        thread_id or "unknown",
+    )
+
     # Keep recent messages (last 6 exchanges = 12 messages)
     recent_count = min(12, len(conversation_messages) - 4)
     recent_messages = messages[-recent_count:]
 
-    # Get old messages to summarize
-    old_messages = messages[:-recent_count]
+    # Generate legacy summary for backward compatibility
+    # (from the active topic facts)
+    active_topics = [
+        t for t in new_structured_summary.get("topics", [])
+        if t.get("status") == "active"
+    ]
 
-    # Build summary prompt
-    summary_prompt = [
-        SystemMessage(
-            content="Summarize the following conversation concisely. "
-            "Focus on key topics, decisions, and important information. "
-            "Keep it brief and readable."
-        ),
-    ] + [m for m in old_messages if isinstance(m, (HumanMessage, AIMessage, ToolMessage))]
+    if active_topics:
+        # Build summary from active topic facts
+        topic = active_topics[0]
+        facts = [f.get("text", "") for f in topic.get("facts", [])[:5]]
+        legacy_summary = f"Topic: {topic.get('topic_id', 'general')}\n" + "\n".join(f"- {f}" for f in facts)
+    else:
+        # Fallback to old summarization method
+        old_messages = messages[:-recent_count]
+        summary_prompt = [
+            SystemMessage(
+                content="Summarize the following conversation concisely. "
+                "Focus on key topics, decisions, and important information. "
+                "Keep it brief and readable."
+            ),
+        ] + [m for m in old_messages if isinstance(m, (HumanMessage, AIMessage, ToolMessage))]
 
-    try:
-        # Use base model (without tools) for summarization
-        summary_response = await model.ainvoke(summary_prompt)
-        new_summary = summary_response.content
+        try:
+            summary_response = await model.ainvoke(summary_prompt)
+            legacy_summary = summary_response.content
+        except Exception:
+            legacy_summary = current_summary if isinstance(current_summary, str) else ""
 
-        # Combine with existing summary
-        if current_summary:
-            combined = f"{current_summary}\n\n[Newer conversation]\n{new_summary}"
-        else:
-            combined = new_summary
+    # Persist structured summary to PostgreSQL
+    if thread_id:
+        try:
+            from cassey.storage.user_registry import UserRegistry
+            import json
 
-        # Persist summary to PostgreSQL if we have a registry
-        thread_id = get_thread_id()
-        if thread_id:
-            try:
-                from cassey.storage.user_registry import UserRegistry
-                registry = UserRegistry()
-                await registry.update_summary(thread_id, combined)
-            except Exception:
-                # Fail silently - summary is still in checkpoint state
-                pass
+            registry = UserRegistry()
+            # Update the structured_summary column (JSONB)
+            await registry.update_structured_summary(thread_id, new_structured_summary)
 
-        return {
-            "messages": recent_messages,
-            "summary": combined,
-        }
-    except Exception:
-        # If summarization fails, just continue without changes
-        return {}
+            # Also update active_request column (for quick access)
+            active_request_text = new_structured_summary.get("active_request", {}).get("text", "")
+            if active_request_text:
+                await registry.update_active_request(thread_id, active_request_text)
+
+            # Update legacy summary column for backward compatibility
+            await registry.update_summary(thread_id, legacy_summary)
+
+        except Exception as e:
+            # If persistence fails, continue with in-memory summary
+            import traceback
+            traceback.print_exc()
+
+    return {
+        "messages": recent_messages,
+        "summary": legacy_summary,  # Legacy format
+        "structured_summary": new_structured_summary,  # New format
+    }
