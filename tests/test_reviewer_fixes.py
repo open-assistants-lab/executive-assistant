@@ -121,7 +121,7 @@ class TestCheckpointHandling:
         mock_checkpoint = Checkpoint(
             channel_values={
                 "messages": [HumanMessage(content="Previous message")],
-                "summary": "Previous summary",
+                "structured_summary": None,
                 "iterations": 5,
             }
         )
@@ -270,6 +270,7 @@ class TestThreadLocalFallback:
         assert results["thread_2"] == "value_2"
 
 
+@pytest.mark.skip(reason="Orchestrator/worker agents are archived.")
 class TestDelegateToOrchestratorNoDeadlock:
     """Test that delegate_to_orchestrator doesn't deadlock.
 

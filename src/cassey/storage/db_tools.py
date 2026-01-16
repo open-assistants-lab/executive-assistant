@@ -7,9 +7,8 @@ from typing import Any, Literal
 from langchain_core.tools import tool
 
 from cassey.config import settings
-from cassey.storage.db_storage import DBStorage
+from cassey.storage.db_storage import DBStorage, validate_identifier
 from cassey.storage.file_sandbox import get_thread_id
-from cassey.storage.user_registry import sanitize_thread_id
 
 
 # Global database storage instance
@@ -37,7 +36,7 @@ def _get_current_thread_id() -> str:
 
 
 @tool
-def db_create_table(
+def create_db_table(
     table_name: str,
     data: str,
     columns: str = "",
@@ -61,10 +60,10 @@ def db_create_table(
         Success message with row count.
 
     Examples:
-        >>> db_create_table("users", '[{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]')
+        >>> create_db_table("users", '[{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]')
         "Table 'users' created with 2 rows"
 
-        >>> db_create_table("products", '[["Apple", 1.99], ["Banana", 0.99]]', columns="name,price")
+        >>> create_db_table("products", '[["Apple", 1.99], ["Banana", 0.99]]', columns="name,price")
         "Table 'products' created with 2 rows"
     """
     import json
@@ -92,7 +91,7 @@ def db_create_table(
 
 
 @tool
-def db_insert_table(
+def insert_db_table(
     table_name: str,
     data: str,
 ) -> str:
@@ -109,7 +108,7 @@ def db_insert_table(
         Success message with row count.
 
     Examples:
-        >>> db_insert_table("users", '[{"name": "Charlie", "age": 35}]')
+        >>> insert_db_table("users", '[{"name": "Charlie", "age": 35}]')
         "Inserted 1 row into 'users'"
     """
     import json
@@ -134,7 +133,7 @@ def db_insert_table(
 
 
 @tool
-def db_query(
+def query_db(
     sql: str,
 ) -> str:
     """
@@ -147,10 +146,10 @@ def db_query(
         Query results formatted as text table.
 
     Examples:
-        >>> db_query("SELECT * FROM users LIMIT 10")
+        >>> query_db("SELECT * FROM users LIMIT 10")
         "name  | age\\nAlice | 30\\nBob   | 25"
 
-        >>> db_query("SHOW TABLES")
+        >>> query_db("SHOW TABLES")
         "users\\nproducts"
     """
     try:
@@ -177,7 +176,7 @@ def db_query(
 
 
 @tool
-def db_list_tables() -> str:
+def list_db_tables() -> str:
     """
     List all tables in the thread's workspace database.
 
@@ -185,7 +184,7 @@ def db_list_tables() -> str:
         List of table names.
 
     Examples:
-        >>> db_list_tables()
+        >>> list_db_tables()
         "Tables in workspace:\\n- users\\n- products"
     """
     try:
@@ -202,7 +201,7 @@ def db_list_tables() -> str:
 
 
 @tool
-def db_describe_table(table_name: str) -> str:
+def describe_db_table(table_name: str) -> str:
     """
     Get schema information for a workspace table.
 
@@ -213,11 +212,12 @@ def db_describe_table(table_name: str) -> str:
         Table schema with column names and types.
 
     Examples:
-        >>> db_describe_table("users")
+        >>> describe_db_table("users")
         "Table 'users' schema:\\n- name: VARCHAR\\n- age: INTEGER"
     """
     try:
         thread_id = _get_current_thread_id()
+        validate_identifier(table_name)
 
         if not _db_storage.table_exists(table_name, thread_id):
             return f"Error: Table '{table_name}' does not exist"
@@ -237,7 +237,7 @@ def db_describe_table(table_name: str) -> str:
 
 
 @tool
-def db_drop_table(table_name: str) -> str:
+def delete_db_table(table_name: str) -> str:
     """
     Drop a table from the workspace database.
 
@@ -248,11 +248,12 @@ def db_drop_table(table_name: str) -> str:
         Success message or error.
 
     Examples:
-        >>> db_drop_table("old_table")
+        >>> delete_db_table("old_table")
         "Table 'old_table' dropped"
     """
     try:
         thread_id = _get_current_thread_id()
+        validate_identifier(table_name)
 
         if not _db_storage.table_exists(table_name, thread_id):
             return f"Error: Table '{table_name}' does not exist"
@@ -265,7 +266,7 @@ def db_drop_table(table_name: str) -> str:
 
 
 @tool
-def db_export_table(
+def export_db_table(
     table_name: str,
     filename: str,
     format: Literal["csv", "parquet", "json"] = "csv",
@@ -282,18 +283,18 @@ def db_export_table(
         Success message with file path.
 
     Examples:
-        >>> db_export_table("users", "my_data", "csv")
+        >>> export_db_table("users", "my_data", "csv")
         "Exported 'users' to files/.../my_data.csv (2 rows)"
     """
     try:
         thread_id = _get_current_thread_id()
+        validate_identifier(table_name)
 
         if not _db_storage.table_exists(table_name, thread_id):
             return f"Error: Table '{table_name}' does not exist"
 
         # Get file path for current thread
-        safe_thread_id = sanitize_thread_id(thread_id)
-        files_dir = settings.FILES_ROOT / safe_thread_id
+        files_dir = settings.get_thread_files_path(thread_id)
         files_dir.mkdir(parents=True, exist_ok=True)
 
         # Add extension if not present
@@ -316,7 +317,7 @@ def db_export_table(
 
 
 @tool
-def db_import_table(
+def import_db_table(
     table_name: str,
     filename: str,
 ) -> str:
@@ -333,15 +334,15 @@ def db_import_table(
         Success message with row count.
 
     Examples:
-        >>> db_import_table("sales", "sales_data.csv")
+        >>> import_db_table("sales", "sales_data.csv")
         "Imported 'sales_data.csv' into table 'sales' (150 rows)"
     """
     try:
         thread_id = _get_current_thread_id()
+        validate_identifier(table_name)
 
         # Get file path for current thread
-        safe_thread_id = sanitize_thread_id(thread_id)
-        files_dir = settings.FILES_ROOT / safe_thread_id
+        files_dir = settings.get_thread_files_path(thread_id)
         input_path = files_dir / filename
 
         if not input_path.exists():
@@ -372,12 +373,12 @@ def db_import_table(
 async def get_db_tools() -> list:
     """Get all workspace database tools for use in the agent."""
     return [
-        db_create_table,
-        db_insert_table,
-        db_query,
-        db_list_tables,
-        db_describe_table,
-        db_drop_table,
-        db_export_table,
-        db_import_table,
+        create_db_table,
+        insert_db_table,
+        query_db,
+        list_db_tables,
+        describe_db_table,
+        delete_db_table,
+        export_db_table,
+        import_db_table,
     ]

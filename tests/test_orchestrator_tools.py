@@ -1,7 +1,10 @@
 """Unit tests for Orchestrator tools."""
 
-import asyncio
 import pytest
+
+pytest.skip("Orchestrator/worker agents are archived.", allow_module_level=True)
+
+import asyncio
 from datetime import datetime
 
 from cassey.storage.file_sandbox import set_thread_id
@@ -11,8 +14,8 @@ from cassey.tools.orchestrator_tools import (
     list_jobs,
     cancel_job,
     validate_tools,
-    parse_cron_next,
 )
+from cassey.utils.cron import parse_cron_next
 from langchain_core.tools import tool
 
 

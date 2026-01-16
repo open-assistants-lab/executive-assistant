@@ -1,5 +1,7 @@
 # Multi-Agent Architecture: Cassey, Orchestrator, Workers
 
+> Archived: Orchestrator/worker agents are disabled in the current runtime. This doc is kept for reference only.
+
 ## Concept
 
 Cassey can delegate to specialized agents. The hierarchy is:

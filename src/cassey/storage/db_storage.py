@@ -1,6 +1,7 @@
 """Database storage for tabular data with thread/user isolation."""
 
 from pathlib import Path
+import re
 from typing import Any
 
 import duckdb
@@ -8,6 +9,19 @@ import duckdb
 from cassey.config import settings
 from cassey.storage.file_sandbox import get_thread_id
 from cassey.storage.user_registry import sanitize_thread_id
+
+
+_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def validate_identifier(name: str) -> str:
+    """Validate SQL identifier to prevent injection via table names."""
+    if not _IDENTIFIER_RE.match(name):
+        raise ValueError(
+            f"Invalid identifier '{name}'. Use letters, numbers, and underscores only, "
+            "starting with a letter or underscore."
+        )
+    return name
 
 
 class DBStorage:
@@ -26,7 +40,6 @@ class DBStorage:
             root: Root directory for database files.
         """
         self.root = (root or settings.DB_ROOT).resolve()
-        self.root.mkdir(parents=True, exist_ok=True)
 
     def _get_db_path(self, thread_id: str | None = None) -> Path:
         """
@@ -44,9 +57,19 @@ class DBStorage:
         if thread_id is None:
             raise ValueError("No thread_id provided and no thread_id in context")
 
-        # Sanitize thread_id for filename
         safe_thread_id = sanitize_thread_id(thread_id)
-        return self.root / f"{safe_thread_id}.db"
+
+        # If self.root is explicitly set (different from settings), use old structure
+        # This maintains backward compatibility with tests and custom configurations
+        if self.root != settings.DB_ROOT.resolve():
+            db_path = self.root / f"{safe_thread_id}.db"
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+            return db_path
+
+        # Use new path helper with backward compatibility fallback
+        db_path = settings.get_thread_db_path(thread_id)
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        return db_path
 
     def get_connection(self, thread_id: str | None = None) -> duckdb.DuckDBPyConnection:
         """
@@ -115,6 +138,7 @@ class DBStorage:
             columns: Column names (required if data is list of tuples).
             thread_id: Thread identifier. If None, uses current context thread_id.
         """
+        validate_identifier(table_name)
         import pandas as pd
 
         conn = self.get_connection(thread_id)
@@ -156,6 +180,7 @@ class DBStorage:
             data: Data to insert.
             thread_id: Thread identifier. If None, uses current context thread_id.
         """
+        validate_identifier(table_name)
         import pandas as pd
 
         conn = self.get_connection(thread_id)
@@ -208,6 +233,7 @@ class DBStorage:
         Returns:
             List of column info dicts.
         """
+        validate_identifier(table_name)
         conn = self.get_connection(thread_id)
         try:
             result = conn.execute(f"PRAGMA table_info('{table_name}')").fetchall()
@@ -233,6 +259,7 @@ class DBStorage:
             table_name: Name of the table to drop.
             thread_id: Thread identifier. If None, uses current context thread_id.
         """
+        validate_identifier(table_name)
         conn = self.get_connection(thread_id)
         try:
             conn.execute(f"DROP TABLE IF EXISTS {table_name}")
@@ -255,6 +282,7 @@ class DBStorage:
             format: Export format ("csv", "parquet", "json").
             thread_id: Thread identifier. If None, uses current context thread_id.
         """
+        validate_identifier(table_name)
         conn = self.get_connection(thread_id)
         try:
             if format == "csv":

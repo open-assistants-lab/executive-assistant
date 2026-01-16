@@ -8,7 +8,7 @@ from cassey.storage.scheduled_jobs import (
     ScheduledJobStorage,
     get_scheduled_job_storage,
 )
-from cassey.tools.orchestrator_tools import parse_cron_next
+from cassey.utils.cron import parse_cron_next
 
 
 @pytest.fixture

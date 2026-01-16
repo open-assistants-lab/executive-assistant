@@ -64,7 +64,6 @@ class TestSummarizationThreshold:
         state: AgentState = {
             "messages": messages,
             "iterations": 0,
-            "summary": "",
             "structured_summary": None,
             "user_id": "test_user",
             "channel": "test",
@@ -80,7 +79,6 @@ class TestSummarizationThreshold:
         state: AgentState = {
             "messages": messages,
             "iterations": 0,
-            "summary": "",
             "structured_summary": None,
             "user_id": "test_user",
             "channel": "test",
@@ -97,7 +95,6 @@ class TestSummarizationThreshold:
         state: AgentState = {
             "messages": messages,
             "iterations": 0,
-            "summary": "",
             "structured_summary": None,
             "user_id": "test_user",
             "channel": "test",
@@ -117,7 +114,6 @@ class TestSummarizationThreshold:
         state: AgentState = {
             "messages": messages,
             "iterations": 0,
-            "summary": "",
             "structured_summary": None,
             "user_id": "test_user",
             "channel": "test",
@@ -143,7 +139,6 @@ class TestSummarizationThreshold:
         state: AgentState = {
             "messages": messages,
             "iterations": 0,
-            "summary": "",
             "structured_summary": None,
             "user_id": "test_user",
             "channel": "test",
@@ -161,7 +156,6 @@ class TestSummarizationThreshold:
         state: AgentState = {
             "messages": messages,
             "iterations": 0,
-            "summary": "",
             "structured_summary": None,
             "user_id": "test_user",
             "channel": "test",
@@ -210,7 +204,6 @@ class TestSummarizationThreshold:
         state: AgentState = {
             "messages": messages,
             "iterations": 0,
-            "summary": "",
             "structured_summary": None,
             "user_id": "test_user",
             "channel": "test",
@@ -234,7 +227,6 @@ class TestSummarizationThreshold:
         state: AgentState = {
             "messages": messages,
             "iterations": 0,
-            "summary": "",
             "structured_summary": None,
             "user_id": "test_user",
             "channel": "test",

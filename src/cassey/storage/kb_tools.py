@@ -21,6 +21,7 @@ from langchain_core.tools import tool
 
 from cassey.config import settings
 from cassey.storage.kb_storage import get_kb_storage
+from cassey.storage.db_storage import validate_identifier
 from cassey.storage.file_sandbox import get_thread_id
 from cassey.storage.user_registry import sanitize_thread_id
 
@@ -53,15 +54,19 @@ def _ensure_fts_installed(conn) -> None:
 
 
 @tool
-def kb_store(
+def create_kb_table(
     table_name: str,
-    documents: str,
+    documents: str = "",
 ) -> str:
     """
-    Store documents in the Knowledge Base with full-text search (BM25) indexing.
+    Create a Knowledge Base table for document storage with full-text search (BM25) indexing.
 
     The KB is per-thread (isolated to your conversation) and persists across sessions.
     Creates a BM25 FTS index for fast, relevance-ranked search.
+
+    Use this to:
+    - Create an empty table first, then add documents in batches
+    - Or create with initial documents in one call
 
     DuckDB FTS automatically:
     - Stems words (e.g., "running" → "run")
@@ -71,33 +76,41 @@ def kb_store(
 
     Args:
         table_name: Name for the KB table (creates or replaces existing table).
-                    Use descriptive names like 'notes', 'docs', 'articles'.
-        documents: JSON array of document objects.
+                    Use descriptive names like 'notes', 'docs', 'product_manual'.
+                    Must be a valid SQL identifier (letters, numbers, underscores only).
+        documents: Optional JSON array of document objects.
                    Each document has 'content' (required) and optional 'metadata'.
                    Example: '[{"content": "text here", "metadata": "optional tag"}]'
+                   If empty, creates an empty table.
 
     Returns:
-        Success message with document count.
+        Success message with table name and document count.
 
     Examples:
-        >>> kb_store("notes", '[{"content": "Meeting notes: Q1 revenue was $1M", "metadata": "finance"}]')
-        "Stored 1 documents in KB table 'notes' with FTS index"
+        >>> create_kb_table("notes")
+        "Created KB table 'notes' (empty, ready for documents)"
 
-        >>> kb_store("docs", '[{"content": "The quick brown fox jumps"}, {"content": "Lorem ipsum"}]')
-        "Stored 2 documents in KB table 'docs' with FTS index"
+        >>> create_kb_table("notes", '[{"content": "Meeting notes: Q1 revenue was $1M", "metadata": "finance"}]')
+        "Created KB table 'notes' with 1 documents"
+
+        >>> create_kb_table("docs", '[{"content": "The quick brown fox"}, {"content": "Lorem ipsum"}]')
+        "Created KB table 'docs' with 2 documents"
     """
     import json
 
-    try:
-        parsed_docs = json.loads(documents)
-    except json.JSONDecodeError as e:
-        return f"Error: Invalid JSON data - {str(e)}"
+    # Validate table name
+    validate_identifier(table_name)
 
-    if not isinstance(parsed_docs, list):
-        return "Error: documents must be a JSON array"
+    # Parse documents if provided
+    parsed_docs = []
+    if documents:
+        try:
+            parsed_docs = json.loads(documents)
+        except json.JSONDecodeError as e:
+            return f"Error: Invalid JSON data - {str(e)}"
 
-    if len(parsed_docs) == 0:
-        return "Error: documents array is empty"
+        if not isinstance(parsed_docs, list):
+            return "Error: documents must be a JSON array"
 
     try:
         conn = _kb_storage.get_connection()
@@ -121,30 +134,34 @@ def kb_store(
                 )
             """)
 
-            # Insert documents
-            for i, doc in enumerate(parsed_docs):
-                content = doc.get("content", "")
-                metadata = doc.get("metadata", "")
-                conn.execute(
-                    f"INSERT INTO {table_name} (id, content, metadata) VALUES (?, ?, ?)",
-                    [i, content, metadata]
-                )
+            # Insert documents if provided
+            if parsed_docs:
+                for i, doc in enumerate(parsed_docs):
+                    content = doc.get("content", "")
+                    metadata = doc.get("metadata", "")
+                    conn.execute(
+                        f"INSERT INTO {table_name} (id, content, metadata) VALUES (?, ?, ?)",
+                        [i, content, metadata]
+                    )
 
             # Create FTS index on content and metadata
             # Syntax: PRAGMA create_fts_index(table, id_column, text_columns...)
             conn.execute(f"PRAGMA create_fts_index('{table_name}', 'id', 'content', 'metadata')")
 
-            return f"Stored {len(parsed_docs)} documents in KB table '{table_name}' with BM25 FTS index"
+            if parsed_docs:
+                return f"Created KB table '{table_name}' with {len(parsed_docs)} documents (BM25 FTS indexed)"
+            else:
+                return f"Created KB table '{table_name}' (empty, ready for documents)"
 
         finally:
             conn.close()
 
     except Exception as e:
-        return f"Error storing documents: {str(e)}"
+        return f"Error creating table: {str(e)}"
 
 
 @tool
-def kb_search(
+def search_kb(
     query: str,
     table_name: str = "",
     limit: int = 5,
@@ -160,6 +177,7 @@ def kb_search(
     - Stemming (e.g., "running" matches "run")
     - Case-insensitive
     - Stopwords filtered automatically
+    - Fuzzy matching fallback (via RapidFuzz) when BM25 finds no results
 
     Args:
         query: Search query - natural language terms work best.
@@ -171,13 +189,15 @@ def kb_search(
         Search results with relevance scores and document content.
 
     Examples:
-        >>> kb_search("revenue Q1", "notes")
+        >>> search_kb("revenue Q1", "notes")
         "Searching KB table 'notes' for 'revenue Q1'\\n\\n--- Results from 'notes' ---\\n[0.5] Meeting notes: Q1 revenue was $1M [finance]"
 
-        >>> kb_search("deadline")
+        >>> search_kb("deadline")
         "Searching all KB tables for 'deadline'..."
     """
     try:
+        if table_name:
+            validate_identifier(table_name)
         conn = _kb_storage.get_connection()
         try:
             _ensure_fts_installed(conn)
@@ -189,13 +209,30 @@ def kb_search(
                 tables = [row[0] for row in conn.execute("SHOW TABLES").fetchall()]
 
             if not tables:
-                return "No KB tables found. Use kb_store to create one first."
+                return "No KB tables found. Use create_kb_table to create one first."
 
             # Check if requested table exists
             if table_name and table_name not in tables:
+                # Provide fuzzy table name suggestions
+                from rapidfuzz import process
+                suggestions = [
+                    (name, score)
+                    for name, score, _ in process.extract(
+                        query,
+                        tables,
+                        scorer=None,  # defaults to WRatio
+                        limit=3,
+                    )
+                    if score >= 60
+                ]
+                if suggestions:
+                    suggested = ", ".join(f"{name} ({score:.0f}%)" for name, score in suggestions)
+                    return f"Error: KB table '{table_name}' not found. Did you mean: {suggested}? Available: {', '.join(tables)}"
                 return f"Error: KB table '{table_name}' not found. Available tables: {', '.join(tables)}"
 
             results = []
+            has_fts_results = False
+
             for tbl in tables:
                 # Try FTS search (match_bm25 is created by create_fts_index)
                 # The macro is in fts_{table_name} schema: fts_{tbl}.match_bm25(id, query)
@@ -211,6 +248,7 @@ def kb_search(
                     matches = conn.execute(fts_query, [query, query]).fetchall()
 
                     if matches:
+                        has_fts_results = True
                         results.append(f"--- From '{tbl}' (BM25 ranked) ---")
                         for doc_id, content, metadata, score in matches:
                             meta = f" [metadata: {metadata}]" if metadata else ""
@@ -226,10 +264,52 @@ def kb_search(
                     """, [f"%{query}%", f"%{query}%"]).fetchall()
 
                     if matches:
+                        has_fts_results = True
                         results.append(f"--- From '{tbl}' (substring match) ---")
                         for content, metadata in matches:
                             meta = f" [metadata: {metadata}]" if metadata else ""
                             results.append(f"- {content}{meta}")
+
+            # Fuzzy fallback: no BM25 results, try RapidFuzz
+            if not has_fts_results:
+                from rapidfuzz import process, fuzz
+
+                for tbl in tables:
+                    # Get all documents from this table (with limit to avoid huge scans)
+                    all_docs = conn.execute(
+                        f"SELECT id, content, metadata FROM {tbl} LIMIT 1000"
+                    ).fetchall()
+
+                    if not all_docs:
+                        continue
+
+                    # Prepare candidates: content + metadata for scoring
+                    candidates = []
+                    for doc_id, content, metadata in all_docs:
+                        search_text = f"{content} {metadata or ''}".strip()
+                        # Limit text for scoring performance
+                        candidates.append((doc_id, search_text[:500], content, metadata))
+
+                    # Use RapidFuzz for fuzzy matching
+                    matches = process.extract(
+                        query,
+                        [c[1] for c in candidates],
+                        scorer=fuzz.WRatio,
+                        limit=limit,
+                    )
+
+                    # Filter by score cutoff and format results
+                    fuzzy_results = [
+                        (candidates[i][2], candidates[i][3], score)
+                        for i, (text, score, _) in enumerate(matches)
+                        if score >= 70  # Score cutoff for fuzzy matching
+                    ]
+
+                    if fuzzy_results:
+                        results.append(f"--- From '{tbl}' (fuzzy match) ---")
+                        for content, metadata, score in fuzzy_results[:limit]:
+                            meta = f" [metadata: {metadata}]" if metadata else ""
+                            results.append(f"[{score:.0f}%] {content}{meta}")
 
             if not results:
                 if table_name:
@@ -264,7 +344,7 @@ def kb_list() -> str:
             tables = [row[0] for row in conn.execute("SHOW TABLES").fetchall()]
 
             if not tables:
-                return "Knowledge Base is empty. Use kb_store to create a table."
+                return "Knowledge Base is empty. Use create_kb_table to create a table."
 
             result = ["Knowledge Base tables:"]
             for tbl in tables:
@@ -282,7 +362,7 @@ def kb_list() -> str:
 
 
 @tool
-def kb_describe(table_name: str) -> str:
+def describe_kb(table_name: str) -> str:
     """
     Get schema and sample data from a Knowledge Base table.
 
@@ -293,10 +373,11 @@ def kb_describe(table_name: str) -> str:
         Table schema, document count, and sample documents.
 
     Examples:
-        >>> kb_describe("notes")
+        >>> describe_kb("notes")
         "Table 'notes':\\nSchema: id, content, metadata, created_at\\nTotal documents: 3\\nSample documents:\\n1. Meeting notes..."
     """
     try:
+        validate_identifier(table_name)
         conn = _kb_storage.get_connection()
         try:
             # Check if table exists
@@ -335,23 +416,24 @@ def kb_describe(table_name: str) -> str:
 
 
 @tool
-def kb_delete(table_name: str) -> str:
+def drop_kb_table(table_name: str) -> str:
     """
-    Delete a Knowledge Base table and its FTS index.
+    Drop a Knowledge Base table and its FTS index.
 
     Warning: This permanently removes all documents in the table.
 
     Args:
-        table_name: Name of the KB table to delete.
+        table_name: Name of the KB table to drop.
 
     Returns:
         Success message or error.
 
     Examples:
-        >>> kb_delete("old_notes")
-        "Deleted KB table 'old_notes' (3 documents removed, FTS index dropped)"
+        >>> drop_kb_table("old_notes")
+        "Dropped KB table 'old_notes' (3 documents removed, FTS index dropped)"
     """
     try:
+        validate_identifier(table_name)
         conn = _kb_storage.get_connection()
         try:
             # Check if table exists
@@ -371,17 +453,84 @@ def kb_delete(table_name: str) -> str:
             # Drop table
             conn.execute(f"DROP TABLE {table_name}")
 
-            return f"Deleted KB table '{table_name}' ({count} documents removed, FTS index dropped)"
+            return f"Dropped KB table '{table_name}' ({count} documents removed, FTS index dropped)"
 
         finally:
             conn.close()
 
     except Exception as e:
-        return f"Error deleting table: {str(e)}"
+        return f"Error dropping table: {str(e)}"
 
 
 @tool
-def kb_add_documents(
+def delete_kb_documents(
+    table_name: str,
+    ids: str,
+) -> str:
+    """
+    Delete specific documents from a Knowledge Base table by ID.
+
+    Args:
+        table_name: Name of the KB table.
+        ids: Comma-separated document IDs to delete (e.g., "1,3,5" or "1").
+
+    Returns:
+        Success message with count of deleted documents.
+
+    Examples:
+        >>> delete_kb_documents("notes", "1,3,5")
+        "Deleted 3 documents from KB table 'notes' (FTS index rebuilt)"
+
+        >>> delete_kb_documents("notes", "10")
+        "Deleted 1 document from KB table 'notes' (FTS index rebuilt)"
+    """
+    try:
+        # Validate table name
+        validate_identifier(table_name)
+
+        # Parse IDs
+        try:
+            id_list = [int(id.strip()) for id in ids.split(",") if id.strip()]
+        except ValueError:
+            return "Error: IDs must be comma-separated integers (e.g., '1,3,5')"
+
+        if not id_list:
+            return "Error: No valid IDs provided"
+
+        conn = _kb_storage.get_connection()
+        try:
+            _ensure_fts_installed(conn)
+
+            # Check if table exists
+            tables = [row[0] for row in conn.execute("SHOW TABLES").fetchall()]
+            if table_name not in tables:
+                return f"Error: KB table '{table_name}' not found"
+
+            # Delete documents
+            placeholders = ",".join("?" * len(id_list))
+            deleted = conn.execute(
+                f"DELETE FROM {table_name} WHERE id IN ({placeholders})",
+                id_list
+            ).rowcount
+
+            if deleted == 0:
+                return f"No documents deleted - IDs {ids} not found in '{table_name}'"
+
+            # Rebuild FTS index
+            conn.execute(f"PRAGMA drop_fts_index('{table_name}')")
+            conn.execute(f"PRAGMA create_fts_index('{table_name}', 'id', 'content', 'metadata')")
+
+            return f"Deleted {deleted} document(s) from KB table '{table_name}' (FTS index rebuilt)"
+
+        finally:
+            conn.close()
+
+    except Exception as e:
+        return f"Error deleting documents: {str(e)}"
+
+
+@tool
+def add_kb_documents(
     table_name: str,
     documents: str,
 ) -> str:
@@ -400,10 +549,15 @@ def kb_add_documents(
         Success message with count of added documents.
 
     Examples:
-        >>> kb_add_documents("notes", '[{"content": "Additional note"}]')
+        >>> add_kb_documents("notes", '[{"content": "Additional note"}]')
         "Added 1 documents to KB table 'notes' (FTS index rebuilt)"
     """
     import json
+
+    try:
+        validate_identifier(table_name)
+    except ValueError as e:
+        return f"Error: {str(e)}"
 
     try:
         parsed_docs = json.loads(documents)
@@ -424,7 +578,7 @@ def kb_add_documents(
             # Check if table exists
             tables = [row[0] for row in conn.execute("SHOW TABLES").fetchall()]
             if table_name not in tables:
-                return f"Error: KB table '{table_name}' not found. Use kb_store to create it first."
+                return f"Error: KB table '{table_name}' not found. Use create_kb_table to create it first."
 
             # Get current max id
             max_id = conn.execute(f"SELECT COALESCE(MAX(id), -1) FROM {table_name}").fetchone()[0]
@@ -455,10 +609,11 @@ def kb_add_documents(
 async def get_kb_tools() -> list:
     """Get all Knowledge Base tools for use in the agent."""
     return [
-        kb_store,
-        kb_search,
+        create_kb_table,
+        search_kb,
         kb_list,
-        kb_describe,
-        kb_delete,
-        kb_add_documents,
+        describe_kb,
+        drop_kb_table,
+        add_kb_documents,
+        delete_kb_documents,
     ]

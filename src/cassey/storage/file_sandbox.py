@@ -14,10 +14,12 @@ from cassey.config.settings import settings
 # Context variable for thread_id - set by channels when processing messages
 # This provides true thread isolation via Python's contextvars mechanism
 _thread_id: ContextVar[str | None] = ContextVar("_thread_id", default=None)
+_user_id: ContextVar[str | None] = ContextVar("_user_id", default=None)
 
 # Thread-local fallback for thread-pool execution where ContextVar may not propagate
 # Keys are thread IDs (int), values are thread_id strings (str)
 _thread_local_fallback: dict[int, str] = {}
+_user_local_fallback: dict[int, str] = {}
 _thread_local_lock = threading.Lock()
 
 
@@ -32,6 +34,14 @@ def set_thread_id(thread_id: str) -> None:
     thread_id_int = threading.get_ident()
     with _thread_local_lock:
         _thread_local_fallback[thread_id_int] = thread_id
+
+
+def set_user_id(user_id: str) -> None:
+    """Set the user_id for the current context."""
+    _user_id.set(user_id)
+    thread_id_int = threading.get_ident()
+    with _thread_local_lock:
+        _user_local_fallback[thread_id_int] = user_id
 
 
 def get_thread_id() -> str | None:
@@ -54,6 +64,17 @@ def get_thread_id() -> str | None:
         return _thread_local_fallback.get(thread_id_int)
 
 
+def get_user_id() -> str | None:
+    """Get the user_id for the current context."""
+    ctx_val = _user_id.get()
+    if ctx_val:
+        return ctx_val
+
+    thread_id_int = threading.get_ident()
+    with _thread_local_lock:
+        return _user_local_fallback.get(thread_id_int)
+
+
 def clear_thread_id() -> None:
     """Clear the thread_id from the current context."""
     try:
@@ -64,6 +85,17 @@ def clear_thread_id() -> None:
     thread_id_int = threading.get_ident()
     with _thread_local_lock:
         _thread_local_fallback.pop(thread_id_int, None)
+
+
+def clear_user_id() -> None:
+    """Clear the user_id from the current context."""
+    try:
+        _user_id.set(None)
+    except Exception:
+        pass
+    thread_id_int = threading.get_ident()
+    with _thread_local_lock:
+        _user_local_fallback.pop(thread_id_int, None)
 
 
 class FileSandbox:
@@ -200,12 +232,8 @@ def get_sandbox(user_id: str | None = None) -> FileSandbox:
     # Check for thread_id in context
     thread_id_val = get_thread_id()
     if thread_id_val:
-        # Sanitize thread_id for use as directory name
-        # Replace colons, slashes, @, and backslashes with underscores
-        safe_thread_id = thread_id_val
-        for char in (":", "/", "@", "\\"):
-            safe_thread_id = safe_thread_id.replace(char, "_")
-        thread_path = settings.FILES_ROOT / safe_thread_id
+        # Use new path helper with backward compatibility fallback
+        thread_path = settings.get_thread_files_path(thread_id_val)
         thread_path.mkdir(parents=True, exist_ok=True)
         return FileSandbox(root=thread_path)
 
@@ -266,6 +294,12 @@ def write_file(file_path: str, content: str) -> str:
         return f"Security error: {e}"
     except Exception as e:
         return f"Error writing file: {e}"
+
+
+@tool
+def file_write(file_path: str, content: str) -> str:
+    """Legacy alias for write_file (kept for backward compatibility)."""
+    return write_file(file_path, content)
 
 
 @tool
@@ -566,6 +600,7 @@ def grep_files(
 
     For browsing a folder, use list_files instead.
     For finding files by name/type, use glob_files instead.
+    For fuzzy filename search, use find_files_fuzzy instead.
 
     Args:
         pattern: Regular expression pattern to search for.
@@ -690,3 +725,109 @@ def grep_files(
         return f"Security error: {e}"
     except Exception as e:
         return f"Error grepping files: {e}"
+
+
+@tool
+def find_files_fuzzy(
+    query: str,
+    directory: str = "",
+    recursive: bool = True,
+    limit: int = 10,
+    score_cutoff: int = 70,
+) -> str:
+    """
+    Find files by fuzzy matching the filename/path (tolerates typos and partial matches).
+
+    USE THIS WHEN: You want to find files but aren't sure of the exact name,
+    or want to find similar files even with typos. Uses RapidFuzz for intelligent matching.
+
+    For browsing a folder, use list_files instead.
+    For finding files by pattern, use glob_files instead.
+    For searching inside file contents, use grep_files instead.
+
+    Args:
+        query: Search query for filename/path (fuzzy matching).
+               Examples: "config", "main", "test_utils", "README"
+        directory: Base directory to search in (empty for sandbox root).
+        recursive: If True, search all subdirectories.
+        limit: Maximum number of results to return (default: 10).
+        score_cutoff: Minimum similarity score (0-100). Default 70 = 70% similar.
+                     Lower this value to get more results (but less accurate).
+
+    Returns:
+        List of matching files ranked by similarity score.
+
+    Examples:
+        >>> find_files_fuzzy("config")
+        "Found 3 files matching 'config':
+        - config.py (95%)
+        - config.yaml (89%)
+        - old_config.json (72%)"
+
+        >>> find_files_fuzzy("test", "src", limit=5)
+        "Found 5 files matching 'test' in src:
+        - test_main.py (91%)
+        - test_utils.py (88%)
+        ..."
+    """
+    from pathlib import Path as StdPath
+    from rapidfuzz import process, fuzz
+
+    sandbox = get_sandbox()
+    try:
+        base_path = sandbox.root / directory if directory else sandbox.root
+
+        if not base_path.exists():
+            return f"Directory not found: {directory}"
+
+        if not base_path.is_dir():
+            return f"Not a directory: {directory}"
+
+        # Collect all files
+        if recursive:
+            all_files = list(base_path.rglob("*"))
+        else:
+            all_files = list(base_path.glob("*"))
+
+        # Filter to files only (not directories)
+        files = [
+            f.relative_to(sandbox.root)
+            for f in all_files
+            if f.is_file()
+        ]
+
+        if not files:
+            return f"No files found in {directory or 'root'}"
+
+        # Convert paths to strings for fuzzy matching
+        file_paths = [str(f) for f in files]
+
+        # Use RapidFuzz to find closest matches
+        matches = process.extract(
+            query,
+            file_paths,
+            scorer=fuzz.WRatio,  # Weighted ratio for good balance
+            limit=limit,
+        )
+
+        # Filter by score cutoff
+        filtered_matches = [
+            (path, score)
+            for path, score, _ in matches
+            if score >= score_cutoff
+        ]
+
+        if not filtered_matches:
+            return f"No files found matching '{query}' (score cutoff: {score_cutoff}%). Try lowering the score_cutoff or using a different query."
+
+        # Format results
+        result = f"Found {len(filtered_matches)} file(s) matching '{query}':\n"
+        for path, score in filtered_matches:
+            result += f"- {path} ({score:.0f}%)\n"
+
+        return result.rstrip()
+
+    except SecurityError as e:
+        return f"Security error: {e}"
+    except Exception as e:
+        return f"Error in fuzzy file search: {e}"

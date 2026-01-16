@@ -6,7 +6,6 @@ from typing import Literal
 from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
-from zhipuai import ZhipuAI
 
 from cassey.config.settings import settings
 

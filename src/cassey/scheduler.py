@@ -1,8 +1,8 @@
-"""Scheduler for reminder notifications and scheduled job execution using APScheduler.
+"""Scheduler for reminder notifications and scheduled job handling using APScheduler.
 
 This module runs as a background task, polling the database for:
 1. Pending reminders - sends notifications
-2. Scheduled jobs - executes worker agents
+2. Scheduled jobs - archived (orchestrator/worker agents are disabled)
 """
 
 import asyncio
@@ -16,7 +16,12 @@ from cassey.config.settings import settings
 from cassey.storage.file_sandbox import set_thread_id, clear_thread_id
 from cassey.storage.reminder import ReminderStorage, get_reminder_storage
 from cassey.storage.scheduled_jobs import get_scheduled_job_storage
-from cassey.tools.orchestrator_tools import execute_worker, parse_cron_next
+from cassey.tools.orchestrator_tools import (
+    ARCHIVED_MESSAGE,
+    ORCHESTRATOR_ARCHIVED,
+    execute_worker,
+)
+from cassey.utils.cron import parse_cron_next
 
 logger = logging.getLogger(__name__)
 
@@ -103,9 +108,23 @@ async def _process_pending_reminders():
                 await storage.mark_sent(reminder.id, now)
                 logger.info(f"Reminder {reminder.id} sent successfully")
 
-                # TODO: Handle recurring reminders - create next instance
                 if reminder.is_recurring:
-                    logger.info(f"TODO: Create next instance for recurring reminder {reminder.id}")
+                    try:
+                        next_due = parse_cron_next(reminder.recurrence, now)
+                        next_reminder = await storage.create(
+                            user_id=reminder.user_id,
+                            thread_ids=reminder.thread_ids,
+                            message=reminder.message,
+                            due_time=next_due,
+                            recurrence=reminder.recurrence,
+                        )
+                        logger.info(
+                            f"Created next reminder {next_reminder.id} for recurring reminder {reminder.id} at {next_due}"
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to create next instance for recurring reminder {reminder.id}: {e}"
+                        )
             else:
                 await storage.mark_failed(
                     reminder.id, f"Failed to send via {channel}"
@@ -136,6 +155,12 @@ async def _process_pending_jobs():
             return
 
         logger.info(f"Processing {len(pending)} pending scheduled job(s)")
+
+        if ORCHESTRATOR_ARCHIVED:
+            for job in pending:
+                await storage.mark_failed(job.id, ARCHIVED_MESSAGE)
+            logger.info("Archived scheduled jobs are disabled; marked due jobs as failed.")
+            return
 
         for job in pending:
             # Mark as running
@@ -273,7 +298,7 @@ async def start_scheduler():
     )
 
     _scheduler.start()
-    logger.info("Scheduler started (reminders + scheduled jobs)")
+    logger.info("Scheduler started (reminders; scheduled jobs archived)")
 
 
 async def stop_scheduler():

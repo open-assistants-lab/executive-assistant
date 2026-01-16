@@ -37,15 +37,48 @@ async def call_model(
         Dict with messages key containing the model response.
     """
     messages = state["messages"]
+    iterations = state.get("iterations", 0)
+    reset_iterations = False
+
+    # Check for user saying "continue" after hitting limit - reset counter
+    if iterations >= settings.MAX_ITERATIONS:
+        # Check if the last user message is asking to continue
+        last_human = None
+        for m in reversed(messages):
+            if isinstance(m, HumanMessage):
+                last_human = m.content.lower()
+                break
+
+        # If user explicitly says "continue", "go on", "proceed", "keep going", reset counter
+        continue_phrases = ["continue", "go on", "proceed", "keep going", "carry on", "resume"]
+        if last_human and any(phrase in last_human for phrase in continue_phrases):
+            # Reset iterations and continue processing
+            iterations = 0
+            reset_iterations = True
 
     # Check iteration limit
-    if state.get("iterations", 0) >= settings.MAX_ITERATIONS:
-        # Return a message indicating we've reached max iterations
+    if iterations >= settings.MAX_ITERATIONS:
+        # Provide helpful context about what was accomplished
+        tool_calls = [m for m in messages if hasattr(m, 'tool_calls') and m.tool_calls]
+        tool_names = [tc.name for m in tool_calls for tc in getattr(m, 'tool_calls', [])]
+
+        # Count tool calls by type
+        from collections import Counter
+        tool_summary = Counter(tool_names)
+
+        summary_parts = [f"I've reached the maximum number of reasoning steps ({settings.MAX_ITERATIONS})."]
+
+        if tool_summary:
+            summary_parts.append("\n\nWhat I attempted:")
+            for tool, count in tool_summary.most_common():
+                summary_parts.append(f"- {tool}: {count} call(s)")
+
+        summary_parts.append("\n\nSay 'continue' to resume, or ask me to try a different approach.")
+        summary_parts.append("\n\n💡 Tip: For complex tasks, break them into smaller steps.")
+
         return {
             "messages": [
-                AIMessage(
-                    content=f"I've reached the maximum number of reasoning steps ({settings.MAX_ITERATIONS}). Let me summarize what I've found so far."
-                )
+                AIMessage(content="".join(summary_parts))
             ]
         }
 
@@ -82,11 +115,6 @@ async def call_model(
             rendered = StructuredSummaryBuilder.render_for_prompt(structured_summary)
             if rendered:
                 prompt += f"\n\n{rendered}"
-    else:
-        # Legacy summary format
-        summary = state.get("summary", "")
-        if summary:
-            prompt += f"\n\nPrevious conversation summary:\n{summary}"
 
     # Trim messages to fit context window (keep recent, preserve continuity)
     # IMPORTANT: Don't trim if there are pending tool calls to avoid checkpoint corruption
@@ -120,7 +148,10 @@ async def call_model(
     # Invoke model
     response = await model_with_tools.ainvoke(messages_to_send, config)
 
-    return {"messages": [response]}
+    result = {"messages": [response]}
+    if reset_iterations:
+        result["iterations"] = 0
+    return result
 
 
 async def call_tools(
@@ -222,7 +253,7 @@ async def summarize_conversation(
     """
     Summarize old messages using the structured summary schema.
 
-    Key improvements over legacy summarization:
+    Key improvements:
     - Topic-based: Separate summaries by topic, not just chronologically
     - Intent-first: active_request always shows current user intent
     - Active/inactive topics: Old topics fade when new ones dominate
@@ -233,10 +264,9 @@ async def summarize_conversation(
     """
     from cassey.storage.db_storage import get_thread_id
     from cassey.agent.summary_extractor import update_structured_summary
-    from cassey.agent.topic_classifier import StructuredSummaryBuilder
 
     messages = state["messages"]
-    current_summary = state.get("structured_summary") or state.get("summary")
+    current_summary = state.get("structured_summary")
 
     # Filter to human/AI messages (skip tool messages for summary)
     conversation_messages = [m for m in messages if isinstance(m, (HumanMessage, AIMessage))]
@@ -260,40 +290,10 @@ async def summarize_conversation(
     recent_count = min(12, len(conversation_messages) - 4)
     recent_messages = messages[-recent_count:]
 
-    # Generate legacy summary for backward compatibility
-    # (from the active topic facts)
-    active_topics = [
-        t for t in new_structured_summary.get("topics", [])
-        if t.get("status") == "active"
-    ]
-
-    if active_topics:
-        # Build summary from active topic facts
-        topic = active_topics[0]
-        facts = [f.get("text", "") for f in topic.get("facts", [])[:5]]
-        legacy_summary = f"Topic: {topic.get('topic_id', 'general')}\n" + "\n".join(f"- {f}" for f in facts)
-    else:
-        # Fallback to old summarization method
-        old_messages = messages[:-recent_count]
-        summary_prompt = [
-            SystemMessage(
-                content="Summarize the following conversation concisely. "
-                "Focus on key topics, decisions, and important information. "
-                "Keep it brief and readable."
-            ),
-        ] + [m for m in old_messages if isinstance(m, (HumanMessage, AIMessage, ToolMessage))]
-
-        try:
-            summary_response = await model.ainvoke(summary_prompt)
-            legacy_summary = summary_response.content
-        except Exception:
-            legacy_summary = current_summary if isinstance(current_summary, str) else ""
-
     # Persist structured summary to PostgreSQL
     if thread_id:
         try:
             from cassey.storage.user_registry import UserRegistry
-            import json
 
             registry = UserRegistry()
             # Update the structured_summary column (JSONB)
@@ -304,9 +304,6 @@ async def summarize_conversation(
             if active_request_text:
                 await registry.update_active_request(thread_id, active_request_text)
 
-            # Update legacy summary column for backward compatibility
-            await registry.update_summary(thread_id, legacy_summary)
-
         except Exception as e:
             # If persistence fails, continue with in-memory summary
             import traceback
@@ -314,6 +311,5 @@ async def summarize_conversation(
 
     return {
         "messages": recent_messages,
-        "summary": legacy_summary,  # Legacy format
-        "structured_summary": new_structured_summary,  # New format
+        "structured_summary": new_structured_summary,
     }

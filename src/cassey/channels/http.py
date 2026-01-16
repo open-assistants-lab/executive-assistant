@@ -62,6 +62,7 @@ class HttpChannel(BaseChannel):
         agent: Any,
         host: str = "0.0.0.0",
         port: int = 8000,
+        runtime: str | None = None,
     ):
         """
         Initialize HTTP channel.
@@ -71,7 +72,7 @@ class HttpChannel(BaseChannel):
             host: Host to bind to
             port: Port to bind to
         """
-        super().__init__(agent)
+        super().__init__(agent, runtime=runtime)
         self.host = host
         self.port = port
         self.app = FastAPI(

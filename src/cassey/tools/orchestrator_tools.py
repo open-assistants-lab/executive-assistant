@@ -7,176 +7,38 @@ The Orchestrator is a specialized agent that:
 4. Manages job lifecycle
 
 Workers are task-specific agents that execute the actual work.
+
+NOTE: This module is archived and kept for reference. The tools are disabled.
 """
 
 import asyncio
 import logging
 import re
 from datetime import datetime, timedelta
-from pathlib import Path
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.tools import BaseTool, tool
 from langchain_core.runnables import RunnableConfig
 
 from cassey.config import create_model
-from cassey.config.settings import settings
 from cassey.storage.file_sandbox import get_thread_id, set_thread_id
-from cassey.storage.scheduled_jobs import ScheduledJob, get_scheduled_job_storage
+from cassey.storage.scheduled_jobs import get_scheduled_job_storage
 from cassey.storage.workers import Worker, get_worker_storage
 from cassey.tools.registry import get_all_tools
+from cassey.utils.cron import parse_cron_next
 
 logger = logging.getLogger(__name__)
 
-# ============================================================================
-# Cron Expression Utilities
-# ============================================================================
+ORCHESTRATOR_ARCHIVED = True
+ARCHIVED_MESSAGE = (
+    "Orchestrator/worker agents are archived and disabled. "
+    "Use the LangChain runtime and direct tools instead."
+)
 
 
-def parse_cron_next(cron: str, after: datetime) -> datetime:
-    """Calculate next run time from a cron expression.
-
-    Supports standard 5-field cron: minute hour day month weekday
-    Also supports common shortcuts:
-    - "@hourly" or "hourly" -> every hour
-    - "@daily" or "daily" or "0 0 * * *" -> every day at midnight
-    - "@weekly" or "weekly" or "0 0 * * 0" -> every week at midnight Sunday
-    - "@monthly" or "monthly" or "0 0 1 * *" -> every month on 1st at midnight
-    - "daily at 9am" -> daily at 9am
-    - "daily at 9pm" -> daily at 9pm
-
-    Args:
-        cron: Cron expression or shortcut
-        after: Calculate next time after this datetime
-
-    Returns:
-        Next run datetime
-
-    Raises:
-        ValueError: If cron expression is invalid
-    """
-    now = after
-
-    # Handle shortcuts
-    cron_lower = cron.lower().strip()
-    if cron_lower in ("@hourly", "hourly"):
-        return now + timedelta(hours=1)
-    if cron_lower in ("@daily", "daily"):
-        return (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-    if cron_lower in ("@weekly", "weekly"):
-        # Next Sunday at midnight
-        days_ahead = 6 - now.weekday()
-        if days_ahead <= 0:
-            days_ahead += 7
-        next_week = now + timedelta(days=days_ahead)
-        return next_week.replace(hour=0, minute=0, second=0, microsecond=0)
-    if cron_lower in ("@monthly", "monthly"):
-        # Next month on 1st at midnight
-        if now.month == 12:
-            next_month = now.replace(year=now.year + 1, month=1, day=1)
-        else:
-            next_month = now.replace(month=now.month + 1, day=1)
-        return next_month.replace(hour=0, minute=0, second=0, microsecond=0)
-
-    # Handle "daily at 9am" / "daily at 9pm" format
-    match = re.match(r"daily\s+at\s+(\d{1,2})(:(\d{2}))?\s*(am|pm)?", cron_lower)
-    if match:
-        hour = int(match.group(1))
-        minute = int(match.group(3)) if match.group(3) else 0
-        meridiem = match.group(4)
-        if meridiem == "pm" and hour < 12:
-            hour += 12
-        elif meridiem == "am" and hour == 12:
-            hour = 0
-
-        result = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        if result <= now:
-            result = result + timedelta(days=1)
-        return result
-
-    # Remove @ prefix if present
-    if cron_lower.startswith("@"):
-        cron_lower = cron_lower[1:]
-
-    # Parse standard 5-field cron
-    # Format: minute hour day month weekday
-    parts = cron_lower.strip().split()
-    if len(parts) != 5:
-        raise ValueError(
-            f"Invalid cron expression '{cron}'. "
-            "Expected 5 fields (minute hour day month weekday) or a shortcut."
-        )
-
-    minute_part, hour_part, day_part, month_part, weekday_part = parts
-
-    # For simplicity, handle common patterns
-    # This is a basic implementation - for full cron support, use croniter
-
-    try:
-        # Handle "0 9 * * *" (daily at 9am)
-        if minute_part == "0" and hour_part.isdigit() and day_part == "*" and month_part == "*" and weekday_part == "*":
-            hour = int(hour_part)
-            if hour < 0 or hour > 23:
-                raise ValueError("Hour must be 0-23")
-            result = now.replace(hour=hour, minute=0, second=0, microsecond=0)
-            if result <= now:
-                result = result + timedelta(days=1)
-            return result
-
-        # Handle "0 */6 * * *" (every 6 hours)
-        if minute_part == "0" and hour_part.startswith("*/") and day_part == "*" and month_part == "*" and weekday_part == "*":
-            interval = int(hour_part[2:])
-            if interval < 1 or interval > 23:
-                raise ValueError("Hour interval must be 1-23")
-            result = now.replace(minute=0, second=0, microsecond=0)
-            # Find next interval
-            current_hour = result.hour
-            # Calculate hours to add to reach next interval
-            hours_to_add = (interval - (current_hour % interval)) % interval
-            if hours_to_add == 0 and result <= now:
-                hours_to_add = interval
-            result = result + timedelta(hours=hours_to_add)
-            return result
-
-        # Handle "*/30 * * * *" (every 30 minutes)
-        if minute_part.startswith("*/") and hour_part == "*" and day_part == "*" and month_part == "*" and weekday_part == "*":
-            interval = int(minute_part[2:])
-            if interval < 1 or interval > 59:
-                raise ValueError("Minute interval must be 1-59")
-            result = now.replace(second=0, microsecond=0)
-            # Round up to next interval
-            minute = (result.minute // interval + 1) * interval
-            if minute >= 60:
-                result = result + timedelta(hours=1)
-                minute = 0
-            result = result.replace(minute=minute)
-            if result <= now:
-                result = result + timedelta(minutes=interval)
-            return result
-
-        # Handle "0 9 * * 1-5" (daily at 9am, weekdays only)
-        if (
-            minute_part == "0"
-            and hour_part.isdigit()
-            and day_part == "*"
-            and month_part == "*"
-            and "-" in weekday_part
-        ):
-            hour = int(hour_part)
-            result = now.replace(hour=hour, minute=0, second=0, microsecond=0)
-            # Find next weekday
-            while True:
-                result = result + timedelta(days=1)
-                if result.weekday() < 5:  # Monday=0, Friday=4
-                    return result
-
-        # Default: add 1 day (fallback)
-        logger.warning(f"Cron pattern '{cron}' not fully supported, treating as daily")
-        return (now + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
-
-    except (ValueError, IndexError) as e:
-        raise ValueError(f"Invalid cron expression '{cron}': {e}") from e
+def _archived_response() -> str:
+    return ARCHIVED_MESSAGE
 
 
 def validate_tools(tool_names: list[str], available_tools: dict[str, BaseTool]) -> list[str]:
@@ -204,7 +66,7 @@ def validate_tools(tool_names: list[str], available_tools: dict[str, BaseTool]) 
 
 
 @tool
-async def spawn_worker(name: str, tools: str, prompt: str) -> str:
+async def orchestrator_spawn(name: str, tools: str, prompt: str) -> str:
     """Create a new worker agent for a specific task.
 
     Only the Orchestrator can spawn workers. Workers cannot spawn other workers.
@@ -222,6 +84,9 @@ async def spawn_worker(name: str, tools: str, prompt: str) -> str:
         ...              "You check prices and alert when under threshold")
         "Worker 'price_checker' created with ID 123"
     """
+    if ORCHESTRATOR_ARCHIVED:
+        return _archived_response()
+
     # Get context
     thread_id = get_thread_id()
     if not thread_id:
@@ -254,7 +119,7 @@ async def spawn_worker(name: str, tools: str, prompt: str) -> str:
 
 
 @tool
-async def schedule_job(
+async def orchestrator_schedule(
     name: str,
     task: str,
     flow: str,
@@ -282,6 +147,9 @@ async def schedule_job(
         >>> await schedule_job("daily_price", "Check price", "fetch and alert", "daily at 9am")
         "Job 'daily_price' scheduled for 2025-01-16 09:00:00 with ID 456"
     """
+    if ORCHESTRATOR_ARCHIVED:
+        return _archived_response()
+
     thread_id = get_thread_id()
     if not thread_id:
         return "Error: No thread_id context. Cannot schedule job."
@@ -349,7 +217,7 @@ async def schedule_job(
 
 
 @tool
-async def list_jobs(status: str = "") -> str:
+async def orchestrator_list(status: str = "") -> str:
     """List scheduled jobs for the current thread.
 
     Args:
@@ -365,6 +233,9 @@ async def list_jobs(status: str = "") -> str:
         >>> await list_jobs("pending")
         "Pending jobs:\n1. daily_price..."
     """
+    if ORCHESTRATOR_ARCHIVED:
+        return _archived_response()
+
     thread_id = get_thread_id()
     if not thread_id:
         return "Error: No thread_id context."
@@ -402,7 +273,7 @@ async def list_jobs(status: str = "") -> str:
 
 
 @tool
-async def cancel_job(job_id: int) -> str:
+async def orchestrator_cancel(job_id: int) -> str:
     """Cancel a pending scheduled job.
 
     Args:
@@ -415,6 +286,9 @@ async def cancel_job(job_id: int) -> str:
         >>> await cancel_job(456)
         "Job 456 cancelled"
     """
+    if ORCHESTRATOR_ARCHIVED:
+        return _archived_response()
+
     thread_id = get_thread_id()
     if not thread_id:
         return "Error: No thread_id context."
@@ -450,10 +324,10 @@ When creating workers:
 - Consider error cases in your prompts
 
 Available tools:
-- spawn_worker(name, tools, prompt): Create a new worker
-- schedule_job(name, task, flow, schedule, worker_id): Schedule execution
-- list_jobs(status): Show all scheduled jobs
-- cancel_job(job_id): Cancel a pending job
+- orchestrator_spawn(name, tools, prompt): Create a new worker
+- orchestrator_schedule(name, task, flow, schedule, worker_id): Schedule execution
+- orchestrator_list(status): Show all scheduled jobs
+- orchestrator_cancel(job_id): Cancel a pending job
 
 Schedule format examples:
 - "daily at 9am" or "0 9 * * *" -> Every day at 9am
@@ -475,6 +349,9 @@ async def create_orchestrator_agent(model: BaseChatModel | None = None):
     Returns:
         Compiled agent graph for the Orchestrator
     """
+    if ORCHESTRATOR_ARCHIVED:
+        raise RuntimeError(ARCHIVED_MESSAGE)
+
     from cassey.agent.graph import create_graph
 
     if model is None:
@@ -482,10 +359,10 @@ async def create_orchestrator_agent(model: BaseChatModel | None = None):
 
     # Tools available to the Orchestrator
     orchestrator_tools = [
-        spawn_worker,
-        schedule_job,
-        list_jobs,
-        cancel_job,
+        orchestrator_spawn,
+        orchestrator_schedule,
+        orchestrator_list,
+        orchestrator_cancel,
     ]
 
     # Create the agent graph
@@ -514,6 +391,9 @@ async def invoke_orchestrator(
     Returns:
         Orchestrator's response
     """
+    if ORCHESTRATOR_ARCHIVED:
+        raise RuntimeError(ARCHIVED_MESSAGE)
+
     # Set thread_id context for tools
     set_thread_id(thread_id)
 
@@ -586,6 +466,9 @@ async def delegate_to_orchestrator(task: str, flow: str, schedule: str = "") -> 
         ...     "daily at 9am"
         ... )
     """
+    if ORCHESTRATOR_ARCHIVED:
+        return _archived_response()
+
     thread_id = get_thread_id()
     if not thread_id:
         return "Error: No thread_id context. Cannot delegate to Orchestrator."
@@ -640,6 +523,9 @@ async def execute_worker(
     Returns:
         Tuple of (result: str, error: str | None)
     """
+    if ORCHESTRATOR_ARCHIVED:
+        return None, ARCHIVED_MESSAGE
+
     from cassey.agent.graph import create_graph
 
     # Get the worker's assigned tools
@@ -710,4 +596,6 @@ def get_orchestrator_tools() -> list[BaseTool]:
     Returns:
         List of tools including delegate_to_orchestrator
     """
+    if ORCHESTRATOR_ARCHIVED:
+        return []
     return [delegate_to_orchestrator]
