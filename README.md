@@ -32,7 +32,7 @@ All per-thread data lives under `data/users/{thread_id}/`:
 data/users/{thread_id}/
   files/   # user files
   db/      # DuckDB workspace database
-  kb/      # DuckDB knowledge base
+  kb/      # Knowledge base (SeekDB: seekdb.db + WAL + SHM)
   mem/     # embedded memory
 ```
 
@@ -57,13 +57,14 @@ Note: Tool naming is being standardized to verb-first. Some tools may still be e
 - `db_drop_table` - Delete a table
 - `db_export_table` / `db_import_table` - Data export/import
 
-**Knowledge Base (per-thread, full-text search):**
-- `kb_store` - Store documents with FTS indexing (BM25 search)
-- `kb_search` - Search documents using full-text search
-- `kb_add_documents` - Add more documents to existing KB table
-- `kb_list` - List all KB tables with document counts
-- `kb_describe` - Show KB table schema and samples
-- `kb_delete` - Delete a KB table
+**Knowledge Base (per-thread, vector + full-text search):**
+- `create_kb_collection` - Create a KB collection with vector and FTS indexing
+- `kb_search` - Hybrid search (vector + full-text with RRF rank fusion)
+- `add_kb_documents` - Add documents to existing collection
+- `kb_list` - List all KB collections with document counts
+- `describe_kb_collection` - Show collection schema and samples
+- `delete_kb_documents` - Delete documents from collection
+- `drop_kb_collection` - Delete a KB collection
 
 **Time & Reminders:**
 - `time_get_current` - Current time in any timezone (planned rename: `get_current_time`)
@@ -233,42 +234,56 @@ Available tools:
 
 ## Knowledge Base (KB)
 
-The KB is per-thread (like workspace DB) and persists across sessions. Each conversation has its own KB stored under `data/kb/{thread_id}.db`. It uses DuckDB's Full-Text Search (FTS) for fast document retrieval with BM25 ranking.
+The KB is per-thread (like workspace DB) and persists across sessions. Each conversation has its own KB stored under `data/users/{thread_id}/kb/`.
+
+**Current Status:** Migration from DuckDB FTS to SeekDB (AI-native hybrid search) is in progress. See `discussions/seekdb-kb-remove-duckdb-plan-*.md` for details.
+
+### SeekDB (New)
+
+SeekDB provides vector + full-text hybrid search with RRF (Reciprocal Rank Fusion):
 
 ```
-data/kb/
-  telegram_123456789.db  (KB for this conversation)
-  http_abc123.db         (KB for this conversation)
+data/users/{thread_id}/kb/
+  seekdb.db       # Main database (SQLite-based)
+  seekdb.db-wal   # Write-Ahead Log
+  seekdb.db-shm   # Shared memory
 ```
+
+**SeekDB vs DuckDB KB:**
+- **Vector search** - Semantic similarity with embeddings (384-dim ONNX, no API key)
+- **Hybrid search** - Full-text + vector with RRF rank fusion
+- **Collections** - Schema-flexible storage (not "tables")
+- **Better RAG** - Purpose-built for AI/ML workloads
 
 KB vs Workspace DB:
 - **Workspace DB** (`db_*` tools): Temporary working data during analysis
-- **Knowledge Base** (`kb_*` tools): Longer-term reference data for retrieval
+- **Knowledge Base** (`kb_*` / `*_kb_*` tools): Longer-term reference data for retrieval
 
-Available tools:
-- `kb_store(table_name, documents)` - Store documents with FTS indexing
-- `kb_search(query, table_name, limit)` - Full-text search with relevance scores
-- `kb_add_documents(table_name, documents)` - Add more documents to existing table
-- `kb_list()` - List all KB tables with document counts
-- `kb_describe(table_name)` - Show table schema and sample documents
-- `kb_delete(table_name)` - Delete a KB table
+Available tools (SeekDB):
+- `create_kb_collection(collection_name, documents)` - Create collection with vector + FTS
+- `kb_search(query, collection_name, limit)` - Hybrid search (vector + full-text)
+- `add_kb_documents(collection_name, documents)` - Add documents to collection
+- `kb_list()` - List all collections with document counts
+- `describe_kb_collection(collection_name)` - Show collection schema and samples
+- `delete_kb_documents(collection_name, document_ids)` - Delete specific documents
+- `drop_kb_collection(collection_name)` - Delete entire collection
 
 **Example usage:**
 ```python
-# Store documents
-kb_store("notes", '[{"content": "Meeting: Q1 revenue was $1.2M", "metadata": "finance"}]')
+# Create collection with documents
+create_kb_collection("notes", '[{"content": "Meeting: Q1 revenue was $1.2M", "metadata": "finance"}]')
 
-# Search
+# Hybrid search (semantic + full-text)
 kb_search("revenue Q1", "notes")
-# Returns: [1.5] Meeting: Q1 revenue was $1.2M [metadata: finance]
+# Returns ranked results with distances
 
 # Add more documents
-kb_add_documents("notes", '[{"content": "Q2 revenue projection: $1.5M"}]')
+add_kb_documents("notes", '[{"content": "Q2 revenue projection: $1.5M"}]')
 
-# List all tables
+# List all collections
 kb_list()
-# Returns: Knowledge Base tables:
-# - notes: 2 documents
+# Returns: Knowledge Base collections:
+# - notes: 2 documents (vector + FTS indexed)
 ```
 
 ## Python Code Execution
@@ -342,6 +357,10 @@ MW_TOOL_CALL_LIMIT=100
 MW_TOOL_RETRY_ENABLED=true
 MW_MODEL_RETRY_ENABLED=true
 MW_HITL_ENABLED=false
+MW_TODO_LIST_ENABLED=true              # TodoListMiddleware for multi-step task tracking
+MW_CONTEXT_EDITING_ENABLED=false       # ContextEditingMiddleware (safety net, disabled by default)
+MW_CONTEXT_EDITING_TRIGGER_TOKENS=100000  # Trigger token count for context trimming
+MW_CONTEXT_EDITING_KEEP_TOOL_USES=10   # Number of recent tool uses to keep
 ```
 
 Legacy storage paths (`FILES_ROOT`, `DB_ROOT`, `KB_ROOT`) are deprecated and only used for fallback reads.
