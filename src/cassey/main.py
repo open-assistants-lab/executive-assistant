@@ -4,14 +4,18 @@ import asyncio
 import os
 import signal
 import sys
+from typing import Any
 
 from cassey.config import create_model, settings
+from cassey.logging import configure_logging
 from cassey.tools.registry import get_all_tools
 from cassey.storage.checkpoint import get_async_checkpointer
 from cassey.storage.user_registry import UserRegistry
 from cassey.channels.telegram import TelegramChannel
 from cassey.channels.http import HttpChannel
 from cassey.agent.graph import create_graph
+from cassey.agent.langchain_agent import create_langchain_agent
+from cassey.agent.prompts import get_system_prompt
 from cassey.scheduler import start_scheduler, stop_scheduler, register_notification_handler
 
 
@@ -23,6 +27,7 @@ def get_channels():
 
 async def main() -> None:
     """Start the Cassey bot."""
+    configure_logging()
     # Create LLM model
     model = create_model()
     print(f" Using LLM provider: {settings.DEFAULT_LLM_PROVIDER}")
@@ -35,9 +40,45 @@ async def main() -> None:
     checkpointer = await get_async_checkpointer()
     print(f" Checkpointer: {settings.CHECKPOINT_STORAGE}")
 
-    # Compile agent graph
-    agent = create_graph(model=model, tools=tools, checkpointer=checkpointer)
-    print(" Agent graph compiled")
+    runtime = settings.AGENT_RUNTIME.lower()
+    fallback = settings.AGENT_RUNTIME_FALLBACK.lower() if settings.AGENT_RUNTIME_FALLBACK else None
+    print(f" Agent runtime: {runtime}")
+
+    agent_cache: dict[str, Any] = {}
+
+    def build_agent(runtime_name: str, channel_name: str) -> Any:
+        if runtime_name == "langchain":
+            cache_key = f"langchain:{channel_name}"
+            if cache_key not in agent_cache:
+                system_prompt = get_system_prompt(channel_name)
+                agent_cache[cache_key] = create_langchain_agent(
+                    model=model,
+                    tools=tools,
+                    checkpointer=checkpointer,
+                    system_prompt=system_prompt,
+                )
+            return agent_cache[cache_key]
+        if runtime_name == "custom":
+            if "custom" not in agent_cache:
+                agent_cache["custom"] = create_graph(
+                    model=model,
+                    tools=tools,
+                    checkpointer=checkpointer,
+                )
+            return agent_cache["custom"]
+        raise ValueError(f"Unknown AGENT_RUNTIME: {runtime_name}")
+
+    def get_agent(channel_name: str) -> tuple[Any, str]:
+        try:
+            return build_agent(runtime, channel_name), runtime
+        except Exception as exc:
+            if fallback and fallback != runtime:
+                print(
+                    f" Warning: failed to build runtime '{runtime}' ({exc}). "
+                    f"Falling back to '{fallback}'."
+                )
+                return build_agent(fallback, channel_name), fallback
+            raise
 
     # Create user registry (for audit logging)
     registry = UserRegistry(conn_string=settings.POSTGRES_URL)
@@ -52,7 +93,8 @@ async def main() -> None:
 
     for channel_name in enabled_channels:
         if channel_name == "telegram":
-            channel = TelegramChannel(agent=agent)
+            agent, agent_runtime = get_agent("telegram")
+            channel = TelegramChannel(agent=agent, runtime=agent_runtime)
             channel.registry = registry
 
             # Register notification handler for reminders
@@ -69,10 +111,12 @@ async def main() -> None:
             active_channels.append(channel)
             print(" Telegram channel created")
         elif channel_name == "http":
+            agent, agent_runtime = get_agent("http")
             channel = HttpChannel(
                 agent=agent,
                 host=os.getenv("HTTP_HOST", "0.0.0.0"),
                 port=int(os.getenv("HTTP_PORT", "8000")),
+                runtime=agent_runtime,
             )
             channel.registry = registry
 

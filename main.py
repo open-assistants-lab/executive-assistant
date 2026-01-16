@@ -5,10 +5,24 @@ import signal
 import sys
 
 from cassey.config import create_model, settings
+from cassey.logging import configure_logging
 from cassey.agent import create_graph
 from cassey.channels import TelegramChannel
 from cassey.storage import get_async_checkpointer, close_checkpointer
 from cassey.tools import get_all_tools
+
+
+def main_init() -> None:
+    """
+    Early initialization before async context.
+
+    This configures logging and validates environment before
+    entering the async context.
+    """
+    # Configure logging first (before any other imports that might log)
+    log_file = getattr(settings, "LOG_FILE", None)
+    log_level = getattr(settings, "LOG_LEVEL", "INFO")
+    configure_logging(log_level=log_level, log_file=log_file)
 
 
 async def main() -> None:
@@ -90,6 +104,8 @@ async def main() -> None:
 
 if __name__ == "__main__":
     try:
+        # Early initialization (logging configuration)
+        main_init()
         asyncio.run(main())
     except KeyboardInterrupt:
         print("\n👋 Goodbye!")

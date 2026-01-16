@@ -2,13 +2,17 @@
 
 from langchain_core.tools import BaseTool
 
-from cassey.storage.file_sandbox import list_files, read_file, write_file
+from cassey.storage.file_sandbox import (
+    list_files,
+    read_file,
+    write_file,
+)
 
 
 async def get_confirmation_tools() -> list[BaseTool]:
     """Get user confirmation tools for large operations."""
-    from cassey.tools.confirmation_tool import request_confirmation
-    return [request_confirmation]
+    from cassey.tools.confirmation_tool import confirmation_request
+    return [confirmation_request]
 
 
 async def get_file_tools() -> list[BaseTool]:
@@ -40,25 +44,31 @@ async def get_file_tools() -> list[BaseTool]:
 async def get_db_tools() -> list[BaseTool]:
     """Get workspace database tabular data tools (thread-scoped)."""
     from cassey.storage.db_tools import (
-        db_create_table,
-        db_insert_table,
-        db_query,
-        db_list_tables,
-        db_describe_table,
-        db_drop_table,
-        db_export_table,
-        db_import_table,
+        create_db_table,
+        insert_db_table,
+        query_db,
+        list_db_tables,
+        describe_db_table,
+        delete_db_table,
+        export_db_table,
+        import_db_table,
     )
     return [
-        db_create_table,
-        db_insert_table,
-        db_query,
-        db_list_tables,
-        db_describe_table,
-        db_drop_table,
-        db_export_table,
-        db_import_table,
+        create_db_table,
+        insert_db_table,
+        query_db,
+        list_db_tables,
+        describe_db_table,
+        delete_db_table,
+        export_db_table,
+        import_db_table,
     ]
+
+
+async def get_shared_db_tools() -> list[BaseTool]:
+    """Get shared database tools (read for all, write for admin)."""
+    from cassey.storage.shared_db_tools import get_shared_db_tools as _get
+    return await _get()
 
 
 async def get_time_tools() -> list[BaseTool]:
@@ -86,15 +96,26 @@ async def get_search_tools() -> list[BaseTool]:
 
 
 async def get_orchestrator_tools() -> list[BaseTool]:
-    """Get orchestrator tools for delegation."""
-    from cassey.tools.orchestrator_tools import get_orchestrator_tools as _get
-    return _get()
+    """Get orchestrator tools for delegation (archived)."""
+    return []
 
 
 async def get_kb_tools() -> list[BaseTool]:
     """Get Knowledge Base tools with full-text search."""
     from cassey.storage.kb_tools import get_kb_tools as _get
     return await _get()
+
+
+async def get_memory_tools() -> list[BaseTool]:
+    """Get Memory tools for storing and retrieving user memories."""
+    from cassey.tools.mem_tools import get_memory_tools as _get
+    return _get()
+
+
+async def get_plan_tools() -> list[BaseTool]:
+    """Get Plan tools for multi-step task planning."""
+    from cassey.tools.plan_tools import get_plan_tools as _get
+    return _get()
 
 
 async def get_mcp_tools() -> list[BaseTool]:
@@ -191,15 +212,17 @@ async def get_all_tools() -> list[BaseTool]:
     Get all available tools for the agent.
 
     Aggregates tools from:
-    - File operations (read, write, list, create_folder, delete_folder, rename_folder, move_file, glob_files, grep_files)
-    - Database operations (db_create_table, db_query, etc.)
-    - Knowledge Base (kb_store, kb_search, kb_list, etc.)
+    - File operations (read_file, write_file, list_files, create_folder, delete_folder, rename_folder, move_file, glob_files, grep_files)
+    - Database operations (create_db_table, query_db, etc.)
+    - Shared database operations (query_shared_db, list_shared_db_tables, etc.)
+    - Knowledge Base (create_kb_table, search_kb with fuzzy fallback, kb_list, etc.)
+    - Memory (create_memory, update_memory, delete_memory, list_memories, search_memories, etc.)
     - Time tools (get_current_time, get_current_date, list_timezones)
-    - Reminder tools (set_reminder, list_reminders, cancel_reminder, edit_reminder)
+    - Reminder tools (reminder_set with dateparser, reminder_list, reminder_cancel, reminder_edit)
     - Python execution (execute_python for calculations and data processing)
-    - Web search (web_search via SearXNG)
-    - Orchestrator (delegate_to_orchestrator for scheduling and workflows)
-    - Confirmation (request_confirmation for large operations)
+    - Web search (search_web via SearXNG)
+    - Web scraping (firecrawl_scrape, firecrawl_crawl via Firecrawl API)
+    - Confirmation (confirmation_request for large operations)
     - Standard tools (calculator, search)
 
     Note: MCP tools are available via get_mcp_tools() but not loaded by default.
@@ -216,8 +239,17 @@ async def get_all_tools() -> list[BaseTool]:
     # Add database tools
     all_tools.extend(await get_db_tools())
 
+    # Add shared database tools
+    all_tools.extend(await get_shared_db_tools())
+
     # Add KB tools
     all_tools.extend(await get_kb_tools())
+
+    # Add memory tools
+    all_tools.extend(await get_memory_tools())
+
+    # Add plan tools
+    all_tools.extend(await get_plan_tools())
 
     # Add time tools
     all_tools.extend(await get_time_tools())
@@ -231,11 +263,12 @@ async def get_all_tools() -> list[BaseTool]:
     # Add search tools
     all_tools.extend(await get_search_tools())
 
-    # Add orchestrator tools
-    all_tools.extend(await get_orchestrator_tools())
-
     # Add confirmation tools
     all_tools.extend(await get_confirmation_tools())
+
+    # Add Firecrawl tools (only if API key is configured)
+    from cassey.tools.firecrawl_tool import get_firecrawl_tools
+    all_tools.extend(get_firecrawl_tools())
 
     # MCP tools are NOT loaded by default - use get_mcp_tools() manually if needed
 

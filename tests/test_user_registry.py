@@ -146,7 +146,6 @@ class TestUserRegistry:
                 "created_at": now,
                 "updated_at": now,
                 "message_count": 5,
-                "summary": None,
                 "status": "active",
             }
         ])
@@ -157,18 +156,6 @@ class TestUserRegistry:
 
             assert len(conversations) == 1
             assert conversations[0].message_count == 5
-
-    @pytest.mark.asyncio
-    async def test_update_summary(self, user_registry):
-        """Test updating conversation summary."""
-        conn = AsyncMock()
-        conn.execute = AsyncMock()
-        conn.close = AsyncMock()
-
-        with patch("asyncpg.connect", AsyncMock(return_value=conn)):
-            await user_registry.update_summary("test_conv", "This is a summary")
-
-            conn.execute.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_get_message_count(self, user_registry):
@@ -216,7 +203,6 @@ class TestConversationLog:
             created_at=datetime.now(),
             updated_at=datetime.now(),
             message_count=5,
-            summary=None,
             status="active",
         )
 

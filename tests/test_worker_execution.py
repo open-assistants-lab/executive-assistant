@@ -1,6 +1,9 @@
 """Unit tests for worker execution."""
 
 import pytest
+
+pytest.skip("Worker agents are archived.", allow_module_level=True)
+
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 

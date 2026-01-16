@@ -19,7 +19,7 @@ def _get_searxng_params():
 
 
 @tool
-def web_search(query: str, num_results: int = 5) -> str:
+def search_web(query: str, num_results: int = 5) -> str:
     """Search the web using SearXNG metasearch engine.
 
     Args:
@@ -86,4 +86,4 @@ def web_search(query: str, num_results: int = 5) -> str:
 
 def get_search_tools() -> list:
     """Get web search tools."""
-    return [web_search]
+    return [search_web]

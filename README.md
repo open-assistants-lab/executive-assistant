@@ -25,10 +25,23 @@ Multi-channel AI agent platform with LangGraph ReAct agent.
 - `user_registry` - Operation audit log (merge/split/remove)
 - `reminders` - Scheduled reminder notifications
 
+### Thread-Scoped Storage Layout
+All per-thread data lives under `data/users/{thread_id}/`:
+
+```
+data/users/{thread_id}/
+  files/   # user files
+  db/      # DuckDB workspace database
+  kb/      # DuckDB knowledge base
+  mem/     # embedded memory
+  plan/    # reserved for planning files (future)
+```
+
 ### Tools
+Note: Tool naming is being standardized to verb-first. Some tools may still be exposed under legacy names until the migration is complete.
 
 **File Operations:**
-- `read_file` - Read file contents
+- `file_read` - Read file contents (planned rename: `read_file`)
 - `write_file` - Write files
 - `list_files` - Browse directory contents
 - `create_folder` / `delete_folder` / `rename_folder` - Folder management
@@ -54,9 +67,9 @@ Multi-channel AI agent platform with LangGraph ReAct agent.
 - `kb_delete` - Delete a KB table
 
 **Time & Reminders:**
-- `get_current_time` - Current time in any timezone
-- `get_current_date` - Current date
-- `list_timezones` - Available timezones
+- `time_get_current` - Current time in any timezone (planned rename: `get_current_time`)
+- `time_get_current_date` - Current date (planned rename: `get_current_date`)
+- `time_list` - Available timezones (planned rename: `list_timezones`)
 - `set_reminder` - Create reminders with recurrence
 - `list_reminders` - Show active reminders
 - `cancel_reminder` - Cancel pending reminders
@@ -307,10 +320,31 @@ DEFAULT_LLM_PROVIDER=openai  # Options: openai, anthropic, zhipu
 SEARXNG_HOST=https://searxng.example.com  # Web search
 HTTP_HOST=0.0.0.0   # HTTP server host (default: 0.0.0.0)
 HTTP_PORT=8000      # HTTP server port (default: 8000)
-FILES_ROOT=./data/files  # Default file storage
-DB_ROOT=./data/db        # Default DuckDB database storage
-KB_ROOT=./data/kb        # Default KB DuckDB storage
+USERS_ROOT=./data/users  # Thread-scoped storage root
+SHARED_DB_PATH=./data/shared/shared.db  # Shared organization-wide DB file
+ADMIN_USER_IDS=  # Comma-separated admin user IDs for shared DB writes
+ADMIN_THREAD_IDS=  # Comma-separated admin thread IDs for shared DB writes
+
+# Agent runtime
+AGENT_RUNTIME=langchain  # Options: langchain, custom
+AGENT_RUNTIME_FALLBACK=  # Optional fallback runtime (e.g., custom)
+
+# LangChain middleware
+MW_SUMMARIZATION_ENABLED=true
+MW_SUMMARIZATION_MAX_TOKENS=10000
+MW_SUMMARIZATION_TARGET_TOKENS=2000
+MW_MODEL_CALL_LIMIT=50
+MW_TOOL_CALL_LIMIT=100
+MW_TOOL_RETRY_ENABLED=true
+MW_MODEL_RETRY_ENABLED=true
+MW_HITL_ENABLED=false
 ```
+
+Legacy storage paths (`FILES_ROOT`, `DB_ROOT`, `KB_ROOT`) are deprecated and only used for fallback reads.
+
+Notes:
+- `AGENT_RUNTIME=langchain` uses `MW_*` settings for middleware behavior.
+- `AGENT_RUNTIME=custom` uses `ENABLE_SUMMARIZATION`, `SUMMARY_THRESHOLD`, and `MAX_ITERATIONS`.
 
 ## Project Structure
 
@@ -320,7 +354,7 @@ cassey/
 │   ├── channels/       # Telegram, HTTP
 │   ├── storage/        # User registry, file sandbox, database, reminders
 │   ├── tools/          # LangChain tools (file, database, time, python, search, etc.)
-│   ├── agent/          # LangGraph agent graph
+│   ├── agent/          # Agent runtimes (custom graph + LangChain)
 │   ├── scheduler.py    # APScheduler integration
 │   └── config/         # Settings
 ├── migrations/         # SQL migrations
@@ -339,3 +373,17 @@ uv run pytest tests/ -v
 # Run specific test file
 uv run pytest tests/test_http.py -v
 ```
+
+Integration tests (live LLM + VCR cassettes):
+
+```bash
+# Record live cassettes (requires API key + RUN_LIVE_LLM_TESTS=1)
+RUN_LIVE_LLM_TESTS=1 uv run pytest -m "langchain_integration and vcr" --record-mode=once -v
+
+# Or use the helper script
+./scripts/pytest_record_cassettes.sh
+```
+
+Notes:
+- Cassettes are stored in `tests/cassettes/`.
+- If prompts/tools change, delete the cassette file and re-run to record a new baseline.

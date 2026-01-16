@@ -68,12 +68,7 @@ def _get_thread_root() -> Path:
     thread_id = get_thread_id()
 
     if thread_id:
-        # Sanitize thread_id for use as directory name
-        # Replace colons, slashes, @, and backslashes with underscores
-        safe_thread_id = thread_id
-        for char in (":", "/", "@", "\\"):
-            safe_thread_id = safe_thread_id.replace(char, "_")
-        thread_path = settings.FILES_ROOT / safe_thread_id
+        thread_path = settings.get_thread_files_path(thread_id)
         thread_path.mkdir(parents=True, exist_ok=True)
         return thread_path
     else:

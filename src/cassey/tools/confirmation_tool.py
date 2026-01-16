@@ -8,7 +8,7 @@ _pending_proposal: ContextVar[dict | None] = ContextVar("_pending_proposal", def
 
 
 @tool
-def request_confirmation(
+def confirmation_request(
     action: str,
     details: str,
 ) -> str:

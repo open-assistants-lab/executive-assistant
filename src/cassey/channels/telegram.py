@@ -5,6 +5,7 @@ import re
 from typing import Any
 
 from telegram import Update
+from telegram.error import BadRequest
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -15,6 +16,12 @@ from telegram.ext import (
 from langgraph.types import Runnable
 
 from cassey.channels.base import BaseChannel, MessageFormat
+from cassey.channels.management_commands import (
+    mem_command,
+    kb_command,
+    db_command,
+    file_command,
+)
 from cassey.config.settings import settings
 
 
@@ -31,16 +38,41 @@ class TelegramChannel(BaseChannel):
         token: Telegram bot token from BotFather.
         agent: Compiled LangGraph ReAct agent.
         application: python-telegram-bot Application instance.
+        _thread_locks: Per-thread asyncio locks to prevent concurrent message interleaving.
     """
 
-    def __init__(self, token: str | None = None, agent: Runnable | None = None) -> None:
+    def __init__(
+        self,
+        token: str | None = None,
+        agent: Runnable | None = None,
+        runtime: str | None = None,
+    ) -> None:
         token = token or settings.TELEGRAM_BOT_TOKEN
         if not token:
             raise ValueError("Telegram bot token not provided")
 
-        super().__init__(agent)
+        super().__init__(agent, runtime=runtime)
         self.token = token
         self.application: Application | None = None
+        self._thread_locks: dict[str, asyncio.Lock] = {}
+
+    def _get_thread_lock(self, thread_id: str) -> asyncio.Lock:
+        """Get or create a lock for the given thread_id."""
+        if thread_id not in self._thread_locks:
+            self._thread_locks[thread_id] = asyncio.Lock()
+        return self._thread_locks[thread_id]
+
+    def _is_corruption_error(self, error_str: str) -> bool:
+        """Check if an error is related to checkpoint corruption."""
+        error_lower = error_str.lower()
+        corruption_indicators = [
+            "tool_call",
+            "toolcallid",
+            "tool_calls",
+            "must be followed by tool messages",
+            "orphaned",
+        ]
+        return any(indicator in error_lower for indicator in corruption_indicators)
 
     async def start(self) -> None:
         """Start the Telegram bot with polling."""
@@ -50,6 +82,12 @@ class TelegramChannel(BaseChannel):
         self.application.add_handler(CommandHandler("start", self._start_command))
         self.application.add_handler(CommandHandler("help", self._help_command))
         self.application.add_handler(CommandHandler("reset", self._reset_command))
+        self.application.add_handler(CommandHandler("remember", self._remember_command))
+        # Management commands
+        self.application.add_handler(CommandHandler("mem", mem_command))
+        self.application.add_handler(CommandHandler("kb", kb_command))
+        self.application.add_handler(CommandHandler("db", db_command))
+        self.application.add_handler(CommandHandler("file", file_command))
         self.application.add_handler(
             MessageHandler(filters.TEXT & ~filters.COMMAND, self._message_handler)
         )
@@ -58,8 +96,8 @@ class TelegramChannel(BaseChannel):
             MessageHandler(filters.Document.ALL | filters.PHOTO, self._file_handler)
         )
 
-        # Clean up any corrupted checkpoints at startup
-        await self._cleanup_corrupted_checkpoints()
+        # Note: Checkpoint sanitization now happens automatically via SanitizingCheckpointSaver
+        # No need for startup cleanup - corrupted messages are sanitized on load
 
         # Start polling
         await self.application.initialize()
@@ -72,78 +110,6 @@ class TelegramChannel(BaseChannel):
             await self.application.updater.stop()
             await self.application.stop()
             await self.application.shutdown()
-
-    async def _cleanup_corrupted_checkpoints(self) -> None:
-        """Clean up corrupted checkpoints at startup.
-
-        Checks for checkpoints with orphaned tool_calls (AIMessage with tool_calls
-        not followed by ToolMessage responses) and removes them.
-        """
-        try:
-            from cassey.agent.checkpoint_utils import detect_corrupted_messages
-
-            # Get the checkpointer from the agent
-            if not self.agent or not hasattr(self.agent, 'graph'):
-                return
-
-            graph = self.agent.graph
-            if not hasattr(graph, 'checkpointer') or not graph.checkpointer:
-                return
-
-            # Get all thread_ids from checkpoint_blobs
-            import asyncpg
-            from cassey.config import settings
-
-            conn_str = (
-                f"postgresql://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}@"
-                f"{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
-            )
-
-            conn = await asyncpg.connect(conn_str)
-            try:
-                # Get all unique thread_ids
-                rows = await conn.fetch(
-                    "SELECT DISTINCT thread_id FROM checkpoint_blobs WHERE thread_id LIKE 'telegram:%'"
-                )
-
-                corrupted_threads = []
-                for row in rows:
-                    thread_id = row["thread_id"]
-                    try:
-                        config = {"configurable": {"thread_id": thread_id}}
-                        checkpoint_config = await graph.checkpointer.aget_tuple(config)
-
-                        if checkpoint_config and checkpoint_config.checkpoint:
-                            state = checkpoint_config.checkpoint.get("channel_values", {})
-                            messages = state.get("messages", [])
-
-                            issues = detect_corrupted_messages(messages)
-                            if issues:
-                                corrupted_threads.append(thread_id)
-                    except Exception:
-                        # If we can't even read the checkpoint, it's corrupted
-                        corrupted_threads.append(thread_id)
-
-                # Delete corrupted checkpoints
-                if corrupted_threads:
-                    for thread_id in corrupted_threads:
-                        await conn.execute(
-                            "DELETE FROM checkpoint_blobs WHERE thread_id = $1",
-                            thread_id
-                        )
-                        await conn.execute(
-                            "DELETE FROM checkpoints WHERE thread_id = $1",
-                            thread_id
-                        )
-                    print(f"Cleaned up {len(corrupted_threads)} corrupted checkpoints at startup")
-
-            finally:
-                await conn.close()
-
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            # Don't fail startup if cleanup fails
 
     @staticmethod
     def _convert_markdown_to_telegram(text: str) -> str:
@@ -205,6 +171,7 @@ class TelegramChannel(BaseChannel):
 
         Splits messages longer than MAX_MESSAGE_LENGTH into multiple messages.
         Converts standard markdown to Telegram markdown format.
+        Falls back to plain text if markdown parsing fails.
         """
         if not self.application:
             return
@@ -218,12 +185,50 @@ class TelegramChannel(BaseChannel):
         if len(content) > self.MAX_MESSAGE_LENGTH:
             await self._send_long_message(conversation_id, content, **kwargs)
         else:
+            await self._send_with_fallback(
+                conversation_id, content, parse_mode or 'Markdown', **kwargs
+            )
+
+    async def _send_with_fallback(
+        self,
+        conversation_id: str,
+        content: str,
+        parse_mode: str,
+        **kwargs: Any,
+    ) -> None:
+        """Send message with markdown, falling back to plain text on parse error."""
+        try:
             await self.application.bot.send_message(
                 chat_id=conversation_id,
                 text=content,
-                parse_mode=parse_mode or 'Markdown',  # Use Markdown for formatting
+                parse_mode=parse_mode,
                 **kwargs,
             )
+        except BadRequest as e:
+            if "can't parse entities" in str(e).lower() or "can't find end" in str(e).lower():
+                # Markdown parsing failed - retry without formatting
+                # Strip markdown special characters for cleaner plain text
+                plain_text = self._strip_markdown(content)
+                await self.application.bot.send_message(
+                    chat_id=conversation_id,
+                    text=plain_text,
+                    parse_mode=None,  # Plain text
+                    **kwargs,
+                )
+            else:
+                raise  # Re-raise if it's a different BadRequest error
+
+    def _strip_markdown(self, text: str) -> str:
+        """Strip markdown special characters for plain text fallback."""
+        # Remove bold/italic markers
+        text = re.sub(r'\*([^*]+)\*', r'\1', text)  # *italic*
+        text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)  # **bold**
+        text = re.sub(r'_([^_]+)_', r'\1', text)  # _italic_
+        text = re.sub(r'__([^_]+)__', r'\1', text)  # __bold__
+        # Remove code blocks
+        text = re.sub(r'`([^`]+)`', r'\1', text)  # `code`
+        text = re.sub(r'```(.+?)```', r'\1', text, flags=re.DOTALL)  # ```pre```
+        return text
 
     async def _send_long_message(
         self,
@@ -234,6 +239,7 @@ class TelegramChannel(BaseChannel):
         """Send a long message by splitting it into chunks.
 
         Tries to split at newlines to avoid breaking mid-sentence.
+        Falls back to plain text if markdown parsing fails.
         """
         chunks = []
         current_chunk = ""
@@ -260,93 +266,82 @@ class TelegramChannel(BaseChannel):
         # Send each chunk
         for i, chunk in enumerate(chunks, 1):
             if chunk:  # Only send non-empty chunks
-                await self.application.bot.send_message(
-                    chat_id=conversation_id,
-                    text=chunk,
-                    parse_mode='Markdown',
-                    **kwargs,
+                await self._send_with_fallback(
+                    conversation_id, chunk, 'Markdown', **kwargs
                 )
 
     async def handle_message(self, message: MessageFormat) -> None:
         """Handle incoming message through the agent."""
-        # Task to keep sending typing action while processing
-        typing_task = None
+        thread_id = self.get_thread_id(message)
+        lock = self._get_thread_lock(thread_id)
 
-        async def _keep_typing():
-            """Keep sending typing action every 4 seconds (Telegram expires after ~5s)."""
-            while True:
-                try:
-                    await self.application.bot.send_chat_action(
-                        chat_id=message.conversation_id,
-                        action="typing"
+        # Use per-thread lock to prevent concurrent message interleaving
+        async with lock:
+            # Task to keep sending typing action while processing
+            typing_task = None
+
+            async def _keep_typing():
+                """Keep sending typing action every 4 seconds (Telegram expires after ~5s)."""
+                while True:
+                    try:
+                        await self.application.bot.send_chat_action(
+                            chat_id=message.conversation_id,
+                            action="typing"
+                        )
+                        await asyncio.sleep(4)
+                    except Exception:
+                        break  # Stop if bot is shutting down or chat is unavailable
+
+            try:
+                # Start typing indicator in background
+                typing_task = asyncio.create_task(_keep_typing())
+                await self.application.bot.send_chat_action(
+                    chat_id=message.conversation_id,
+                    action="typing"
+                )
+
+                # Note: Checkpoint sanitization now happens automatically in the checkpointer
+                # No need for pre-check here - SanitizingCheckpointSaver handles it on load
+
+                # Stream agent response
+                messages = await self.stream_agent_response(message)
+
+                # Send responses back
+                for msg in messages:
+                    if hasattr(msg, "content") and msg.content:
+                        # send_message will handle markdown conversion
+                        await self.send_message(message.conversation_id, msg.content)
+
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+
+                error_str = str(e)
+
+                # Only clear checkpoint on corruption errors, not all errors
+                if self._is_corruption_error(error_str):
+                    thread_id = self.get_thread_id(message)
+                    await self._clear_checkpoint(thread_id)
+                    await self.send_message(
+                        message.conversation_id,
+                        "🔄 *Conversation auto-reset due to state error*\n\n"
+                        "The corrupted conversation history has been cleared. Please send your message again.\n\n"
+                        "Your data is preserved: • Files  • KB  • DB tables"
                     )
-                    await asyncio.sleep(4)
-                except Exception:
-                    break  # Stop if bot is shutting down or chat is unavailable
-
-        try:
-            # Start typing indicator in background
-            typing_task = asyncio.create_task(_keep_typing())
-            await self.application.bot.send_chat_action(
-                chat_id=message.conversation_id,
-                action="typing"
-            )
-
-            # Check for checkpoint corruption BEFORE loading
-            # Note: We also clear checkpoints on any error during processing
-            thread_id = self.get_thread_id(message)
-            corruption_check = await self._check_checkpoint_corruption(thread_id)
-
-            if corruption_check:
-                # Auto-reset the corrupted checkpoint
-                await self._clear_checkpoint(thread_id)
-                await self.send_message(
-                    message.conversation_id,
-                    "🔄 *Conversation auto-reset due to state issue*\n\n"
-                    "The corrupted conversation history has been cleared. Please send your message again.\n\n"
-                    "Your data is preserved: • Files  • KB  • DB tables"
-                )
-                return
-
-            # Stream agent response
-            messages = await self.stream_agent_response(message)
-
-            # Send responses back
-            for msg in messages:
-                if hasattr(msg, "content") and msg.content:
-                    # send_message will handle markdown conversion
-                    await self.send_message(message.conversation_id, msg.content)
-
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-
-            # Clear checkpoint on ANY error to prevent corruption cascade
-            thread_id = self.get_thread_id(message)
-            await self._clear_checkpoint(thread_id)
-
-            # Check if error is related to corrupted state
-            error_str = str(e)
-            if "tool_call" in error_str or "toolcallid" in error_str or "tool_calls" in error_str:
-                await self.send_message(
-                    message.conversation_id,
-                    "🔄 *Conversation auto-reset due to state error*\n\n"
-                    "The corrupted conversation history has been cleared. Please send your message again.\n\n"
-                    "Your data is preserved: • Files  • KB  • DB tables"
-                )
-            else:
-                await self.send_message(
-                    message.conversation_id,
-                    f"Sorry, an error occurred: {e}",
-                )
-        finally:
-            # Stop typing indicator
-            if typing_task:
-                typing_task.cancel()
-                try:
-                    await typing_task
-                except asyncio.CancelledError:
-                    pass
+                else:
+                    # For other errors, just report them - don't reset
+                    await self.send_message(
+                        message.conversation_id,
+                        f"Sorry, an error occurred: {e}",
+                    )
+            finally:
+                # Stop typing indicator
+                if typing_task:
+                    typing_task.cancel()
+                    try:
+                        await typing_task
+                    except asyncio.CancelledError:
+                        pass
 
     def _clean_markdown(self, text: str) -> str:
         """Clean markdown for Telegram compatibility.
@@ -402,19 +397,34 @@ class TelegramChannel(BaseChannel):
     ) -> None:
         """Handle /help command."""
         help_message = (
-            "🤖 Cassey Help\n\n"
-            "Commands:\n"
+            "🤖 *Cassey Help*\n\n"
+            "*Basic Commands:*\n"
             "/start - Start the bot\n"
             "/help - Show this help message\n"
-            "/reset - Clear conversation history\n\n"
-            "What I can do:\n"
-            "• Search the web for information\n"
-            "• Read and write files\n"
-            "• Perform calculations\n"
-            "• Use various tools to help you\n\n"
-            "Just ask me anything!"
+            "/reset - Clear conversation history\n"
+            "/remember <content> - Quick store a memory\n\n"
+            "*Memory* (/mem):\n"
+            "• `/mem` - List all memories\n"
+            "• `/mem search <query>` - Search memories\n"
+            "• `/mem forget <id|key>` - Forget a memory\n\n"
+            "*Knowledge Base* (/kb):\n"
+            "• `/kb` - List tables\n"
+            "• `/kb store <table> <json>` - Store docs\n"
+            "• `/kb search <query>` - Search KB\n\n"
+            "*Database* (/db):\n"
+            "• `/db` - List tables\n"
+            "• `/db create <table> <json>` - Create table\n"
+            "• `/db query <sql>` - Run SQL query\n\n"
+            "*Files* (/file):\n"
+            "• `/file` - List files\n"
+            "• `/file read <path>` - Read file\n"
+            "• `/file write <path> <text>` - Write file\n\n"
+            "*What I can do:*\n"
+            "• Search the web • Read/write files • Calculations\n"
+            "• Remember facts • Use tools to help you\n\n"
+            "*Tip:* Try /mem, /kb, /db, or /file alone to see all options"
         )
-        await update.message.reply_text(help_message)
+        await update.message.reply_text(help_message, parse_mode="Markdown")
 
     async def _reset_command(
         self,
@@ -426,24 +436,18 @@ class TelegramChannel(BaseChannel):
             # Actually clear the checkpoint from database
             thread_id = f"telegram:{update.effective_chat.id}"
 
-            # Get checkpointer from agent if available
-            if hasattr(self, 'agent') and hasattr(self.agent, 'graph'):
-                graph = self.agent.graph
-                if hasattr(graph, 'checkpointer') and graph.checkpointer:
-                    # Try to delete the checkpoint
-                    config = {"configurable": {"thread_id": thread_id}}
-                    try:
-                        # LangGraph checkpointer doesn't have a direct delete method
-                        # So we access the underlying connection if it's PostgresSaver
-                        checkpointer = graph.checkpointer
-                        if hasattr(checkpointer, 'conn'):
-                            # Direct database access
-                            await checkpointer.conn.execute(
-                                "DELETE FROM checkpoints WHERE thread_id = $1",
-                                thread_id
-                            )
-                    except Exception:
-                        pass  # Fall through to success message
+            # Use global checkpointer if available
+            try:
+                from cassey.storage.checkpoint import get_async_checkpointer
+
+                checkpointer = await get_async_checkpointer()
+                if hasattr(checkpointer, "conn") and checkpointer.conn:
+                    await checkpointer.conn.execute(
+                        "DELETE FROM checkpoints WHERE thread_id = $1",
+                        thread_id,
+                    )
+            except Exception:
+                pass  # Fall through to success message
 
             await update.message.reply_text(
                 "🔄 Conversation history cleared!\n\n"
@@ -452,46 +456,65 @@ class TelegramChannel(BaseChannel):
         except Exception as e:
             await update.message.reply_text(f"🔄 Reset attempted. If issues persist, try: {e}")
 
-    async def _check_checkpoint_corruption(self, thread_id: str) -> str | None:
-        """
-        Check if the checkpoint for this thread is corrupted.
+    async def _remember_command(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+    ) -> None:
+        """Handle /remember command to store a memory."""
+        if not update.message:
+            return
 
-        Returns:
-            Error message if corrupted, None if OK
-        """
         try:
-            from cassey.agent.checkpoint_utils import detect_corrupted_messages
+            # Get the text after /remember command
+            args = context.args if context.args else []
 
-            # Get the current state from checkpoint
-            if not hasattr(self, 'agent') or not hasattr(self.agent, 'graph'):
-                return None
+            if not args:
+                await update.message.reply_text(
+                    "📝 *Memory Command*\n\n"
+                    "Usage: /remember <content>\n\n"
+                    "Examples:\n"
+                    "• /remember I prefer Python over JavaScript\n"
+                    "• /remember My timezone is America/New_York\n"
+                    "• /remember I work 9-5 EST\n\n"
+                    "The memory will be stored and can be retrieved in future conversations.",
+                    parse_mode="Markdown"
+                )
+                return
 
-            graph = self.agent.graph
-            if not hasattr(graph, 'checkpointer') or not graph.checkpointer:
-                return None
+            # Join args to get the full content
+            content = " ".join(args)
 
-            config = {"configurable": {"thread_id": thread_id}}
+            # Store the memory
+            from cassey.storage.mem_storage import get_mem_storage
+            from cassey.storage.file_sandbox import set_thread_id
 
-            # Try to get the checkpoint state
+            # Set thread_id context
+            thread_id = f"telegram:{update.effective_chat.id}"
+            set_thread_id(thread_id)
+
             try:
-                checkpoint_config = await graph.checkpointer.aget_tuple(config)
-                if checkpoint_config and checkpoint_config.checkpoint:
-                    state = checkpoint_config.checkpoint.get("channel_values", {})
-                    messages = state.get("messages", [])
+                storage = get_mem_storage()
+                memory_id = storage.create_memory(
+                    content=content,
+                    memory_type="note",  # Default type for /remember
+                    confidence=1.0,  # High confidence for explicit memories
+                )
 
-                    # Check for corruption
-                    issues = detect_corrupted_messages(messages)
-                    if issues:
-                        return "Corrupted conversation state detected:\n• " + "\n• ".join(issues[:3])
+                await update.message.reply_text(
+                    f"💾 *Memory saved!*\n\n"
+                    f"Content: {content[:200]}{'...' if len(content) > 200 else ''}\n\n"
+                    f"I'll remember this for future conversations.",
+                    parse_mode="Markdown"
+                )
+            finally:
+                from cassey.storage.file_sandbox import clear_thread_id
+                clear_thread_id()
 
-            except Exception:
-                # If we can't read the checkpoint, it might be corrupted
-                pass
-
-            return None
-
-        except Exception:
-            return None
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            await update.message.reply_text(f"Sorry, failed to save memory: {e}")
 
     async def _clear_checkpoint(self, thread_id: str) -> bool:
         """
@@ -590,9 +613,7 @@ class TelegramChannel(BaseChannel):
             ))
             set_thread_id(thread_id)
 
-            # Sanitize thread_id for directory name
-            safe_thread_id = thread_id.replace(":", "_").replace("/", "_")
-            thread_dir = settings.FILES_ROOT / safe_thread_id
+            thread_dir = settings.get_thread_files_path(thread_id)
             thread_dir.mkdir(parents=True, exist_ok=True)
 
             attachment = None

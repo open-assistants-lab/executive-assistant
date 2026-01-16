@@ -2,6 +2,9 @@
 
 import asyncio
 import pytest
+
+pytest.skip("Worker agents are archived.", allow_module_level=True)
+
 from datetime import datetime
 
 from cassey.storage.workers import Worker, WorkerStorage, get_worker_storage

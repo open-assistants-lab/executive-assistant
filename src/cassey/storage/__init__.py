@@ -29,6 +29,10 @@ from cassey.storage.kb_storage import (
     KBStorage,
     get_kb_storage,
 )
+from cassey.storage.shared_db_storage import (
+    SharedDBStorage,
+    get_shared_db_storage,
+)
 
 __all__ = [
     "get_checkpointer",
@@ -50,4 +54,6 @@ __all__ = [
     "get_db_storage",
     "KBStorage",
     "get_kb_storage",
+    "SharedDBStorage",
+    "get_shared_db_storage",
 ]

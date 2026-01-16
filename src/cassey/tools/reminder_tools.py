@@ -1,14 +1,14 @@
 """Reminder tools for the agent.
 
 Tools for setting, listing, and canceling reminders.
+Uses dateparser for flexible natural language date/time parsing.
 """
 
 import re
 from datetime import datetime
 
 from langchain_core.tools import tool
-from dateutil import parser as date_parser
-from dateutil.relativedelta import relativedelta
+import dateparser
 
 from cassey.config.settings import settings
 from cassey.storage.db_storage import get_thread_id
@@ -21,14 +21,15 @@ async def _get_storage() -> ReminderStorage:
 
 
 def _parse_time_expression(time_str: str) -> datetime:
-    """Parse time expressions like 'in 30 minutes', 'tomorrow at 9am', 'today at 1:30pm'.
+    """Parse time expressions using dateparser.
 
     Supports many natural language formats:
-    - Relative: "in 30 minutes", "in 2 hours", "in 3 days"
-    - Days: "today", "tomorrow"
-    - Combined: "today at 1:30pm", "tomorrow at 9am", "today at 15:30"
+    - Relative: "in 30 minutes", "in 2 hours", "in 3 days", "next week"
+    - Days: "today", "tomorrow", "yesterday"
+    - Combined: "today at 1:30pm", "tomorrow at 9am", "today 15:30"
     - Time only: "1:30pm", "3pm", "15:30" (assumes today, or tomorrow if passed)
     - Full datetime: "2025-01-15 14:00", "15 Jan 2025 2pm"
+    - Relative dates: "next monday", "last friday", "in 2 weeks"
 
     Args:
         time_str: Time expression to parse
@@ -39,155 +40,76 @@ def _parse_time_expression(time_str: str) -> datetime:
     Raises:
         ValueError: If the time expression cannot be parsed
     """
-    time_str = time_str.strip().lower()
+    time_str = time_str.strip()
     now = datetime.now()
 
-    # Handle "in X minutes/hours/days/weeks"
-    if time_str.startswith("in "):
-        remainder = time_str[3:]
-        parts = remainder.split()
-        if len(parts) >= 2:
-            try:
-                amount = int(parts[0])
-                unit = parts[1]
+    # Configuration for dateparser
+    settings_config = {
+        'PREFER_DATES_FROM': 'future',
+        'RELATIVE_BASE': now,
+        'STRICT_PARSING': False,
+        'REQUIRE_PARTS': ['day'],  # At least day part required
+    }
 
-                if unit.startswith("min"):
-                    return now + relativedelta(minutes=amount)
-                elif unit.startswith("hr") or unit.startswith("hour"):
-                    return now + relativedelta(hours=amount)
-                elif unit.startswith("day"):
-                    return now + relativedelta(days=amount)
-                elif unit.startswith("week"):
-                    return now + relativedelta(weeks=amount)
-                elif unit.startswith("sec"):
-                    return now + relativedelta(seconds=amount)
-                elif unit.startswith("month"):
-                    return now + relativedelta(months=amount)
-            except ValueError:
-                pass
+    # First try: use dateparser for most natural language expressions
+    parsed = dateparser.parse(time_str, settings=settings_config)
 
-    # Handle "today at X" or "tomorrow at X"
-    if time_str.startswith("today at ") or time_str.startswith("today "):
-        time_only = time_str.replace("today at ", "").replace("today ", "").strip()
-        try:
-            return date_parser.parse(time_only, default=now)
-        except Exception:
-            pass
+    if parsed:
+        # If parsed time is in the past and no explicit date was given, assume future
+        # Check if the input seems like just a time (no date keywords)
+        date_keywords = {'today', 'tomorrow', 'yesterday', 'next', 'last', 'in',
+                        'week', 'month', 'year', 'monday', 'tuesday', 'wednesday',
+                        'thursday', 'friday', 'saturday', 'sunday', 'jan', 'feb',
+                        'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct',
+                        'nov', 'dec', '-', '/'}
 
-    if time_str.startswith("tomorrow at ") or time_str.startswith("tomorrow "):
-        time_only = time_str.replace("tomorrow at ", "").replace("tomorrow ", "").strip()
-        try:
-            tomorrow = now + relativedelta(days=1)
-            return date_parser.parse(time_only, default=tomorrow)
-        except Exception:
-            pass
+        has_date_keyword = any(word in time_str.lower() for word in date_keywords)
 
-    # Handle "tomorrow", "today" standalone
-    if time_str == "tomorrow":
-        return now + relativedelta(days=1)
-    if time_str == "today":
-        return now
+        # If it looks like just a time and is in the past, move to tomorrow
+        if parsed < now and not has_date_keyword:
+            # Check if original input looks like just a time
+            time_match = re.match(r'^\d{1,2}(:\d{2})?\s*(am|pm)?$', time_str.lower())
+            if time_match:
+                # Add one day
+                from datetime import timedelta
+                parsed += timedelta(days=1)
 
-    # Handle "at X" - assume today or tomorrow if time has passed
-    if time_str.startswith("at "):
-        time_only = time_str[3:]
-        # Check if it's "at X today" format
-        if " today" in time_only:
-            # Extract just the time part before "today"
-            time_portion = time_only.split(" today")[0].strip()
-            try:
-                parsed_time = date_parser.parse(time_portion, default=now)
-                # Only zero out minutes if no explicit minutes in input
-                if ":" not in time_portion and not re.match(r'^\d{4}$', time_portion.replace(':', '')):
-                    parsed_time = parsed_time.replace(minute=0, second=0, microsecond=0)
-                return parsed_time
-            except Exception:
-                pass
-        try:
-            parsed_time = date_parser.parse(time_only, default=now)
-            # Only zero out minutes if no explicit minutes in input
-            if ":" not in time_only and not re.match(r'^\d{4}$', time_only.replace(':', '')):
-                parsed_time = parsed_time.replace(minute=0, second=0, microsecond=0)
-            if parsed_time < now:
-                parsed_time += relativedelta(days=1)
-            return parsed_time
-        except Exception:
-            pass
+        if parsed:
+            return parsed
 
-    # Handle military time format like "1130hr", "1430hr" (4 digits + hr)
+    # Fallback for military time format like "1130hr", "1430hr" (edge case)
     military_match = re.search(r'(\d{4})hr\b', time_str)
-
-    # Also handle 4-digit military time without "hr" suffix (e.g., "1430", "0230")
-    # But only if it looks like a time (not part of a longer number)
-    if not military_match and re.match(r'^\d{4}$', time_str):
-        time_digits = time_str
-        hour = int(time_digits[:2])
-        minute = int(time_digits[2:])
-        if 0 <= hour <= 23 and 0 <= minute <= 59:
-            parsed_time = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-            if parsed_time < now:
-                parsed_time += relativedelta(days=1)
-            return parsed_time
-
     if military_match:
         time_digits = military_match.group(1)
         hour = int(time_digits[:2])
         minute = int(time_digits[2:])
-        # Validate hour/minute range
         if 0 <= hour <= 23 and 0 <= minute <= 59:
             parsed_time = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
             if parsed_time < now:
-                parsed_time += relativedelta(days=1)
+                from datetime import timedelta
+                parsed_time += timedelta(days=1)
             return parsed_time
 
-    # Handle numeric time formats like "0130hr", "1:30pm", "15:30"
-    # Try to extract just the time portion
-    time_match = re.search(r'(\d{1,2})(?::(\d{2}))?\s*(am|pm|hr)?', time_str)
-    if time_match and not any(word in time_str for word in ['day', 'tomorrow', 'today', 'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec', '-', '/']):
-        hour = int(time_match.group(1))
-        minute = int(time_match.group(2)) if time_match.group(2) else 0
-        meridiem = time_match.group(3)
-
-        # Handle "0130hr" style (hour 0-23)
-        if meridiem == 'hr' or hour > 12:
-            parsed_time = now.replace(hour=hour % 24, minute=minute, second=0, microsecond=0)
-        elif meridiem == 'pm' and hour != 12:
-            parsed_time = now.replace(hour=hour + 12, minute=minute, second=0, microsecond=0)
-        elif meridiem == 'am' and hour == 12:
-            parsed_time = now.replace(hour=0, minute=minute, second=0, microsecond=0)
-        else:
+    # Fallback for 4-digit military time without "hr" suffix
+    if re.match(r'^\d{4}$', time_str):
+        hour = int(time_str[:2])
+        minute = int(time_str[2:])
+        if 0 <= hour <= 23 and 0 <= minute <= 59:
             parsed_time = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            if parsed_time < now:
+                from datetime import timedelta
+                parsed_time += timedelta(days=1)
+            return parsed_time
 
-        # If time has passed, assume tomorrow
-        if parsed_time < now:
-            parsed_time += relativedelta(days=1)
-        return parsed_time
-
-    # Try parsing as full datetime with dateutil (very flexible)
-    try:
-        parsed = date_parser.parse(time_str, fuzzy=True, default=now)
-        # If parsed time is in the past and seems like just a time, move to tomorrow
-        if parsed < now and parsed.year == now.year and parsed.month == now.month and parsed.day == now.day:
-            # Check if original string looks like just a time (no date info)
-            if not any(word in time_str.lower() for word in ['today', 'tomorrow', 'yesterday']):
-                parsed += relativedelta(days=1)
-        return parsed
-    except Exception:
-        pass
-
-    # Final fallback: try parsing with now as default
-    try:
-        return date_parser.parse(time_str, default=now, fuzzy=True)
-    except Exception as e:
-        raise ValueError(
-            f"Could not parse time expression '{time_str}'. "
-            "Try formats like: 'in 30 minutes', 'in 2 hours', 'today at 1:30pm', "
-            "'tomorrow at 9am', '1:30pm', '15:30', '2025-01-15 14:00'"
-        ) from e
+    raise ValueError(
+        f"Could not parse time expression '{time_str}'. "
+        "Try formats like: 'in 30 minutes', 'in 2 hours', 'today at 1:30pm', "
+        "'tomorrow at 9am', 'next monday', '1:30pm', '15:30', '2025-01-15 14:00'"
+    )
 
 
 @tool
-async def set_reminder(
+async def reminder_set(
     message: str,
     time: str,
     recurrence: str = "",
@@ -196,10 +118,11 @@ async def set_reminder(
 
     Args:
         message: The reminder message (what to remind about)
-        time: When to remind. Flexible formats supported:
-            - Relative: "in 30 minutes", "in 2 hours", "in 3 days", "in 1 week"
+        time: When to remind. Flexible formats supported via dateparser:
+            - Relative: "in 30 minutes", "in 2 hours", "in 3 days", "next week"
             - Day + time: "today at 1:30pm", "tomorrow at 9am", "today 15:30"
             - Time only: "1:30pm", "3pm", "15:30" (assumes today/tomorrow)
+            - Relative dates: "next monday", "next friday at 2pm"
             - Numeric: "0130hr" (1:30 AM), "1430hr" (2:30 PM)
             - Full date: "2025-01-15 14:00", "15 Jan 2025 2pm"
         recurrence: Optional recurrence pattern (e.g., "daily", "weekly", "daily at 9am")
@@ -234,7 +157,7 @@ async def set_reminder(
 
 
 @tool
-async def list_reminders(
+async def reminder_list(
     status: str = "",
 ) -> str:
     """List all reminders for the current user.
@@ -275,7 +198,7 @@ async def list_reminders(
 
 
 @tool
-async def cancel_reminder(
+async def reminder_cancel(
     reminder_id: int,
 ) -> str:
     """Cancel a pending reminder.
@@ -310,7 +233,7 @@ async def cancel_reminder(
 
 
 @tool
-async def edit_reminder(
+async def reminder_edit(
     reminder_id: int,
     message: str = "",
     time: str = "",
@@ -371,4 +294,4 @@ async def edit_reminder(
 
 def get_reminder_tools() -> list:
     """Get all reminder tools."""
-    return [set_reminder, list_reminders, cancel_reminder, edit_reminder]
+    return [reminder_set, reminder_list, reminder_cancel, reminder_edit]

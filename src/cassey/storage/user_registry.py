@@ -65,7 +65,6 @@ class ConversationLog:
     created_at: datetime
     updated_at: datetime
     message_count: int
-    summary: str | None
     status: str
 
 
@@ -272,7 +271,7 @@ class UserRegistry:
         try:
             rows = await conn.fetch(
                 """SELECT conversation_id, user_id, channel, created_at, updated_at,
-                          message_count, summary, status
+                          message_count, status
                    FROM conversations
                    WHERE user_id = $1
                    ORDER BY updated_at DESC
@@ -288,7 +287,6 @@ class UserRegistry:
                     created_at=row["created_at"],
                     updated_at=row["updated_at"],
                     message_count=row["message_count"],
-                    summary=row["summary"],
                     status=row["status"],
                 )
                 for row in rows
@@ -310,7 +308,7 @@ class UserRegistry:
         try:
             row = await conn.fetchrow(
                 """SELECT conversation_id, user_id, channel, created_at, updated_at,
-                          message_count, summary, status
+                          message_count, status
                    FROM conversations
                    WHERE conversation_id = $1""",
                 conversation_id,
@@ -326,27 +324,7 @@ class UserRegistry:
                 created_at=row["created_at"],
                 updated_at=row["updated_at"],
                 message_count=row["message_count"],
-                summary=row["summary"],
                 status=row["status"],
-            )
-        finally:
-            await conn.close()
-
-    async def update_summary(self, conversation_id: str, summary: str) -> None:
-        """
-        Update the summary for a conversation.
-
-        Args:
-            conversation_id: Thread/conversation identifier
-            summary: The summary text
-        """
-        conn = await asyncpg.connect(self._conn_string)
-        try:
-            await conn.execute(
-                """UPDATE conversations
-                   SET summary = $2
-                   WHERE conversation_id = $1""",
-                conversation_id, summary
             )
         finally:
             await conn.close()

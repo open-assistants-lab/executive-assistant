@@ -12,7 +12,6 @@ class AgentState(TypedDict):
 
     Attributes:
         messages: Accumulated message history with add_messages reducer.
-        summary: Running conversation summary (preserved context) - legacy, for backward compatibility.
         structured_summary: Topic-based structured summary with active/inactive topics.
         iterations: Number of reasoning cycles completed (prevents infinite loops).
         user_id: Identifier for the user (for multi-tenancy).
@@ -20,7 +19,6 @@ class AgentState(TypedDict):
     """
 
     messages: Annotated[Sequence[BaseMessage], add_messages]
-    summary: str
     structured_summary: dict[str, Any] | None
     iterations: int
     user_id: str
