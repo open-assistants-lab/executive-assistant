@@ -1,0 +1,165 @@
+{
+  "ollama": {
+    "gpt-oss:20b-cloud": [
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "What is the capital of France? Answer in one word.",
+        "response": "Thinking...\nUser: \"What is the capital of France? Answer in one word.\" They clearly want one word: Paris.\n...done thinking.\n\nParis",
+        "total_time": 0.8793981075286865,
+        "success": true,
+        "timestamp": "2026-01-19T02:55:55.445366"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "What is 247 multiplied by 132? Just give me the number.",
+        "response": "Thinking...\nNeed compute 247 * 132. Let's calculate.\n\n247*132 = 247*(100+30+2) \n= 247*100 + 247*30 + 247*2 \n= 24,700 + 7,410 + 494 \nSum = 24,700 + 7,410 = 32,110; + 494 = 32,604.\n\nDouble-check: Another way: 247*132 = 247*(8*16+... but above seems fine). I'll verify with multiplication: 132*247: 247*132.\n\nCompute 247*132 = 247*(200-68)?? No that's not good. Let's do cross-check:\n\nI'll compute 132*247 straightforward:\n\n132*247\n= 132*(200+40+7) \n= 132*200 + 132*40 + 132*7 \n= 26,400 + 5,280 + 924 \nSum = 26,400 + 5,280 = 31,680; + 924 = 32,604. consistent.\n\nThus answer 32604.\n...done thinking.\n\n32604",
+        "total_time": 2.5459370613098145,
+        "success": true,
+        "timestamp": "2026-01-19T02:56:03.982542"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "Write a Python function to add two numbers.",
+        "response": "Thinking...\nThe user asked: \"Write a Python function to add two numbers.\" It's a simple question. We need to respond with a function definition. Probably provide a function add(a,b) returning sum. Also maybe explain. As ChatGPT, answer succinctly. Probably code example. They didn't specify anything else. Let's provide a simple function. We can add docstring, maybe types. Also mention returns. Provide maybe in multiple ways. But likely they want a simple function. Provide plain code. Also could demonstrate. So final answer with code snippet. Ok.\n...done thinking.\n\nHere\u2019s a minimal, ready\u2011to\u2011use Python function that adds two numbers:\n\n```python\ndef add(a: float, b: float) -> float:\n    \"\"\"\n    Return the sum of a and b.\n\n    Parameters\n    ----------\n    a : float\n        The first operand.\n    b : float\n        The second operand.\n\n    Returns\n    -------\n    float\n        The result of a + b.\n    \"\"\"\n    return a + b\n```\n\n**Example usage**\n\n```python\nresult = add(3.5, 4.2)\nprint(result)   # Output: 7.7\n```\n\nThis function accepts any numeric type that supports the `+` operator (e.g., `int`, `float`, or `Decimal` if you use the `decimal` module).",
+        "total_time": 3.712372064590454,
+        "success": true,
+        "timestamp": "2026-01-19T02:56:12.769691"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "Explain what a REST API is in 2-3 sentences.",
+        "response": "Thinking...\nThe user asks: \"Explain what a REST API is in 2-3 sentences.\" So we need to give a concise explanation. 2-3 sentences. Let's comply.\n...done thinking.\n\nA REST API (Representational State Transfer API) is a set of web services that allow clients to interact with a server using standard HTTP methods (GET, POST, PUT, DELETE, etc.) over resource URLs. It follows stateless, client\u2011server, and cacheable principles, making it lightweight, scalable, and language\u2011agnostic for exchanging data, usually in JSON or XML format.",
+        "total_time": 3.037287950515747,
+        "success": true,
+        "timestamp": "2026-01-19T02:56:24.994476"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "Tell me a short joke about programming.",
+        "response": "Thinking...\nTask: Provide short joke about programming. Just a joke. Should be concise.\n\nWe need to produce a short joke about programming. Let's craft something witty.\n\nExamples: \"Why do programmers prefer dark mode? Because light attracts bugs.\" \"I would tell you a joke about C++, but it\u2019s compiled.\" Need to be short.\n\nMake sure to comply with OpenAI policy. It's fine: There's no disallowed content. It's a standard joke.\n\nLet's deliver a short programming joke.\n...done thinking.\n\nWhy do programmers prefer dark mode?\n\nBecause light attracts bugs!",
+        "total_time": 1.5453557968139648,
+        "success": true,
+        "timestamp": "2026-01-19T02:56:33.594744"
+      }
+    ]
+  },
+  "openai": {
+    "gpt-5-mini": [
+      {
+        "model": "gpt-5-mini",
+        "prompt": "What is the capital of France? Answer in one word.",
+        "response": "Paris",
+        "total_time": 2.983527898788452,
+        "usage": {
+          "completion_tokens": 74,
+          "prompt_tokens": 18,
+          "total_tokens": 92,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": 0,
+            "audio_tokens": 0,
+            "reasoning_tokens": 64,
+            "rejected_prediction_tokens": 0
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": 0,
+            "cached_tokens": 0
+          }
+        },
+        "success": true,
+        "timestamp": "2026-01-19T02:55:59.431229"
+      },
+      {
+        "model": "gpt-5-mini",
+        "prompt": "What is 247 multiplied by 132? Just give me the number.",
+        "response": "32604",
+        "total_time": 2.066257953643799,
+        "usage": {
+          "completion_tokens": 75,
+          "prompt_tokens": 21,
+          "total_tokens": 96,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": 0,
+            "audio_tokens": 0,
+            "reasoning_tokens": 64,
+            "rejected_prediction_tokens": 0
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": 0,
+            "cached_tokens": 0
+          }
+        },
+        "success": true,
+        "timestamp": "2026-01-19T02:56:07.054109"
+      },
+      {
+        "model": "gpt-5-mini",
+        "prompt": "Write a Python function to add two numbers.",
+        "response": "Here's a simple Python function that adds two numbers:\n\ndef add(a, b):\n    \"\"\"Return the sum of a and b.\"\"\"\n    return a + b\n\nExample usage:\nprint(add(2, 3))     # 5\nprint(add(2.5, 1.5)) # 4.0\n\n(You can add type hints if you prefer: def add(a: float, b: float) -> float: ...)",
+        "total_time": 6.1800501346588135,
+        "usage": {
+          "completion_tokens": 483,
+          "prompt_tokens": 15,
+          "total_tokens": 498,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": 0,
+            "audio_tokens": 0,
+            "reasoning_tokens": 384,
+            "rejected_prediction_tokens": 0
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": 0,
+            "cached_tokens": 0
+          }
+        },
+        "success": true,
+        "timestamp": "2026-01-19T02:56:19.954928"
+      },
+      {
+        "model": "gpt-5-mini",
+        "prompt": "Explain what a REST API is in 2-3 sentences.",
+        "response": "A REST API is an application programming interface that follows the REST architectural style, letting clients access and manipulate server-side resources via standard HTTP methods (GET, POST, PUT, DELETE) and resource URIs. It is stateless\u2014each request carries all needed information\u2014and typically exchanges resource representations like JSON, making it simple, scalable, and widely used for web services.",
+        "total_time": 4.0517120361328125,
+        "usage": {
+          "completion_tokens": 274,
+          "prompt_tokens": 19,
+          "total_tokens": 293,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": 0,
+            "audio_tokens": 0,
+            "reasoning_tokens": 192,
+            "rejected_prediction_tokens": 0
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": 0,
+            "cached_tokens": 0
+          }
+        },
+        "success": true,
+        "timestamp": "2026-01-19T02:56:30.048742"
+      },
+      {
+        "model": "gpt-5-mini",
+        "prompt": "Tell me a short joke about programming.",
+        "response": "Why do programmers prefer dark mode? Because light attracts bugs.",
+        "total_time": 2.978985071182251,
+        "usage": {
+          "completion_tokens": 149,
+          "prompt_tokens": 14,
+          "total_tokens": 163,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": 0,
+            "audio_tokens": 0,
+            "reasoning_tokens": 128,
+            "rejected_prediction_tokens": 0
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": 0,
+            "cached_tokens": 0
+          }
+        },
+        "success": true,
+        "timestamp": "2026-01-19T02:56:37.579216"
+      }
+    ]
+  }
+}

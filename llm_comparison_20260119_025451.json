@@ -1,0 +1,165 @@
+{
+  "ollama": {
+    "gpt-oss:20b-cloud": [
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "What is the capital of France? Answer in one word.",
+        "response": "Thinking...\nWe need to produce answer in one word: \"Paris\".\n...done thinking.\n\nParis",
+        "total_time": 0.7855422496795654,
+        "success": true,
+        "timestamp": "2026-01-19T02:54:17.178553"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "What is 247 multiplied by 132? Just give me the number.",
+        "response": "Thinking...\nWe need to calculate 247 * 132. Let's compute: 247 * 132 = 247*(100+30+2) = 24700 + 7410 + 494 = 24700+7410 = 32110, +494 = 32604. Check: 247*132 -> 247*130 + 247*2 = 247*130 = 247*13*10 = (247*13)*10. 247*13 = 247*10 + 247*3 = 2470 + 741 = 3211. Then times 10 = 32110. + 494 = 32604. So answer is 32604.\n...done thinking.\n\n32604",
+        "total_time": 2.1670610904693604,
+        "success": true,
+        "timestamp": "2026-01-19T02:54:24.095985"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "Write a Python function to add two numbers.",
+        "response": "Thinking...\nThe user requests: \"Write a Python function to add two numbers.\" It's a straightforward prompt. Likely they want a simple function. Possibly with type hints. Provide a brief explanation and code. Since they didn't specify further constraints, produce a simple function. Also maybe a demonstration of usage. Ok. Let's respond with an answer.\n...done thinking.\n\nHere\u2019s a tiny, reusable snippet that takes two numeric arguments and returns their sum.  \nI\u2019ll add optional type hints and a doc\u2011string so the function is clear and ready to drop into any codebase.\n\n```python\ndef add(a: float | int, b: float | int) -> float:\n    \"\"\"\n    Return the sum of `a` and `b`.\n\n    Parameters\n    ----------\n    a : int | float\n        First operand.\n    b : int | float\n        Second operand.\n\n    Returns\n    -------\n    float\n        The arithmetic sum of the two inputs.\n    \"\"\"\n    return a + b\n```\n\n### Quick sanity test\n\n```python\n>>> add(2, 3)\n5\n>>> add(3.5, 4.5)\n8.0\n>>> add(-1, 1)\n0\n```\n\n---\n\n### What you can tweak\n\n- **Input validation** \u2013 If you want to guard against non\u2011numeric types, add a simple `isinstance(..., (int, float))` check.\n- **Integer\u2011only logic** \u2013 Change the return type to `int` if you know both operands will always be integers.\n- **Varied arity** \u2013 If you need to sum more than two numbers, consider `def add(*nums: float | int) -> float: return sum(nums)`.\n\nFeel free to drop this into your project or adapt it to your style guidelines!",
+        "total_time": 3.533327102661133,
+        "success": true,
+        "timestamp": "2026-01-19T02:54:32.272634"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "Explain what a REST API is in 2-3 sentences.",
+        "response": "Thinking...\nThe user asks: \"Explain what a REST API is in 2-3 sentences.\" So we need concise explanation: Representational State Transfer (REST) API is a set of HTTP endpoints that use standard verbs to control resources, with stateless operations, resource representation by URIs, and typically JSON. Provide 2-3 sentences. Ensure not too long. 2-3 sentences. Provide crisp.\n...done thinking.\n\nA REST API is a web interface that lets clients manipulate resources by using standard HTTP verbs (GET, POST, PUT, DELETE) on well\u2011structured URLs. It\u2019s stateless, meaning each request contains all the information needed, and it often exchanges data in lightweight formats like JSON. Because it follows uniform resource identification and resource\u2011centric design, REST APIs are easy to understand, scale, and integrate across different platforms.",
+        "total_time": 2.0668716430664062,
+        "success": true,
+        "timestamp": "2026-01-19T02:54:39.432312"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "Tell me a short joke about programming.",
+        "response": "Thinking...\nThe user asks: \"Tell me a short joke about programming.\" It's a simple request. Just deliver a short programming joke. Must comply with policy. It's straightforward. I can produce a concise witty joke. Options: \"Why do programmers prefer dark mode?\" etc. A short joke. I must ensure the joke is clean. Nothing disallowed. So just produce.\n...done thinking.\n\nWhy do programmers prefer dark mode?  \nBecause light attracts bugs!",
+        "total_time": 1.4861958026885986,
+        "success": true,
+        "timestamp": "2026-01-19T02:54:45.741111"
+      }
+    ]
+  },
+  "openai": {
+    "gpt-5-mini": [
+      {
+        "model": "gpt-5-mini",
+        "prompt": "What is the capital of France? Answer in one word.",
+        "response": "Paris",
+        "total_time": 1.7458889484405518,
+        "usage": {
+          "completion_tokens": 10,
+          "prompt_tokens": 18,
+          "total_tokens": 28,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": 0,
+            "audio_tokens": 0,
+            "reasoning_tokens": 0,
+            "rejected_prediction_tokens": 0
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": 0,
+            "cached_tokens": 0
+          }
+        },
+        "success": true,
+        "timestamp": "2026-01-19T02:54:19.928654"
+      },
+      {
+        "model": "gpt-5-mini",
+        "prompt": "What is 247 multiplied by 132? Just give me the number.",
+        "response": "",
+        "total_time": 1.6334190368652344,
+        "usage": {
+          "completion_tokens": 100,
+          "prompt_tokens": 21,
+          "total_tokens": 121,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": 0,
+            "audio_tokens": 0,
+            "reasoning_tokens": 100,
+            "rejected_prediction_tokens": 0
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": 0,
+            "cached_tokens": 0
+          }
+        },
+        "success": true,
+        "timestamp": "2026-01-19T02:54:26.734438"
+      },
+      {
+        "model": "gpt-5-mini",
+        "prompt": "Write a Python function to add two numbers.",
+        "response": "",
+        "total_time": 2.087970018386841,
+        "usage": {
+          "completion_tokens": 100,
+          "prompt_tokens": 15,
+          "total_tokens": 115,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": 0,
+            "audio_tokens": 0,
+            "reasoning_tokens": 100,
+            "rejected_prediction_tokens": 0
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": 0,
+            "cached_tokens": 0
+          }
+        },
+        "success": true,
+        "timestamp": "2026-01-19T02:54:35.364736"
+      },
+      {
+        "model": "gpt-5-mini",
+        "prompt": "Explain what a REST API is in 2-3 sentences.",
+        "response": "",
+        "total_time": 1.8118209838867188,
+        "usage": {
+          "completion_tokens": 100,
+          "prompt_tokens": 19,
+          "total_tokens": 119,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": 0,
+            "audio_tokens": 0,
+            "reasoning_tokens": 100,
+            "rejected_prediction_tokens": 0
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": 0,
+            "cached_tokens": 0
+          }
+        },
+        "success": true,
+        "timestamp": "2026-01-19T02:54:42.249695"
+      },
+      {
+        "model": "gpt-5-mini",
+        "prompt": "Tell me a short joke about programming.",
+        "response": "",
+        "total_time": 2.5147206783294678,
+        "usage": {
+          "completion_tokens": 100,
+          "prompt_tokens": 14,
+          "total_tokens": 114,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": 0,
+            "audio_tokens": 0,
+            "reasoning_tokens": 100,
+            "rejected_prediction_tokens": 0
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": 0,
+            "cached_tokens": 0
+          }
+        },
+        "success": true,
+        "timestamp": "2026-01-19T02:54:49.259886"
+      }
+    ]
+  }
+}

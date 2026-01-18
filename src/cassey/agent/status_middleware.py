@@ -4,6 +4,7 @@ Sends status updates to the user during agent execution:
 - Agent start: "Thinking..."
 - Tool calls: "Tool 1: search_web..."
 - Completion: "Done in 45.2s"
+- Middleware actions: Summarization, context editing, retries
 
 Uses wrap_tool_call hook for per-tool tracking.
 """
@@ -21,6 +22,7 @@ from langgraph.types import Command
 
 from cassey.config import settings
 from cassey.storage.file_sandbox import get_thread_id
+from cassey.agent.middleware_debug import MiddlewareDebug, RetryTracker
 
 if TYPE_CHECKING:
     from cassey.channels.base import BaseChannel
@@ -29,6 +31,41 @@ logger = logging.getLogger(__name__)
 
 # Thread-local storage for LLM timing (keyed by thread_id)
 _llm_timing_by_thread: dict[str, dict] = {}
+
+# Thread-local storage for middleware debug tracking
+_middleware_debug_by_thread: dict[str, MiddlewareDebug] = {}
+_retry_tracker_by_thread: dict[str, RetryTracker] = {}
+
+
+def get_middleware_debug() -> MiddlewareDebug:
+    """Get or create MiddlewareDebug for current thread."""
+    thread_id = get_thread_id()
+    if not thread_id:
+        return MiddlewareDebug()  # Return empty instance if no thread_id
+
+    if thread_id not in _middleware_debug_by_thread:
+        _middleware_debug_by_thread[thread_id] = MiddlewareDebug()
+    return _middleware_debug_by_thread[thread_id]
+
+
+def get_retry_tracker() -> RetryTracker:
+    """Get or create RetryTracker for current thread."""
+    thread_id = get_thread_id()
+    if not thread_id:
+        return RetryTracker()  # Return empty instance if no thread_id
+
+    if thread_id not in _retry_tracker_by_thread:
+        _retry_tracker_by_thread[thread_id] = RetryTracker()
+    return _retry_tracker_by_thread[thread_id]
+
+
+def clear_middleware_debug() -> None:
+    """Clear middleware debug tracking for current thread."""
+    thread_id = get_thread_id()
+    if thread_id and thread_id in _middleware_debug_by_thread:
+        del _middleware_debug_by_thread[thread_id]
+    if thread_id and thread_id in _retry_tracker_by_thread:
+        del _retry_tracker_by_thread[thread_id]
 
 
 def record_llm_call(elapsed: float, tokens: dict | None = None) -> None:
@@ -51,6 +88,10 @@ def record_llm_call(elapsed: float, tokens: dict | None = None) -> None:
     current["total_time"] += elapsed
     current["calls"].append({"elapsed": elapsed, "tokens": tokens})
 
+    # Also track in RetryTracker
+    tracker = get_retry_tracker()
+    tracker.record_llm_call()
+
 
 class StatusUpdateMiddleware(AgentMiddleware):
     """
@@ -60,6 +101,7 @@ class StatusUpdateMiddleware(AgentMiddleware):
     - Agent starting ("Thinking...")
     - Each tool call ("Tool 1: search_web...")
     - Agent completion ("Done in 45.2s")
+    - Middleware actions (Summarization, Context Editing, Retries)
     - Errors ("Tool X failed: reason")
 
     Args:
@@ -84,6 +126,10 @@ class StatusUpdateMiddleware(AgentMiddleware):
         self.start_time: float | None = None
         self.last_status_time: float | None = None
         self.current_conversation_id: str | None = None
+
+        # Middleware debug tracking
+        self.middleware_debug: MiddlewareDebug | None = None
+        self.retry_tracker: RetryTracker | None = None
 
     def _should_send_status(self) -> bool:
         """Check if enough time has passed since last status update."""
@@ -129,11 +175,63 @@ class StatusUpdateMiddleware(AgentMiddleware):
             # Extract conversation_id from thread_id (e.g., "TelegramChannel:123" -> "123")
             self.current_conversation_id = thread_id.split(":")[-1] if ":" in thread_id else thread_id
             logger.info(f"StatusMiddleware: thread_id={thread_id}, conversation_id={self.current_conversation_id}")
+
+            # Initialize middleware debug tracking for this run
+            self.middleware_debug = get_middleware_debug()
+            self.retry_tracker = get_retry_tracker()
+            self.retry_tracker.start_run(expected_llm_calls=1, expected_tools=0)
         except ValueError:
             logger.warning("StatusMiddleware: No thread_id in context")
             self.current_conversation_id = None
+            self.middleware_debug = None
+            self.retry_tracker = None
 
         await self._send_status("🤔 Thinking...")
+        return None
+
+    async def abefore_model(
+        self, state: dict[str, Any], runtime: Any
+    ) -> dict[str, Any] | None:
+        """
+        Capture state before model/middleware processing.
+
+        This is where SummarizationMiddleware, ContextEditingMiddleware, etc. may run.
+        """
+        if self.middleware_debug:
+            self.middleware_debug.capture_before_model(state)
+        return None
+
+    async def aafter_model(
+        self, state: dict[str, Any], runtime: Any
+    ) -> dict[str, Any] | None:
+        """
+        Detect and log middleware actions after model/middleware processing.
+
+        Checks for:
+        - Summarization (message count reduction)
+        - Context editing (tool_uses reduction)
+        """
+        if not self.middleware_debug:
+            return None
+
+        self.middleware_debug.capture_after_model(state)
+
+        # Check for summarization
+        summary_result = self.middleware_debug.detect_summarization()
+        if summary_result:
+            self.middleware_debug.log_summarization(summary_result, print)
+            if settings.MW_STATUS_UPDATE_ENABLED:
+                await self._send_status(
+                    f"📝 Summarized: {summary_result['messages_before']}→{summary_result['messages_after']} msgs, "
+                    f"{summary_result['tokens_before']}→{summary_result['tokens_after']} tokens "
+                    f"({summary_result['reduction_pct']:.0f}% smaller)"
+                )
+
+        # Check for context editing
+        context_result = self.middleware_debug.detect_context_editing()
+        if context_result:
+            self.middleware_debug.log_context_editing(context_result, print)
+
         return None
 
     async def awrap_tool_call(
@@ -149,6 +247,10 @@ class StatusUpdateMiddleware(AgentMiddleware):
         self.tool_count += 1
         tool_name = request.tool_call.get("name", "unknown")
         tool_args = request.tool_call.get("args", {})
+
+        # Track tool calls for retry detection
+        if self.retry_tracker:
+            self.retry_tracker.record_tool_call()
 
         # Build status message
         if self.show_tool_args and tool_args:
@@ -197,10 +299,23 @@ class StatusUpdateMiddleware(AgentMiddleware):
             # Clear timing for next run
             del _llm_timing_by_thread[thread_id]
 
+        # Check for retries
+        if self.retry_tracker:
+            llm_retry_result = self.retry_tracker.detect_llm_retries()
+            if llm_retry_result:
+                self.retry_tracker.log_llm_retries(llm_retry_result, print)
+
+            tool_retry_result = self.retry_tracker.detect_tool_retries()
+            if tool_retry_result:
+                self.retry_tracker.log_tool_retries(tool_retry_result, print)
+
         if elapsed < 1:
             await self._send_status(f"✅ Done{llm_summary}")
         else:
             await self._send_status(f"✅ Done in {elapsed:.1f}s{llm_summary}")
+
+        # Clear middleware debug tracking
+        clear_middleware_debug()
 
         return None
 

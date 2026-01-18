@@ -1,0 +1,127 @@
+{
+  "ollama": {
+    "gpt-oss:20b-cloud": [
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "What is the capital of France? Answer in one word.",
+        "response": "Thinking...\nThe user: \"What is the capital of France? Answer in one word.\" So we answer \"Paris\".\n...done thinking.\n\nParis",
+        "total_time": 0.9218170642852783,
+        "success": true,
+        "timestamp": "2026-01-19T02:50:52.283818"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "What is 247 multiplied by 132? Just give me the number.",
+        "response": "Thinking...\nThe user asks: \"What is 247 multiplied by 132? Just give me the number.\" So answer is a simple multiplication: 247 * 132.\n\nCompute: 247 * 132 = 247 * (100 + 30 + 2) = 24700 + 7410 + 494 = 24700 + 7410 = 32110, + 494 = 32604. Let's double-check: 240*132 = 31680; 7*132 = 924, sum 31680+924 = 32604. Yes. So answer: 32604.\n...done thinking.\n\n32604",
+        "total_time": 1.7988719940185547,
+        "success": true,
+        "timestamp": "2026-01-19T02:50:59.620820"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "Write a Python function to add two numbers.",
+        "response": "Thinking...\nThe user wants a simple Python function to add two numbers. They likely expect a small code snippet. We should respond with a function example and maybe explain. We'll keep it straightforward. Maybe include docstring, type hint, examples, and note that it sums two numbers. We'll produce a short function.\n...done thinking.\n\nHere\u2019s a minimal, ready\u2011to\u2011copy Python function that adds two numbers:\n\n```python\ndef add(a: float, b: float) -> float:\n    \"\"\"\n    Return the sum of `a` and `b`.\n\n    Parameters\n    ----------\n    a : float\n        First value to add.\n    b : float\n        Second value to add.\n\n    Returns\n    -------\n    float\n        The sum of the two inputs.\n\n    Example\n    -------\n    >>> add(3, 4)\n    7\n    >>> add(-1.5, 2.5)\n    1.0\n    \"\"\"\n    return a + b\n```\n\n### How to use it\n\n```python\n# Example\nresult = add(5, 7)\nprint(result)   # prints 12\n```\n\n- The type hints (`float`) allow static analysis tools like `mypy` to check your code, but you can also call `add` with integers, which will be automatically promoted to floats.\n- If you prefer integers always, just change the annotations to `int`:\n\n```python\ndef add(a: int, b: int) -> int:\n    return a + b\n```\n\nThat\u2019s all you need to add two numbers in Python. Happy coding!",
+        "total_time": 4.838935613632202,
+        "success": true,
+        "timestamp": "2026-01-19T02:51:10.134521"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "Explain what a REST API is in 2-3 sentences.",
+        "response": "Thinking...\nUser wants short explanation 2-3 sentences. So just define: REST = representational state transfer. It's an architectural style for building web services using HTTP verbs, resources identified by URIs, etc. Provide concise.\n...done thinking.\n\nA REST API (Representational State Transfer API) is a web service that follows the REST architectural style, exposing data and functionality through stateless HTTP requests. It uses standard verbs (GET, POST, PUT, DELETE) on resource URLs, allowing clients to retrieve, create, update, or delete resources in a uniform and platform\u2011agnostic way.",
+        "total_time": 1.7851178646087646,
+        "success": true,
+        "timestamp": "2026-01-19T02:51:22.326266"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "Tell me a short joke about programming.",
+        "response": "Thinking...\nThe user asks: \"Tell me a short joke about programming.\" Simple. Provide a concise programming joke. Ensure it's short. Likely a classic: \"Why do programmers prefer dark mode? Because light attracts bugs.\" Or \"Why do programmers hate nature? It has too many bugs.\" Or \"I would explain recursion, but you know what I mean.\" Or \"Do you know why a programmer's homework is always 100% correct? Because the compiler never returns an error.\" The user wants a short joke. May just deliver the joke plainly, no explanation. Provide maybe one.\n\nWe can choose something like: \"Why do programmers prefer dark mode? Because light attracts bugs!\"\n\nBut maybe better: \"How many programmers does it take to change a light bulb? None, it's a hardware problem.\" Or \"Why don't programmers like nature? It has too many bugs.\" Or \"Never trust a computer that can't remember a joke.\" Oops.\n\n\"Parallel lines have so much in common. It\u2019s a shame they\u2019ll never meet.\" Ken Shirriff? Eh.\n\nUser: \"Tell me a short joke about programming.\" Just short. Let's answer with a concise joke. I'll avoid overexplanation.\n\nI'll provide one and possibly a pun. A good one: \"I would write a joke about a programmer, but it just didn't compile.\"\n\nThat's short. Or: \"Why do programmers prefer dark mode? Because light attracts bugs.\" That is quite good.\n\nLet's answer one: \"Why don't programmers like nature? Because it has too many bugs.\" That might be too common? It's fine.\n\nOk, respond.\n...done thinking.\n\nWhy don't programmers like nature?  \n\nBecause it has too many bugs.",
+        "total_time": 3.484570026397705,
+        "success": true,
+        "timestamp": "2026-01-19T02:51:31.646372"
+      }
+    ],
+    "gpt-oss:120b-cloud": [
+      {
+        "model": "gpt-oss:120b-cloud",
+        "prompt": "What is the capital of France? Answer in one word.",
+        "response": "Thinking...\nUser asks: \"What is the capital of France? Answer in one word.\" So answer: \"Paris\". One word.\n...done thinking.\n\nParis",
+        "total_time": 0.9275579452514648,
+        "success": true,
+        "timestamp": "2026-01-19T02:50:54.217077"
+      },
+      {
+        "model": "gpt-oss:120b-cloud",
+        "prompt": "What is 247 multiplied by 132? Just give me the number.",
+        "response": "Thinking...\nWe need compute 247 * 132. Let's calculate. 247 * 100 = 24700. 247 * 30 = 7410. 247 * 2 = 494. Sum: 24700 + 7410 = 32110. 32110 + 494 = 32604. So answer 32604.\n...done thinking.\n\n32604",
+        "total_time": 1.1338858604431152,
+        "success": true,
+        "timestamp": "2026-01-19T02:51:01.757160"
+      },
+      {
+        "model": "gpt-oss:120b-cloud",
+        "prompt": "Write a Python function to add two numbers.",
+        "response": "Thinking...\nUser wants a simple Python function to add two numbers. Provide code, maybe with docstring, type hints, demonstration. Could also discuss edge cases, error handling. Provide answer in a friendly tone.\n...done thinking.\n\nHere\u2019s a tiny, well\u2011documented utility that adds two numbers.  \nIt works for any types that support the `+` operator (ints, floats, `Decimal`, `Fraction`, NumPy arrays, etc.) and includes optional type\u2011checking and a small test harness.\n\n```python\nfrom __future__ import annotations\n\nfrom typing import Union, overload, Any\n\nNumber = Union[int, float, complex]          # add other numeric types if you like\n# If you want to be more permissive (e.g., support Decimal/Fraction) you can use:\n# from numbers import Number as NumberProtocol\n\n\n@overload\ndef add(a: int, b: int) -> int: ...\n@overload\ndef add(a: float, b: float) -> float: ...\n@overload\ndef add(a: complex, b: complex) -> complex: ...\n@overload\ndef add(a: Number, b: Number) -> Number: ...\n\ndef add(a: Number, b: Number) -> Number:\n    \"\"\"\n    Return the sum of *a* and *b*.\n\n    Parameters\n    ----------\n    a, b : int, float, complex, or any type that implements ``__add__``.\n        The two values to be added.\n\n    Returns\n    -------\n    Number\n        The result of ``a + b``.  The concrete type mirrors the type\n        returned by Python\u2019s built\u2011in ``+`` operator.\n\n    Raises\n    ------\n    TypeError\n        If the two arguments cannot be added together (e.g. ``add(1, \"x\")``).\n\n    Examples\n    --------\n    >>> add(2, 3)\n    5\n    >>> add(2.5, 1.75)\n    4.25\n    >>> add(1+2j, 3-4j)\n    (4-2j)\n    \"\"\"\n    try:\n        return a + b\n    except TypeError as exc:\n        # Re\u2011raise with a clearer message \u2013 useful when the function is used\n        # in larger code bases or interactive notebooks.\n        raise TypeError(\n            f\"Cannot add objects of type {type(a)!r} and {type(b)!r}: {exc}\"\n        ) from exc\n\n\n# -------------------------------------------------\n# Small demo / quick\u2011self\u2011test (run only when executed as script)\n\nif __name__ == \"__main__\":\n    test_cases = [\n        (1, 2),\n        (1.5, 2.5),\n        (1+2j, 3-4j),\n        (0, 0),\n        (-5, 10),\n    ]\n\n    for x, y in test_cases:\n        print(f\"add({x!r}, {y!r}) -> {add(x, y)!r}\")\n\n    # Demonstrate the error handling\n    try:\n        add(1, \"oops\")\n    except TypeError as e:\n        print(\"\\nExpected error:\", e)\n```\n\n### What the code does\n\n| Section | Purpose |\n|--------|---------|\n| **type hints & overloads** | Tell editors and static type\u2011checkers (mypy, pyright, etc.) the expected input and output types. |\n| **docstring** | Fully explains usage, parameters, return value, possible errors, and gives examples that appear in generated documentation (e.g. Sphinx). |\n| **`try/except` block** | Catches the generic `TypeError` that Python raises when `+` isn\u2019t defined for the given pair, and re\u2011raises it with a more helpful message. |\n| **`if __name__ == \"__main__\":` block** | Provides a quick self\u2011test you can run directly (`python add.py`). It also shows the custom error message when you try to add incompatible types. |\n\nYou can drop the `add` function into any module, import it elsewhere, and use it just like the built\u2011in `+` operator\u2014but with a clear, reusable entry point and helpful error handling. Happy coding!",
+        "total_time": 6.111485719680786,
+        "success": true,
+        "timestamp": "2026-01-19T02:51:17.258029"
+      },
+      {
+        "model": "gpt-oss:120b-cloud",
+        "prompt": "Explain what a REST API is in 2-3 sentences.",
+        "response": "Thinking...\nWe need to answer concisely: definition of REST API in 2-3 sentences. Provide clear explanation.\n...done thinking.\n\nA REST (Representational State Transfer) API is a set of web\u2011service endpoints that follow a simple, stateless architectural style where resources are identified by URLs and manipulated via standard HTTP methods (GET, POST, PUT, DELETE, etc.). Clients interact with these resources by sending requests and receiving responses\u2014typically in JSON or XML\u2014without the server needing to retain any session information between calls. This makes the API scalable, cache\u2011friendly, and easy to consume across different platforms.",
+        "total_time": 1.5801427364349365,
+        "success": true,
+        "timestamp": "2026-01-19T02:51:24.912910"
+      },
+      {
+        "model": "gpt-oss:120b-cloud",
+        "prompt": "Tell me a short joke about programming.",
+        "response": "Thinking...\nWe need to respond with a short joke about programming. Probably a single line. Friendly tone.\n...done thinking.\n\nWhy do programmers prefer dark mode?  \n\nBecause light attracts bugs!",
+        "total_time": 1.05181884765625,
+        "success": true,
+        "timestamp": "2026-01-19T02:51:33.706312"
+      }
+    ]
+  },
+  "openai": {
+    "gpt-5-mini": [
+      {
+        "model": "gpt-5-mini",
+        "prompt": "What is the capital of France? Answer in one word.",
+        "error": "Error code: 400 - {'error': {'message': \"Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.\", 'type': 'invalid_request_error', 'param': 'max_tokens', 'code': 'unsupported_parameter'}}",
+        "total_time": 0.5964550971984863,
+        "success": false
+      },
+      {
+        "model": "gpt-5-mini",
+        "prompt": "What is 247 multiplied by 132? Just give me the number.",
+        "error": "Error code: 400 - {'error': {'message': \"Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.\", 'type': 'invalid_request_error', 'param': 'max_tokens', 'code': 'unsupported_parameter'}}",
+        "total_time": 0.5293800830841064,
+        "success": false
+      },
+      {
+        "model": "gpt-5-mini",
+        "prompt": "Write a Python function to add two numbers.",
+        "error": "Error code: 400 - {'error': {'message': \"Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.\", 'type': 'invalid_request_error', 'param': 'max_tokens', 'code': 'unsupported_parameter'}}",
+        "total_time": 0.27157020568847656,
+        "success": false
+      },
+      {
+        "model": "gpt-5-mini",
+        "prompt": "Explain what a REST API is in 2-3 sentences.",
+        "error": "Error code: 400 - {'error': {'message': \"Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.\", 'type': 'invalid_request_error', 'param': 'max_tokens', 'code': 'unsupported_parameter'}}",
+        "total_time": 0.23848223686218262,
+        "success": false
+      },
+      {
+        "model": "gpt-5-mini",
+        "prompt": "Tell me a short joke about programming.",
+        "error": "Error code: 400 - {'error': {'message': \"Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.\", 'type': 'invalid_request_error', 'param': 'max_tokens', 'code': 'unsupported_parameter'}}",
+        "total_time": 0.4507100582122803,
+        "success": false
+      }
+    ]
+  }
+}

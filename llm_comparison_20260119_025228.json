@@ -1,0 +1,127 @@
+{
+  "ollama": {
+    "gpt-oss:20b-cloud": [
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "What is the capital of France? Answer in one word.",
+        "response": "Thinking...\nUser asks: \"What is the capital of France? Answer in one word.\" They want one word answer. The capital is Paris. So answer: Paris.\n...done thinking.\n\nParis",
+        "total_time": 0.917719841003418,
+        "success": true,
+        "timestamp": "2026-01-19T02:51:47.412004"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "What is 247 multiplied by 132? Just give me the number.",
+        "response": "Thinking...\nUser wants the product of 247 and 132. Compute. 247*132 = 247*(100+30+2) = 24700 + 7410 + 494 = 326... let's do sum: 24700 + 7410 = 32110, +494 = 32604. Double-check: 247*132. Alternative: 132*247. 132*200=26400; 132*40=5280 => total 31680; 132*7=924 => total 32604. So answer is 32604.\n...done thinking.\n\n32604",
+        "total_time": 1.657377004623413,
+        "success": true,
+        "timestamp": "2026-01-19T02:51:54.746734"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "Write a Python function to add two numbers.",
+        "response": "Thinking...\nThe user asks: \"Write a Python function to add two numbers.\" That's a simple request. Likely they expect a function, maybe with parameters and return value. Provide code snippet. Maybe add docstring. Provide explanation. Should handle numbers as floats/ints. Provide example usage. It's straightforward. We'll answer.\n\n...done thinking.\n\nHere\u2019s a tiny, reusable helper that adds two numbers and returns the result. It works for any numeric type that supports the `+` operator (integers, floats, complex, etc.):\n\n```python\ndef add_numbers(a, b):\n    \"\"\"\n    Return the sum of two numbers.\n\n    Parameters\n    ----------\n    a : int | float | complex\n        The first addend.\n    b : int | float | complex\n        The second addend.\n\n    Returns\n    -------\n    result : same type as input\n        The sum a + b.\n    \"\"\"\n    return a + b\n```\n\n### Quick example\n\n```python\n>>> add_numbers(3, 5)\n8\n\n>>> add_numbers(2.5, 4.1)\n6.6\n\n>>> add_numbers(1+2j, 3-4j)\n(4-2j)\n```\n\nFeel free to copy\u2011paste the function into your module, or drop it into a REPL for quick use.",
+        "total_time": 2.9776577949523926,
+        "success": true,
+        "timestamp": "2026-01-19T02:52:03.662752"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "Explain what a REST API is in 2-3 sentences.",
+        "response": "Thinking...\nUser question: \"Explain what a REST API is in 2-3 sentences.\" So succinct. Probably: A REST API is an application programming interface that uses HTTP methods and resource URIs to perform CRUD operations in a stateless manner. Describes resources as nouns, use GET, POST, PUT, DELETE, etc. It's representation of state and statelessness. Should be short. Provide explanation.\n...done thinking.\n\nA REST API is a web service interface that uses standard HTTP methods (GET, POST, PUT, DELETE, etc.) to manipulate resources identified by URLs. It follows stateless, client\u2011server principles, treating each request as an independent interaction that can be cached or scaled without persisting session data. In practice, a client calls the API\u2019s endpoints to create, read, update, or delete data represented in formats like JSON or XML.",
+        "total_time": 3.178053140640259,
+        "success": true,
+        "timestamp": "2026-01-19T02:52:15.840112"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "Tell me a short joke about programming.",
+        "response": "Thinking...\nUser wants a short joke about programming. Provide succinct one. Probably something like: \"Why do programmers prefer dark mode? Because light attracts bugs.\" That is a joke. Or \"Why do programmers hate nature? It has too many bugs.\" Provide.\n...done thinking.\n\nWhy do programmers always mix up Christmas and Halloween?  \n\nBecause Oct\u202f31 == Dec\u202f25.",
+        "total_time": 1.1325249671936035,
+        "success": true,
+        "timestamp": "2026-01-19T02:52:22.877622"
+      }
+    ],
+    "gpt-oss:120b-cloud": [
+      {
+        "model": "gpt-oss:120b-cloud",
+        "prompt": "What is the capital of France? Answer in one word.",
+        "response": "Thinking...\nUser asks: \"What is the capital of France? Answer in one word.\" So answer: Paris.\n...done thinking.\n\nParis",
+        "total_time": 1.0156028270721436,
+        "success": true,
+        "timestamp": "2026-01-19T02:51:49.434154"
+      },
+      {
+        "model": "gpt-oss:120b-cloud",
+        "prompt": "What is 247 multiplied by 132? Just give me the number.",
+        "response": "Thinking...\nUser asks: \"What is 247 multiplied by 132? Just give me the number.\" So compute 247 * 132.\n\nCalculate: 247 * 100 = 24700. 247*30=7410. 247*2=494. Sum = 24700+7410+494 = 32604. Wait check: 247*132 = 247*(100+30+2) = 24700 + 7410 + 494 = 32604. Yes.\n\nReturn just the number: 32604.\n...done thinking.\n\n32604",
+        "total_time": 1.370323896408081,
+        "success": true,
+        "timestamp": "2026-01-19T02:51:57.122484"
+      },
+      {
+        "model": "gpt-oss:120b-cloud",
+        "prompt": "Write a Python function to add two numbers.",
+        "response": "Thinking...\nThe user asks: \"Write a Python function to add two numbers.\"\n\nWe just need to provide code. Possibly with explanation. Should be simple.\n\nWe respond with a Python function add_numbers(a, b) returning a+b. Also handle type checking? Could show usage.\n\nWill produce answer.\n...done thinking.\n\nHere\u2019s a tiny, ready\u2011to\u2011run example.  \nIt defines a function that takes two numbers (ints, floats, or any objects that support the `+` operator) and returns their sum.\n\n```python\ndef add_numbers(a, b):\n    \"\"\"\n    Return the sum of two numbers.\n\n    Parameters\n    ----------\n    a : int, float, or any type that implements __add__\n        The first addend.\n    b : int, float, or any type that implements __add__\n        The second addend.\n\n    Returns\n    -------\n    int, float, or same type as the operands\n        The result of a + b.\n\n    Raises\n    ------\n    TypeError\n        If the objects cannot be added together.\n    \"\"\"\n    try:\n        return a + b\n    except TypeError as exc:\n        raise TypeError(f\"Both arguments must be addable (e.g., numbers). Got {type(a)} and {type(b)}.\") from exc\n\n\n# Example usage\nif __name__ == \"__main__\":\n    print(add_numbers(3, 5))          # \u2192 8\n    print(add_numbers(2.7, 4.3))      # \u2192 7.0\n    print(add_numbers(-1, 10))        # \u2192 9\n    # The function works with any type that defines __add__\n    print(add_numbers(\"Hello, \", \"world!\"))  # \u2192 Hello, world!\n```\n\n**What the code does**\n\n1. **Define** `add_numbers(a, b)` \u2013 the core logic is simply `a + b`.\n2. **Docstring** explains the purpose, parameters, return type, and possible errors.\n3. **Error handling** catches a `TypeError` (e.g., trying to add a list to a string) and re\u2011raises a clearer message.\n4. **Demo block** (`if __name__ == \"__main__\":`) shows a few calls, including integers, floats, negatives, and even strings, demonstrating the function\u2019s flexibility.\n\nYou can copy this into a `.py` file or a Jupyter notebook and run it as\u2011is. Feel free to adapt the error handling or restrict the accepted types (e.g., using `isinstance(a, (int, float))`) if you only want pure numeric addition.",
+        "total_time": 4.689356565475464,
+        "success": true,
+        "timestamp": "2026-01-19T02:52:09.357550"
+      },
+      {
+        "model": "gpt-oss:120b-cloud",
+        "prompt": "Explain what a REST API is in 2-3 sentences.",
+        "response": "Thinking...\nThe user asks: \"Explain what a REST API is in 2-3 sentences.\" Provide concise explanation.\n...done thinking.\n\nA REST (Representational State Transfer) API is a web service that follows a set of architectural constraints\u2014such as statelessness, a uniform interface, and resource\u2011based URLs\u2014to let clients interact with server\u2011side resources using standard HTTP methods (GET, POST, PUT, DELETE, etc.). By representing data as JSON, XML, or other formats, it enables simple, language\u2011agnostic communication between distributed systems.",
+        "total_time": 1.5811429023742676,
+        "success": true,
+        "timestamp": "2026-01-19T02:52:18.425935"
+      },
+      {
+        "model": "gpt-oss:120b-cloud",
+        "prompt": "Tell me a short joke about programming.",
+        "response": "Thinking...\nThe user wants a short joke about programming. Just provide a short joke.\n...done thinking.\n\nWhy do programmers prefer dark mode?\n\nBecause light bugs are harder to debug!",
+        "total_time": 1.2021009922027588,
+        "success": true,
+        "timestamp": "2026-01-19T02:52:25.084884"
+      }
+    ]
+  },
+  "openai": {
+    "gpt-5-mini": [
+      {
+        "model": "gpt-5-mini",
+        "prompt": "What is the capital of France? Answer in one word.",
+        "error": "Error code: 400 - {'error': {'message': \"Unsupported value: 'temperature' does not support 0.7 with this model. Only the default (1) value is supported.\", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}",
+        "total_time": 0.6436200141906738,
+        "success": false
+      },
+      {
+        "model": "gpt-5-mini",
+        "prompt": "What is 247 multiplied by 132? Just give me the number.",
+        "error": "Error code: 400 - {'error': {'message': \"Unsupported value: 'temperature' does not support 0.7 with this model. Only the default (1) value is supported.\", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}",
+        "total_time": 0.5546739101409912,
+        "success": false
+      },
+      {
+        "model": "gpt-5-mini",
+        "prompt": "Write a Python function to add two numbers.",
+        "error": "Error code: 400 - {'error': {'message': \"Unsupported value: 'temperature' does not support 0.7 with this model. Only the default (1) value is supported.\", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}",
+        "total_time": 0.2976856231689453,
+        "success": false
+      },
+      {
+        "model": "gpt-5-mini",
+        "prompt": "Explain what a REST API is in 2-3 sentences.",
+        "error": "Error code: 400 - {'error': {'message': \"Unsupported value: 'temperature' does not support 0.7 with this model. Only the default (1) value is supported.\", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}",
+        "total_time": 0.31322598457336426,
+        "success": false
+      },
+      {
+        "model": "gpt-5-mini",
+        "prompt": "Tell me a short joke about programming.",
+        "error": "Error code: 400 - {'error': {'message': \"Unsupported value: 'temperature' does not support 0.7 with this model. Only the default (1) value is supported.\", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}",
+        "total_time": 0.2658722400665283,
+        "success": false
+      }
+    ]
+  }
+}

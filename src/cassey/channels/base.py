@@ -334,17 +334,22 @@ class BaseChannel(ABC):
             # Stream agent responses
             messages = []
             event_count = 0
+            event_types = []
             async for event in self.agent.astream(state, config):
                 event_count += 1
-                if event_count <= 5:
+                event_type = type(event).__name__
+                event_types.append(event_type)
+                if event_count <= 10:
                     logger.opt(lazy=True).debug(
                         "Stream event {idx}: {event_type} = {event}",
                         idx=event_count,
-                        event_type=lambda: type(event).__name__,
+                        event_type=lambda: event_type,
                         event=lambda: event,
                     )
+                print(f"[DEBUG] Event {event_count}: type={event_type}, keys={list(event.keys()) if isinstance(event, dict) else 'N/A'}")
                 for msg in self._extract_messages_from_event(event):
                     messages.append(msg)
+                    print(f"[DEBUG]   Extracted message: type={type(msg).__name__}, has_content={hasattr(msg, 'content') and bool(msg.content)}, has_tool_calls={hasattr(msg, 'tool_calls') and bool(msg.tool_calls)}")
                     # Log each response message if audit is enabled
                     if self.registry:
                         await self.registry.log_message(
@@ -354,12 +359,9 @@ class BaseChannel(ABC):
                             message=msg,
                         )
 
-            logger.debug(
-                "Stream summary: {events} events, {messages} messages extracted",
-                events=event_count,
-                messages=len(messages),
-            )
-            return messages
+            print(f"[DEBUG] Stream summary: {event_count} events, types={event_types}, {len(messages)} messages extracted")
+            # Return messages with metadata for better error handling
+            return messages, {"event_count": event_count, "event_types": event_types}
         finally:
             # Clear context to prevent leaking between conversations
             clear_thread_id()

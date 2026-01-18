@@ -1,0 +1,145 @@
+{
+  "ollama": {
+    "gpt-oss:20b-cloud": [
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "What is the capital of France? Answer in one word.",
+        "response": "Thinking...\nWe need the capital of France, answer in one word: \"Paris\". The answer must be one word, no punctuation? Probably \"Paris\".\n...done thinking.\n\nParis",
+        "total_time": 2.5718019008636475,
+        "success": true,
+        "timestamp": "2026-01-19T10:30:34.097379"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "What is 247 multiplied by 132? Just give me the number.",
+        "response": "Thinking...\nUser asks: \"What is 247 multiplied by 132? Just give me the number.\"\n\nCalculate 247 * 132.\n\n247 * 100 = 24,700\n247 * 30 = 7,410\n247 * 2 = 494\nSum = 24,700 + 7,410 + 494 = 32,604.\n\nDouble-check: 247*200=49,400; 247*30=7,410; 247*2=494; sum = 49,400+7,410+494=57,304? Wait mis reading.\n\nHold on: Actually 132 = 100 + 30 + 2. So 247*100 = 24,700; 247*30=7,410; 247*2=494; sum = 24,700 + 7,410 = 32,110; + 494 = 32,604. Good.\n\nAlternatively compute 247*132 directly: 132*247, 132*200=26,400; 132*40=5,280; 132*7=924; total = 32,604.\n\nThus answer 32604.\n...done thinking.\n\n32604",
+        "total_time": 2.799917221069336,
+        "success": true,
+        "timestamp": "2026-01-19T10:30:41.041788"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "Write a Python function to add two numbers.",
+        "response": "Thinking...\nUser wants Python function to add two numbers. Provide simple def add(a,b): return a+b. Also explanation.\n...done thinking.\n\nHere\u2019s a minimal, ready\u2011to\u2011run Python function that takes two numbers and returns their sum:\n\n```python\ndef add(a, b):\n    \"\"\"\n    Return the result of adding `a` and `b`.\n\n    Parameters\n    ----------\n    a, b : int | float | complex | numpy.number, etc.\n        Any type that supports the + operator.\n\n    Returns\n    -------\n    result : same type as the operands\n        The arithmetic sum of `a` and `b`.\n\n    Examples\n    --------\n    >>> add(3, 4)\n    7\n    >>> add(1.5, 2.5)\n    4.0\n    >>> add(-5, 0)\n    -5\n    \"\"\"\n    return a + b\n```\n\n### How to use it\n\n```python\nprint(add(10, 20))      # \u279c 30\nprint(add(5.2, 4.8))    # \u279c 10.0\n```\n\nFeel free to drop this function into any script or module that needs a simple addition helper. If you have any specific requirements (e.g., handling specific numeric types, converting input, error handling), let me know and we can adjust the implementation accordingly!",
+        "total_time": 3.5408518314361572,
+        "success": true,
+        "timestamp": "2026-01-19T10:30:48.441232"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "Explain what a REST API is in 2-3 sentences.",
+        "response": "Thinking...\nNeed to produce concise explanation. 2-3 sentences.\n...done thinking.\n\nA REST (Representational State Transfer) API is an architectural style for building web services that use standard HTTP methods\u2014such as GET, POST, PUT, and DELETE\u2014to perform operations on resources identified by URLs. It treats every endpoint as a resource, relies on stateless communication, and typically exchanges data in lightweight formats like JSON or XML, making it easy for clients and servers to interact over the web.",
+        "total_time": 1.5801448822021484,
+        "success": true,
+        "timestamp": "2026-01-19T10:30:59.912794"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "Tell me a short joke about programming.",
+        "response": "Thinking...\nUser requests a \"short joke about programming.\" They want humor. Answer with a concise joke. Probably something like \"Why do programmers prefer dark mode? Because light attracts bugs.\" Or \"A programmer's wife took him out... etc.\" Keep it short. Use emoji? Possibly. I'll give a joke.\n...done thinking.\n\nWhy do programmers always mix up Halloween and Christmas?  \n\nBecause Oct\u202f31\u202f==\u202fDec\u202f25. \ud83d\ude04",
+        "total_time": 1.626704216003418,
+        "success": true,
+        "timestamp": "2026-01-19T10:31:06.956880"
+      }
+    ]
+  },
+  "anthropic": {
+    "claude-3-5-haiku-20241022": [
+      {
+        "model": "claude-3-5-haiku-20241022",
+        "prompt": "What is the capital of France? Answer in one word.",
+        "response": "Paris",
+        "total_time": 1.138585090637207,
+        "usage": {
+          "cache_creation": null,
+          "cache_creation_input_tokens": null,
+          "cache_read_input_tokens": 6,
+          "input_tokens": 21,
+          "output_tokens": 7,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_tier": "standard"
+        },
+        "success": true,
+        "timestamp": "2026-01-19T10:30:36.241212"
+      },
+      {
+        "model": "claude-3-5-haiku-20241022",
+        "prompt": "What is 247 multiplied by 132? Just give me the number.",
+        "response": "32604",
+        "total_time": 0.8480491638183594,
+        "usage": {
+          "cache_creation": null,
+          "cache_creation_input_tokens": null,
+          "cache_read_input_tokens": 6,
+          "input_tokens": 28,
+          "output_tokens": 10,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_tier": "standard"
+        },
+        "success": true,
+        "timestamp": "2026-01-19T10:30:42.895228"
+      },
+      {
+        "model": "claude-3-5-haiku-20241022",
+        "prompt": "Write a Python function to add two numbers.",
+        "response": "Of course! Here are a few ways to write a Python function to add two numbers, ranging from the most basic to more robust versions.\n\n### 1. The Simplest Version\n\nThis is the most direct and common way to write the function. It's perfect for understanding the basic syntax.\n\n```python\ndef add_numbers(a, b):\n  \"\"\"\n  This function takes two numbers as input and returns their sum.\n  \"\"\"\n  return a + b\n\n# --- How to use it ---\nresult = add_numbers(5, 3)\nprint(f\"The sum is: {result}\")  # Output: The sum is: 8\n\nresult_float = add_numbers(10.5, 2.2)\nprint(f\"The sum is: {result_float}\") # Output: The sum is: 12.7\n```\n\n**Explanation:**\n*   `def add_numbers(a, b):` defines a function named `add_numbers` that accepts two parameters, `a` and `b`.\n*   `\"\"\"Docstring...\"\"\"` is a documentation string (docstring). It's a good practice to explain what your function does.\n*   `return a + b` calculates the sum of `a` and `b` and sends the result back as the output of the function.\n\n---\n\n### 2. A More Robust Version (Type Hinting and Docstring)\n\nThis version is more descriptive and helps other developers (and you!) understand what types of data the function expects and what it will return. This is the modern, recommended standard for writing functions.\n\n```python\ndef add_numbers_v2(a: float, b: float) -> float:\n  \"\"\"\n  Adds two numbers (integers or floats) and returns their sum.\n\n  Args:\n      a (float): The first number.\n      b (float): The second number.\n\n  Returns:\n      float: The sum of a and b.\n  \"\"\"\n  return a + b\n\n# --- How to use it ---\nresult_int = add_numbers_v2(10, 25)\nprint(f\"The sum is: {result_int}\")  # Output: The sum is: 35\n\nresult_float = add_numbers_v2(7.5, 2.1)\nprint(f\"The sum is: {result_float}\") # Output: The sum is: 9.6\n\n# Type hints are for developers and linters; they don't prevent this from working:\nresult_string",
+        "total_time": 6.87713098526001,
+        "usage": {
+          "cache_creation": null,
+          "cache_creation_input_tokens": null,
+          "cache_read_input_tokens": 6,
+          "input_tokens": 17,
+          "output_tokens": 785,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_tier": "standard"
+        },
+        "success": true,
+        "timestamp": "2026-01-19T10:30:56.323842"
+      },
+      {
+        "model": "claude-3-5-haiku-20241022",
+        "prompt": "Explain what a REST API is in 2-3 sentences.",
+        "response": "A REST API is a set of rules for building web services that allows different applications to communicate over the internet using standard HTTP methods like GET, POST, PUT, and DELETE. It enables systems to exchange data in a simple, stateless way by acting as a middleman that receives requests and provides responses, typically in an easy-to-use format like JSON.",
+        "total_time": 2.4069008827209473,
+        "usage": {
+          "cache_creation": null,
+          "cache_creation_input_tokens": null,
+          "cache_read_input_tokens": 6,
+          "input_tokens": 25,
+          "output_tokens": 117,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_tier": "standard"
+        },
+        "success": true,
+        "timestamp": "2026-01-19T10:31:03.325023"
+      },
+      {
+        "model": "claude-3-5-haiku-20241022",
+        "prompt": "Tell me a short joke about programming.",
+        "response": "Why do programmers prefer dark mode?\n\nBecause light attracts bugs.",
+        "total_time": 1.0598111152648926,
+        "usage": {
+          "cache_creation": null,
+          "cache_creation_input_tokens": null,
+          "cache_read_input_tokens": 6,
+          "input_tokens": 15,
+          "output_tokens": 25,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_tier": "standard"
+        },
+        "success": true,
+        "timestamp": "2026-01-19T10:31:09.022119"
+      }
+    ]
+  }
+}

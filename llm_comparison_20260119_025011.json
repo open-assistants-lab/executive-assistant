@@ -1,0 +1,91 @@
+{
+  "ollama": {
+    "gpt-oss:20b-cloud": [
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "What is the capital of France? Answer in one word.",
+        "response": "Thinking...\nWe need to answer in one word. The capital of France is Paris. So answer: Paris.\n...done thinking.\n\nParis",
+        "total_time": 2.6959433555603027,
+        "success": true,
+        "timestamp": "2026-01-19T02:49:32.361926"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "What is 247 multiplied by 132? Just give me the number.",
+        "response": "Thinking...\nUser asks: \"What is 247 multiplied by 132? Just give me the number.\" They want the product. Let's compute: 247 * 132.\n\nCompute: 247 * 100 = 24700\n247 * 30 = 7410\n247 * 2 = 494\nSum: 24700 + 7410 = 32110; +494 = 32604.\n\nDouble-check using alternative: 247*132 = 247 * (110 + 22). 247*110 = 247*10*11? Actually 247*110 = 247*(100+10) = 24700 + 2470 = 27170. 247*22 = 247*20 + 247*2 = 4940 + 494 = 5434. Sum = 27170 + 5434 = 32604. Yes.\n\nSo answer: 32604.\n...done thinking.\n\n32604",
+        "total_time": 2.471386194229126,
+        "success": true,
+        "timestamp": "2026-01-19T02:49:39.935949"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "Write a Python function to add two numbers.",
+        "response": "Thinking...\nThe user request: \"Write a Python function to add two numbers.\" This is a straightforward request. We should output a Python function that takes two numbers and returns their sum. They might want a full function example. We can discuss optional handling of type checking, but likely just a simple function. Use def add(a,b): return a+b.\n\nPerhaps add docstring. Provide example usage.\n\nThat should be fine. Probably only a function definition. We'll also mention that it works for integers, floats, etc.\n\nLet's produce a clean answer.\n...done thinking.\n\nHere\u2019s a minimal, self\u2011contained Python function that adds two numbers together:\n\n```python\ndef add(a, b):\n    \"\"\"\n    Return the sum of `a` and `b`.\n\n    Parameters\n    ----------\n    a : int | float | complex\n        First operand.\n    b : int | float | complex\n        Second operand.\n\n    Returns\n    -------\n    same type as the inputs\n        The result of a + b.\n    \"\"\"\n    return a + b\n```\n\n### How to use it\n\n```python\n>>> add(3, 5)\n8\n\n>>> add(2.7, 4.1)\n6.8\n\n>>> add(1+2j, 3-4j)\n(4-2j)\n```\n\n> **Tip:** This function relies on Python\u2019s built\u2011in `+` operator, so it works for any type that supports addition (ints, floats, complex numbers, or even custom objects that define `__add__`).",
+        "total_time": 3.3578860759735107,
+        "success": true,
+        "timestamp": "2026-01-19T02:49:49.099979"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "Explain what a REST API is in 2-3 sentences.",
+        "response": "Thinking...\nWe need to explain what a REST API is in 2-3 sentences. Very concise. Let's answer succinctly.\n...done thinking.\n\nA REST API (Representational State Transfer API) is a web service design that uses standard HTTP methods\u2014like GET, POST, PUT, and DELETE\u2014to manipulate resources identified by URLs. It treats requests and responses as representations of resource states, enabling stateless, scalable communication between client and server. The API typically returns data in a lightweight format such as JSON or XML, making it easy for a wide range of applications to consume.",
+        "total_time": 1.8876543045043945,
+        "success": true,
+        "timestamp": "2026-01-19T02:50:00.033325"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "Tell me a short joke about programming.",
+        "response": "Thinking...\nUser: short joke about programming. Provide one.\n...done thinking.\n\nWhy do programmers always mix up Christmas and Halloween?  \n\nBecause Oct\u202f31\u202f==\u202fDec\u202f25.",
+        "total_time": 1.0833678245544434,
+        "success": true,
+        "timestamp": "2026-01-19T02:50:06.408980"
+      }
+    ],
+    "gpt-oss:120b-cloud": [
+      {
+        "model": "gpt-oss:120b-cloud",
+        "prompt": "What is the capital of France? Answer in one word.",
+        "response": "Thinking...\nUser asks: \"What is the capital of France? Answer in one word.\" So answer: Paris. One word.\n...done thinking.\n\nParis",
+        "total_time": 1.0873470306396484,
+        "success": true,
+        "timestamp": "2026-01-19T02:49:34.454507"
+      },
+      {
+        "model": "gpt-oss:120b-cloud",
+        "prompt": "What is 247 multiplied by 132? Just give me the number.",
+        "response": "Thinking...\nWe just need compute 247 * 132. Let's calculate: 247*100=24700, *30=7410, *2=494. Sum = 24700+7410+494 = 32604. Double-check: 247*132 = 247*(12*11?) Actually 132 = 12*11? 12*11 = 132 yes. Compute 247*12 = 247*10=2470 + 247*2=494 => 2964. Then *11: 2964*11 = 2964*10=29640 + 2964=32604. Yes. So answer 32604.\n...done thinking.\n\n32604",
+        "total_time": 1.7942967414855957,
+        "success": true,
+        "timestamp": "2026-01-19T02:49:42.735423"
+      },
+      {
+        "model": "gpt-oss:120b-cloud",
+        "prompt": "Write a Python function to add two numbers.",
+        "response": "Thinking...\nThe user asks: \"Write a Python function to add two numbers.\" Straightforward: Provide code. Possibly with docstring, type hints, error handling. I will respond with a function definition and example usage. Also explain.\n...done thinking.\n\nHere\u2019s a compact, well\u2011documented Python function that adds two numbers.  \nIt works with integers, floats, or any objects that implement the `+` operator (e.g., `Decimal`, `Fraction`, NumPy arrays, etc.).\n\n```python\nfrom typing import Union, Any\n\nNumber = Union[int, float]          # extend this if you want to support more types\n\ndef add(a: Number, b: Number) -> Number:\n    \"\"\"\n    Return the sum of two numbers.\n\n    Parameters\n    ----------\n    a : int | float\n        The first addend.\n    b : int | float\n        The second addend.\n\n    Returns\n    -------\n    int | float\n        The result of ``a + b``.\n\n    Examples\n    --------\n    >>> add(2, 3)\n    5\n    >>> add(2.5, 4)\n    6.5\n    >>> add(-1, 10)\n    9\n    \"\"\"\n    # The actual computation is just the built\u2011in + operator.\n    # Using a separate function gives you a place to add logging,\n    # validation, or more complex behavior later without touching call sites.\n    return a + b\n\n\n# ----------------------------------------------------------------------\n# Simple demonstration (run this block directly or import the function elsewhere)\nif __name__ == \"__main__\":\n    # Basic tests\n    assert add(1, 2) == 3\n    assert add(1.5, 2.5) == 4.0\n    assert add(-5, 10) == 5\n\n    # Show usage\n    print(\"2 + 3 =\", add(2, 3))\n    print(\"2.5 + 4 =\", add(2.5, 4))\n    print(\"-1 + 10 =\", add(-1, 10))\n```\n\n### Why wrap `+` in a function?\n* **Readability & consistency** \u2013 all addition logic lives in one place.\n* **Extensibility** \u2013 you can later add logging, type\u2011checking, or support for custom numeric types without changing the rest of your code.\n* **Testing** \u2013 a dedicated function can be unit\u2011tested in isolation.\n\nFeel free to expand `Number` (e.g., `from decimal import Decimal; Number = Union[int, float, Decimal]`) or add more sophisticated error handling if you expect non\u2011numeric inputs.",
+        "total_time": 5.0302839279174805,
+        "success": true,
+        "timestamp": "2026-01-19T02:49:55.135408"
+      },
+      {
+        "model": "gpt-oss:120b-cloud",
+        "prompt": "Explain what a REST API is in 2-3 sentences.",
+        "response": "Thinking...\nNeed concise answer.\n...done thinking.\n\nA REST (Representational State Transfer) API is a web service that follows a set of architectural constraints\u2014most importantly stateless communication, a uniform interface, and resource\u2011oriented URLs\u2014so that clients can interact with server\u2011side resources using standard HTTP methods (GET, POST, PUT, DELETE, etc.). It returns data in formats like JSON or XML, allowing different applications to exchange information over the web in a simple, scalable, and language\u2011agnostic way.",
+        "total_time": 1.278615951538086,
+        "success": true,
+        "timestamp": "2026-01-19T02:50:02.315241"
+      },
+      {
+        "model": "gpt-oss:120b-cloud",
+        "prompt": "Tell me a short joke about programming.",
+        "response": "Thinking...\nUser wants a short joke about programming. Provide a short, witty joke. Keep tone friendly.\n...done thinking.\n\nWhy do programmers hate nature?\n\nBecause it has too many **bugs** and not enough **comments**.",
+        "total_time": 1.146601915359497,
+        "success": true,
+        "timestamp": "2026-01-19T02:50:08.560773"
+      }
+    ]
+  },
+  "openai": {
+    "gpt-5-mini": []
+  }
+}

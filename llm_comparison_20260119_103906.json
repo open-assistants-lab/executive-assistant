@@ -1,0 +1,145 @@
+{
+  "ollama": {
+    "gpt-oss:20b-cloud": [
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "What is the capital of France? Answer in one word.",
+        "response": "Thinking...\nWe must answer: capital of France is Paris. The answer in one word. So simply: \"Paris\".\n...done thinking.\n\nParis",
+        "total_time": 1.0573530197143555,
+        "success": true,
+        "timestamp": "2026-01-19T10:38:28.157293"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "What is 247 multiplied by 132? Just give me the number.",
+        "response": "Thinking...\nWe just need to calculate 247 * 132. Let's do math: 247*132. 247 * 100 = 24700. 247 * 30 = 7410. 247 * 2 = 494. Sum: 24700+7410+494 = 32604? Let's add: 24700+7410 = 32110. +494 = 32604. Yes answer 32604.\n...done thinking.\n\n32604",
+        "total_time": 1.5811057090759277,
+        "success": true,
+        "timestamp": "2026-01-19T10:38:33.848088"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "Write a Python function to add two numbers.",
+        "response": "Thinking...\nUser: \"Write a Python function to add two numbers.\"\n\nThey want a function that adds two numbers. Probably include simple function. A brief explanation could but instruction is just to write. Likely demonstration code. Possibly ask to handle floats? We'll give a simple def add(a,b): return a+b. Done. Also maybe include example usage. So final answer: code.\n...done thinking.\n\nHere\u2019s a minimal, ready\u2011to\u2011use Python function that adds two numbers:\n\n```python\ndef add(a, b):\n    \"\"\"\n    Return the sum of two numbers.\n    \n    Parameters\n    ----------\n    a : int or float\n    b : int or float\n    \n    Returns\n    -------\n    int or float\n        The sum of `a` and `b`.\n    \"\"\"\n    return a + b\n\n\n# Example usage\nif __name__ == \"__main__\":\n    print(add(3, 5))     # 8\n    print(add(2.5, 4.1)) # 6.6\n```\n\nFeel free to customize the function (e.g., type\u2011checking, handling complex numbers, etc.) depending on your specific use case.",
+        "total_time": 3.168239116668701,
+        "success": true,
+        "timestamp": "2026-01-19T10:38:41.007176"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "Explain what a REST API is in 2-3 sentences.",
+        "response": "Thinking...\nThe user: \"Explain what a REST API is in 2-3 sentences.\" Simple. Provide concise explanation. Should be 2-3 sentences. Probably just 2 sentences. I'll write 2 sentences. Good.\n...done thinking.\n\nA REST (Representational State Transfer) API is a web service architecture that uses standard HTTP methods (GET, POST, PUT, DELETE, etc.) to manipulate resources identified by URLs, treating each URL as a unique endpoint. It emphasizes stateless communication, where each request contains all the information needed, and uses common data formats like JSON or XML to exchange representations of those resources.",
+        "total_time": 1.622323989868164,
+        "success": true,
+        "timestamp": "2026-01-19T10:38:54.343225"
+      },
+      {
+        "model": "gpt-oss:20b-cloud",
+        "prompt": "Tell me a short joke about programming.",
+        "response": "Thinking...\nWe just need a short joke about programming. Simple. Let's deliver.\n...done thinking.\n\nWhy do programmers prefer dark mode?  \nBecause light attracts bugs!",
+        "total_time": 2.379392147064209,
+        "success": true,
+        "timestamp": "2026-01-19T10:39:02.247958"
+      }
+    ]
+  },
+  "anthropic": {
+    "claude-haiku-4-5": [
+      {
+        "model": "claude-haiku-4-5",
+        "prompt": "What is the capital of France? Answer in one word.",
+        "response": "Paris",
+        "total_time": 1.1018953323364258,
+        "usage": {
+          "cache_creation": null,
+          "cache_creation_input_tokens": null,
+          "cache_read_input_tokens": 6,
+          "input_tokens": 21,
+          "output_tokens": 7,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_tier": "standard"
+        },
+        "success": true,
+        "timestamp": "2026-01-19T10:38:30.261678"
+      },
+      {
+        "model": "claude-haiku-4-5",
+        "prompt": "What is 247 multiplied by 132? Just give me the number.",
+        "response": "32604",
+        "total_time": 0.9803609848022461,
+        "usage": {
+          "cache_creation": null,
+          "cache_creation_input_tokens": null,
+          "cache_read_input_tokens": 6,
+          "input_tokens": 28,
+          "output_tokens": 10,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_tier": "standard"
+        },
+        "success": true,
+        "timestamp": "2026-01-19T10:38:35.833820"
+      },
+      {
+        "model": "claude-haiku-4-5",
+        "prompt": "Write a Python function to add two numbers.",
+        "response": "Of course! Here is a simple and well-explained Python function to add two numbers.\n\n### The Simplest Function\n\nThis is the most straightforward way to write the function.\n\n```python\ndef add_numbers(a, b):\n  \"\"\"\n  Adds two numbers together and returns the result.\n  \n  Args:\n    a (int or float): The first number.\n    b (int or float): The second number.\n    \n  Returns:\n    int or float: The sum of a and b.\n  \"\"\"\n  return a + b\n\n# --- How to use the function ---\n\n# Example 1: Adding two integers\nsum1 = add_numbers(5, 7)\nprint(f\"The sum of 5 and 7 is: {sum1}\")  # Output: The sum of 5 and 7 is: 12\n\n# Example 2: Adding two floating-point numbers\nsum2 = add_numbers(10.5, 2.2)\nprint(f\"The sum of 10.5 and 2.2 is: {sum2}\") # Output: The sum of 10.5 and 2.2 is: 12.7\n\n# Example 3: Adding an integer and a float\nsum3 = add_numbers(3, 8.5)\nprint(f\"The sum of 3 and 8.5 is: {sum3}\")   # Output: The sum of 3 and 8.5 is: 11.5\n```\n\n### Breakdown of the Code\n\n1.  **`def add_numbers(a, b):`**\n    *   `def` is the keyword that tells Python you are about to define a new function.\n    *   `add_numbers` is the name we've given our function. It's a good practice to use descriptive names.\n    *   `(a, b)` are the **parameters**. These are placeholders for the actual values (arguments) you will pass into the function when you call it.\n\n2.  **`\"\"\"Docstring...\"\"\"`**\n    *   This is a **docstring**, a string that explains what the function does. It's a crucial part of writing readable and maintainable code. You can view it by calling `help(add_numbers)`.\n\n3.  **`return a + b`**\n    *   This is the core of the function.\n    *   `a + b` performs the addition using",
+        "total_time": 8.706496953964233,
+        "usage": {
+          "cache_creation": null,
+          "cache_creation_input_tokens": null,
+          "cache_read_input_tokens": 6,
+          "input_tokens": 17,
+          "output_tokens": 785,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_tier": "standard"
+        },
+        "success": true,
+        "timestamp": "2026-01-19T10:38:50.719033"
+      },
+      {
+        "model": "claude-haiku-4-5",
+        "prompt": "Explain what a REST API is in 2-3 sentences.",
+        "response": "A REST API is a set of rules that allows different software applications to communicate with each other over the internet, typically using the HTTP protocol. It enables a client, like a web browser or mobile app, to request and manipulate data from a server by making standard calls like GET, POST, PUT, and DELETE.",
+        "total_time": 2.5146851539611816,
+        "usage": {
+          "cache_creation": null,
+          "cache_creation_input_tokens": null,
+          "cache_read_input_tokens": 6,
+          "input_tokens": 25,
+          "output_tokens": 105,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_tier": "standard"
+        },
+        "success": true,
+        "timestamp": "2026-01-19T10:38:57.863381"
+      },
+      {
+        "model": "claude-haiku-4-5",
+        "prompt": "Tell me a short joke about programming.",
+        "response": "Why do programmers prefer dark mode?\n\nBecause light attracts bugs.",
+        "total_time": 1.4033238887786865,
+        "usage": {
+          "cache_creation": null,
+          "cache_creation_input_tokens": null,
+          "cache_read_input_tokens": 6,
+          "input_tokens": 15,
+          "output_tokens": 25,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_tier": "standard"
+        },
+        "success": true,
+        "timestamp": "2026-01-19T10:39:04.656495"
+      }
+    ]
+  }
+}

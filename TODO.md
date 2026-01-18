@@ -47,6 +47,17 @@
 - [x] Add `grep_files` tool for content search
 - [x] Unit tests (10 tests)
 
+### Middleware Debug Logging (2026-01-19)
+- [x] Create `middleware_debug.py` with detection utilities
+- [x] Add summarization detection (token/message before/after)
+- [x] Add context editing detection (tool_uses reduction)
+- [x] Add retry tracking (LLM and tool call counting)
+- [x] Logs: `[SUMMARIZATION] 45→3 msgs (42 removed)`
+- [x] Logs: `[CONTEXT_EDIT] Tool uses: 20→5 (15 removed, 75% reduction)`
+- [x] Logs: `[LLM_RETRY] Expected 1 call, got 2 (1 retry)`
+- [x] Logs: `[TOOL_RETRY] Expected 1 tool call, got 3 (2 retries)`
+- See: `discussions/middleware-debug-logging-20250119.md` for full design
+
 ## Design (Locked In)
 
 **Scheduler:** APScheduler + DB persistence
@@ -86,6 +97,10 @@ CREATE TABLE reminders (
 - [ ] Implement recurring reminders by creating the next instance after send
 - [ ] Validate SQL identifiers (table_name) in db/vs tools to prevent injection
 - [ ] Fix memory FTS indexing/query to use DuckDB match_bm25 (avoid falling back to LIKE)
+- [x] **ToolRetry & ModelRetry Debug Logging** (2026-01-19)
+  - [x] Added retry detection via `RetryTracker` class
+  - [x] Logs when LLM or tools retry unexpectedly
+  - [x] See: `discussions/middleware-debug-logging-20250119.md`
 - [ ] Context editing middleware (see `discussions/context-editing-middleware-plan-20260116-1655.md`)
 - [ ] **ShellToolMiddleware** (see `discussions/shell-tool-middleware-plan-20260116.md`)
   - [ ] Add settings to `src/cassey/config/settings.py`
@@ -411,3 +426,5 @@ With APScheduler integrated, we could add:
 - **Conversation Export** - Export conversations to markdown/PDF
 - **Analytics Dashboard** - Web UI for viewing statistics
 - **Multi-Language Support** - Detect and respond in user's language
+- **Framework Agnostic Agent Runtime** - Support multiple agent frameworks (LangChain, Agno, etc.)
+  - See: `discussions/framework-agnostic-agent-design-20250119.md` for full analysis

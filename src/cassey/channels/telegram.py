@@ -386,9 +386,15 @@ class TelegramChannel(BaseChannel):
                 # No need for pre-check here - SanitizingCheckpointSaver handles it on load
 
                 # Stream agent response
-                messages = await self.stream_agent_response(message)
+                messages, metadata = await self.stream_agent_response(message)
 
                 print(f"[DEBUG] Received {len(messages)} messages from agent")
+                for i, msg in enumerate(messages):
+                    msg_type = type(msg).__name__
+                    has_content = hasattr(msg, "content") and bool(msg.content)
+                    has_tool_calls = hasattr(msg, "tool_calls") and bool(msg.tool_calls)
+                    content_preview = (msg.content[:100] if hasattr(msg, "content") and msg.content else "")
+                    print(f"[DEBUG]   Message {i}: type={msg_type}, has_content={has_content}, has_tool_calls={has_tool_calls}, content='{content_preview}'")
 
                 # Send responses back
                 for msg in messages:
@@ -396,12 +402,55 @@ class TelegramChannel(BaseChannel):
                         # send_message will handle markdown conversion
                         await self.send_message(message.conversation_id, msg.content)
 
-                # If no messages were returned, send a fallback
+                # Determine reason for empty response based on events
+                event_types = metadata.get("event_types", [])
+                event_keys = metadata.get("event_keys", [])
+
+                # If no messages were returned, send a fallback with reason
                 if not messages:
-                    print("[DEBUG] No messages from agent - possible empty response")
+                    print("[DEBUG] No messages from agent - determining reason...")
+
+                    # Check if model call limit was hit
+                    has_model_limit = any("ModelCallLimitMiddleware" in str(t) for t in event_types)
+                    has_tool_limit = any("ToolCallLimit" in str(t) for t in event_types)
+
+                    if has_model_limit:
+                        await self.send_message(
+                            message.conversation_id,
+                            "⚠️ *Conversation limit reached*\n\n"
+                            "This conversation has used too many AI calls. Please send /reset to start fresh.\n\n"
+                            "Your data (files, VS, DB) will be preserved."
+                        )
+                    elif has_tool_limit:
+                        await self.send_message(
+                            message.conversation_id,
+                            "⚠️ *Tool limit reached*\n\n"
+                            "Too many tools were used in this request. Please try a simpler task or send /reset."
+                        )
+                    elif metadata.get("event_count", 0) <= 5:
+                        await self.send_message(
+                            message.conversation_id,
+                            "⚠️ *Agent stopped early*\n\n"
+                            "The agent didn't generate a response. This could be due to a configuration limit or state issue.\n\n"
+                            "Try sending /reset to start fresh."
+                        )
+                    else:
+                        await self.send_message(
+                            message.conversation_id,
+                            "I didn't generate a response. Please try again."
+                        )
+
+                # Check if we only got tool calls but no content response
+                has_content_msg = any(
+                    hasattr(msg, "content") and msg.content
+                    for msg in messages
+                )
+                if messages and not has_content_msg:
+                    print(f"[DEBUG] Got {len(messages)} tool-call messages but no content response")
                     await self.send_message(
                         message.conversation_id,
-                        "I didn't generate a response. Please try again."
+                        "I executed some tools but didn't generate a final response. "
+                        "This might be due to an agent issue or limit. Please try again or send /reset."
                     )
 
             except Exception as e:
@@ -434,6 +483,9 @@ class TelegramChannel(BaseChannel):
                         await typing_task
                     except asyncio.CancelledError:
                         pass
+
+                # Clear status message ID so next user message creates a new status
+                self._status_messages.pop(message.conversation_id, None)
 
     def _clean_markdown(self, text: str) -> str:
         """Clean markdown for Telegram compatibility.
