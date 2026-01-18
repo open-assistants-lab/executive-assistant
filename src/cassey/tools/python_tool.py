@@ -13,7 +13,6 @@ from pathlib import Path
 from langchain_core.tools import tool
 
 from cassey.config.settings import settings
-from cassey.storage.file_sandbox import get_thread_id
 
 
 # Allowed file extensions for Python sandbox file I/O
@@ -57,23 +56,23 @@ SAFE_MODULES = {
 
 
 def _get_thread_root() -> Path:
-    """Get the thread-specific root directory for file operations.
+    """Get the context-specific root directory for file operations.
 
-    Each thread/conversation gets its own sandboxed directory under
-    settings.FILES_ROOT for isolation.
+    Priority:
+    1. group_id context -> data/groups/{group_id}/files/
+    2. thread_id context -> data/users/{thread_id}/files/
+
+    Each thread/conversation gets its own sandboxed directory for isolation.
 
     Returns:
-        Path to the thread's sandbox directory (created if doesn't exist)
-    """
-    thread_id = get_thread_id()
+        Path to the context's sandbox directory (created if doesn't exist)
 
-    if thread_id:
-        thread_path = settings.get_thread_files_path(thread_id)
-        thread_path.mkdir(parents=True, exist_ok=True)
-        return thread_path
-    else:
-        # No thread_id context, fall back to global files root
-        return settings.FILES_ROOT
+    Raises:
+        ValueError: If no group_id or thread_id context is set
+    """
+    thread_root = settings.get_context_files_path()
+    thread_root.mkdir(parents=True, exist_ok=True)
+    return thread_root
 
 
 def _validate_path(path: str | Path) -> Path:
@@ -315,7 +314,7 @@ def _setup_safe_globals():
         pass
 
     # Add data directory path
-    safe_globals['DATA_PATH'] = str(settings.FILES_ROOT.parent)
+    safe_globals['DATA_PATH'] = str(settings.USERS_ROOT.parent)
 
     # Add sandboxed file operations
     safe_globals['open'] = sandboxed_open

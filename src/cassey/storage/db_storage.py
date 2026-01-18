@@ -9,7 +9,7 @@ import duckdb
 from cassey.config import settings
 from cassey.storage.file_sandbox import get_thread_id
 from cassey.storage.user_registry import sanitize_thread_id
-from cassey.storage.workspace_storage import get_workspace_id
+from cassey.storage.group_storage import get_workspace_id
 
 
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -29,18 +29,18 @@ class DBStorage:
     """
     Database storage for tabular data.
 
-    Each workspace has its own isolated database file.
-    Supports workspace/thread/user separation and merge/remove operations.
+    Each group has its own isolated database file.
+    Supports group/thread/user separation and merge/remove operations.
     """
 
-    def __init__(self, root: Path | None = None) -> None:
+    def __init__(self, root: Path) -> None:
         """
-        Initialize database storage.
+        Initialize database storage with a required root directory.
 
         Args:
-            root: Root directory for database files (deprecated, use workspace paths).
+            root: Root directory for database files (required).
         """
-        self.root = (root or settings.DB_ROOT).resolve()
+        self.root = Path(root).resolve()
 
     def _get_db_path(
         self,
@@ -48,22 +48,22 @@ class DBStorage:
         workspace_id: str | None = None,
     ) -> Path:
         """
-        Get the database path for a thread or workspace.
+        Get the database path for a thread or group.
 
         Priority:
-        1. workspace_id if provided (new workspace-based routing)
-        2. workspace_id from context (new workspace-based routing)
+        1. workspace_id if provided (new group-based routing)
+        2. workspace_id from context (new group-based routing)
         3. thread_id if provided (legacy thread-based routing)
         4. thread_id from context (legacy thread-based routing)
 
         Args:
             thread_id: Thread identifier (legacy).
-            workspace_id: Workspace identifier (new).
+            workspace_id: Group identifier (new).
 
         Returns:
             Path to the database file.
         """
-        # Check workspace_id first
+        # Check group_id first
         if workspace_id is None:
             workspace_id = get_workspace_id()
 
@@ -81,14 +81,7 @@ class DBStorage:
 
         safe_thread_id = sanitize_thread_id(thread_id)
 
-        # If self.root is explicitly set (different from settings), use old structure
-        # This maintains backward compatibility with tests and custom configurations
-        if self.root != settings.DB_ROOT.resolve():
-            db_path = self.root / f"{safe_thread_id}.db"
-            db_path.parent.mkdir(parents=True, exist_ok=True)
-            return db_path
-
-        # Use new path helper with backward compatibility fallback
+        # Use new path structure (data/users/{thread_id}/db/db.sqlite)
         db_path = settings.get_thread_db_path(thread_id)
         db_path.parent.mkdir(parents=True, exist_ok=True)
         return db_path
@@ -409,10 +402,35 @@ class DBStorage:
         }
 
 
-# Global database storage instance
-_db_storage = DBStorage()
+# No global database storage - must use get_db_storage with context
+_db_storage = None
 
 
 def get_db_storage() -> DBStorage:
-    """Get the global database storage instance."""
-    return _db_storage
+    """
+    Get a database storage instance scoped to the current context.
+
+    Uses group_id from context if available, otherwise falls back to thread_id.
+
+    Returns:
+        A DBStorage instance scoped to the current group or thread.
+
+    Raises:
+        ValueError: If no group_id or thread_id context is available.
+    """
+    group_id = get_workspace_id()
+    if group_id:
+        db_path = settings.get_group_db_path(group_id)
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        return DBStorage(root=db_path.parent)
+
+    thread_id = get_thread_id()
+    if thread_id:
+        db_path = settings.get_thread_db_path(thread_id)
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        return DBStorage(root=db_path.parent)
+
+    raise ValueError(
+        "DBStorage requires group_id or thread_id context. "
+        "Ensure context is set before calling get_db_storage()."
+    )

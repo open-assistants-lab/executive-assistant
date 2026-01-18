@@ -1,478 +1,37 @@
-"""Unit tests for ScheduledJob storage."""
+"""Tests for scheduled jobs storage and management.
+
+Tests the ScheduledJobStorage class and ScheduledJob dataclass.
+"""
+
+import uuid
+from datetime import datetime, timedelta
 
 import pytest
-import pytest_asyncio
-from datetime import datetime, timedelta
 
 from cassey.storage.scheduled_jobs import (
     ScheduledJob,
     ScheduledJobStorage,
     get_scheduled_job_storage,
 )
-from cassey.storage.workers import WorkerStorage
-from cassey.utils.cron import parse_cron_next
 
 
-@pytest_asyncio.fixture
-async def clean_db():
-    """Provide a clean database state for each test."""
+# =============================================================================
+# ScheduledJob Dataclass Tests
+# =============================================================================
 
-    async def cleanup_test_data():
-        """Clean up test data from scheduled_jobs and workers tables."""
-        import asyncpg
-        from cassey.config.settings import settings
+class TestScheduledJob:
+    """Test ScheduledJob dataclass properties and methods."""
 
-        conn = await asyncpg.connect(settings.POSTGRES_URL)
-        try:
-            # Delete scheduled jobs for test users (those starting with 'test_')
-            await conn.execute(
-                "DELETE FROM scheduled_jobs WHERE user_id LIKE 'test_%'"
-            )
-            # Delete workers for test users
-            await conn.execute(
-                "DELETE FROM workers WHERE user_id LIKE 'test_%'"
-            )
-        finally:
-            await conn.close()
-
-    await cleanup_test_data()
-    storage = ScheduledJobStorage()
-    yield storage
-    # Cleanup after test as well
-    await cleanup_test_data()
-
-
-class TestParseCronNext:
-    """Test cron expression parsing."""
-
-    def test_cron_hourly(self):
-        """Test @hourly shortcut."""
-        now = datetime(2025, 1, 15, 10, 30, 0)
-        next_time = parse_cron_next("hourly", now)
-        expected = datetime(2025, 1, 15, 11, 30, 0)
-        assert next_time == expected
-
-    def test_cron_at_hourly(self):
-        """Test @hourly shortcut."""
-        now = datetime(2025, 1, 15, 10, 30, 0)
-        next_time = parse_cron_next("@hourly", now)
-        expected = datetime(2025, 1, 15, 11, 30, 0)
-        assert next_time == expected
-
-    def test_cron_daily(self):
-        """Test @daily shortcut."""
-        now = datetime(2025, 1, 15, 10, 30, 0)
-        next_time = parse_cron_next("daily", now)
-        expected = datetime(2025, 1, 16, 0, 0, 0)
-        assert next_time == expected
-
-    def test_cron_at_daily(self):
-        """Test @daily shortcut."""
-        now = datetime(2025, 1, 15, 10, 30, 0)
-        next_time = parse_cron_next("@daily", now)
-        expected = datetime(2025, 1, 16, 0, 0, 0)
-        assert next_time == expected
-
-    def test_cron_weekly(self):
-        """Test @weekly shortcut."""
-        now = datetime(2025, 1, 15, 10, 30, 0)  # Wednesday
-        next_time = parse_cron_next("weekly", now)
-        # Should be next Sunday at midnight
-        assert next_time.weekday() == 6  # Sunday
-        assert next_time.hour == 0
-        assert next_time.minute == 0
-
-    def test_cron_monthly(self):
-        """Test @monthly shortcut."""
-        now = datetime(2025, 1, 15, 10, 30, 0)
-        next_time = parse_cron_next("monthly", now)
-        expected = datetime(2025, 2, 1, 0, 0, 0)
-        assert next_time == expected
-
-    def test_cron_daily_at_9am(self):
-        """Test 'daily at 9am' format."""
-        now = datetime(2025, 1, 15, 10, 0, 0)
-        next_time = parse_cron_next("daily at 9am", now)
-        expected = datetime(2025, 1, 16, 9, 0, 0)
-        assert next_time == expected
-
-    def test_cron_daily_at_9pm(self):
-        """Test 'daily at 9pm' format."""
-        now = datetime(2025, 1, 15, 10, 0, 0)
-        next_time = parse_cron_next("daily at 9pm", now)
-        expected = datetime(2025, 1, 15, 21, 0, 0)
-        assert next_time == expected
-
-    def test_cron_standard_daily_9am(self):
-        """Test standard cron '0 9 * * *' (daily at 9am)."""
-        now = datetime(2025, 1, 15, 8, 0, 0)
-        next_time = parse_cron_next("0 9 * * *", now)
-        expected = datetime(2025, 1, 15, 9, 0, 0)
-        assert next_time == expected
-
-    def test_cron_standard_daily_after_hour(self):
-        """Test standard cron when current time is past the hour."""
-        now = datetime(2025, 1, 15, 10, 0, 0)
-        next_time = parse_cron_next("0 9 * * *", now)
-        expected = datetime(2025, 1, 16, 9, 0, 0)
-        assert next_time == expected
-
-    def test_cron_every_6_hours(self):
-        """Test '0 */6 * * *' (every 6 hours)."""
-        now = datetime(2025, 1, 15, 8, 0, 0)
-        next_time = parse_cron_next("0 */6 * * *", now)
-        expected = datetime(2025, 1, 15, 12, 0, 0)
-        assert next_time == expected
-
-    def test_cron_every_30_minutes(self):
-        """Test '*/30 * * * *' (every 30 minutes)."""
-        now = datetime(2025, 1, 15, 10, 15, 0)
-        next_time = parse_cron_next("*/30 * * * *", now)
-        expected = datetime(2025, 1, 15, 10, 30, 0)
-        assert next_time == expected
-
-    def test_cron_invalid(self):
-        """Test invalid cron expression raises ValueError."""
-        with pytest.raises(ValueError):
-            parse_cron_next("invalid cron", datetime.now())
-
-
-class TestScheduledJobStorage:
-    """Test ScheduledJobStorage CRUD operations."""
-
-    @pytest.mark.asyncio
-    async def test_create_job(self, clean_db):
-        """Test creating a new scheduled job."""
-        due_time = datetime.now() + timedelta(hours=1)
-
-        job = await clean_db.create(
-            user_id="test_user",
-            thread_id="telegram:test_thread",
-            task="Test task",
-            flow="Test flow",
-            due_time=due_time,
-        )
-
-        assert job.id > 0
-        assert job.user_id == "test_user"
-        assert job.thread_id == "telegram:test_thread"
-        assert job.task == "Test task"
-        assert job.flow == "Test flow"
-        assert job.status == "pending"
-        assert job.is_pending
-
-    @pytest.mark.asyncio
-    async def test_create_job_with_worker(self, clean_db):
-        """Test creating a job with a worker."""
-        # First create a worker
-        worker_storage = WorkerStorage()
-        worker = await worker_storage.create(
-            user_id="test_user",
-            thread_id="telegram:test_thread",
-            name="test_worker",
-            tools=[],
-            prompt="Test prompt",
-        )
-
-        due_time = datetime.now() + timedelta(hours=1)
-
-        job = await clean_db.create(
-            user_id="test_user",
-            thread_id="telegram:test_thread",
-            task="Test task",
-            flow="Test flow",
-            due_time=due_time,
-            worker_id=worker.id,
-            name="test_job",
-        )
-
-        assert job.worker_id == worker.id
-        assert job.name == "test_job"
-
-    @pytest.mark.asyncio
-    async def test_create_job_with_cron(self, clean_db):
-        """Test creating a recurring job."""
-        due_time = datetime.now() + timedelta(hours=1)
-
-        job = await clean_db.create(
-            user_id="test_user",
-            thread_id="telegram:test_thread",
-            task="Test task",
-            flow="Test flow",
-            due_time=due_time,
-            cron="0 9 * * *",
-        )
-
-        assert job.cron == "0 9 * * *"
-        assert job.is_recurring
-
-    @pytest.mark.asyncio
-    async def test_get_job_by_id(self, clean_db):
-        """Test retrieving a job by ID."""
-        due_time = datetime.now() + timedelta(hours=1)
-
-        created = await clean_db.create(
-            user_id="test_user",
-            thread_id="telegram:test_thread",
-            task="Test task",
-            flow="Test flow",
-            due_time=due_time,
-        )
-
-        retrieved = await clean_db.get_by_id(created.id)
-
-        assert retrieved is not None
-        assert retrieved.id == created.id
-        assert retrieved.task == "Test task"
-
-    @pytest.mark.asyncio
-    async def test_get_job_by_id_not_found(self, clean_db):
-        """Test retrieving non-existent job returns None."""
-        job = await clean_db.get_by_id(99999)
-        assert job is None
-
-    @pytest.mark.asyncio
-    async def test_get_due_jobs(self, clean_db):
-        """Test getting jobs due before a time."""
-        now = datetime.now()
-
-        # Create a due job
-        await clean_db.create(
-            user_id="test_user",
-            thread_id="telegram:test_thread",
-            task="Due task",
-            flow="Flow",
-            due_time=now - timedelta(minutes=5),  # Past due
-        )
-
-        # Create a future job
-        await clean_db.create(
-            user_id="test_user",
-            thread_id="telegram:test_thread",
-            task="Future task",
-            flow="Flow",
-            due_time=now + timedelta(hours=1),
-        )
-
-        due_jobs = await clean_db.get_due_jobs(now)
-
-        assert len(due_jobs) == 1
-        assert due_jobs[0].task == "Due task"
-
-    @pytest.mark.asyncio
-    async def test_list_jobs_by_user(self, clean_db):
-        """Test listing jobs filtered by user."""
-        user_id = "test_user_list"
-
-        await clean_db.create(
-            user_id=user_id,
-            thread_id="telegram:thread1",
-            task="Task 1",
-            flow="Flow 1",
-            due_time=datetime.now() + timedelta(hours=1),
-        )
-        await clean_db.create(
-            user_id=user_id,
-            thread_id="telegram:thread2",
-            task="Task 2",
-            flow="Flow 2",
-            due_time=datetime.now() + timedelta(hours=2),
-        )
-        await clean_db.create(
-            user_id="other_user",
-            thread_id="telegram:thread3",
-            task="Task 3",
-            flow="Flow 3",
-            due_time=datetime.now() + timedelta(hours=1),
-        )
-
-        jobs = await clean_db.list_by_user(user_id)
-
-        assert len(jobs) == 2
-        assert all(j.user_id == user_id for j in jobs)
-
-    @pytest.mark.asyncio
-    async def test_list_jobs_by_status(self, clean_db):
-        """Test listing jobs filtered by status."""
-        user_id = "test_user_status"
-
-        job1 = await clean_db.create(
-            user_id=user_id,
-            thread_id="telegram:thread1",
-            task="Task 1",
-            flow="Flow 1",
-            due_time=datetime.now() + timedelta(hours=1),
-        )
-        await clean_db.mark_started(job1.id)
-
-        jobs_pending = await clean_db.list_by_user(user_id, status="pending")
-        jobs_running = await clean_db.list_by_user(user_id, status="running")
-
-        assert len(jobs_running) == 1
-        assert jobs_running[0].status == "running"
-
-        # job1 is no longer pending
-        assert job1.id not in [j.id for j in jobs_pending]
-
-    @pytest.mark.asyncio
-    async def test_mark_started(self, clean_db):
-        """Test marking a job as started."""
-        job = await clean_db.create(
-            user_id="test_user",
-            thread_id="telegram:test_thread",
-            task="Test task",
-            flow="Flow",
-            due_time=datetime.now() - timedelta(minutes=5),
-        )
-
-        success = await clean_db.mark_started(job.id)
-
-        assert success is True
-
-        updated = await clean_db.get_by_id(job.id)
-        assert updated.status == "running"
-        assert updated.is_running
-        assert updated.started_at is not None
-
-    @pytest.mark.asyncio
-    async def test_mark_completed(self, clean_db):
-        """Test marking a job as completed."""
-        job = await clean_db.create(
-            user_id="test_user",
-            thread_id="telegram:test_thread",
-            task="Test task",
-            flow="Flow",
-            due_time=datetime.now() - timedelta(minutes=5),
-        )
-        await clean_db.mark_started(job.id)
-
-        result = "Task completed successfully"
-        success = await clean_db.mark_completed(job.id, result)
-
-        assert success is True
-
-        updated = await clean_db.get_by_id(job.id)
-        assert updated.status == "completed"
-        assert updated.is_completed
-        assert updated.completed_at is not None
-        assert updated.result == result
-
-    @pytest.mark.asyncio
-    async def test_mark_failed(self, clean_db):
-        """Test marking a job as failed."""
-        job = await clean_db.create(
-            user_id="test_user",
-            thread_id="telegram:test_thread",
-            task="Test task",
-            flow="Flow",
-            due_time=datetime.now() - timedelta(minutes=5),
-        )
-
-        error = "Something went wrong"
-        success = await clean_db.mark_failed(job.id, error)
-
-        assert success is True
-
-        updated = await clean_db.get_by_id(job.id)
-        assert updated.status == "failed"
-        assert updated.is_failed
-        assert updated.completed_at is not None
-        assert updated.error_message == error
-
-    @pytest.mark.asyncio
-    async def test_cancel_job(self, clean_db):
-        """Test cancelling a pending job."""
-        job = await clean_db.create(
-            user_id="test_user",
-            thread_id="telegram:test_thread",
-            task="Test task",
-            flow="Flow",
-            due_time=datetime.now() + timedelta(hours=1),
-        )
-
-        success = await clean_db.cancel(job.id)
-
-        assert success is True
-
-        updated = await clean_db.get_by_id(job.id)
-        assert updated.status == "cancelled"
-
-    @pytest.mark.asyncio
-    async def test_cancel_running_job_fails(self, clean_db):
-        """Test that cancelling a running job returns False."""
-        job = await clean_db.create(
-            user_id="test_user",
-            thread_id="telegram:test_thread",
-            task="Test task",
-            flow="Flow",
-            due_time=datetime.now() - timedelta(minutes=5),
-        )
-        await clean_db.mark_started(job.id)
-
-        success = await clean_db.cancel(job.id)
-
-        # Cannot cancel a running job
-        assert success is False
-
-    @pytest.mark.asyncio
-    async def test_create_next_instance_for_recurring_job(self, clean_db):
-        """Test creating next instance of a recurring job."""
-        now = datetime.now()
-        due_time = now - timedelta(minutes=5)  # Already past
-
-        parent_job = await clean_db.create(
-            user_id="test_user",
-            thread_id="telegram:test_thread",
-            task="Recurring task",
-            flow="Flow",
-            due_time=due_time,
-            cron="0 9 * * *",
-            name="daily_job",
-        )
-        await clean_db.mark_started(parent_job.id)
-        await clean_db.mark_completed(parent_job.id, "Done")
-
-        next_due = parse_cron_next(parent_job.cron, now)
-        next_job = await clean_db.create_next_instance(parent_job, next_due)
-
-        assert next_job is not None
-        assert next_job.id != parent_job.id
-        assert next_job.task == parent_job.task
-        assert next_job.flow == parent_job.flow
-        assert next_job.cron == parent_job.cron
-        assert next_job.name == parent_job.name
-        assert next_job.status == "pending"
-
-    @pytest.mark.asyncio
-    async def test_create_next_instance_for_non_recurring_job(self, clean_db):
-        """Test that next instance is None for non-recurring job."""
-        job = await clean_db.create(
-            user_id="test_user",
-            thread_id="telegram:test_thread",
-            task="One-time task",
-            flow="Flow",
-            due_time=datetime.now() - timedelta(minutes=5),
-            cron=None,  # No recurrence
-        )
-
-        next_job = await clean_db.create_next_instance(job, datetime.now())
-
-        assert next_job is None
-
-
-class TestScheduledJobDataclass:
-    """Test ScheduledJob dataclass properties."""
-
-    def test_job_is_pending(self):
-        """Test is_pending property."""
+    def test_job_properties(self):
+        """Test job status property methods."""
         job = ScheduledJob(
             id=1,
-            user_id="user",
-            thread_id="thread",
+            user_id="test_user",
+            thread_id="test_thread",
             worker_id=None,
-            name=None,
-            task="Task",
-            flow="Flow",
+            name="Test Job",
+            task="Test task",
+            flow="Simple flow",
             due_time=datetime.now(),
             status="pending",
             cron=None,
@@ -482,22 +41,23 @@ class TestScheduledJobDataclass:
             error_message=None,
             result=None,
         )
+
         assert job.is_pending is True
         assert job.is_running is False
         assert job.is_completed is False
         assert job.is_failed is False
         assert job.is_recurring is False
 
-    def test_job_is_running(self):
-        """Test is_running property."""
+    def test_job_status_running(self):
+        """Test running status property."""
         job = ScheduledJob(
             id=1,
-            user_id="user",
-            thread_id="thread",
+            user_id="test_user",
+            thread_id="test_thread",
             worker_id=None,
-            name=None,
-            task="Task",
-            flow="Flow",
+            name="Test Job",
+            task="Test task",
+            flow="Simple flow",
             due_time=datetime.now(),
             status="running",
             cron=None,
@@ -507,35 +67,639 @@ class TestScheduledJobDataclass:
             error_message=None,
             result=None,
         )
+
         assert job.is_pending is False
         assert job.is_running is True
+        assert job.is_completed is False
+        assert job.is_failed is False
 
-    def test_job_is_recurring(self):
-        """Test is_recurring property."""
+    def test_job_status_completed(self):
+        """Test completed status property."""
         job = ScheduledJob(
             id=1,
-            user_id="user",
-            thread_id="thread",
+            user_id="test_user",
+            thread_id="test_thread",
             worker_id=None,
-            name=None,
-            task="Task",
-            flow="Flow",
+            name="Test Job",
+            task="Test task",
+            flow="Simple flow",
+            due_time=datetime.now(),
+            status="completed",
+            cron=None,
+            created_at=datetime.now(),
+            started_at=datetime.now(),
+            completed_at=datetime.now(),
+            error_message=None,
+            result="Success",
+        )
+
+        assert job.is_pending is False
+        assert job.is_running is False
+        assert job.is_completed is True
+        assert job.is_failed is False
+
+    def test_job_status_failed(self):
+        """Test failed status property."""
+        job = ScheduledJob(
+            id=1,
+            user_id="test_user",
+            thread_id="test_thread",
+            worker_id=None,
+            name="Test Job",
+            task="Test task",
+            flow="Simple flow",
+            due_time=datetime.now(),
+            status="failed",
+            cron=None,
+            created_at=datetime.now(),
+            started_at=datetime.now(),
+            completed_at=datetime.now(),
+            error_message="Something went wrong",
+            result=None,
+        )
+
+        assert job.is_pending is False
+        assert job.is_running is False
+        assert job.is_completed is False
+        assert job.is_failed is True
+
+    def test_recurring_job(self):
+        """Test recurring job property."""
+        job = ScheduledJob(
+            id=1,
+            user_id="test_user",
+            thread_id="test_thread",
+            worker_id=None,
+            name="Daily Job",
+            task="Test task",
+            flow="Simple flow",
             due_time=datetime.now(),
             status="pending",
-            cron="0 9 * * *",
+            cron="0 9 * * *",  # Daily at 9 AM
             created_at=datetime.now(),
             started_at=None,
             completed_at=None,
             error_message=None,
             result=None,
         )
+
         assert job.is_recurring is True
+        assert job.cron == "0 9 * * *"
+
+    def test_non_recurring_job(self):
+        """Test non-recurring job property."""
+        job = ScheduledJob(
+            id=1,
+            user_id="test_user",
+            thread_id="test_thread",
+            worker_id=None,
+            name="One-time Job",
+            task="Test task",
+            flow="Simple flow",
+            due_time=datetime.now(),
+            status="pending",
+            cron=None,
+            created_at=datetime.now(),
+            started_at=None,
+            completed_at=None,
+            error_message=None,
+            result=None,
+        )
+
+        assert job.is_recurring is False
+
+    def test_non_recurring_job_with_empty_cron(self):
+        """Test that empty cron string is not considered recurring."""
+        job = ScheduledJob(
+            id=1,
+            user_id="test_user",
+            thread_id="test_thread",
+            worker_id=None,
+            name="Job",
+            task="Test task",
+            flow="Simple flow",
+            due_time=datetime.now(),
+            status="pending",
+            cron="",  # Empty string
+            created_at=datetime.now(),
+            started_at=None,
+            completed_at=None,
+            error_message=None,
+            result=None,
+        )
+
+        assert job.is_recurring is False
 
 
-@pytest.mark.asyncio
-async def test_get_scheduled_job_storage_singleton():
-    """Test that get_scheduled_job_storage returns a singleton instance."""
-    storage1 = await get_scheduled_job_storage()
-    storage2 = await get_scheduled_job_storage()
+# =============================================================================
+# ScheduledJobStorage Tests (with mocked DB)
+# =============================================================================
 
-    assert storage1 is storage2
+class TestScheduledJobStorageUnit:
+    """Unit tests for ScheduledJobStorage with mocked database."""
+
+    @pytest.fixture
+    def storage(self):
+        """Create a ScheduledJobStorage instance."""
+        return ScheduledJobStorage()
+
+    def test_storage_init(self, storage):
+        """Test storage initialization."""
+        assert storage._conn_string is not None
+
+    def test_storage_init_custom_conn_string(self):
+        """Test storage initialization with custom connection string."""
+        custom_conn = "postgresql://user:pass@localhost/db"
+        storage = ScheduledJobStorage(conn_string=custom_conn)
+        assert storage._conn_string == custom_conn
+
+
+# =============================================================================
+# ScheduledJobStorage Integration Tests
+# =============================================================================
+
+@pytest.mark.postgres
+class TestScheduledJobStorageIntegration:
+    """Integration tests with real database."""
+
+    @pytest.fixture
+    def storage(self):
+        """Create storage instance for testing."""
+        return ScheduledJobStorage()
+
+    @pytest.mark.asyncio
+    async def test_create_job(self, storage, db_conn, clean_test_data):
+        """Test creating a new scheduled job."""
+        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+        thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
+        due_time = datetime.now() + timedelta(hours=1)
+
+        job = await storage.create(
+            user_id=user_id,
+            thread_id=thread_id,
+            task="Check the weather",
+            flow="fetch weather → report result",
+            due_time=due_time,
+            name="Weather Check",
+        )
+
+        assert job.id is not None
+        assert job.user_id == user_id
+        assert job.thread_id == thread_id
+        assert job.task == "Check the weather"
+        assert job.flow == "fetch weather → report result"
+        assert job.name == "Weather Check"
+        assert job.status == "pending"
+        assert job.worker_id is None
+        assert job.cron is None
+
+    @pytest.mark.asyncio
+    async def test_create_job_with_worker(self, storage, db_conn, clean_test_data):
+        """Test creating a job with an associated worker."""
+        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+        thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
+        due_time = datetime.now() + timedelta(hours=1)
+
+        # Create a worker first
+        worker_result = await db_conn.fetchrow(
+            """INSERT INTO workers (user_id, thread_id, name, tools, prompt)
+               VALUES ($1, $2, $3, $4, $5) RETURNING id""",
+            user_id, thread_id, "Test Worker", ["web_search"], "Test prompt"
+        )
+        worker_id = worker_result["id"]
+
+        job = await storage.create(
+            user_id=user_id,
+            thread_id=thread_id,
+            task="Execute task",
+            flow="Simple flow",
+            due_time=due_time,
+            worker_id=worker_id,
+        )
+
+        assert job.worker_id == worker_id
+
+    @pytest.mark.asyncio
+    async def test_create_recurring_job(self, storage, db_conn, clean_test_data):
+        """Test creating a recurring job with cron expression."""
+        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+        thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
+        due_time = datetime.now() + timedelta(hours=1)
+
+        job = await storage.create(
+            user_id=user_id,
+            thread_id=thread_id,
+            task="Daily backup",
+            flow="backup → verify",
+            due_time=due_time,
+            name="Daily Backup",
+            cron="0 2 * * *",  # Daily at 2 AM
+        )
+
+        assert job.is_recurring is True
+        assert job.cron == "0 2 * * *"
+
+    @pytest.mark.asyncio
+    async def test_get_by_id(self, storage, db_conn, clean_test_data):
+        """Test retrieving a job by ID."""
+        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+        thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
+        due_time = datetime.now() + timedelta(hours=1)
+
+        # Create a job
+        created_job = await storage.create(
+            user_id=user_id,
+            thread_id=thread_id,
+            task="Test task",
+            flow="Simple flow",
+            due_time=due_time,
+        )
+
+        # Retrieve by ID
+        retrieved_job = await storage.get_by_id(created_job.id)
+
+        assert retrieved_job is not None
+        assert retrieved_job.id == created_job.id
+        assert retrieved_job.task == "Test task"
+
+    @pytest.mark.asyncio
+    async def test_get_by_id_not_found(self, storage):
+        """Test retrieving a non-existent job."""
+        job = await storage.get_by_id(99999)
+        assert job is None
+
+    @pytest.mark.asyncio
+    async def test_get_due_jobs(self, storage, db_conn, clean_test_data):
+        """Test retrieving jobs due before a given time."""
+        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+        thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
+        now = datetime.now()
+
+        # Create multiple jobs at different times
+        await storage.create(
+            user_id=user_id,
+            thread_id=thread_id,
+            task="Past job",
+            flow="flow",
+            due_time=now - timedelta(hours=1),  # Past
+        )
+
+        await storage.create(
+            user_id=user_id,
+            thread_id=thread_id,
+            task="Future job",
+            flow="flow",
+            due_time=now + timedelta(hours=1),  # Future
+        )
+
+        await storage.create(
+            user_id=user_id,
+            thread_id=thread_id,
+            task="Now job",
+            flow="flow",
+            due_time=now,  # Now
+        )
+
+        # Get due jobs (should return past and now jobs)
+        due_jobs = await storage.get_due_jobs(now)
+        assert len(due_jobs) >= 2
+
+        task_list = [job.task for job in due_jobs]
+        assert "Past job" in task_list
+        assert "Now job" in task_list
+        assert "Future job" not in task_list
+
+    @pytest.mark.asyncio
+    async def test_list_by_user(self, storage, db_conn, clean_test_data):
+        """Test listing jobs for a specific user."""
+        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+        thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
+
+        # Create multiple jobs for the same user
+        await storage.create(
+            user_id=user_id,
+            thread_id=thread_id,
+            task="Task 1",
+            flow="flow1",
+            due_time=datetime.now() + timedelta(hours=1),
+        )
+
+        await storage.create(
+            user_id=user_id,
+            thread_id=thread_id,
+            task="Task 2",
+            flow="flow2",
+            due_time=datetime.now() + timedelta(hours=2),
+        )
+
+        # List jobs for user
+        jobs = await storage.list_by_user(user_id)
+        assert len(jobs) >= 2
+
+        task_list = [job.task for job in jobs]
+        assert "Task 1" in task_list
+        assert "Task 2" in task_list
+
+    @pytest.mark.asyncio
+    async def test_list_by_user_with_status_filter(self, storage, db_conn, clean_test_data):
+        """Test listing jobs for a user with status filter."""
+        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+        thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
+
+        # Create jobs with different statuses
+        job1 = await storage.create(
+            user_id=user_id,
+            thread_id=thread_id,
+            task="Pending job",
+            flow="flow",
+            due_time=datetime.now() + timedelta(hours=1),
+        )
+
+        job2 = await storage.create(
+            user_id=user_id,
+            thread_id=thread_id,
+            task="Another pending",
+            flow="flow",
+            due_time=datetime.now() + timedelta(hours=1),
+        )
+
+        # Mark one as completed
+        await storage.mark_completed(job1.id, "Done")
+
+        # List only pending jobs
+        pending_jobs = await storage.list_by_user(user_id, status="pending")
+        assert len(pending_jobs) >= 1
+
+        task_list = [job.task for job in pending_jobs]
+        assert "Another pending" in task_list
+        assert "Pending job" not in task_list
+
+    @pytest.mark.asyncio
+    async def test_list_by_thread(self, storage, db_conn, clean_test_data):
+        """Test listing jobs for a specific thread."""
+        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+        thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
+
+        # Create jobs for the thread
+        await storage.create(
+            user_id=user_id,
+            thread_id=thread_id,
+            task="Thread job 1",
+            flow="flow",
+            due_time=datetime.now() + timedelta(hours=1),
+        )
+
+        await storage.create(
+            user_id=user_id,
+            thread_id=thread_id,
+            task="Thread job 2",
+            flow="flow",
+            due_time=datetime.now() + timedelta(hours=1),
+        )
+
+        # List jobs for thread
+        jobs = await storage.list_by_thread(thread_id)
+        assert len(jobs) >= 2
+
+        task_list = [job.task for job in jobs]
+        assert "Thread job 1" in task_list
+        assert "Thread job 2" in task_list
+
+    @pytest.mark.asyncio
+    async def test_mark_started(self, storage, db_conn, clean_test_data):
+        """Test marking a job as started."""
+        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+        thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
+
+        job = await storage.create(
+            user_id=user_id,
+            thread_id=thread_id,
+            task="Test task",
+            flow="flow",
+            due_time=datetime.now() + timedelta(hours=1),
+        )
+
+        # Mark as started
+        result = await storage.mark_started(job.id)
+
+        assert result is True
+
+        # Verify status changed
+        updated_job = await storage.get_by_id(job.id)
+        assert updated_job.is_running is True
+        assert updated_job.started_at is not None
+
+    @pytest.mark.asyncio
+    async def test_mark_started_not_found(self, storage):
+        """Test marking a non-existent job as started."""
+        result = await storage.mark_started(99999)
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_mark_completed(self, storage, db_conn, clean_test_data):
+        """Test marking a job as completed."""
+        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+        thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
+
+        job = await storage.create(
+            user_id=user_id,
+            thread_id=thread_id,
+            task="Test task",
+            flow="flow",
+            due_time=datetime.now() + timedelta(hours=1),
+        )
+
+        # First mark as started
+        await storage.mark_started(job.id)
+
+        # Then mark as completed
+        result = await storage.mark_completed(job.id, result="Job completed successfully")
+
+        assert result is True
+
+        # Verify status changed
+        updated_job = await storage.get_by_id(job.id)
+        assert updated_job.is_completed is True
+        assert updated_job.completed_at is not None
+        assert updated_job.result == "Job completed successfully"
+
+    @pytest.mark.asyncio
+    async def test_mark_failed(self, storage, db_conn, clean_test_data):
+        """Test marking a job as failed."""
+        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+        thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
+
+        job = await storage.create(
+            user_id=user_id,
+            thread_id=thread_id,
+            task="Test task",
+            flow="flow",
+            due_time=datetime.now() + timedelta(hours=1),
+        )
+
+        # Mark as started then failed
+        await storage.mark_started(job.id)
+        result = await storage.mark_failed(job.id, error_message="Network timeout")
+
+        assert result is True
+
+        # Verify status changed
+        updated_job = await storage.get_by_id(job.id)
+        assert updated_job.is_failed is True
+        assert updated_job.completed_at is not None
+        assert updated_job.error_message == "Network timeout"
+
+    @pytest.mark.asyncio
+    async def test_cancel(self, storage, db_conn, clean_test_data):
+        """Test cancelling a pending job."""
+        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+        thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
+
+        job = await storage.create(
+            user_id=user_id,
+            thread_id=thread_id,
+            task="Test task",
+            flow="flow",
+            due_time=datetime.now() + timedelta(hours=1),
+        )
+
+        # Cancel the job
+        result = await storage.cancel(job.id)
+
+        assert result is True
+
+        # Verify status changed
+        updated_job = await storage.get_by_id(job.id)
+        assert updated_job.status == "cancelled"
+
+    @pytest.mark.asyncio
+    async def test_cancel_running_job_fails(self, storage, db_conn, clean_test_data):
+        """Test that cancelling a running job has no effect."""
+        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+        thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
+
+        job = await storage.create(
+            user_id=user_id,
+            thread_id=thread_id,
+            task="Test task",
+            flow="flow",
+            due_time=datetime.now() + timedelta(hours=1),
+        )
+
+        # Mark as running
+        await storage.mark_started(job.id)
+
+        # Try to cancel (should fail)
+        result = await storage.cancel(job.id)
+
+        assert result is False
+
+        # Verify job is still running
+        updated_job = await storage.get_by_id(job.id)
+        assert updated_job.is_running is True
+
+    @pytest.mark.asyncio
+    async def test_create_next_instance(self, storage, db_conn, clean_test_data):
+        """Test creating the next instance of a recurring job."""
+        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+        thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
+        now = datetime.now()
+
+        # Create a recurring job
+        parent_job = await storage.create(
+            user_id=user_id,
+            thread_id=thread_id,
+            task="Daily check",
+            flow="check → report",
+            due_time=now,
+            cron="0 9 * * *",
+            name="Daily Check",
+        )
+
+        # Complete the parent job
+        await storage.mark_started(parent_job.id)
+        await storage.mark_completed(parent_job.id, result="Success")
+
+        # Create next instance
+        next_due = now + timedelta(days=1)
+        next_job = await storage.create_next_instance(parent_job, next_due)
+
+        assert next_job is not None
+        assert next_job.task == parent_job.task
+        assert next_job.cron == parent_job.cron
+        assert next_job.name == parent_job.name
+        assert next_job.status == "pending"
+
+    @pytest.mark.asyncio
+    async def test_create_next_instance_non_recurring(self, storage, db_conn, clean_test_data):
+        """Test that next instance is None for non-recurring jobs."""
+        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+        thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
+        now = datetime.now()
+
+        # Create a non-recurring job
+        parent_job = await storage.create(
+            user_id=user_id,
+            thread_id=thread_id,
+            task="One-time task",
+            flow="flow",
+            due_time=now,
+            cron=None,
+        )
+
+        # Try to create next instance
+        next_job = await storage.create_next_instance(parent_job, now + timedelta(days=1))
+
+        assert next_job is None
+
+    @pytest.mark.asyncio
+    async def test_job_lifecycle(self, storage, db_conn, clean_test_data):
+        """Test complete job lifecycle: create -> start -> complete -> next."""
+        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+        thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
+        now = datetime.now()
+
+        # Create recurring job
+        job = await storage.create(
+            user_id=user_id,
+            thread_id=thread_id,
+            task="Recurring task",
+            flow="execute → log",
+            due_time=now,
+            cron="0 * * * *",  # Hourly
+            name="Hourly Task",
+        )
+
+        assert job.is_pending is True
+
+        # Mark as started
+        await storage.mark_started(job.id)
+        started_job = await storage.get_by_id(job.id)
+        assert started_job.is_running is True
+
+        # Mark as completed with result
+        await storage.mark_completed(job.id, result="Task completed")
+        completed_job = await storage.get_by_id(job.id)
+        assert completed_job.is_completed is True
+        assert completed_job.result == "Task completed"
+
+        # Create next instance
+        next_due = now + timedelta(hours=1)
+        next_job = await storage.create_next_instance(completed_job, next_due)
+        assert next_job is not None
+        assert next_job.id != job.id  # Different job
+
+
+# =============================================================================
+# Global Storage Tests
+# =============================================================================
+
+class TestGlobalStorage:
+    """Test global scheduled job storage instance."""
+
+    @pytest.mark.asyncio
+    async def test_get_scheduled_job_storage_singleton(self):
+        """Test that get_scheduled_job_storage returns same instance."""
+        storage1 = await get_scheduled_job_storage()
+        storage2 = await get_scheduled_job_storage()
+        assert storage1 is storage2

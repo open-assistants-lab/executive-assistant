@@ -8,6 +8,7 @@ dependencies = [
     "anthropic>=0.76.0",
     "asyncpg>=0.30.0",
     "duckdb>=1.1.0",
+    "pyyaml>=6.0.0",
     "pandas>=2.2.0",
     "fastapi>=0.115.0",
     "langchain>=0.3.27",
@@ -15,6 +16,7 @@ dependencies = [
     "langchain-community>=0.4.1",
     "langchain-core>=1.2.0",
     "langchain-mcp-adapters>=0.2.1",
+    "langchain-ollama>=0.3.1",
     "langchain-openai>=0.3.35",
     "langgraph>=1.0.6",
     "langgraph-prebuilt>=1.0.6",
@@ -35,13 +37,16 @@ dependencies = [
     "pypdf>=6.6.0",
     "dateparser>=1.2.0",
     "rapidfuzz>=3.6.0",
-    "pyseekdb>=0.1.0",
     "loguru>=0.7.2",
     "httpx>=0.27.0",
     "paddleocr>=3.3.2; sys_platform == 'linux' and platform_machine == 'x86_64'",
     "paddlepaddle>=3.3.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
     "pymupdf>=1.24.0",
     "psycopg[binary]>=3.2.0",
+    # For local embeddings (KB backend)
+    "sentence-transformers>=3.0.0",
+    "huggingface-hub>=0.34.0,<1.0",
+    "temporalio>=1.21.1",
 ]
 
 [dependency-groups]
@@ -69,3 +74,5 @@ markers = [
     "vcr: record/replay HTTP via VCR",
     "langchain_integration: live LLM integration tests",
 ]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

@@ -6,11 +6,13 @@ and updates the structured summary following the schema.
 
 import hashlib
 import json
+import time
 from datetime import datetime
 from typing import Any
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
+from loguru import logger
 
 from cassey.agent.topic_classifier import (
     TopicClassifier,
@@ -117,10 +119,14 @@ Conversation:
 {conversation}"""
 
     try:
+        logger.debug("🤖 SUMMARY_EXTRACTOR: Starting LLM call...")
+        start = time.time()
         response = await model.ainvoke([
             SystemMessage(content="You are a conversation analyzer. Respond only with valid JSON."),
             HumanMessage(content=extract_prompt.format(conversation=conversation_text[:8000]))  # Limit length
         ])
+        elapsed = time.time() - start
+        logger.debug(f"🤖 SUMMARY_EXTRACTOR: Done in {elapsed:.2f}s")
 
         result = json.loads(response.content.strip())
 

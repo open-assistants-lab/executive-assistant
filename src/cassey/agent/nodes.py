@@ -3,10 +3,12 @@
 import asyncio
 import contextvars
 import json
+import time
 from datetime import datetime, timezone
 from typing import Any
 
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage, HumanMessage
+from loguru import logger
 from langchain_core.messages.utils import trim_messages
 from langchain_core.runnables import RunnableConfig
 from langchain_core.language_models import BaseChatModel
@@ -14,6 +16,7 @@ from langchain_core.tools import BaseTool
 
 from cassey.agent.state import AgentState
 from cassey.agent.prompts import get_system_prompt
+from cassey.agent.status_middleware import record_llm_call
 from cassey.config.settings import settings
 
 
@@ -61,7 +64,13 @@ async def call_model(
     if iterations >= settings.MAX_ITERATIONS:
         # Provide helpful context about what was accomplished
         tool_calls = [m for m in messages if hasattr(m, 'tool_calls') and m.tool_calls]
-        tool_names = [tc.name for m in tool_calls for tc in getattr(m, 'tool_calls', [])]
+        # Extract tool names, handling both object and dict forms
+        tool_names = []
+        for m in tool_calls:
+            for tc in getattr(m, 'tool_calls', []):
+                # Handle both object (tc.name) and dict (tc['name']) forms
+                name = tc.name if hasattr(tc, 'name') else tc.get('name') if isinstance(tc, dict) else str(tc)
+                tool_names.append(name)
 
         # Count tool calls by type
         from collections import Counter
@@ -146,8 +155,34 @@ async def call_model(
     # Build message list with system prompt
     messages_to_send = [SystemMessage(content=prompt)] + list(trimmed)
 
-    # Invoke model
+    # Invoke model with timing
+    logger.debug("🤖 LLM_CALL: Starting model invocation...")
+    llm_start = time.time()
     response = await model_with_tools.ainvoke(messages_to_send, config)
+    llm_elapsed = time.time() - llm_start
+
+    # Log token usage if available
+    token_info = ""
+    token_dict = None
+    if hasattr(response, 'usage_metadata'):
+        usage = response.usage_metadata
+        if usage:
+            input_tokens = usage.get('input_tokens', '?')
+            output_tokens = usage.get('output_tokens', '?')
+            total_tokens = usage.get('total_tokens', '?')
+            token_info = f" | tokens: in={input_tokens} out={output_tokens} total={total_tokens}"
+            token_dict = {"in": input_tokens, "out": output_tokens, "total": total_tokens}
+
+    logger.debug(f"🤖 LLM_RESPONSE: {llm_elapsed:.2f}s{token_info}")
+
+    # Record LLM timing for status middleware (shows in verbose mode)
+    record_llm_call(llm_elapsed, token_dict)
+
+    # Also log slow calls at INFO level (visible without DEBUG mode)
+    if llm_elapsed > 5:
+        logger.warning(f"⚠️ SLOW_LLM: {llm_elapsed:.2f}s (threshold: 5s){token_info}")
+    elif llm_elapsed > 2:
+        logger.info(f"🤖 LLM_CALL: {llm_elapsed:.2f}s{token_info}")
 
     result = {"messages": [response]}
     if reset_iterations:

@@ -3,10 +3,20 @@
 import pytest
 
 from cassey.tools.python_tool import execute_python
+from cassey.storage.file_sandbox import set_thread_id, clear_thread_id
 
 
 class TestPythonTool:
     """Test execute_python tool functionality."""
+
+    @pytest.fixture(autouse=True)
+    def setup_thread_context(self):
+        """Set up thread_id context for all tests to ensure files go to data/users/{thread_id}/files."""
+        test_thread_id = "test_python_tool_thread"
+        set_thread_id(test_thread_id)
+        yield
+        # Clean up
+        clear_thread_id()
 
     def test_simple_math(self):
         """Test basic arithmetic calculation."""
@@ -245,3 +255,18 @@ print(rows[1][0])"""
     f.write('malicious')"""
         result = execute_python.invoke({"code": code})
         assert "Security error" in result or "not allowed" in result or "Error" in result
+
+
+class TestPythonToolNoContext:
+    """Test execute_python tool without thread context (should fail)."""
+
+    def test_requires_thread_context(self):
+        """Test that Python tool requires thread_id context."""
+        from cassey.storage.file_sandbox import clear_thread_id
+
+        # Ensure no thread context is set
+        clear_thread_id()
+
+        # Should raise ValueError when trying to use file operations
+        result = execute_python.invoke({"code": "with open('test.txt', 'w') as f: f.write('test')"})
+        assert "thread_id context required" in result or "Error" in result

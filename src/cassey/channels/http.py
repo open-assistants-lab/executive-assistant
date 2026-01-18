@@ -62,7 +62,6 @@ class HttpChannel(BaseChannel):
         agent: Any,
         host: str = "0.0.0.0",
         port: int = 8000,
-        runtime: str | None = None,
     ):
         """
         Initialize HTTP channel.
@@ -72,11 +71,11 @@ class HttpChannel(BaseChannel):
             host: Host to bind to
             port: Port to bind to
         """
-        super().__init__(agent, runtime=runtime)
+        super().__init__(agent)
         self.host = host
         self.port = port
         self.app = FastAPI(
-            title="Cassey API",
+            title=f"{settings.AGENT_NAME} API",
             description="Multi-channel AI agent API",
             version="1.0.0",
         )
@@ -152,7 +151,7 @@ class HttpChannel(BaseChannel):
         async def root() -> dict[str, Any]:
             """Root endpoint with API info."""
             return {
-                "name": "Cassey API",
+                "name": f"{settings.AGENT_NAME} API",
                 "version": "1.0.0",
                 "endpoints": {
                     "POST /message": "Send a message",
@@ -187,6 +186,9 @@ class HttpChannel(BaseChannel):
 
     async def start(self) -> None:
         """Start the HTTP server."""
+        # Initialize agent with this channel for status updates
+        await self.initialize_agent_with_channel()
+
         import uvicorn
 
         config = uvicorn.Config(
@@ -217,6 +219,25 @@ class HttpChannel(BaseChannel):
         """
         # Could implement webhook callback here
         pass
+
+    async def send_status(
+        self,
+        conversation_id: str,
+        message: str,
+        update: bool = True,
+    ) -> None:
+        """
+        Send status update (for HTTP, this would go through SSE stream).
+
+        Note: Full SSE integration for status updates would require
+        passing status messages through the response stream.
+        For now, this logs for debugging.
+        """
+        # TODO: Integrate with SSE stream for real-time status updates
+        # For now, log the status for debugging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug(f"[{conversation_id}] Status: {message}")
 
     @staticmethod
     def get_thread_id(message: MessageFormat) -> str:

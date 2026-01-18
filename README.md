@@ -14,6 +14,9 @@ Multi-channel AI agent platform with LangGraph ReAct agent.
 - **Web Search** - SearXNG integration
 - **Python Execution** - Sandboxed code execution for calculations and data processing
 - **File Search** - Glob patterns and grep content search
+- **Status Updates** - Real-time progress feedback during agent execution
+- **Debug Mode** - Verbose LLM/tool timing via `/debug` command (Telegram)
+- **Millisecond Logging** - High-precision timing for performance analysis
 
 ## Architecture
 
@@ -31,10 +34,13 @@ All per-thread data lives under `data/users/{thread_id}/`:
 ```
 data/users/{thread_id}/
   files/   # user files
-  db/      # DuckDB workspace database
-  kb/      # SeekDB embedded KB (seekdb.db + WAL)
+  db/      # DuckDB DB
+  vs/      # DuckDB + Hybrid VS (vs.db with FTS + VSS)
   mem/     # embedded memory
 ```
+
+### Workspace Storage
+Shared workspaces live under `data/groups/{workspace_id}/` with similar structure.
 
 ### Tools
 Note: Tool naming is being standardized to verb-first. Some tools may still be exposed under legacy names until the migration is complete.
@@ -57,14 +63,14 @@ Note: Tool naming is being standardized to verb-first. Some tools may still be e
 - `db_drop_table` - Delete a table
 - `db_export_table` / `db_import_table` - Data export/import
 
-**Knowledge Base (per-thread, SeekDB):**
-- `create_kb_collection` - Create KB collection
-- `search_kb` - Full-text or hybrid search
-- `add_kb_documents` - Add documents to existing KB collection
-- `kb_list` - List all KB collections with document counts
-- `describe_kb_collection` - Show KB collection schema and samples
-- `delete_kb_documents` - Delete specific documents
-- `drop_kb_collection` - Delete a KB collection
+**Vector Store (per-workspace, DuckDB + Hybrid):**
+- `create_vs_collection` - Create VS collection
+- `search_vs` - Full-text or hybrid search
+- `add_vs_documents` - Add documents to existing VS collection
+- `vs_list` - List all VS collections with document counts
+- `describe_vs_collection` - Show VS collection schema and samples
+- `delete_vs_documents` - Delete specific documents
+- `drop_vs_collection` - Delete a VS collection
 
 **Time & Reminders:**
 - `time_get_current` - Current time in any timezone (planned rename: `get_current_time`)
@@ -120,6 +126,39 @@ CASSEY_CHANNELS=http uv run cassey
 
 # Run both Telegram and HTTP
 CASSEY_CHANNELS=telegram,http uv run cassey
+```
+
+## Telegram Bot Commands
+
+Cassey supports several commands in Telegram:
+
+| Command | Description |
+|---------|-------------|
+| `/start` | Start conversation / show welcome message |
+| `/help` | Show available commands and usage |
+| `/reminders` | List active reminders |
+| `/groups` | Manage shared workspaces |
+| `/debug` | Toggle verbose status mode (see LLM/tool timing) |
+| `/id` | Show your user/thread ID for debugging |
+
+### Debug Mode
+
+The `/debug` command enables verbose status updates:
+
+```bash
+/debug           # Show current debug status
+/debug on        # Enable verbose mode (see all LLM calls and tools)
+/debug off       # Disable (clean mode, status edited in place)
+/debug toggle    # Toggle debug mode
+```
+
+**Normal mode:** Status messages are edited in place (clean UI)
+**Verbose mode:** Each update sent as separate message with LLM timing
+
+Example verbose output:
+```
+🤔 Thinking...
+✅ Done in 12.5s | LLM: 2 calls (11.8s)
 ```
 
 ## HTTP API
@@ -214,7 +253,7 @@ grep_files("error", output_mode="count")     # Count matches
 
 ## Database (DB)
 
-Each thread gets its own workspace database for temporary working data:
+Each thread gets its own DB for temporary working data:
 
 ```
 data/db/
@@ -232,48 +271,46 @@ Available tools:
 - `db_export_table(table_name, filename, format)` - Export to CSV/JSON/Parquet
 - `db_import_table(table_name, filename)` - Import from CSV
 
-## Knowledge Base (KB)
+## Vector Store (VS)
 
-The KB is per-thread and persists across sessions. Each conversation has its own KB stored under `data/users/{thread_id}/kb/` (SeekDB embedded directory).
+The VS is per-workspace and persists across sessions. Each workspace has its own VS stored under `data/groups/{workspace_id}/vs/` (DuckDB + Hybrid FTS + VSS).
 
-**Implementation:** Uses SeekDB embedded mode with full-text + optional hybrid search. SeekDB embedded is Linux-only (pylibseekdb).
+**Implementation:** Uses DuckDB with full-text search (FTS) and vector similarity search (VSS) extensions for hybrid search. Cross-platform (Linux, macOS, Windows).
 
 ```
-data/users/{thread_id}/kb/
-  seekdb.db      # SeekDB main database file
-  seekdb.db-wal  # Write-ahead log
-  seekdb.db-shm  # Shared memory (if needed)
+data/groups/{workspace_id}/vs/
+  vs.db      # DuckDB database with FTS + VSS indexes
 ```
 
-KB vs Database:
+VS vs Database:
 - **Database** (`db_*` tools): Temporary working data during analysis
-- **Knowledge Base** (`kb_*` tools): Longer-term reference data for retrieval
+- **Vector Store** (`vs_*` tools): Longer-term reference data for retrieval
 
 Available tools:
-- `create_kb_collection(collection_name, documents)` - Create SeekDB collection
-- `search_kb(query, collection_name, limit)` - Full-text or hybrid search
-- `add_kb_documents(collection_name, documents)` - Add more documents to existing collection
-- `kb_list()` - List all KB collections with document counts
-- `describe_kb_collection(collection_name)` - Show collection schema and sample documents
-- `delete_kb_documents(collection_name, document_ids)` - Delete specific documents
-- `drop_kb_collection(collection_name)` - Delete a KB collection
+- `create_vs_collection(collection_name, documents)` - Create VS collection
+- `search_vs(query, collection_name, limit)` - Hybrid search (semantic + fulltext)
+- `add_vs_documents(collection_name, documents)` - Add more documents to existing collection
+- `vs_list()` - List all VS collections with document counts
+- `describe_vs_collection(collection_name)` - Show collection schema and sample documents
+- `delete_vs_documents(collection_name, document_ids)` - Delete specific documents
+- `drop_vs_collection(collection_name)` - Delete a VS collection
 
 **Example usage:**
 ```python
-# Store documents in SeekDB
-create_kb_collection("notes", '[{"content": "Meeting: Q1 revenue was $1.2M", "metadata": "finance"}]')
+# Store documents in VS
+create_vs_collection("notes", '[{"content": "Meeting: Q1 revenue was $1.2M", "metadata": "finance"}]')
 
 # Search
-search_kb("revenue Q1", "notes")
-# Returns: [1.5] Meeting: Q1 revenue was $1.2M [metadata: finance]
+search_vs("revenue Q1", "notes")
+# Returns: [0.12] Meeting: Q1 revenue was $1.2M [metadata: finance]
 
 # Add more documents
-add_kb_documents("notes", '[{"content": "Q2 revenue projection: $1.5M"}]')
+add_vs_documents("notes", '[{"content": "Q2 revenue projection: $1.5M"}]')
 
 # List all collections
-kb_list()
-# Returns: Knowledge Base collections:
-# - notes: 2 documents
+vs_list()
+# Returns: Vector Store collections:
+# - notes: 2 chunks
 ```
 
 ## Python Code Execution
@@ -351,6 +388,15 @@ MW_TODO_LIST_ENABLED=true              # TodoListMiddleware for multi-step task 
 MW_CONTEXT_EDITING_ENABLED=false       # ContextEditingMiddleware (safety net, disabled by default)
 MW_CONTEXT_EDITING_TRIGGER_TOKENS=100000  # Trigger token count for context trimming
 MW_CONTEXT_EDITING_KEEP_TOOL_USES=10   # Number of recent tool uses to keep
+
+# Status updates (real-time progress feedback)
+MW_STATUS_UPDATE_ENABLED=true          # Send status updates during agent execution
+MW_STATUS_SHOW_TOOL_ARGS=false         # Include tool arguments in status (security)
+MW_STATUS_UPDATE_INTERVAL=0.5          # Minimum seconds between status updates
+
+# Logging
+LOG_LEVEL=INFO                         # DEBUG, INFO, WARNING, ERROR
+# Logs include millisecond timestamps for performance analysis
 ```
 
 Legacy storage paths (`FILES_ROOT`, `DB_ROOT`) are deprecated and only used for fallback reads.

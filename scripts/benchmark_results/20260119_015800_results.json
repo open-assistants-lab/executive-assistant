@@ -1,0 +1,28 @@
+[
+  {
+    "provider": "openai",
+    "model": "gpt-5-mini-2025-08-07",
+    "scenario": "simple_qa",
+    "input_tokens": 1138,
+    "output_tokens": 29,
+    "output_length": 116,
+    "total_time": 13.432307958602905,
+    "first_token_time": 12.987590789794922,
+    "tokens_per_second": 2.1589737288167634,
+    "cost_estimate": 0.0002508,
+    "error": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5-mini-2025-08-07",
+    "scenario": "simple_explanation",
+    "input_tokens": 1138,
+    "output_tokens": 824,
+    "output_length": 3296,
+    "total_time": 12.072386980056763,
+    "first_token_time": 4.2229719161987305,
+    "tokens_per_second": 68.2549359427613,
+    "cost_estimate": 0.0008868,
+    "error": null
+  }
+]

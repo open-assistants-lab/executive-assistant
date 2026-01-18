@@ -1,0 +1,82 @@
+# DuckDB + VSS + Local Embeddings (4GB RAM Docker) Plan
+
+## Goal
+Run DuckDB with VSS (HNSW) and a local embedding model inside Docker on a 4GB RAM server.
+
+## Constraints
+- 4GB RAM total for OS + app + DuckDB + embeddings.
+- Single container (app + embed + DB) to keep ops simple.
+- Prefer small model, batch embeddings, avoid large in‑memory indexes.
+
+## Recommended Model (Low RAM)
+**Primary:** `sentence-transformers/all-MiniLM-L6-v2` (384‑dim)
+- ~80–120MB RAM for model + runtime depending on backend.
+- Good enough for KB search.
+
+**Alternative (smaller):**
+- `sentence-transformers/paraphrase-MiniLM-L3-v2` (384‑dim, smaller, lower quality).
+
+## Runtime Choice
+**Recommended:** ONNX Runtime (CPU) for lower memory.
+- Export model to ONNX once and load with `onnxruntime`.
+- Use int8 or float16 quantization if possible.
+
+## Embedding Pipeline
+1. **Chunk text** (500–1,000 tokens or 1–2k chars).
+2. **Batch embed** in small batches (16–64).
+3. Store vectors into DuckDB VSS table.
+
+## DuckDB VSS Schema
+```sql
+CREATE TABLE kb_chunks (
+  id TEXT PRIMARY KEY,
+  content TEXT,
+  metadata JSON,
+  embedding FLOAT[384]
+);
+
+-- Create VSS index
+CREATE INDEX kb_chunks_vss ON kb_chunks USING HNSW (embedding);
+```
+
+## Ingest Flow
+```
+doc → chunk → embed (batch) → INSERT rows → (optional) VSS index build
+```
+
+**Index strategy (RAM‑safe):**
+- Insert in batches.
+- Build index after bulk load if many rows.
+- For small incremental loads, update index gradually.
+
+## Query Flow
+1. Embed query text locally.
+2. Perform VSS nearest‑neighbor search.
+3. Optionally combine with FTS:
+   - `MATCH_BM25` for text filter, then rank with vector similarity.
+
+## Docker Considerations
+- Set `OMP_NUM_THREADS=1` (limit ONNX runtime threads).
+- Cap Python memory if possible.
+- Keep embeddings in `FLOAT32` (FLOAT16 only if DuckDB VSS supports it cleanly).
+
+## RAM Budget (Rough)
+- App + Python: 300–600MB
+- ONNX model: 100–200MB
+- DuckDB + VSS index: depends on data size
+- Leaves ~2.5GB for DB + indexes + OS
+
+## Risks
+- HNSW index size grows quickly with data volume.
+- If KB grows beyond ~1–2M vectors, 4GB RAM will be tight.
+- Multiple concurrent queries can spike memory.
+
+## Recommendation
+Start with DuckDB + VSS + local embedding if KB is **small to medium** (<200k chunks).
+If it grows larger, move embeddings or search to a dedicated service or external vector DB.
+
+## Next Steps
+- Pick embedding backend (ONNX vs sentence-transformers).
+- Implement a small embedding service module in Cassey.
+- Add batching + caching for query embeddings.
+- Add VSS index creation step in KB tool setup.

@@ -9,10 +9,8 @@ from asyncio import run as asyncio_run
 from langchain_core.tools import tool
 from langgraph.checkpoint.memory import MemorySaver
 
-from cassey.agent.graph import create_graph
 from cassey.agent.langchain_agent import create_langchain_agent
 from cassey.config import create_model
-from cassey.config import settings
 from cassey.config.constants import DEFAULT_SYSTEM_PROMPT
 from cassey.tools.registry import get_all_tools
 
@@ -29,23 +27,12 @@ async def get_graph():
     # Use MemorySaver for dev (persisted in memory only, resets on restart)
     checkpointer = MemorySaver()
 
-    runtime = settings.AGENT_RUNTIME.lower()
-    if runtime == "langchain":
-        graph = create_langchain_agent(
-            model=model,
-            tools=tools,
-            checkpointer=checkpointer,
-            system_prompt=DEFAULT_SYSTEM_PROMPT,
-        )
-    elif runtime == "custom":
-        graph = create_graph(
-            model=model,
-            tools=tools,
-            checkpointer=checkpointer,
-            system_prompt=DEFAULT_SYSTEM_PROMPT,
-        )
-    else:
-        raise ValueError(f"Unknown AGENT_RUNTIME: {runtime}")
+    graph = create_langchain_agent(
+        model=model,
+        tools=tools,
+        checkpointer=checkpointer,
+        system_prompt=DEFAULT_SYSTEM_PROMPT,
+    )
 
     return graph
 

@@ -18,7 +18,7 @@ from langgraph.types import Runnable
 from cassey.channels.base import BaseChannel, MessageFormat
 from cassey.channels.management_commands import (
     mem_command,
-    kb_command,
+    vs_command,
     db_command,
     file_command,
     meta_command,
@@ -46,16 +46,17 @@ class TelegramChannel(BaseChannel):
         self,
         token: str | None = None,
         agent: Runnable | None = None,
-        runtime: str | None = None,
     ) -> None:
         token = token or settings.TELEGRAM_BOT_TOKEN
         if not token:
             raise ValueError("Telegram bot token not provided")
 
-        super().__init__(agent, runtime=runtime)
+        super().__init__(agent)
         self.token = token
         self.application: Application | None = None
         self._thread_locks: dict[str, asyncio.Lock] = {}
+        self._status_messages: dict[str, int] = {}  # conversation_id -> message_id for editing
+        self._debug_chats: set[int] = set()  # chat IDs with verbose debug mode enabled
 
     def _get_thread_lock(self, thread_id: str) -> asyncio.Lock:
         """Get or create a lock for the given thread_id."""
@@ -77,6 +78,9 @@ class TelegramChannel(BaseChannel):
 
     async def start(self) -> None:
         """Start the Telegram bot with polling."""
+        # Initialize agent with this channel for status updates
+        await self.initialize_agent_with_channel()
+
         self.application = Application.builder().token(self.token).build()
 
         # Register handlers
@@ -84,9 +88,10 @@ class TelegramChannel(BaseChannel):
         self.application.add_handler(CommandHandler("help", self._help_command))
         self.application.add_handler(CommandHandler("reset", self._reset_command))
         self.application.add_handler(CommandHandler("remember", self._remember_command))
+        self.application.add_handler(CommandHandler("debug", self._debug_command))
         # Management commands
         self.application.add_handler(CommandHandler("mem", mem_command))
-        self.application.add_handler(CommandHandler("kb", kb_command))
+        self.application.add_handler(CommandHandler("vs", vs_command))
         self.application.add_handler(CommandHandler("db", db_command))
         self.application.add_handler(CommandHandler("file", file_command))
         self.application.add_handler(CommandHandler("meta", meta_command))
@@ -272,6 +277,81 @@ class TelegramChannel(BaseChannel):
                     conversation_id, chunk, 'Markdown', **kwargs
                 )
 
+    async def send_status(
+        self,
+        conversation_id: str,
+        message: str,
+        update: bool = True,
+    ) -> None:
+        """
+        Send a status update with message editing for cleaner UX.
+
+        In verbose mode (enabled via /debug command): always sends new messages.
+        In normal mode: edits previous status message to avoid clutter.
+
+        Args:
+            conversation_id: Target chat ID.
+            message: Status message to send.
+            update: If True, try to edit previous status message (ignored in verbose mode).
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        if not self.application:
+            logger.warning(f"send_status: no application")
+            return
+
+        # Convert conversation_id to int for Telegram API
+        chat_id = int(conversation_id) if isinstance(conversation_id, str) else conversation_id
+
+        # Check if this chat has verbose debug mode enabled
+        verbose_mode = chat_id in self._debug_chats
+
+        if verbose_mode:
+            # Verbose mode: always send new messages (don't edit)
+            try:
+                msg = await self.application.bot.send_message(
+                    chat_id=chat_id,
+                    text=message,
+                )
+                logger.info(f"[VERBOSE] Sent status to {chat_id}: {message}")
+            except Exception as e:
+                logger.error(f"Failed to send status message to {chat_id}: {e}")
+            return
+
+        # Normal mode: try to edit existing message
+        if update and conversation_id in self._status_messages:
+            # Try to edit existing status message
+            message_id = self._status_messages[conversation_id]
+            try:
+                result = await self.application.bot.edit_message_text(
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    text=message,
+                )
+                logger.info(f"Edited status message {message_id} for {conversation_id}: {message}")
+                return
+            except BadRequest as e:
+                # Message might be too old or deleted - remove and send new
+                logger.warning(f"BadRequest editing status message {message_id}: {e}, sending new")
+                del self._status_messages[conversation_id]
+            except Exception as e:
+                # Other errors - fall through to sending new message
+                logger.warning(f"Error editing status message {message_id}: {e}, sending new")
+                del self._status_messages[conversation_id]
+
+        # Send new status message (normal mode)
+        try:
+            msg = await self.application.bot.send_message(
+                chat_id=chat_id,
+                text=message,
+            )
+            # Track for future edits
+            self._status_messages[conversation_id] = msg.message_id
+            logger.info(f"Sent new status message {msg.message_id} to {conversation_id}: {message}")
+        except Exception as e:
+            logger.error(f"Failed to send status message to {conversation_id}: {e}")
+
     async def handle_message(self, message: MessageFormat) -> None:
         """Handle incoming message through the agent."""
         thread_id = self.get_thread_id(message)
@@ -338,7 +418,7 @@ class TelegramChannel(BaseChannel):
                         message.conversation_id,
                         "🔄 *Conversation auto-reset due to state error*\n\n"
                         "The corrupted conversation history has been cleared. Please send your message again.\n\n"
-                        "Your data is preserved: • Files  • KB  • DB tables"
+                        "Your data is preserved: • Files  • VS  • DB tables"
                     )
                 else:
                     # For other errors, just report them - don't reset
@@ -392,7 +472,7 @@ class TelegramChannel(BaseChannel):
     ) -> None:
         """Handle /start command."""
         welcome_message = (
-            "👋 Hi! I'm Cassey, an AI assistant with access to various tools.\n\n"
+            f"👋 Hi! I'm {settings.AGENT_NAME}, an AI assistant with access to various tools.\n\n"
             "I can help you with:\n"
             "• 🌐 Searching the web\n"
             "• 📄 Reading and writing files\n"
@@ -409,20 +489,21 @@ class TelegramChannel(BaseChannel):
     ) -> None:
         """Handle /help command."""
         help_message = (
-            "🤖 *Cassey Help*\n\n"
+            f"🤖 *{settings.AGENT_NAME} Help*\n\n"
             "*Basic Commands:*\n"
             "/start - Start the bot\n"
             "/help - Show this help message\n"
             "/reset - Clear conversation history\n"
-            "/remember <content> - Quick store a memory\n\n"
+            "/remember <content> - Quick store a memory\n"
+            "/debug - Toggle verbose status (see LLM calls & tools)\n\n"
             "*Memory* (/mem):\n"
             "• `/mem` - List all memories\n"
             "• `/mem search <query>` - Search memories\n"
             "• `/mem forget <id|key>` - Forget a memory\n\n"
-            "*Knowledge Base* (/kb):\n"
-            "• `/kb` - List tables\n"
-            "• `/kb store <table> <json>` - Store docs\n"
-            "• `/kb search <query>` - Search KB\n\n"
+            "*Vector Store* (/vs):\n"
+            "• `/vs` - List tables\n"
+            "• `/vs store <table> <json>` - Store docs\n"
+            "• `/vs search <query>` - Search VS\n\n"
             "*Database* (/db):\n"
             "• `/db` - List tables\n"
             "• `/db create <table> <json>` - Create table\n"
@@ -434,7 +515,7 @@ class TelegramChannel(BaseChannel):
             "*What I can do:*\n"
             "• Search the web • Read/write files • Calculations\n"
             "• Remember facts • Use tools to help you\n\n"
-            "*Tip:* Try /mem, /kb, /db, or /file alone to see all options"
+            "*Tip:* Try /mem, /vs, /db, /file, or /debug alone to see all options"
         )
         await update.message.reply_text(help_message, parse_mode="Markdown")
 
@@ -463,7 +544,7 @@ class TelegramChannel(BaseChannel):
 
             await update.message.reply_text(
                 "🔄 Conversation history cleared!\n\n"
-                "You can start fresh. Note that KB and file data are preserved."
+                "You can start fresh. Note that VS and file data are preserved."
             )
         except Exception as e:
             await update.message.reply_text(f"🔄 Reset attempted. If issues persist, try: {e}")
@@ -527,6 +608,66 @@ class TelegramChannel(BaseChannel):
             import traceback
             traceback.print_exc()
             await update.message.reply_text(f"Sorry, failed to save memory: {e}")
+
+    async def _debug_command(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+    ) -> None:
+        """Handle /debug command to toggle verbose status mode."""
+        if not update.message or not update.effective_chat:
+            return
+
+        chat_id = update.effective_chat.id
+        args = context.args if context.args else []
+
+        if not args:
+            # No args - show current status
+            is_debug = chat_id in self._debug_chats
+            status = "✅ ON (verbose)" if is_debug else "❌ OFF (default)"
+            await update.message.reply_text(
+                f"🔍 *Debug Status*: {status}\n\n"
+                f"Usage:\n"
+                f"• `/debug on` - Enable verbose status (see all LLM calls and tools)\n"
+                f"• `/debug off` - Disable (clean mode, status edited in place)\n"
+                f"• `/debug toggle` - Toggle debug mode",
+                parse_mode="Markdown"
+            )
+            return
+
+        command = args[0].lower()
+
+        if command in ("on", "enable", "1", "true"):
+            self._debug_chats.add(chat_id)
+            await update.message.reply_text(
+                "✅ *Verbose debug enabled*\n\n"
+                "All LLM calls and tool executions will be shown as separate messages.\n\n"
+                "Use `/debug off` to disable.",
+                parse_mode="Markdown"
+            )
+        elif command in ("off", "disable", "0", "false"):
+            self._debug_chats.discard(chat_id)
+            # Also clear any tracked status message for this chat
+            self._status_messages.pop(str(chat_id), None)
+            await update.message.reply_text(
+                "❌ *Verbose debug disabled*\n\n"
+                "Status updates will be edited in place (clean mode).",
+                parse_mode="Markdown"
+            )
+        elif command in ("toggle", "switch"):
+            if chat_id in self._debug_chats:
+                self._debug_chats.discard(chat_id)
+                self._status_messages.pop(str(chat_id), None)
+                await update.message.reply_text("🔍 Debug mode: OFF", parse_mode="Markdown")
+            else:
+                self._debug_chats.add(chat_id)
+                await update.message.reply_text("🔍 Debug mode: ON", parse_mode="Markdown")
+        else:
+            await update.message.reply_text(
+                f"Unknown option: {command}\n\n"
+                f"Use: `/debug on|off|toggle`",
+                parse_mode="Markdown"
+            )
 
     async def _clear_checkpoint(self, thread_id: str) -> bool:
         """
@@ -614,6 +755,10 @@ class TelegramChannel(BaseChannel):
         try:
             from pathlib import Path
             from cassey.storage.file_sandbox import set_thread_id
+            from cassey.storage.group_storage import (
+                ensure_thread_group,
+                set_group_id as set_workspace_context,
+            )
             from cassey.config.settings import settings
 
             # Get thread_id for file sandbox
@@ -625,8 +770,14 @@ class TelegramChannel(BaseChannel):
             ))
             set_thread_id(thread_id)
 
-            thread_dir = settings.get_thread_files_path(thread_id)
-            thread_dir.mkdir(parents=True, exist_ok=True)
+            # Set up group context (same as stream_agent_response)
+            # This ensures files are stored in the group directory that the agent uses
+            group_id = await ensure_thread_group(thread_id, str(update.effective_user.id))
+            set_workspace_context(group_id)
+
+            # Use group-based path (matches agent's file tools)
+            group_dir = settings.get_group_files_path(group_id)
+            group_dir.mkdir(parents=True, exist_ok=True)
 
             attachment = None
             file_info = None
@@ -656,8 +807,8 @@ class TelegramChannel(BaseChannel):
                     )
                     return
 
-                # Download file to thread directory
-                local_path = thread_dir / file_name
+                # Download file to group directory (matches agent's file tools)
+                local_path = group_dir / file_name
                 # Use download_to_drive() - download() is deprecated
                 downloaded_path = await file_info.download_to_drive(local_path)
 
@@ -684,7 +835,7 @@ class TelegramChannel(BaseChannel):
 
                 # Generate file name (sanitized - no path traversal possible)
                 file_name = f"photo_{photo.file_id}.jpg"
-                local_path = thread_dir / file_name
+                local_path = group_dir / file_name
 
                 # Download photo using download_to_drive()
                 downloaded_path = await file_info.download_to_drive(local_path)
@@ -730,6 +881,8 @@ class TelegramChannel(BaseChannel):
             error_msg = str(e) if str(e) else f"{type(e).__name__}"
             await update.message.reply_text(f"Sorry, an error occurred: {error_msg}")
         finally:
-            # Clean up thread_id to avoid leaking thread-local fallback
+            # Clean up thread_id and group_id to avoid leaking context
             from cassey.storage.file_sandbox import clear_thread_id
+            from cassey.storage.group_storage import clear_group_id as clear_workspace_context
             clear_thread_id()
+            clear_workspace_context()

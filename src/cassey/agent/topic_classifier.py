@@ -6,11 +6,13 @@ Topics are hierarchical (e.g., "compliance/aml/settlor") to enable semantic oper
 
 import json
 import re
+import time
 from datetime import datetime
 from typing import Any, Literal
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
+from loguru import logger
 
 from cassey.config import settings
 
@@ -189,10 +191,14 @@ Respond ONLY with JSON: {"intent": "...", "topic_id": "..."}"
 Query: {query}"""
 
         try:
+            logger.debug("🤖 TOPIC_CLASSIFIER: Starting LLM call...")
+            start = time.time()
             response = await model.ainvoke([
                 SystemMessage(content="You are a query classifier. Respond only with valid JSON."),
                 HumanMessage(content=classifier_prompt.format(query=query))
             ])
+            elapsed = time.time() - start
+            logger.debug(f"🤖 TOPIC_CLASSIFIER: Done in {elapsed:.2f}s")
 
             result = json.loads(response.content.strip())
             intent = result.get("intent", "hybrid")
