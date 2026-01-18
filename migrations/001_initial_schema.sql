@@ -210,7 +210,18 @@ ALTER TABLE workspaces
   ADD CONSTRAINT fk_workspaces_owner_group
     FOREIGN KEY (owner_group_id) REFERENCES groups(group_id) ON DELETE CASCADE;
 
+-- Workspace type validation
+ALTER TABLE workspaces DROP CONSTRAINT IF EXISTS valid_workspace_type;
+ALTER TABLE workspaces
+  ADD CONSTRAINT valid_workspace_type
+    CHECK (type IN ('individual', 'group', 'public'));
+
 -- User workspaces FK
+ALTER TABLE user_workspaces DROP CONSTRAINT IF EXISTS fk_user_workspaces_workspace;
+ALTER TABLE user_workspaces
+  ADD CONSTRAINT fk_user_workspaces_workspace
+    FOREIGN KEY (workspace_id) REFERENCES workspaces(workspace_id) ON DELETE CASCADE;
+
 ALTER TABLE user_workspaces DROP CONSTRAINT IF EXISTS fk_user_workspaces_user;
 ALTER TABLE user_workspaces
   ADD CONSTRAINT fk_user_workspaces_user
@@ -221,6 +232,12 @@ ALTER TABLE group_workspaces DROP CONSTRAINT IF EXISTS fk_group_workspaces_group
 ALTER TABLE group_workspaces
   ADD CONSTRAINT fk_group_workspaces_group
     FOREIGN KEY (group_id) REFERENCES groups(group_id) ON DELETE CASCADE;
+
+-- Group workspaces FK (to workspaces table)
+ALTER TABLE group_workspaces DROP CONSTRAINT IF EXISTS fk_group_workspaces_workspace;
+ALTER TABLE group_workspaces
+  ADD CONSTRAINT fk_group_workspaces_workspace
+    FOREIGN KEY (workspace_id) REFERENCES workspaces(workspace_id) ON DELETE CASCADE;
 
 -- Thread workspaces FK
 ALTER TABLE thread_workspaces DROP CONSTRAINT IF EXISTS fk_thread_workspaces_workspace;
@@ -471,3 +488,55 @@ COMMENT ON COLUMN scheduled_jobs.result IS 'Output text from worker execution';
 
 COMMENT ON COLUMN conversations.structured_summary IS 'Structured summary with topics, facts, decisions, tasks, open questions - JSONB format';
 COMMENT ON COLUMN conversations.active_request IS 'Latest user request (intent-first) - always shows current dominant intent';
+
+-- ============================================================================
+-- Test Data Setup (for development and testing)
+-- ============================================================================
+
+-- Insert test users
+INSERT INTO users (user_id) VALUES
+  ('test:user123'),
+  ('test:sandbox_user'),
+  ('user1'),
+  ('user2'),
+  ('telegram:user123'),
+  ('http:user123')
+ON CONFLICT (user_id) DO NOTHING;
+
+-- Insert test workspaces
+INSERT INTO workspaces (workspace_id, type, name, owner_user_id) VALUES
+  ('ws:test_workspace', 'individual', 'Test Workspace', 'test:user123'),
+  ('ws:test_kb', 'individual', 'Test KB Workspace', 'test:user123'),
+  ('ws:test_files', 'individual', 'Test Files Workspace', 'test:user123'),
+  ('ws:integration', 'individual', 'Integration Test Workspace', 'test:user123'),
+  ('ws:edge_cases', 'individual', 'Edge Cases Test Workspace', 'test:user123'),
+  ('ws:test_sandbox', 'individual', 'Test Sandbox Workspace', 'test:sandbox_user'),
+  ('ws:workspace_1', 'individual', 'Workspace 1', 'user1'),
+  ('ws:workspace_2', 'individual', 'Workspace 2', 'user2')
+ON CONFLICT (workspace_id) DO NOTHING;
+
+-- Grant workspace members (for permission checks)
+-- The owner_user_id should have admin permission automatically,
+-- but we add explicit records for the permission system
+INSERT INTO workspace_members (workspace_id, user_id, role) VALUES
+  ('ws:test_workspace', 'test:user123', 'admin'),
+  ('ws:test_kb', 'test:user123', 'admin'),
+  ('ws:test_files', 'test:user123', 'admin'),
+  ('ws:integration', 'test:user123', 'admin'),
+  ('ws:edge_cases', 'test:user123', 'admin'),
+  ('ws:test_sandbox', 'test:sandbox_user', 'admin'),
+  ('ws:workspace_1', 'user1', 'admin'),
+  ('ws:workspace_2', 'user2', 'admin')
+ON CONFLICT (workspace_id, user_id) DO NOTHING;
+
+-- Create user_workspaces entries
+INSERT INTO user_workspaces (user_id, workspace_id) VALUES
+  ('test:user123', 'ws:test_workspace'),
+  ('test:user123', 'ws:test_kb'),
+  ('test:user123', 'ws:test_files'),
+  ('test:user123', 'ws:integration'),
+  ('test:user123', 'ws:edge_cases'),
+  ('test:sandbox_user', 'ws:test_sandbox'),
+  ('user1', 'ws:workspace_1'),
+  ('user2', 'ws:workspace_2')
+ON CONFLICT (user_id) DO NOTHING;

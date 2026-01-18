@@ -4,19 +4,113 @@ import asyncio
 import os
 import signal
 import sys
+from pathlib import Path
 from typing import Any
 
 from cassey.config import create_model, settings
+from cassey.config.loader import get_yaml_defaults
+from cassey.config.llm_factory import validate_llm_config
 from cassey.logging import configure_logging
 from cassey.tools.registry import get_all_tools
 from cassey.storage.checkpoint import get_async_checkpointer
 from cassey.storage.user_registry import UserRegistry
 from cassey.channels.telegram import TelegramChannel
 from cassey.channels.http import HttpChannel
-from cassey.agent.graph import create_graph
 from cassey.agent.langchain_agent import create_langchain_agent
 from cassey.agent.prompts import get_system_prompt
 from cassey.scheduler import start_scheduler, stop_scheduler, register_notification_handler
+
+
+def config_verify() -> int:
+    """Verify configuration loading and print status.
+
+    Returns:
+        Exit code (0 for success, 1 for errors).
+    """
+    print("Cassey Configuration Verification")
+    print("=" * 40)
+
+    errors = []
+    warnings = []
+
+    # 1. Check config.yaml
+    try:
+        defaults = get_yaml_defaults()
+        print(f"✓ config.yaml loaded ({len(defaults)} keys)")
+    except Exception as e:
+        errors.append(f"config.yaml: {e}")
+        print(f"✗ config.yaml: {e}")
+
+    # 2. Check storage paths
+    try:
+        for path_name, path_value in [
+            ("SHARED_ROOT", settings.SHARED_ROOT),
+            ("GROUPS_ROOT", settings.GROUPS_ROOT),
+            ("USERS_ROOT", settings.USERS_ROOT),
+        ]:
+            path = Path(path_value)
+            if path.exists() or path.parent.exists():
+                print(f"✓ {path_name}: {path_value}")
+            else:
+                print(f"  {path_name}: {path_value} (will be created)")
+    except Exception as e:
+        errors.append(f"Storage paths: {e}")
+        print(f"✗ Storage paths: {e}")
+
+    # 3. Check LLM configuration
+    try:
+        validate_llm_config()
+        print(f"✓ LLM provider: {settings.DEFAULT_LLM_PROVIDER}")
+    except ValueError as e:
+        errors.append(f"LLM config: {e}")
+        print(f"✗ LLM config: {e}")
+
+    # 4. Check required secrets
+    required_secrets = {
+        "ANTHROPIC_API_KEY": settings.ANTHROPIC_API_KEY,
+        "OPENAI_API_KEY": settings.OPENAI_API_KEY,
+        "ZHIPUAI_API_KEY": settings.ZHIPUAI_API_KEY,
+        "OLLAMA_CLOUD_API_KEY": settings.OLLAMA_CLOUD_API_KEY,
+    }
+
+    has_llm_key = False
+    for key_name, key_value in required_secrets.items():
+        if key_value and key_value not in ["sk-ant-xxx", "sk-xxx", "your-zhipu-key", "your-ollama-cloud-api-key"]:
+            has_llm_key = True
+            break
+
+    if has_llm_key:
+        print(f"✓ LLM API key configured")
+    else:
+        warnings.append("No LLM API key found")
+        print(f"⚠ No LLM API key found (set ANTHROPIC_API_KEY or OPENAI_API_KEY)")
+
+    # 5. Check database configuration
+    try:
+        print(f"✓ PostgreSQL: {settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}")
+    except Exception as e:
+        errors.append(f"PostgreSQL config: {e}")
+        print(f"✗ PostgreSQL config: {e}")
+
+    # 6. Check checkpoint storage
+    print(f"✓ Checkpoint storage: {settings.CHECKPOINT_STORAGE}")
+
+    # Summary
+    print("=" * 40)
+    if errors:
+        print(f"\n❌ Verification failed with {len(errors)} error(s)")
+        for error in errors:
+            print(f"  - {error}")
+        return 1
+
+    if warnings:
+        print(f"\n⚠️  Verification passed with {len(warnings)} warning(s)")
+        for warning in warnings:
+            print(f"  - {warning}")
+    else:
+        print("\n✅ All checks passed!")
+
+    return 0
 
 
 def get_channels():
@@ -28,6 +122,15 @@ def get_channels():
 async def main() -> None:
     """Start the Cassey bot."""
     configure_logging()
+
+    # Validate LLM configuration on startup
+    try:
+        validate_llm_config()
+    except ValueError as e:
+        print(f"\n{e}\n")
+        print("Please configure your LLM settings in .env file.")
+        sys.exit(1)
+
     # Create LLM model
     model = create_model()
     print(f" Using LLM provider: {settings.DEFAULT_LLM_PROVIDER}")
@@ -40,45 +143,21 @@ async def main() -> None:
     checkpointer = await get_async_checkpointer()
     print(f" Checkpointer: {settings.CHECKPOINT_STORAGE}")
 
-    runtime = settings.AGENT_RUNTIME.lower()
-    fallback = settings.AGENT_RUNTIME_FALLBACK.lower() if settings.AGENT_RUNTIME_FALLBACK else None
-    print(f" Agent runtime: {runtime}")
+    print(" Agent runtime: langchain")
 
     agent_cache: dict[str, Any] = {}
 
-    def build_agent(runtime_name: str, channel_name: str) -> Any:
-        if runtime_name == "langchain":
-            cache_key = f"langchain:{channel_name}"
-            if cache_key not in agent_cache:
-                system_prompt = get_system_prompt(channel_name)
-                agent_cache[cache_key] = create_langchain_agent(
-                    model=model,
-                    tools=tools,
-                    checkpointer=checkpointer,
-                    system_prompt=system_prompt,
-                )
-            return agent_cache[cache_key]
-        if runtime_name == "custom":
-            if "custom" not in agent_cache:
-                agent_cache["custom"] = create_graph(
-                    model=model,
-                    tools=tools,
-                    checkpointer=checkpointer,
-                )
-            return agent_cache["custom"]
-        raise ValueError(f"Unknown AGENT_RUNTIME: {runtime_name}")
-
-    def get_agent(channel_name: str) -> tuple[Any, str]:
-        try:
-            return build_agent(runtime, channel_name), runtime
-        except Exception as exc:
-            if fallback and fallback != runtime:
-                print(
-                    f" Warning: failed to build runtime '{runtime}' ({exc}). "
-                    f"Falling back to '{fallback}'."
-                )
-                return build_agent(fallback, channel_name), fallback
-            raise
+    def build_agent(channel_name: str) -> Any:
+        cache_key = f"langchain:{channel_name}"
+        if cache_key not in agent_cache:
+            system_prompt = get_system_prompt(channel_name)
+            agent_cache[cache_key] = create_langchain_agent(
+                model=model,
+                tools=tools,
+                checkpointer=checkpointer,
+                system_prompt=system_prompt,
+            )
+        return agent_cache[cache_key]
 
     # Create user registry (for audit logging)
     registry = UserRegistry(conn_string=settings.POSTGRES_URL)
@@ -93,8 +172,8 @@ async def main() -> None:
 
     for channel_name in enabled_channels:
         if channel_name == "telegram":
-            agent, agent_runtime = get_agent("telegram")
-            channel = TelegramChannel(agent=agent, runtime=agent_runtime)
+            agent = build_agent("telegram")
+            channel = TelegramChannel(agent=agent)
             channel.registry = registry
 
             # Register notification handler for reminders
@@ -111,12 +190,11 @@ async def main() -> None:
             active_channels.append(channel)
             print(" Telegram channel created")
         elif channel_name == "http":
-            agent, agent_runtime = get_agent("http")
+            agent = build_agent("http")
             channel = HttpChannel(
                 agent=agent,
                 host=os.getenv("HTTP_HOST", "0.0.0.0"),
                 port=int(os.getenv("HTTP_PORT", "8000")),
-                runtime=agent_runtime,
             )
             channel.registry = registry
 
@@ -165,7 +243,24 @@ async def main() -> None:
 
 
 def run_main() -> None:
-    """Synchronous entry point for console script."""
+    """Synchronous entry point for console script.
+
+    Handles CLI commands:
+    - cassey config verify - Verify configuration
+    - cassey (no args) - Start the bot
+    """
+    # Check for CLI commands
+    if len(sys.argv) > 1:
+        command = sys.argv[1].lower()
+        if command == "config":
+            if len(sys.argv) > 2 and sys.argv[2].lower() == "verify":
+                sys.exit(config_verify())
+            else:
+                print("Available commands:")
+                print("  cassey config verify  - Verify configuration")
+                sys.exit(1)
+
+    # Default: start the bot
     try:
         asyncio.run(main())
     except KeyboardInterrupt:

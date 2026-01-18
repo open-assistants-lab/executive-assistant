@@ -43,7 +43,7 @@ def configure_logging(
     logger.add(
         sys.stdout,
         format=(
-            "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
+            "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
             "<level>{level: <8}</level> | "
             "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | "
             "<level>{message}</level>"
@@ -58,7 +58,7 @@ def configure_logging(
     if log_file:
         logger.add(
             log_file,
-            format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} | {message}",
+            format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} | {message}",
             level=level,
             rotation=rotation,
             retention=retention,

@@ -1,4 +1,4 @@
-"""Secure file operations within a workspace sandbox."""
+"""Secure file operations within a group sandbox."""
 
 import os
 import threading
@@ -15,7 +15,10 @@ from cassey.storage.meta_registry import (
     record_files_removed_by_prefix,
     record_folder_renamed,
 )
-from cassey.storage.workspace_storage import get_workspace_id
+from cassey.storage.group_storage import (
+    get_workspace_id,
+    require_permission,
+)
 
 
 # Context variable for thread_id - set by channels when processing messages
@@ -120,11 +123,19 @@ class FileSandbox:
 
     def __init__(
         self,
-        root: Path | None = None,
+        root: Path,
         allowed_extensions: set[str] | None = None,
         max_file_size_mb: int | None = None,
     ) -> None:
-        self.root = (root or settings.FILES_ROOT).resolve()
+        """
+        Initialize FileSandbox with a required root directory.
+
+        Args:
+            root: Root directory for the sandbox (required).
+            allowed_extensions: Set of allowed file extensions.
+            max_file_size_mb: Maximum file size in megabytes.
+        """
+        self.root = Path(root).resolve()
         self.allowed_extensions = allowed_extensions or settings.ALLOWED_FILE_EXTENSIONS
         self.max_file_size_mb = max_file_size_mb or settings.MAX_FILE_SIZE_MB
         self.max_bytes = self.max_file_size_mb * 1024 * 1024
@@ -212,50 +223,55 @@ class SecurityError(Exception):
     """Raised when a security constraint is violated."""
 
 
-# Global sandbox instance
-_sandbox = FileSandbox()
+# No global sandbox - must provide context
+_sandbox = None
 
 
 def get_sandbox(user_id: str | None = None) -> FileSandbox:
     """
-    Get a sandbox instance, optionally user-specific or thread-specific.
+    Get a sandbox instance scoped to user_id, group_id, or thread_id from context.
 
     Priority:
-    1. user_id if provided (for backward compatibility)
-    2. workspace_id from context (new workspace-based routing)
+    1. user_id if provided
+    2. group_id from context (new group-based routing)
     3. thread_id from context (legacy thread-based routing)
-    4. global sandbox (no separation)
 
     Args:
         user_id: Optional user ID for sandbox separation.
 
     Returns:
-        A FileSandbox instance scoped to the user/thread/workspace.
+        A FileSandbox instance scoped to the user/thread/group.
+
+    Raises:
+        ValueError: If no user_id, group_id, or thread_id context is available.
     """
     if user_id:
-        user_path = settings.FILES_ROOT / user_id
+        user_path = settings.get_user_files_path(user_id)
         user_path.mkdir(parents=True, exist_ok=True)
         return FileSandbox(root=user_path)
 
-    # Check for workspace_id in context (new workspace-based routing)
-    workspace_id_val = get_workspace_id()
-    if workspace_id_val:
-        workspace_path = settings.get_workspace_files_path(workspace_id_val)
-        workspace_path.mkdir(parents=True, exist_ok=True)
-        return FileSandbox(root=workspace_path)
+    # Check for group_id in context (new group-based routing)
+    group_id_val = get_workspace_id()
+    if group_id_val:
+        group_path = settings.get_group_files_path(group_id_val)
+        group_path.mkdir(parents=True, exist_ok=True)
+        return FileSandbox(root=group_path)
 
     # Check for thread_id in context (legacy thread-based routing)
     thread_id_val = get_thread_id()
     if thread_id_val:
-        # Use new path helper with backward compatibility fallback
         thread_path = settings.get_thread_files_path(thread_id_val)
         thread_path.mkdir(parents=True, exist_ok=True)
         return FileSandbox(root=thread_path)
 
-    return _sandbox
+    raise ValueError(
+        "FileSandbox requires user_id, group_id, or thread_id context. "
+        "Call with user_id or ensure context is set."
+    )
 
 
 @tool
+@require_permission("read")
 def read_file(file_path: str) -> str:
     """
     Read a file from the files directory.
@@ -283,6 +299,7 @@ def read_file(file_path: str) -> str:
 
 
 @tool
+@require_permission("write")
 def write_file(file_path: str, content: str) -> str:
     """
     Write content to a file in the files directory.
@@ -319,6 +336,7 @@ def file_write(file_path: str, content: str) -> str:
 
 
 @tool
+@require_permission("read")
 def list_files(directory: str = "", recursive: bool = False) -> str:
     """
     List files and folders in a directory (browse directory structure).
@@ -387,6 +405,7 @@ def list_files(directory: str = "", recursive: bool = False) -> str:
 
 
 @tool
+@require_permission("write")
 def create_folder(folder_path: str) -> str:
     """
     Create a new folder in the files directory.
@@ -415,6 +434,7 @@ def create_folder(folder_path: str) -> str:
 
 
 @tool
+@require_permission("write")
 def delete_folder(folder_path: str) -> str:
     """
     Delete a folder and all its contents.
@@ -450,6 +470,7 @@ def delete_folder(folder_path: str) -> str:
 
 
 @tool
+@require_permission("write")
 def rename_folder(old_path: str, new_path: str) -> str:
     """
     Rename or move a folder.
@@ -492,6 +513,7 @@ def rename_folder(old_path: str, new_path: str) -> str:
 
 
 @tool
+@require_permission("write")
 def move_file(source: str, destination: str) -> str:
     """
     Move or rename a file.
@@ -534,6 +556,7 @@ def move_file(source: str, destination: str) -> str:
 
 
 @tool
+@require_permission("read")
 def glob_files(pattern: str, directory: str = "") -> str:
     """
     Find files by name pattern or extension (like "find . -name").
@@ -603,6 +626,7 @@ def glob_files(pattern: str, directory: str = "") -> str:
 
 
 @tool
+@require_permission("read")
 def grep_files(
     pattern: str,
     directory: str = "",
@@ -747,6 +771,7 @@ def grep_files(
 
 
 @tool
+@require_permission("read")
 def find_files_fuzzy(
     query: str,
     directory: str = "",

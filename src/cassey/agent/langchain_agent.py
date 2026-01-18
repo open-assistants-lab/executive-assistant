@@ -19,14 +19,19 @@ def _load_create_agent() -> Any:
         from langchain.agents import create_agent as _create_agent
     except Exception as exc:  # pragma: no cover - defensive
         raise RuntimeError(
-            "LangChain create_agent is required for AGENT_RUNTIME=langchain. "
+            "LangChain create_agent is required. "
             "Ensure langchain>=1.0 is installed."
         ) from exc
     return _create_agent
 
 
-def _build_middleware(model: BaseChatModel) -> list[Any]:
-    """Build LangChain middleware list from settings."""
+def _build_middleware(model: BaseChatModel, channel: Any = None) -> list[Any]:
+    """Build LangChain middleware list from settings.
+
+    Args:
+        model: The chat model (needed for some middleware like SummarizationMiddleware).
+        channel: Optional channel instance for status update middleware.
+    """
     try:
         from langchain.agents.middleware import (
             SummarizationMiddleware,
@@ -44,6 +49,12 @@ def _build_middleware(model: BaseChatModel) -> list[Any]:
         ) from exc
 
     middleware: list[Any] = []
+
+    # Status update middleware (first to capture all events)
+    if settings.MW_STATUS_UPDATE_ENABLED and channel is not None:
+        from cassey.agent.status_middleware import StatusUpdateMiddleware
+
+        middleware.append(StatusUpdateMiddleware(channel=channel))
 
     if settings.MW_TODO_LIST_ENABLED:
         middleware.append(TodoListMiddleware())
@@ -100,6 +111,7 @@ def create_langchain_agent(
     tools: list[BaseTool],
     checkpointer: BaseCheckpointSaver | None = None,
     system_prompt: str | None = None,
+    channel: Any = None,
 ) -> Runnable:
     """
     Create a LangChain-native agent runtime with middleware.
@@ -109,9 +121,13 @@ def create_langchain_agent(
         tools: Tool list to expose to the agent.
         checkpointer: Optional checkpointer for persistence.
         system_prompt: Optional static system prompt.
+        channel: Optional channel instance for status update middleware.
+
+    Returns:
+        Compiled LangGraph agent runnable.
     """
     create_agent = _load_create_agent()
-    middleware = _build_middleware(model)
+    middleware = _build_middleware(model, channel=channel)
 
     return create_agent(
         model=model,

@@ -40,7 +40,7 @@ def _default_meta(thread_id: str) -> dict[str, Any]:
         "thread_id": thread_id,
         "updated_at": now,
         "files": {"paths": [], "count": 0, "last_updated": None},
-        "kb": {"tables": [], "last_updated": None},
+        "vs": {"tables": [], "last_updated": None},
         "db": {"path": None, "tables": [], "last_updated": None},
         "reminders": {"count": 0, "last_updated": None},
     }
@@ -58,7 +58,7 @@ def load_meta(thread_id: str) -> dict[str, Any]:
         return _default_meta(thread_id)
     data.setdefault("thread_id", thread_id)
     data.setdefault("files", {"paths": [], "count": 0, "last_updated": None})
-    data.setdefault("kb", {"tables": [], "last_updated": None})
+    data.setdefault("vs", {"tables": [], "last_updated": None})
     data.setdefault("db", {"path": None, "tables": [], "last_updated": None})
     data.setdefault("reminders", {"count": 0, "last_updated": None})
     return data
@@ -101,11 +101,11 @@ def format_meta(
         if file_count > len(shown):
             lines.append(f"... {file_count - len(shown)} more")
 
-    kb = meta.get("kb", {})
-    kb_tables = [t for t in kb.get("tables", []) if isinstance(t, str)]
-    lines.append(f"KB tables: {len(kb_tables)}")
-    if kb_tables:
-        lines.append(", ".join(fmt_code(t) for t in kb_tables[:max_items]))
+    vs = meta.get("vs", {})
+    vs_tables = [t for t in vs.get("tables", []) if isinstance(t, str)]
+    lines.append(f"VS tables: {len(vs_tables)}")
+    if vs_tables:
+        lines.append(", ".join(fmt_code(t) for t in vs_tables[:max_items]))
 
     db = meta.get("db", {})
     db_path = db.get("path")
@@ -125,12 +125,23 @@ def format_meta(
 
 async def refresh_meta(thread_id: str) -> dict[str, Any]:
     """Rebuild meta.json by scanning files/KB/DB/reminders."""
+    from cassey.storage.group_storage import get_workspace_id
+
     meta = _default_meta(thread_id)
     now = _now_iso()
     meta["updated_at"] = now
 
-    # Files inventory
-    files_root = settings.get_thread_files_path(thread_id)
+    # Check for group_id first, then use thread_id
+    group_id = get_workspace_id()
+    storage_id = group_id if group_id else thread_id
+    is_group = bool(group_id)
+
+    # Files inventory - use group path if group_id exists, otherwise thread path
+    if is_group:
+        files_root = settings.get_group_files_path(storage_id)
+    else:
+        files_root = settings.get_thread_files_path(storage_id)
+
     file_paths: list[str] = []
     total_files = 0
     if files_root.exists():
@@ -151,39 +162,44 @@ async def refresh_meta(thread_id: str) -> dict[str, Any]:
         "last_updated": now,
     }
 
-    # KB tables
-    kb_tables: list[str] = []
+    # VS tables (DuckDB + Hybrid)
+    vs_tables: list[str] = []
     try:
-        from cassey.storage.seekdb_storage import get_thread_seekdb_dir, list_seekdb_collections
+        from cassey.storage.duckdb_storage import list_duckdb_collections
 
-        kb_path = get_thread_seekdb_dir(thread_id)
-        if kb_path.exists():
-            kb_tables = list_seekdb_collections(thread_id)
+        vs_tables = list_duckdb_collections(workspace_id=storage_id)
     except Exception:
-        kb_tables = []
+        vs_tables = []
 
-    meta["kb"] = {
-        "tables": sorted(kb_tables)[:MAX_TRACKED_TABLES],
+    meta["vs"] = {
+        "tables": sorted(vs_tables)[:MAX_TRACKED_TABLES],
         "last_updated": now,
     }
 
-    # DB tables
+    # DB tables - use group path if group_id exists, otherwise thread path
+    if is_group:
+        db_path = settings.get_group_db_path(storage_id, "default")
+        db_root = settings.get_group_root(storage_id)
+    else:
+        db_path = settings.get_thread_db_path(storage_id)
+        db_root = settings.get_thread_root(storage_id)
+
     db_tables: list[str] = []
-    db_path = settings.get_thread_db_path(thread_id)
     db_path_value: str | None = None
     if db_path.exists():
         try:
             from cassey.storage.db_storage import DBStorage
 
-            storage = DBStorage()
-            conn = storage.get_connection(thread_id)
+            # Pass db_path's parent as root; get_connection will use context-based path
+            storage = DBStorage(root=db_path.parent)
+            conn = storage.get_connection(storage_id)
             try:
                 db_tables = [row[0] for row in conn.execute("SHOW TABLES").fetchall()]
             finally:
                 conn.close()
 
             try:
-                rel_path = db_path.relative_to(settings.get_thread_root(thread_id))
+                rel_path = db_path.relative_to(db_root)
                 db_path_value = rel_path.as_posix()
             except ValueError:
                 db_path_value = str(db_path)
@@ -328,34 +344,34 @@ def record_folder_renamed(thread_id: str | None, old_prefix: str, new_prefix: st
         return
 
 
-def record_kb_table_added(thread_id: str | None, table_name: str) -> None:
+def record_vs_table_added(thread_id: str | None, table_name: str) -> None:
     if not thread_id:
         return
     try:
         meta = load_meta(thread_id)
-        kb = meta["kb"]
-        tables = {t for t in kb.get("tables", []) if isinstance(t, str)}
+        vs = meta["vs"]
+        tables = {t for t in vs.get("tables", []) if isinstance(t, str)}
         tables.add(table_name)
-        kb["tables"] = sorted(tables)[:MAX_TRACKED_TABLES]
-        kb["last_updated"] = _now_iso()
-        meta["updated_at"] = kb["last_updated"]
+        vs["tables"] = sorted(tables)[:MAX_TRACKED_TABLES]
+        vs["last_updated"] = _now_iso()
+        meta["updated_at"] = vs["last_updated"]
         save_meta(thread_id, meta)
     except Exception:
         return
 
 
-def record_kb_table_removed(thread_id: str | None, table_name: str) -> None:
+def record_vs_table_removed(thread_id: str | None, table_name: str) -> None:
     if not thread_id:
         return
     try:
         meta = load_meta(thread_id)
-        kb = meta["kb"]
-        tables = {t for t in kb.get("tables", []) if isinstance(t, str)}
+        vs = meta["vs"]
+        tables = {t for t in vs.get("tables", []) if isinstance(t, str)}
         if table_name in tables:
             tables.remove(table_name)
-        kb["tables"] = sorted(tables)[:MAX_TRACKED_TABLES]
-        kb["last_updated"] = _now_iso()
-        meta["updated_at"] = kb["last_updated"]
+        vs["tables"] = sorted(tables)[:MAX_TRACKED_TABLES]
+        vs["last_updated"] = _now_iso()
+        meta["updated_at"] = vs["last_updated"]
         save_meta(thread_id, meta)
     except Exception:
         return

@@ -17,10 +17,12 @@ from cassey.storage.file_sandbox import (
     write_file,
 )
 from cassey.storage.user_registry import UserRegistry
-from cassey.storage.workspace_storage import (
-    ensure_thread_workspace,
-    set_workspace_id as set_workspace_context,
-    clear_workspace_id as clear_workspace_context,
+from cassey.storage.group_storage import (
+    ensure_thread_group,
+    set_group_id as set_workspace_context,
+    set_user_id as set_workspace_user_id,
+    clear_group_id as clear_workspace_context,
+    clear_user_id as clear_workspace_user_id,
 )
 
 logger = get_logger(__name__)
@@ -83,11 +85,37 @@ class BaseChannel(ABC):
         self,
         agent: Runnable,
         registry: Any = None,
-        runtime: str | None = None,
     ) -> None:
         self.agent = agent
         self.registry = registry  # Optional UserRegistry instance
-        self.runtime = (runtime or settings.AGENT_RUNTIME).lower()
+
+    async def initialize_agent_with_channel(self) -> None:
+        """
+        Re-create the agent with this channel as the channel parameter.
+
+        This enables status update middleware to send progress updates.
+        Should be called after channel initialization but before start().
+        """
+        from cassey.agent.langchain_agent import create_langchain_agent
+        from cassey.config import create_model
+        from cassey.tools.registry import get_all_tools
+        from cassey.storage.checkpoint import get_async_checkpointer
+        from cassey.agent.prompts import get_system_prompt
+
+        # Get the same configuration used to create the original agent
+        model = create_model()
+        tools = await get_all_tools()
+        checkpointer = await get_async_checkpointer()
+        system_prompt = get_system_prompt(self.__class__.__name__.replace("Channel", "").lower())
+
+        # Create new agent with this channel
+        self.agent = create_langchain_agent(
+            model=model,
+            tools=tools,
+            checkpointer=checkpointer,
+            system_prompt=system_prompt,
+            channel=self,  # Pass this channel for status updates
+        )
 
     @abstractmethod
     async def start(self) -> None:
@@ -118,6 +146,28 @@ class BaseChannel(ABC):
             content: Message content to send.
             **kwargs: Channel-specific parameters (parse_mode, etc.).
         """
+
+    async def send_status(
+        self,
+        conversation_id: str,
+        message: str,
+        update: bool = True,
+    ) -> None:
+        """
+        Send a status update to the user.
+
+        Status updates are ephemeral progress messages during agent execution.
+        Channels may choose to update in-place (edit) or send new messages.
+
+        Args:
+            conversation_id: Target conversation identifier.
+            message: Status message to send.
+            update: If True, try to edit previous status message instead of sending new.
+
+        Default implementation just sends a regular message.
+        Subclasses should override for better UX (e.g., Telegram message editing).
+        """
+        await self.send_message(conversation_id, message)
 
     @abstractmethod
     async def handle_message(self, message: MessageFormat) -> None:
@@ -247,13 +297,17 @@ class BaseChannel(ABC):
         # Set thread_id context for file sandbox operations
         set_thread_id(thread_id)
 
-        # Ensure workspace exists and set workspace_id context
+        # Ensure group exists and set group_id context
+        # This is critical for access control - fail fast if setup fails
         try:
-            workspace_id = await ensure_thread_workspace(thread_id, message.user_id)
-            set_workspace_context(workspace_id)
+            group_id = await ensure_thread_group(thread_id, message.user_id)
+            set_workspace_context(group_id)
         except Exception as e:
-            logger.warning("Failed to setup workspace for thread {thread}: {error}", thread=thread_id, error=e)
-            # Continue without workspace - tools will fall back to thread_id
+            logger.error("Failed to setup group for thread {thread}: {error}", thread=thread_id, error=e)
+            raise RuntimeError(f"Group setup failed for thread {thread_id}. Cannot proceed without group context.") from e
+
+        # Set user_id in group context for access control checks
+        set_workspace_user_id(message.user_id)
 
         try:
             set_user_id(message.user_id)
@@ -276,14 +330,6 @@ class BaseChannel(ABC):
             # LangGraph's checkpointer will automatically restore previous state
             # (messages, structured_summary, iterations) when we provide the thread_id in config
             state = {"messages": [HumanMessage(content=enhanced_content)]}
-            if self.runtime == "custom":
-                state.update(
-                    {
-                        "iterations": 0,
-                        "user_id": message.user_id,
-                        "channel": channel,
-                    }
-                )
 
             # Stream agent responses
             messages = []
@@ -319,3 +365,4 @@ class BaseChannel(ABC):
             clear_thread_id()
             clear_user_id()
             clear_workspace_context()
+            clear_workspace_user_id()

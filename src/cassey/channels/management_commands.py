@@ -1,4 +1,4 @@
-"""Management slash commands for /mem, /kb, /db, /file, /meta.
+"""Management slash commands for /mem, /vs, /db, /file, /meta.
 
 These commands provide direct access to storage systems without needing
 to go through the agent's tool calling mechanism.
@@ -311,17 +311,17 @@ async def _mem_update(update: Update, thread_id: str, memory_id: str, content: s
         _clear_context()
 
 
-# ==================== /kb COMMAND ====================
+# ==================== /vs COMMAND ====================
 
-async def kb_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /kb command for Knowledge Base management.
+async def vs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /vs command for Vector Store management.
 
     Usage:
-        /kb                        - List all KB tables
-        /kb store <table> <json>   - Store documents
-        /kb search <query> [table] - Search KB
-        /kb describe <table>       - Describe a table
-        /kb delete <table>         - Delete a table
+        /vs                        - List all VS tables
+        /vs store <table> <json>   - Store documents
+        /vs search <query> [table] - Search VS
+        /vs describe <table>       - Describe a table
+        /vs delete <table>         - Delete a table
     """
     if not update.message:
         return
@@ -330,82 +330,82 @@ async def kb_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     args = context.args if context.args else []
 
     if not args:
-        await _kb_list(update, thread_id)
+        await _vs_list(update, thread_id)
         return
 
     action = args[0].lower()
 
     if action == "list":
-        await _kb_list(update, thread_id)
+        await _vs_list(update, thread_id)
     elif action == "store":
-        # /kb store <table_name> <json_documents>
+        # /vs store <table_name> <json_documents>
         if len(args) < 3:
-            await update.message.reply_text("Usage: /kb store <table_name> <json_documents>")
+            await update.message.reply_text("Usage: /vs store <table_name> <json_documents>")
         else:
             table_name = args[1]
             documents = " ".join(args[2:])
-            await _kb_store(update, thread_id, table_name, documents)
+            await _vs_store(update, thread_id, table_name, documents)
     elif action == "search":
-        # /kb search <query> [table_name]
+        # /vs search <query> [table_name]
         query = args[1] if len(args) > 1 else ""
         table_name = args[2] if len(args) > 2 else ""
         if not query:
-            await update.message.reply_text("Usage: /kb search <query> [table_name]")
+            await update.message.reply_text("Usage: /vs search <query> [table_name]")
         else:
-            await _kb_search(update, thread_id, query, table_name)
+            await _vs_search(update, thread_id, query, table_name)
     elif action == "describe":
-        # /kb describe <table_name>
+        # /vs describe <table_name>
         if len(args) < 2:
-            await update.message.reply_text("Usage: /kb describe <table_name>")
+            await update.message.reply_text("Usage: /vs describe <table_name>")
         else:
-            await _kb_describe(update, thread_id, args[1])
+            await _vs_describe(update, thread_id, args[1])
     elif action == "delete":
-        # /kb delete <table_name>
+        # /vs delete <table_name>
         if len(args) < 2:
-            await update.message.reply_text("Usage: /kb delete <table_name>")
+            await update.message.reply_text("Usage: /vs delete <table_name>")
         else:
-            await _kb_delete(update, thread_id, args[1])
+            await _vs_delete(update, thread_id, args[1])
     else:
-        await _kb_help(update)
+        await _vs_help(update)
 
 
-async def _kb_help(update: Update) -> None:
-    """Show /kb help."""
+async def _vs_help(update: Update) -> None:
+    """Show /vs help."""
     help_text = (
-        "📚 *Knowledge Base Management*\n\n"
+        "🔍 *Vector Store Management*\n\n"
         "Usage:\n"
-        "• `/kb` - List all tables\n"
-        "• `/kb store <table> <json>` - Store documents\n"
-        "• `/kb search <query> [table]` - Search\n"
-        "• `/kb describe <table>` - Describe table\n"
-        "• `/kb delete <table>` - Delete table\n\n"
+        "• `/vs` - List all tables\n"
+        "• `/vs store <table> <json>` - Store documents\n"
+        "• `/vs search <query> [table]` - Search\n"
+        "• `/vs describe <table>` - Describe table\n"
+        "• `/vs delete <table>` - Delete table\n\n"
         "Example:\n"
-        "`/kb store notes [{\"content\": \"Meeting notes\"}]`"
+        "`/vs store notes [{\"content\": \"Meeting notes\"}]`"
     )
     await update.message.reply_text(help_text, parse_mode="Markdown")
 
 
-async def _kb_list(update: Update, thread_id: str) -> None:
-    """List KB tables."""
+async def _vs_list(update: Update, thread_id: str) -> None:
+    """List VS tables."""
     _set_context(thread_id)
     try:
-        from cassey.storage.kb_tools import kb_list
+        from cassey.storage.vs_tools import vs_list
 
-        result = kb_list.invoke({})
+        result = vs_list.invoke({})
         await update.message.reply_text(result)
     except Exception as e:
-        await update.message.reply_text(f"Error listing KB: {e}")
+        await update.message.reply_text(f"Error listing VS: {e}")
     finally:
         _clear_context()
 
 
-async def _kb_store(update: Update, thread_id: str, table_name: str, documents: str) -> None:
-    """Store documents in KB."""
+async def _vs_store(update: Update, thread_id: str, table_name: str, documents: str) -> None:
+    """Store documents in VS."""
     _set_context(thread_id)
     try:
-        from cassey.storage.kb_tools import create_kb_collection
+        from cassey.storage.vs_tools import create_vs_collection
 
-        result = create_kb_collection.invoke({"collection_name": table_name, "documents": documents})
+        result = create_vs_collection.invoke({"collection_name": table_name, "documents": documents})
         await update.message.reply_text(result)
     except Exception as e:
         await update.message.reply_text(f"Error storing documents: {e}")
@@ -413,27 +413,27 @@ async def _kb_store(update: Update, thread_id: str, table_name: str, documents: 
         _clear_context()
 
 
-async def _kb_search(update: Update, thread_id: str, query: str, table_name: str) -> None:
-    """Search KB."""
+async def _vs_search(update: Update, thread_id: str, query: str, table_name: str) -> None:
+    """Search VS."""
     _set_context(thread_id)
     try:
-        from cassey.storage.kb_tools import search_kb
+        from cassey.storage.vs_tools import search_vs
 
-        result = search_kb.invoke({"query": query, "collection_name": table_name, "limit": 5})
+        result = search_vs.invoke({"query": query, "collection_name": table_name, "limit": 5})
         await update.message.reply_text(result)
     except Exception as e:
-        await update.message.reply_text(f"Error searching KB: {e}")
+        await update.message.reply_text(f"Error searching VS: {e}")
     finally:
         _clear_context()
 
 
-async def _kb_describe(update: Update, thread_id: str, table_name: str) -> None:
-    """Describe KB table."""
+async def _vs_describe(update: Update, thread_id: str, table_name: str) -> None:
+    """Describe VS table."""
     _set_context(thread_id)
     try:
-        from cassey.storage.kb_tools import describe_kb_collection
+        from cassey.storage.vs_tools import describe_vs_collection
 
-        result = describe_kb_collection.invoke({"collection_name": table_name})
+        result = describe_vs_collection.invoke({"collection_name": table_name})
         await update.message.reply_text(result)
     except Exception as e:
         await update.message.reply_text(f"Error describing table: {e}")
@@ -441,13 +441,13 @@ async def _kb_describe(update: Update, thread_id: str, table_name: str) -> None:
         _clear_context()
 
 
-async def _kb_delete(update: Update, thread_id: str, table_name: str) -> None:
-    """Delete KB table."""
+async def _vs_delete(update: Update, thread_id: str, table_name: str) -> None:
+    """Delete VS table."""
     _set_context(thread_id)
     try:
-        from cassey.storage.kb_tools import drop_kb_collection
+        from cassey.storage.vs_tools import drop_vs_collection
 
-        result = drop_kb_collection.invoke({"collection_name": table_name})
+        result = drop_vs_collection.invoke({"collection_name": table_name})
         await update.message.reply_text(result)
     except Exception as e:
         await update.message.reply_text(f"Error deleting table: {e}")

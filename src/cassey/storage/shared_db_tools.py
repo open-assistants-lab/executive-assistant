@@ -99,17 +99,17 @@ def export_shared_db_table(
     filename: str,
     format: Literal["csv", "parquet", "json"] = "csv",
 ) -> str:
-    """Export a shared DB table to the current thread's files directory."""
+    """Export a shared DB table to the current context's files directory."""
     try:
         validate_identifier(table_name)
         if not _shared_db.table_exists(table_name):
             return f"Error: Table '{table_name}' does not exist"
 
-        thread_id = get_thread_id()
-        if not thread_id:
-            return "Error: No thread_id in context for export."
+        try:
+            files_dir = settings.get_context_files_path()
+        except ValueError:
+            return "Error: No group_id or thread_id in context for export."
 
-        files_dir = settings.get_thread_files_path(thread_id)
         files_dir.mkdir(parents=True, exist_ok=True)
 
         if not filename.endswith(f".{format}"):
@@ -216,14 +216,15 @@ def import_shared_db_table(
 
     try:
         validate_identifier(table_name)
-        thread_id = get_thread_id()
-        if not thread_id:
-            return "Error: No thread_id in context for import."
 
-        files_dir = settings.get_thread_files_path(thread_id)
+        try:
+            files_dir = settings.get_context_files_path()
+        except ValueError:
+            return "Error: No group_id or thread_id in context for import."
+
         input_path = files_dir / filename
         if not input_path.exists():
-            return f"Error: File '{filename}' not found in thread's files directory"
+            return f"Error: File '{filename}' not found in files directory"
 
         conn = _shared_db.get_connection()
         try:

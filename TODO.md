@@ -2,9 +2,29 @@
 
 ## Completed ✅
 
+### Status Update Middleware & Debug Mode (2026-01-19)
+- [x] Create `StatusUpdateMiddleware` for real-time progress feedback
+- [x] Add `/debug` command to Telegram (verbose mode toggle)
+- [x] LLM timing tracking with token usage logging
+- [x] Millisecond timestamps in all logs (`src/cassey/logging.py`)
+- [x] Thread-local storage for LLM timing across execution contexts
+- [x] Status messages: "Thinking..." → tool progress → "Done in X.Xs | LLM: Y calls (Z.Zs)"
+- See: `discussions/telegram-debug-command-20250119.md` for full design
+
+### File Upload Path Fix (2026-01-19)
+- [x] Fixed file uploads to use group-based routing
+- [x] Files stored in `data/groups/{group_id}/files/` matching agent tools
+- [x] Set up group context before downloading files in Telegram channel
+
 ### Storage Layout Cleanup
 - [x] Route thread file paths through `USERS_ROOT` helpers
-- [x] Stop eager creation of legacy `./data/db` and `./data/kb` on startup
+- [x] Stop eager creation of legacy `./data/db` and `./data/vs` on startup
+- [x] **Workspace→Group Refactoring** (2026-01-18)
+  - Renamed `workspace_storage.py` → `group_storage.py`
+  - Added `GROUPS_ROOT` and `USERS_ROOT` path helpers
+  - Added `get_group_*()` and `get_user_*()` methods
+  - Updated all imports across codebase
+  - 342 tests passing (see `discussions/workspace-to-group-refactoring-plan.md`)
 
 ### Reminder Feature
 - [x] Install APScheduler dependency
@@ -61,12 +81,11 @@ CREATE TABLE reminders (
 ```
 
 ## Fixes / Refactors
-- [ ] Standardize tool names to verb-first across file/db/kb/time tools; update registry/docs/tests and keep temporary aliases
+- [ ] Standardize tool names to verb-first across file/db/vs/time tools; update registry/docs/tests and keep temporary aliases
 - [ ] Decide Firecrawl integration path (direct API vs MCP) and align settings/deps accordingly
 - [ ] Implement recurring reminders by creating the next instance after send
-- [ ] Validate SQL identifiers (table_name) in db/kb tools to prevent injection
+- [ ] Validate SQL identifiers (table_name) in db/vs tools to prevent injection
 - [ ] Fix memory FTS indexing/query to use DuckDB match_bm25 (avoid falling back to LIKE)
-- [ ] Wire Loguru `configure_logging()` on startup with optional `LOG_LEVEL`
 - [ ] Context editing middleware (see `discussions/context-editing-middleware-plan-20260116-1655.md`)
 - [ ] **ShellToolMiddleware** (see `discussions/shell-tool-middleware-plan-20260116.md`)
   - [ ] Add settings to `src/cassey/config/settings.py`
@@ -380,12 +399,12 @@ With APScheduler integrated, we could add:
   - Tool registry rebuild per `(owner_key, max(config_version))`
   - Merge behavior: set `user_id` for thread-owned servers and dedupe by `(server_url, name)`
 - **Resource Catalog + Topic Router** - Make Cassey aware of per-thread resources
-  - Postgres catalog keyed by `(owner_type, owner_id)` with `resource_type` (file|kb|db|reminder)
+  - Postgres catalog keyed by `(owner_type, owner_id)` with `resource_type` (file|vs|db|reminder)
   - Tool hooks update catalog on create/update/delete
   - Tools: `list_resources`, `find_resource`, `describe_resource`
-  - Prompt routing: ask “files vs KB vs DB vs reminders” when ambiguous
+  - Prompt routing: ask "files vs VS vs DB vs reminders" when ambiguous
 - **Tool Groups + Lazy Disclosure** - Opt-in tools with gradual enablement
-  - Define groups: `core`, `kb`, `db`, `search`, `python`, `reminders`, `mcp`
+  - Define groups: `core`, `vs`, `db`, `search`, `python`, `reminders`, `mcp`
   - Per-channel defaults + per-user overrides
   - Lazy load only enabled groups
   - Incremental disclosure: ask to enable group when needed

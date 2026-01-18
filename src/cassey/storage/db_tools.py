@@ -7,17 +7,15 @@ from typing import Any, Literal
 from langchain_core.tools import tool
 
 from cassey.config import settings
-from cassey.storage.db_storage import DBStorage, validate_identifier
+from cassey.storage.db_storage import validate_identifier
 from cassey.storage.file_sandbox import get_thread_id
 from cassey.storage.meta_registry import (
     record_db_path,
     record_db_table_added,
     record_db_table_removed,
 )
-
-
-# Global database storage instance
-_db_storage = DBStorage()
+from cassey.storage.sqlite_db_storage import SQLiteDatabase, get_sqlite_db
+from cassey.storage.group_storage import require_permission
 
 
 # Context variable for thread_id - shared with file_sandbox
@@ -40,16 +38,23 @@ def _get_current_thread_id() -> str:
     return thread_id
 
 
+def _get_db() -> SQLiteDatabase:
+    """Get the current thread's SQLite database."""
+    thread_id = _get_current_thread_id()
+    return get_sqlite_db(thread_id)
+
+
 @tool
+@require_permission("write")
 def create_db_table(
     table_name: str,
     data: str,
     columns: str = "",
 ) -> str:
     """
-    Create a table in the thread's workspace database.
+    Create a table in the thread's DB.
 
-    The workspace database is for temporary working data specific to this conversation.
+    The DB is for temporary working data specific to this conversation.
     For persistent knowledge base storage, use kb_create_table instead.
 
     The data should be provided as a JSON array of objects or JSON array of arrays.
@@ -89,7 +94,8 @@ def create_db_table(
 
     try:
         thread_id = _get_current_thread_id()
-        _db_storage.create_table_from_data(table_name, parsed_data, column_list, thread_id)
+        db = _get_db()
+        db.create_table_from_data(table_name, parsed_data, column_list)
         record_db_path(thread_id, settings.get_thread_db_path(thread_id))
         record_db_table_added(thread_id, table_name)
         return f"Table '{table_name}' created with {len(parsed_data)} rows"
@@ -98,12 +104,13 @@ def create_db_table(
 
 
 @tool
+@require_permission("write")
 def insert_db_table(
     table_name: str,
     data: str,
 ) -> str:
     """
-    Insert data into an existing table in the workspace database.
+    Insert data into an existing table in the DB.
 
     The data should be provided as a JSON array of objects with keys matching table columns.
 
@@ -129,88 +136,135 @@ def insert_db_table(
         return "Error: data must be a JSON array"
 
     try:
-        thread_id = _get_current_thread_id()
-        if not _db_storage.table_exists(table_name, thread_id):
+        db = _get_db()
+
+        if not db.table_exists(table_name):
             return f"Error: Table '{table_name}' does not exist"
 
-        _db_storage.append_to_table(table_name, parsed_data, thread_id)
+        db.append_to_table(table_name, parsed_data)
         return f"Inserted {len(parsed_data)} row(s) into '{table_name}'"
     except Exception as e:
         return f"Error inserting data: {str(e)}"
 
 
 @tool
+@require_permission("read")
 def query_db(
     sql: str,
 ) -> str:
     """
-    Execute a SQL query on the thread's workspace database.
+    Execute a SQL query on the thread's DB (SQLite).
+
+    IMPORTANT: This database uses SQLite (not DuckDB). Use SQLite-compatible syntax.
+
+    Supported:
+    - Standard SQL: SELECT, INSERT, UPDATE, DELETE, CREATE TABLE, DROP TABLE
+    - JSON for arrays: json_array(), json_extract(), json_each()
+    - Dates: date('now'), datetime('now'), strftime('%Y-%m-%d', col)
+    - Auto-increment: INTEGER PRIMARY KEY (automatic)
+
+    Not Supported (DuckDB-specific):
+    - Array literals [1,2,3] -> Use json_array(1,2,3)
+    - read_csv_auto() -> Use import_db_table tool instead
+    - DuckDB-specific functions -> Use SQLite equivalents
+
+    Examples:
+    - CREATE TABLE timesheets (id INTEGER PRIMARY KEY, date TEXT, hours REAL, project)
+    - INSERT INTO timesheets (date, hours, project) VALUES ('2025-01-17', 4.5, 'Cassey')
+    - SELECT * FROM timesheets WHERE date >= date('now', '-7 days')
+    - SELECT * FROM timesheets WHERE EXISTS (SELECT 1 FROM json_each(tags) WHERE value = 'billing')
+
+    For help with SQLite syntax, use the sqlite_guide tool.
 
     Args:
-        sql: SQL query to execute (can be SELECT, SHOW TABLES, etc.).
+        sql: SQL query to execute (can be SELECT, PRAGMA, etc.).
 
     Returns:
         Query results formatted as text table.
-
-    Examples:
-        >>> query_db("SELECT * FROM users LIMIT 10")
-        "name  | age\\nAlice | 30\\nBob   | 25"
-
-        >>> query_db("SHOW TABLES")
-        "users\\nproducts"
     """
     try:
-        thread_id = _get_current_thread_id()
-        results = _db_storage.execute(sql, thread_id)
+        db = _get_db()
+        cursor = db.execute(sql)
 
-        if not results:
-            return "Query returned no results"
+        # Handle different query types
+        sql_upper = sql.strip().upper()
 
-        # Format results as text table
-        if len(results) == 0:
-            return "Query returned 0 rows"
+        if sql_upper.startswith(("SELECT", "PRAGMA", "EXPLAIN")):
+            # Return results
+            rows = cursor.fetchall()
+            if not rows:
+                return "Query returned 0 rows"
 
-        # Get column names from description if available
-        # For now, just format as tab-separated
-        lines = []
-        for row in results:
-            lines.append("\t".join(str(v) if v is not None else "NULL" for v in row))
+            # Get column names
+            columns = [desc[0] for desc in cursor.description] if cursor.description else []
 
-        return "\n".join(lines)
+            # Format as text table
+            return _format_query_results(columns, rows)
+        else:
+            # Write operation
+            db.conn.commit()
+            rows_affected = cursor.rowcount
+            return f"Query executed successfully. Rows affected: {rows_affected}"
 
     except Exception as e:
-        return f"Error executing query: {str(e)}"
+        return f"Error executing SQL: {str(e)}"
+
+
+def _format_query_results(columns: list[str], rows: list[tuple]) -> str:
+    """Format query results as readable string."""
+    if not rows:
+        return "Query returned 0 rows"
+
+    # Calculate column widths
+    col_widths = {col: len(col) for col in columns}
+    for row in rows:
+        for i, val in enumerate(row):
+            val_str = str(val) if val is not None else "NULL"
+            col_widths[columns[i]] = max(col_widths[columns[i]], len(val_str))
+
+    # Build output
+    output = []
+    output.append(" | ".join(col.ljust(col_widths[col]) for col in columns))
+    output.append("-+-".join("-" * col_widths[col] for col in columns))
+
+    for row in rows:
+        vals = [str(row[i]) if row[i] is not None else "NULL" for i in range(len(columns))]
+        output.append(" | ".join(val.ljust(col_widths[columns[i]]) for i, val in enumerate(vals)))
+
+    return "\n".join(output)
 
 
 @tool
+@require_permission("read")
 def list_db_tables() -> str:
     """
-    List all tables in the thread's workspace database.
+    List all tables in the thread's DB.
 
     Returns:
         List of table names.
 
     Examples:
         >>> list_db_tables()
-        "Tables in workspace:\\n- users\\n- products"
+        "Tables in DB:\\n- users\\n- products"
     """
     try:
-        thread_id = _get_current_thread_id()
-        tables = _db_storage.list_tables(thread_id)
+        db = _get_db()
+        tables = db.list_tables()
 
         if not tables:
-            return "No tables found in workspace database"
+            return "No tables found in DB"
 
-        return "Tables in workspace:\n" + "\n".join(f"- {table}" for table in tables)
+        return "Tables in DB:\n" + "\n".join(f"- {table}" for table in tables)
 
     except Exception as e:
         return f"Error listing tables: {str(e)}"
 
 
 @tool
+@require_permission("read")
 def describe_db_table(table_name: str) -> str:
     """
-    Get schema information for a workspace table.
+    Get schema information for a table.
 
     Args:
         table_name: Name of the table to describe.
@@ -220,16 +274,16 @@ def describe_db_table(table_name: str) -> str:
 
     Examples:
         >>> describe_db_table("users")
-        "Table 'users' schema:\\n- name: VARCHAR\\n- age: INTEGER"
+        "Table 'users' schema:\\n- name: TEXT\\n- age: INTEGER"
     """
     try:
-        thread_id = _get_current_thread_id()
         validate_identifier(table_name)
+        db = _get_db()
 
-        if not _db_storage.table_exists(table_name, thread_id):
+        if not db.table_exists(table_name):
             return f"Error: Table '{table_name}' does not exist"
 
-        columns = _db_storage.get_table_info(table_name, thread_id)
+        columns = db.get_table_info(table_name)
 
         lines = [f"Table '{table_name}' schema:"]
         for col in columns:
@@ -244,9 +298,10 @@ def describe_db_table(table_name: str) -> str:
 
 
 @tool
+@require_permission("write")
 def delete_db_table(table_name: str) -> str:
     """
-    Drop a table from the workspace database.
+    Drop a table from the DB.
 
     Args:
         table_name: Name of the table to drop.
@@ -259,13 +314,14 @@ def delete_db_table(table_name: str) -> str:
         "Table 'old_table' dropped"
     """
     try:
-        thread_id = _get_current_thread_id()
         validate_identifier(table_name)
+        thread_id = _get_current_thread_id()
+        db = _get_db()
 
-        if not _db_storage.table_exists(table_name, thread_id):
+        if not db.table_exists(table_name):
             return f"Error: Table '{table_name}' does not exist"
 
-        _db_storage.drop_table(table_name, thread_id)
+        db.drop_table(table_name)
         record_db_table_removed(thread_id, table_name)
         return f"Table '{table_name}' dropped"
 
@@ -274,18 +330,19 @@ def delete_db_table(table_name: str) -> str:
 
 
 @tool
+@require_permission("write")
 def export_db_table(
     table_name: str,
     filename: str,
-    format: Literal["csv", "parquet", "json"] = "csv",
+    format: Literal["csv"] = "csv",
 ) -> str:
     """
-    Export a workspace table to a file in the thread's file directory.
+    Export a group table to a file in the context's file directory.
 
     Args:
         table_name: Name of the table to export.
         filename: Name for the exported file (extension added automatically).
-        format: Export format - "csv", "parquet", or "json".
+        format: Export format - only "csv" is supported.
 
     Returns:
         Success message with file path.
@@ -295,14 +352,14 @@ def export_db_table(
         "Exported 'users' to files/.../my_data.csv (2 rows)"
     """
     try:
-        thread_id = _get_current_thread_id()
         validate_identifier(table_name)
+        db = _get_db()
 
-        if not _db_storage.table_exists(table_name, thread_id):
+        if not db.table_exists(table_name):
             return f"Error: Table '{table_name}' does not exist"
 
-        # Get file path for current thread
-        files_dir = settings.get_thread_files_path(thread_id)
+        # Get file path for current context
+        files_dir = settings.get_context_files_path()
         files_dir.mkdir(parents=True, exist_ok=True)
 
         # Add extension if not present
@@ -312,11 +369,12 @@ def export_db_table(
         output_path = files_dir / filename
 
         # Get row count
-        count_result = _db_storage.execute(f"SELECT COUNT(*) FROM {table_name}", thread_id)
-        row_count = count_result[0][0] if count_result else 0
+        count_result = db.execute(f"SELECT COUNT(*) FROM {table_name}")
+        row = count_result.fetchone()
+        row_count = row[0] if row else 0
 
         # Export
-        _db_storage.export_table(table_name, output_path, format, thread_id)
+        db.export_table(table_name, output_path, format)
 
         return f"Exported '{table_name}' to {filename} ({row_count} rows)"
 
@@ -325,14 +383,15 @@ def export_db_table(
 
 
 @tool
+@require_permission("write")
 def import_db_table(
     table_name: str,
     filename: str,
 ) -> str:
     """
-    Import a CSV file into a new workspace database table.
+    Import a CSV file into a new DB table.
 
-    The file must exist in the thread's file directory.
+    The file must exist in the context's file directory.
 
     Args:
         table_name: Name for the new table.
@@ -346,34 +405,22 @@ def import_db_table(
         "Imported 'sales_data.csv' into table 'sales' (150 rows)"
     """
     try:
-        thread_id = _get_current_thread_id()
         validate_identifier(table_name)
 
-        # Get file path for current thread
-        files_dir = settings.get_thread_files_path(thread_id)
+        # Get file path for current context
+        files_dir = settings.get_context_files_path()
         input_path = files_dir / filename
 
         if not input_path.exists():
-            return f"Error: File '{filename}' not found in thread's files directory"
+            return f"Error: File '{filename}' not found in files directory"
 
-        # Use database to import
-        conn = _db_storage.get_connection(thread_id)
-        try:
-            # Drop table if exists
-            conn.execute(f"DROP TABLE IF EXISTS {table_name}")
+        # Import using SQLite's CSV import
+        db = _get_db()
+        row_count = db.import_csv(table_name, input_path)
 
-            # Create table from CSV
-            conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM read_csv_auto('{input_path}')")
-
-            # Get row count
-            count_result = conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()
-            row_count = count_result[0] if count_result else 0
-
-            record_db_path(thread_id, settings.get_thread_db_path(thread_id))
-            record_db_table_added(thread_id, table_name)
-            return f"Imported '{filename}' into table '{table_name}' ({row_count} rows)"
-        finally:
-            conn.close()
+        record_db_path(thread_id, settings.get_thread_db_path(thread_id))
+        record_db_table_added(thread_id, table_name)
+        return f"Imported '{filename}' into table '{table_name}' ({row_count} rows)"
 
     except Exception as e:
         return f"Error importing file: {str(e)}"
@@ -381,7 +428,7 @@ def import_db_table(
 
 # Export list of tools for use in agent
 async def get_db_tools() -> list:
-    """Get all workspace database tools for use in the agent."""
+    """Get all DB tools for use in the agent."""
     return [
         create_db_table,
         insert_db_table,
