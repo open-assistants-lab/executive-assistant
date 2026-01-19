@@ -1,4 +1,4 @@
-"""Database tools for tabular data operations (workspace/thread-scoped)."""
+"""Database tools for tabular data operations (context-scoped)."""
 
 from contextvars import ContextVar
 from pathlib import Path
@@ -38,10 +38,64 @@ def _get_current_thread_id() -> str:
     return thread_id
 
 
+def _get_current_context_id() -> str:
+    """Get the current context ID (group_id or thread_id fallback).
+
+    This ensures DB tools respect the group_id context just like file uploads do.
+
+    Raises:
+        ValueError: If no context is available.
+    """
+    from cassey.storage.group_storage import get_workspace_id
+    from cassey.storage.db_storage import get_db_storage
+
+    # Try group_id first (team groups and "personal groups")
+    workspace_id = get_workspace_id()
+    if workspace_id:
+        return workspace_id
+
+    # Fallback to thread_id (legacy)
+    thread_id = get_thread_id()
+    if thread_id:
+        return thread_id
+
+    raise ValueError(
+        "No context (group_id or thread_id) available. "
+        "Database tools must be called from within a channel message handler."
+    )
+
+
 def _get_db() -> SQLiteDatabase:
-    """Get the current thread's SQLite database."""
-    thread_id = _get_current_thread_id()
-    return get_sqlite_db(thread_id)
+    """Get the current context's SQLite database.
+
+    Respects group_id context (when set) just like file uploads do.
+    This fixes the split storage bug where files and DB were in different directories.
+    """
+    # Let get_sqlite_db use group_id from context automatically
+    return get_sqlite_db()
+
+
+def _get_db_with_scope(scope: Literal["context", "shared"] = "context") -> SQLiteDatabase:
+    """Get database based on scope.
+
+    Args:
+        scope: "context" (default) uses group_id/thread_id context,
+               "shared" uses organization-wide shared database.
+
+    Returns:
+        SQLiteDatabase instance for the requested scope.
+
+    Raises:
+        ValueError: If scope is invalid or admin check fails for shared writes.
+    """
+    if scope == "shared":
+        from cassey.storage.shared_db_storage import get_shared_db_storage
+        return get_shared_db_storage()
+    elif scope == "context":
+        return get_sqlite_db()  # Uses group_id/thread_id from context
+    else:
+        raise ValueError(f"Invalid scope: {scope}. Must be 'context' or 'shared'.")
+
 
 
 @tool
@@ -50,6 +104,7 @@ def create_db_table(
     table_name: str,
     data: str = "",
     columns: str = "",
+    scope: Literal["context", "shared"] = "context",
 ) -> str:
     """Create a new table for structured data storage. [DB]
 
@@ -63,6 +118,8 @@ def create_db_table(
                Leave empty to create empty table structure.
         columns: Comma-separated column names (e.g., "name,email,phone").
                Required when creating empty table; optional with data.
+        scope: "context" (default) for group/thread-scoped storage,
+               "shared" for organization-wide shared storage (admin-only writes).
 
     Returns:
         Success message with row count or table schema.
@@ -84,11 +141,13 @@ def create_db_table(
                 column_defs.append(f"{col} TEXT")
 
         try:
-            thread_id = _get_current_thread_id()
-            db = _get_db()
+            db = _get_db_with_scope(scope)
             db.create_table(table_name, column_defs)
-            record_db_path(thread_id, settings.get_thread_db_path(thread_id))
-            record_db_table_added(thread_id, table_name)
+            # Only record metadata for context-scoped DBs
+            if scope == "context":
+                context_id = _get_current_context_id()
+                record_db_path(context_id, db.path)
+                record_db_table_added(context_id, table_name)
             col_str = ", ".join(column_defs)
             return f"Table '{table_name}' created with columns: {col_str}"
         except Exception as e:
@@ -110,11 +169,13 @@ def create_db_table(
         return "Error: columns parameter required for array data"
 
     try:
-        thread_id = _get_current_thread_id()
-        db = _get_db()
+        db = _get_db_with_scope(scope)
         db.create_table_from_data(table_name, parsed_data, column_list)
-        record_db_path(thread_id, settings.get_thread_db_path(thread_id))
-        record_db_table_added(thread_id, table_name)
+        # Only record metadata for context-scoped DBs
+        if scope == "context":
+            context_id = _get_current_context_id()
+            record_db_path(context_id, db.path)
+            record_db_table_added(context_id, table_name)
         return f"Table '{table_name}' created with {len(parsed_data)} rows"
     except Exception as e:
         return f"Error creating table: {str(e)}"
@@ -125,6 +186,7 @@ def create_db_table(
 def insert_db_table(
     table_name: str,
     data: str,
+    scope: Literal["context", "shared"] = "context",
 ) -> str:
     """Add rows to an existing table. [DB]
 
@@ -133,6 +195,8 @@ def insert_db_table(
     Args:
         table_name: Name of the table to insert into.
         data: JSON array of objects with keys matching table columns.
+        scope: "context" (default) for group/thread-scoped storage,
+               "shared" for organization-wide shared storage (admin-only writes).
 
     Returns:
         Success message with row count.
@@ -148,7 +212,7 @@ def insert_db_table(
         return "Error: data must be a JSON array"
 
     try:
-        db = _get_db()
+        db = _get_db_with_scope(scope)
 
         if not db.table_exists(table_name):
             return f"Error: Table '{table_name}' does not exist"
@@ -163,6 +227,7 @@ def insert_db_table(
 @require_permission("read")
 def query_db(
     sql: str,
+    scope: Literal["context", "shared"] = "context",
 ) -> str:
     """Execute SQL queries to retrieve, analyze, or modify data. [DB]
 
@@ -171,16 +236,17 @@ def query_db(
     Database: SQLite (not DuckDB). Use SQLite-compatible syntax.
     - JSON: json_array(), json_extract(), json_each()
     - Dates: date('now'), strftime('%Y-%m-%d', col)
-    - See sqlite_guide tool for syntax help.
 
     Args:
         sql: SQL query (SELECT, INSERT, UPDATE, DELETE, etc.).
+        scope: "context" (default) for group/thread-scoped storage,
+               "shared" for organization-wide shared storage.
 
     Returns:
         Query results formatted as text table, or rows affected for writes.
     """
     try:
-        db = _get_db()
+        db = _get_db_with_scope(scope)
         cursor = db.execute(sql)
 
         # Handle different query types
@@ -233,16 +299,20 @@ def _format_query_results(columns: list[str], rows: list[tuple]) -> str:
 
 @tool
 @require_permission("read")
-def list_db_tables() -> str:
+def list_db_tables(scope: Literal["context", "shared"] = "context") -> str:
     """List all tables in the database. [DB]
 
     USE THIS WHEN: You need to see what tables exist or verify table names.
+
+    Args:
+        scope: "context" (default) for group/thread-scoped storage,
+               "shared" for organization-wide shared storage.
 
     Returns:
         List of table names.
     """
     try:
-        db = _get_db()
+        db = _get_db_with_scope(scope)
         tables = db.list_tables()
 
         if not tables:
@@ -256,20 +326,22 @@ def list_db_tables() -> str:
 
 @tool
 @require_permission("read")
-def describe_db_table(table_name: str) -> str:
+def describe_db_table(table_name: str, scope: Literal["context", "shared"] = "context") -> str:
     """Get table schema (column names and types). [DB]
 
     USE THIS WHEN: You need to see what columns exist in a table before querying or inserting data.
 
     Args:
         table_name: Name of the table to describe.
+        scope: "context" (default) for group/thread-scoped storage,
+               "shared" for organization-wide shared storage.
 
     Returns:
         Table schema with column names and types.
     """
     try:
         validate_identifier(table_name)
-        db = _get_db()
+        db = _get_db_with_scope(scope)
 
         if not db.table_exists(table_name):
             return f"Error: Table '{table_name}' does not exist"
@@ -290,7 +362,7 @@ def describe_db_table(table_name: str) -> str:
 
 @tool
 @require_permission("write")
-def delete_db_table(table_name: str) -> str:
+def delete_db_table(table_name: str, scope: Literal["context", "shared"] = "context") -> str:
     """Delete a table and all its data. [DB]
 
     USE THIS WHEN: You need to remove an entire table permanently.
@@ -299,20 +371,24 @@ def delete_db_table(table_name: str) -> str:
 
     Args:
         table_name: Name of the table to delete.
+        scope: "context" (default) for group/thread-scoped storage,
+               "shared" for organization-wide shared storage (admin-only writes).
 
     Returns:
         Success message or error.
     """
     try:
         validate_identifier(table_name)
-        thread_id = _get_current_thread_id()
-        db = _get_db()
+        db = _get_db_with_scope(scope)
 
         if not db.table_exists(table_name):
             return f"Error: Table '{table_name}' does not exist"
 
         db.drop_table(table_name)
-        record_db_table_removed(thread_id, table_name)
+        # Only record metadata for context-scoped DBs
+        if scope == "context":
+            thread_id = _get_current_thread_id()
+            record_db_table_removed(thread_id, table_name)
         return f"Table '{table_name}' dropped"
 
     except Exception as e:
@@ -325,6 +401,7 @@ def export_db_table(
     table_name: str,
     filename: str,
     format: Literal["csv"] = "csv",
+    scope: Literal["context", "shared"] = "context",
 ) -> str:
     """Export table data to a CSV file. [DB → Files]
 
@@ -334,13 +411,15 @@ def export_db_table(
         table_name: Name of the table to export.
         filename: Name for the exported file (extension added automatically).
         format: Export format (only "csv" supported).
+        scope: "context" (default) for group/thread-scoped storage,
+               "shared" for organization-wide shared storage.
 
     Returns:
         Success message with file path and row count.
     """
     try:
         validate_identifier(table_name)
-        db = _get_db()
+        db = _get_db_with_scope(scope)
 
         if not db.table_exists(table_name):
             return f"Error: Table '{table_name}' does not exist"
@@ -374,6 +453,7 @@ def export_db_table(
 def import_db_table(
     table_name: str,
     filename: str,
+    scope: Literal["context", "shared"] = "context",
 ) -> str:
     """Import CSV file data into a new table. [Files → DB]
 
@@ -382,6 +462,8 @@ def import_db_table(
     Args:
         table_name: Name for the new table.
         filename: Name of the CSV file (must exist in files directory).
+        scope: "context" (default) for group/thread-scoped storage,
+               "shared" for organization-wide shared storage (admin-only writes).
 
     Returns:
         Success message with row count.
@@ -397,11 +479,14 @@ def import_db_table(
             return f"Error: File '{filename}' not found in files directory"
 
         # Import using SQLite's CSV import
-        db = _get_db()
+        db = _get_db_with_scope(scope)
         row_count = db.import_csv(table_name, input_path)
 
-        record_db_path(thread_id, settings.get_thread_db_path(thread_id))
-        record_db_table_added(thread_id, table_name)
+        # Only record metadata for context-scoped DBs
+        if scope == "context":
+            context_id = _get_current_context_id()
+            record_db_path(context_id, db.path)
+            record_db_table_added(context_id, table_name)
         return f"Imported '{filename}' into table '{table_name}' ({row_count} rows)"
 
     except Exception as e:

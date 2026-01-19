@@ -65,12 +65,6 @@ async def get_db_tools() -> list[BaseTool]:
     ]
 
 
-async def get_shared_db_tools() -> list[BaseTool]:
-    """Get shared database tools (read for all, write for admin)."""
-    from cassey.storage.shared_db_tools import get_shared_db_tools as _get
-    return await _get()
-
-
 async def get_time_tools() -> list[BaseTool]:
     """Get time and date tools."""
     from cassey.tools.time_tool import get_current_time, get_current_date, list_timezones
@@ -86,12 +80,6 @@ async def get_reminder_tools() -> list[BaseTool]:
 async def get_meta_tools() -> list[BaseTool]:
     """Get system metadata tools."""
     from cassey.tools.meta_tools import get_meta_tools as _get
-    return _get()
-
-
-async def get_task_state_tools() -> list[BaseTool]:
-    """Get task state tools."""
-    from cassey.tools.task_state_tools import get_task_state_tools as _get
     return _get()
 
 
@@ -111,16 +99,6 @@ async def get_ocr_tools() -> list[BaseTool]:
     from cassey.tools.ocr_tool import get_ocr_tools as _get
     return _get()
 
-
-async def get_orchestrator_tools() -> list[BaseTool]:
-    """Get orchestrator tools for delegation (archived)."""
-    return []
-
-
-async def get_sqlite_helper_tools() -> list[BaseTool]:
-    """Get SQLite helper tools for syntax guidance (deprecated, use skills)."""
-    from cassey.skills.sqlite_helper import sqlite_guide
-    return [sqlite_guide]
 
 
 async def get_skills_tools() -> list[BaseTool]:
@@ -198,35 +176,6 @@ def get_standard_tools() -> list[BaseTool]:
     except Exception:
         pass
 
-    # Add calculator tool
-    from langchain_core.tools import tool
-
-    @tool
-    def calculator(expression: str) -> str:
-        """
-        Evaluate a mathematical expression.
-
-        Args:
-            expression: Mathematical expression to evaluate.
-
-        Returns:
-            Result of the calculation.
-
-        Examples:
-            >>> calculator("2 + 2")
-            "4"
-            >>> calculator("10 * 5")
-            "50"
-        """
-        try:
-            # Safe evaluation of math expressions
-            result = eval(expression, {"__builtins__": {}}, {})
-            return str(result)
-        except Exception as e:
-            return f"Error: {e}"
-
-    tools.append(calculator)
-
     return tools
 
 
@@ -236,8 +185,7 @@ async def get_all_tools() -> list[BaseTool]:
 
     Aggregates tools from:
     - File operations (read_file, write_file, list_files, create_folder, delete_folder, rename_folder, move_file, glob_files, grep_files)
-    - Database operations (create_db_table, query_db, etc.)
-    - Shared database operations (query_shared_db, list_shared_db_tables, etc.)
+    - Database operations (create_db_table, query_db, etc. with scope="context"|"shared")
     - Vector Store (create_vs_collection, search_vs, vs_list, etc.)
     - Memory (create_memory, update_memory, delete_memory, list_memories, search_memories, etc.)
     - Time tools (get_current_time, get_current_date, list_timezones)
@@ -247,7 +195,7 @@ async def get_all_tools() -> list[BaseTool]:
     - OCR (extract text/structured data from images/PDFs)
     - Web scraping (firecrawl_scrape, firecrawl_crawl via Firecrawl API)
     - Confirmation (confirmation_request for large operations)
-    - Standard tools (calculator, search)
+    - Standard tools (search)
 
     Note: MCP tools are available via get_mcp_tools() but not loaded by default.
     They can be loaded manually if needed for specific use cases.
@@ -263,14 +211,8 @@ async def get_all_tools() -> list[BaseTool]:
     # Add database tools
     all_tools.extend(await get_db_tools())
 
-    # Add SQLite helper tools
-    all_tools.extend(await get_sqlite_helper_tools())
-
     # Add skills tools (load_skill)
     all_tools.extend(await get_skills_tools())
-
-    # Add shared database tools
-    all_tools.extend(await get_shared_db_tools())
 
     # Add VS tools
     all_tools.extend(await get_vs_tools())
@@ -286,9 +228,6 @@ async def get_all_tools() -> list[BaseTool]:
 
     # Add meta tools
     all_tools.extend(await get_meta_tools())
-
-    # Add task state tools
-    all_tools.extend(await get_task_state_tools())
 
     # Add python tools
     all_tools.extend(await get_python_tools())

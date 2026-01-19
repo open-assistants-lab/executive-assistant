@@ -6,17 +6,6 @@ from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 
 
-class TaskState(TypedDict, total=False):
-    """Lightweight task state stored per thread."""
-
-    intent: str
-    target: str
-    next_action: str
-    status: str
-    notes: str
-    updated_at: str
-
-
 class AgentState(TypedDict):
     """
     State that flows through all nodes in the ReAct agent graph.
@@ -27,7 +16,6 @@ class AgentState(TypedDict):
         iterations: Number of reasoning cycles completed (prevents infinite loops).
         user_id: Identifier for the user (for multi-tenancy).
         channel: Source channel (telegram, slack, whatsapp, etc.).
-        task_state: Lightweight task context for the current thread.
     """
 
     messages: Annotated[Sequence[BaseMessage], add_messages]
@@ -35,4 +23,3 @@ class AgentState(TypedDict):
     iterations: int
     user_id: str
     channel: str
-    task_state: TaskState | None

@@ -16,14 +16,16 @@ from cassey.config.settings import settings
 from cassey.storage.file_sandbox import set_thread_id, clear_thread_id
 from cassey.storage.reminder import ReminderStorage, get_reminder_storage
 from cassey.storage.scheduled_jobs import get_scheduled_job_storage
-from cassey.tools.orchestrator_tools import (
-    ARCHIVED_MESSAGE,
-    ORCHESTRATOR_ARCHIVED,
-    execute_worker,
-)
 from cassey.utils.cron import parse_cron_next
 
 logger = logging.getLogger(__name__)
+
+# Archived orchestrator constants
+ORCHESTRATOR_ARCHIVED = True
+ARCHIVED_MESSAGE = (
+    "Orchestrator/worker agents are archived and disabled. "
+    "Use the LangChain runtime and direct tools instead."
+)
 
 # Global scheduler instance
 _scheduler: AsyncIOScheduler | None = None
@@ -139,7 +141,7 @@ async def _process_pending_jobs():
     """Check for and process pending scheduled jobs.
 
     This is called periodically by the scheduler.
-    Jobs are executed synchronously within the timeout period.
+    Scheduled jobs are archived and marked as failed.
     """
     storage = await get_scheduled_job_storage()
 
@@ -156,116 +158,14 @@ async def _process_pending_jobs():
 
         logger.info(f"Processing {len(pending)} pending scheduled job(s)")
 
-        if ORCHESTRATOR_ARCHIVED:
-            for job in pending:
-                await storage.mark_failed(job.id, ARCHIVED_MESSAGE)
-            logger.info("Archived scheduled jobs are disabled; marked due jobs as failed.")
-            return
-
+        # Mark all due jobs as failed with archived message
         for job in pending:
-            # Mark as running
-            await storage.mark_started(job.id, now)
+            await storage.mark_failed(job.id, ARCHIVED_MESSAGE)
 
-            logger.info(f"Executing job {job.id}: {job.task[:50]}...")
-
-            # Get worker if specified
-            from cassey.storage.workers import get_worker_storage
-
-            worker = None
-            if job.worker_id:
-                worker_storage = await get_worker_storage()
-                worker = await worker_storage.get_by_id(job.worker_id)
-
-            # Set thread_id context for worker execution
-            set_thread_id(job.thread_id)
-
-            try:
-                # Execute the job
-                if worker:
-                    # Execute with worker
-                    result, error = await execute_worker(
-                        worker=worker,
-                        task=job.task,
-                        flow=job.flow,
-                        thread_id=job.thread_id,
-                        timeout=30,
-                    )
-                else:
-                    # No worker - simple execution (use python tool)
-                    result, error = await _execute_simple_job(job)
-
-                # Record result
-                if error:
-                    await storage.mark_failed(job.id, error)
-                    logger.error(f"Job {job.id} failed: {error}")
-                else:
-                    await storage.mark_completed(job.id, result)
-                    logger.info(f"Job {job.id} completed successfully")
-
-                    # Handle recurrence - create next instance
-                    if job.is_recurring:
-                        try:
-                            next_due = parse_cron_next(job.cron, now)
-                            next_job = await storage.create_next_instance(job, next_due)
-                            logger.info(f"Created next instance {next_job.id} at {next_due}")
-                        except Exception as e:
-                            logger.error(f"Failed to create next instance: {e}")
-            finally:
-                # Clean up thread_id to avoid leaking thread-local fallback
-                clear_thread_id()
+        logger.info("Scheduled jobs are archived; marked due jobs as failed.")
 
     except Exception as e:
         logger.error(f"Error processing pending jobs: {e}")
-
-
-async def _execute_simple_job(job) -> tuple[str | None, str | None]:
-    """Execute a simple job without a dedicated worker.
-
-    Uses the Python tool for basic execution.
-
-    Args:
-        job: ScheduledJob instance
-
-    Returns:
-        Tuple of (result, error)
-    """
-    from cassey.tools.python_tool import execute_python
-
-    # Try to execute the flow as Python code
-    # This is a simplified execution - workers are better for complex tasks
-
-    # For simple notification jobs, create a message file
-    job_name = job.name or f"job_{job.id}"
-
-    # Build simple execution based on flow
-    code_lines = []
-    flow_lower = job.flow.lower()
-
-    # Parse the flow for basic patterns
-    if "notify" in flow_lower or "alert" in flow_lower or "send" in flow_lower:
-        # Create a message file for notification
-        message_content = f"Task: {job.task}\n"
-        code_lines.append(f"with open('{job_name}_message.txt', 'w') as f:")
-        code_lines.append(f"    f.write('''{message_content}''')")
-        code_lines.append("result = 'Notification created'")
-
-    # Add any user-specified Python code from the flow
-    if "```python" in job.flow or "```" in job.flow:
-        # Extract code block
-        import re
-        code_match = re.search(r"```(?:python)?\n(.*?)```", job.flow, re.DOTALL)
-        if code_match:
-            code_lines.append(code_match.group(1))
-
-    if code_lines:
-        code = "\n".join(code_lines)
-        try:
-            result = execute_python(code)
-            return result, None
-        except Exception as e:
-            return None, str(e)
-
-    return f"Job executed: {job.task}", None
 
 
 async def start_scheduler():

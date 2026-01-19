@@ -152,11 +152,11 @@ logging:
 # ============================================================================
 
 ocr:
-  engine: paddleocr # paddleocr or tesseract
-  lang: en
+  engine: surya # paddleocr or tesseract
+  lang: eng
   use_gpu: false
   max_file_mb: 10
-  max_pages: 3
+  max_pages: 100
   pdf_dpi: 200
   pdf_min_text_chars: 5
   timeout_seconds: 30

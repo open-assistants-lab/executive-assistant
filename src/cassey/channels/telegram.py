@@ -799,7 +799,7 @@ class TelegramChannel(BaseChannel):
             # Create MessageFormat with Telegram timestamp
             message = MessageFormat(
                 content=update.message.text,
-                user_id=str(update.effective_user.id),
+                user_id=self.format_user_id(str(update.effective_user.id)),
                 conversation_id=str(update.effective_chat.id),
                 message_id=str(update.message.message_id),
                 metadata={
@@ -844,20 +844,21 @@ class TelegramChannel(BaseChannel):
             # Get thread_id for file sandbox
             thread_id = self.get_thread_id(MessageFormat(
                 content="",  # Dummy content for thread_id generation
-                user_id=str(update.effective_user.id),
+                user_id=self.format_user_id(str(update.effective_user.id)),
                 conversation_id=str(update.effective_chat.id),
                 message_id=str(update.message.message_id),
             ))
             set_thread_id(thread_id)
 
-            # Set up group context (same as stream_agent_response)
-            # This ensures files are stored in the group directory that the agent uses
-            group_id = await ensure_thread_group(thread_id, str(update.effective_user.id))
-            set_workspace_context(group_id)
+            # Set up user_id context (individual mode, not personal groups)
+            # This ensures files are stored in the user directory
+            from cassey.storage.group_storage import set_user_id
+            user_id = self.format_user_id(str(update.effective_user.id))
+            set_user_id(user_id)
 
-            # Use group-based path (matches agent's file tools)
-            group_dir = settings.get_group_files_path(group_id)
-            group_dir.mkdir(parents=True, exist_ok=True)
+            # Use user-based path (matches agent's file tools)
+            user_dir = settings.get_user_files_path(user_id)
+            user_dir.mkdir(parents=True, exist_ok=True)
 
             attachment = None
             file_info = None
@@ -887,8 +888,8 @@ class TelegramChannel(BaseChannel):
                     )
                     return
 
-                # Download file to group directory (matches agent's file tools)
-                local_path = group_dir / file_name
+                # Download file to user directory (individual mode, not personal groups)
+                local_path = user_dir / file_name
                 # Use download_to_drive() - download() is deprecated
                 downloaded_path = await file_info.download_to_drive(local_path)
 
@@ -915,7 +916,7 @@ class TelegramChannel(BaseChannel):
 
                 # Generate file name (sanitized - no path traversal possible)
                 file_name = f"photo_{photo.file_id}.jpg"
-                local_path = group_dir / file_name
+                local_path = user_dir / file_name
 
                 # Download photo using download_to_drive()
                 downloaded_path = await file_info.download_to_drive(local_path)
@@ -939,7 +940,7 @@ class TelegramChannel(BaseChannel):
                 # Create MessageFormat with attachment
                 message = MessageFormat(
                     content=content,
-                    user_id=str(update.effective_user.id),
+                    user_id=self.format_user_id(str(update.effective_user.id)),
                     conversation_id=str(update.effective_chat.id),
                     message_id=str(update.message.message_id),
                     attachments=[attachment],

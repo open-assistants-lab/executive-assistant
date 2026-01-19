@@ -53,6 +53,7 @@ dependencies = [
     "psutil>=6.0.0",
     "paddleocr>=3.3.2",
     "paddlepaddle>=3.3.0",
+    "surya-ocr>=0.6.0",
 ]
 
 [dependency-groups]

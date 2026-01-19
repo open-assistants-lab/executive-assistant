@@ -232,9 +232,15 @@ def _get_storage_id() -> str:
         The storage identifier.
 
     Raises:
-        ValueError: If no group_id or thread_id in context.
+        ValueError: If no user_id, group_id or thread_id in context.
     """
-    # Try group_id first (new group routing)
+    # Priority: user_id (individual) > group_id (team) > thread_id (fallback)
+    from cassey.storage.group_storage import get_user_id
+    user_id = get_user_id()
+    if user_id:
+        return user_id
+
+    # Try group_id (new group routing)
     group_id = get_workspace_id()
     if group_id:
         return group_id
@@ -245,7 +251,7 @@ def _get_storage_id() -> str:
     if thread_id:
         return thread_id
 
-    raise ValueError("No group_id or thread_id in context")
+    raise ValueError("No user_id, group_id or thread_id in context")
 
 
 def get_vs_storage_dir(storage_id: str | None = None) -> Path:

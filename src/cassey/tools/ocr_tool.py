@@ -56,6 +56,23 @@ def _load_paddleocr() -> Any:
     )
 
 
+def _load_surya() -> Any:
+    """Load Surya OCR predictors."""
+    try:
+        from surya.foundation import FoundationPredictor
+        from surya.recognition import RecognitionPredictor
+        from surya.detection import DetectionPredictor
+    except Exception as e:
+        raise RuntimeError(
+            "Surya is not installed. Install with: pip install surya-ocr"
+        ) from e
+
+    foundation = FoundationPredictor()
+    recognition = RecognitionPredictor(foundation)
+    detection = DetectionPredictor()
+    return {"recognition": recognition, "detection": detection}
+
+
 def _get_ocr_engine() -> tuple[str, Any | None]:
     global _OCR_ENGINE, _OCR_ENGINE_NAME
     engine = settings.OCR_ENGINE.lower().strip()
@@ -64,6 +81,11 @@ def _get_ocr_engine() -> tuple[str, Any | None]:
 
     if engine == "paddleocr":
         _OCR_ENGINE = _load_paddleocr()
+        _OCR_ENGINE_NAME = engine
+        return engine, _OCR_ENGINE
+
+    if engine == "surya":
+        _OCR_ENGINE = _load_surya()
         _OCR_ENGINE_NAME = engine
         return engine, _OCR_ENGINE
 
@@ -122,6 +144,36 @@ def _run_tesseract(path: Path) -> str:
 
     output = completed.stdout.strip()
     return output or "No text detected in image."
+
+
+def _run_surya(path: Path, engines: dict) -> str:
+    """Run Surya OCR on an image."""
+    try:
+        from PIL import Image
+    except Exception as e:
+        raise RuntimeError(f"Failed to import PIL: {e}") from e
+
+    try:
+        img = Image.open(path)
+        recognition = engines["recognition"]
+        detection = engines["detection"]
+
+        # Run OCR with detection and recognition
+        predictions = recognition([img], det_predictor=detection)
+
+        if not predictions or len(predictions) == 0:
+            return "No text detected in image."
+
+        # Extract text from predictions
+        text_lines = predictions[0].text_lines
+        if not text_lines:
+            return "No text detected in image."
+
+        extracted_text = "\n".join([line.text for line in text_lines])
+        return extracted_text or "No text detected in image."
+
+    except Exception as e:
+        raise RuntimeError(f"Surya OCR failed: {e}") from e
 
 
 def _extract_pdf_text(path: Path, output_format: str) -> str:
@@ -195,6 +247,29 @@ def _ocr_pdf_page(doc: Any, page_index: int, engine_name: str, engine: Any | Non
         result = engine.ocr(img, cls=True)
         return _format_paddle_result(result, "text")
 
+    if engine_name == "surya":
+        try:
+            from PIL import Image
+            import io
+        except Exception as e:
+            raise RuntimeError(f"Failed to import PIL: {e}") from e
+
+        # Convert pixmap to PIL Image
+        img_data = pix.tobytes("png")
+        img = Image.open(io.BytesIO(img_data))
+
+        # Run Surya OCR
+        recognition = engine["recognition"]
+        detection = engine["detection"]
+        predictions = recognition([img], det_predictor=detection)
+
+        if predictions and len(predictions) > 0:
+            text_lines = predictions[0].text_lines
+            if text_lines:
+                return "\n".join([line.text for line in text_lines])
+
+        return "No text detected in PDF page."
+
     if engine_name == "tesseract":
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
             tmp_path = Path(tmp.name)
@@ -236,6 +311,11 @@ def _ocr_extract_text_impl(image_path: str, output_format: str = "text") -> str:
         if engine_name == "paddleocr":
             result = engine.ocr(str(validated), cls=True)
             return _format_paddle_result(result, output_format)
+
+        if engine_name == "surya":
+            if output_format == "json":
+                return "JSON output not supported for surya engine."
+            return _run_surya(validated, engine)
 
         if engine_name == "tesseract":
             if output_format == "json":

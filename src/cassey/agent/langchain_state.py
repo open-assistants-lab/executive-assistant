@@ -5,7 +5,7 @@ from typing_extensions import NotRequired
 
 from langchain.agents import AgentState as BaseAgentState
 
-from cassey.agent.state import TaskState
+from cassey.agent.state import AgentState as TaskState
 
 
 class CasseyAgentState(BaseAgentState[Any]):

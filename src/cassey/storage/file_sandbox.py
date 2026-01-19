@@ -232,9 +232,10 @@ def get_sandbox(user_id: str | None = None) -> FileSandbox:
     Get a sandbox instance scoped to user_id, group_id, or thread_id from context.
 
     Priority:
-    1. user_id if provided
-    2. group_id from context (new group-based routing)
-    3. thread_id from context (legacy thread-based routing)
+    1. user_id if provided (explicit parameter)
+    2. user_id from context (individual mode)
+    3. group_id from context (team mode)
+    4. thread_id from context (legacy fallback)
 
     Args:
         user_id: Optional user ID for sandbox separation.
@@ -245,19 +246,28 @@ def get_sandbox(user_id: str | None = None) -> FileSandbox:
     Raises:
         ValueError: If no user_id, group_id, or thread_id context is available.
     """
+    # 1. Explicit user_id parameter
     if user_id:
         user_path = settings.get_user_files_path(user_id)
         user_path.mkdir(parents=True, exist_ok=True)
         return FileSandbox(root=user_path)
 
-    # Check for group_id in context (new group-based routing)
+    # 2. user_id from context (individual mode)
+    from cassey.storage.group_storage import get_user_id
+    user_id_val = get_user_id()
+    if user_id_val:
+        user_path = settings.get_user_files_path(user_id_val)
+        user_path.mkdir(parents=True, exist_ok=True)
+        return FileSandbox(root=user_path)
+
+    # 3. group_id from context (team mode)
     group_id_val = get_workspace_id()
     if group_id_val:
         group_path = settings.get_group_files_path(group_id_val)
         group_path.mkdir(parents=True, exist_ok=True)
         return FileSandbox(root=group_path)
 
-    # Check for thread_id in context (legacy thread-based routing)
+    # 4. thread_id from context (legacy fallback)
     thread_id_val = get_thread_id()
     if thread_id_val:
         thread_path = settings.get_thread_files_path(thread_id_val)
@@ -270,20 +280,57 @@ def get_sandbox(user_id: str | None = None) -> FileSandbox:
     )
 
 
+def get_shared_sandbox() -> FileSandbox:
+    """
+    Get a sandbox instance for shared organization-wide file storage.
+
+    Returns:
+        A FileSandbox instance scoped to data/shared/files.
+
+    Note:
+        Shared storage is accessible by all users but writes may be
+        restricted based on permissions.
+    """
+    shared_path = settings.get_shared_files_path()
+    shared_path.mkdir(parents=True, exist_ok=True)
+    return FileSandbox(root=shared_path)
+
+
+def _get_sandbox_with_scope(scope: Literal["context", "shared"] = "context") -> FileSandbox:
+    """
+    Get sandbox based on scope.
+
+    Args:
+        scope: "context" (default) uses group_id/thread_id from context,
+               "shared" uses organization-wide shared storage.
+
+    Returns:
+        FileSandbox instance for the requested scope.
+    """
+    if scope == "shared":
+        return get_shared_sandbox()
+    elif scope == "context":
+        return get_sandbox()
+    else:
+        raise ValueError(f"Invalid scope: {scope}. Must be 'context' or 'shared'.")
+
+
 @tool
 @require_permission("read")
-def read_file(file_path: str) -> str:
+def read_file(file_path: str, scope: Literal["context", "shared"] = "context") -> str:
     """Read file contents as text. [Files]
 
     USE THIS WHEN: You need to read a specific file's contents (reports, notes, configurations).
 
     Args:
         file_path: Path relative to files directory.
+        scope: "context" (default) for group/thread-scoped storage,
+               "shared" for organization-wide shared storage.
 
     Returns:
         File contents as string.
     """
-    sandbox = get_sandbox()
+    sandbox = _get_sandbox_with_scope(scope)
     try:
         validated_path = sandbox._validate_path(file_path)
         return validated_path.read_text(encoding="utf-8")
@@ -297,7 +344,7 @@ def read_file(file_path: str) -> str:
 
 @tool
 @require_permission("write")
-def write_file(file_path: str, content: str) -> str:
+def write_file(file_path: str, content: str, scope: Literal["context", "shared"] = "context") -> str:
     """Write content to a file (creates or overwrites). [Files]
 
     USE THIS WHEN: Saving reports, exporting analysis results, storing reference materials.
@@ -305,17 +352,21 @@ def write_file(file_path: str, content: str) -> str:
     Args:
         file_path: Path relative to files directory.
         content: Text content to write.
+        scope: "context" (default) for group/thread-scoped storage,
+               "shared" for organization-wide shared storage (admin-only writes).
 
     Returns:
         Success message with file path.
     """
-    sandbox = get_sandbox()
+    sandbox = _get_sandbox_with_scope(scope)
     try:
         sandbox._validate_size(content)
         validated_path = sandbox._validate_path(file_path)
         validated_path.parent.mkdir(parents=True, exist_ok=True)
         validated_path.write_text(content, encoding="utf-8")
-        record_file_written(get_thread_id(), file_path)
+        # Only record metadata for context-scoped files
+        if scope == "context":
+            record_file_written(get_thread_id(), file_path)
         return f"File written: {file_path} ({len(content)} bytes)"
     except SecurityError as e:
         return f"Security error: {e}"
@@ -331,7 +382,7 @@ def file_write(file_path: str, content: str) -> str:
 
 @tool
 @require_permission("read")
-def list_files(directory: str = "", recursive: bool = False) -> str:
+def list_files(directory: str = "", recursive: bool = False, scope: Literal["context", "shared"] = "context") -> str:
     """Browse directory structure (file/folder names only). [Files]
 
     USE THIS WHEN: Exploring folders, seeing what's available, verifying file locations.
@@ -341,11 +392,13 @@ def list_files(directory: str = "", recursive: bool = False) -> str:
     Args:
         directory: Subdirectory to list (empty for root).
         recursive: List all files recursively if True.
+        scope: "context" (default) for group/thread-scoped storage,
+               "shared" for organization-wide shared storage.
 
     Returns:
         List of files and folders.
     """
-    sandbox = get_sandbox()
+    sandbox = _get_sandbox_with_scope(scope)
     try:
         # Use the directory relative to sandbox root
         target_path = sandbox.root / directory if directory else sandbox.root
@@ -387,12 +440,14 @@ def list_files(directory: str = "", recursive: bool = False) -> str:
 
 @tool
 @require_permission("write")
-def create_folder(folder_path: str) -> str:
+def create_folder(folder_path: str, scope: Literal["context", "shared"] = "context") -> str:
     """
     Create a new folder in the files directory.
 
     Args:
         folder_path: Path for the new folder (can be nested like "docs/work").
+        scope: "context" (default) for group/thread-scoped storage,
+               "shared" for organization-wide shared storage (admin-only writes).
 
     Returns:
         Success message or error description.
@@ -403,7 +458,7 @@ def create_folder(folder_path: str) -> str:
         >>> create_folder("projects/2024")
         "Folder created: projects/2024/"
     """
-    sandbox = get_sandbox()
+    sandbox = _get_sandbox_with_scope(scope)
     try:
         validated_path = sandbox._validate_directory_path(folder_path)
         validated_path.mkdir(parents=True, exist_ok=True)
@@ -416,12 +471,14 @@ def create_folder(folder_path: str) -> str:
 
 @tool
 @require_permission("write")
-def delete_folder(folder_path: str) -> str:
+def delete_folder(folder_path: str, scope: Literal["context", "shared"] = "context") -> str:
     """
     Delete a folder and all its contents.
 
     Args:
         folder_path: Path to the folder to delete.
+        scope: "context" (default) for group/thread-scoped storage,
+               "shared" for organization-wide shared storage (admin-only writes).
 
     Returns:
         Success message or error description.
@@ -430,7 +487,7 @@ def delete_folder(folder_path: str) -> str:
         >>> delete_folder("old_folder")
         "Folder deleted: old_folder/"
     """
-    sandbox = get_sandbox()
+    sandbox = _get_sandbox_with_scope(scope)
     try:
         validated_path = sandbox._validate_directory_path(folder_path)
 
@@ -442,7 +499,9 @@ def delete_folder(folder_path: str) -> str:
 
         import shutil
         shutil.rmtree(validated_path)
-        record_files_removed_by_prefix(get_thread_id(), folder_path)
+        # Only record metadata for context-scoped operations
+        if scope == "context":
+            record_files_removed_by_prefix(get_thread_id(), folder_path)
         return f"Folder deleted: {folder_path}/"
     except SecurityError as e:
         return f"Security error: {e}"
@@ -452,13 +511,15 @@ def delete_folder(folder_path: str) -> str:
 
 @tool
 @require_permission("write")
-def rename_folder(old_path: str, new_path: str) -> str:
+def rename_folder(old_path: str, new_path: str, scope: Literal["context", "shared"] = "context") -> str:
     """
     Rename or move a folder.
 
     Args:
         old_path: Current folder path.
         new_path: New folder path.
+        scope: "context" (default) for group/thread-scoped storage,
+               "shared" for organization-wide shared storage (admin-only writes).
 
     Returns:
         Success message or error description.
@@ -469,7 +530,7 @@ def rename_folder(old_path: str, new_path: str) -> str:
         >>> rename_folder("docs", "documents/archive")
         "Folder renamed: docs/ -> documents/archive/"
     """
-    sandbox = get_sandbox()
+    sandbox = _get_sandbox_with_scope(scope)
     try:
         old_validated = sandbox._validate_directory_path(old_path)
         new_validated = sandbox._validate_directory_path(new_path)
@@ -485,7 +546,9 @@ def rename_folder(old_path: str, new_path: str) -> str:
 
         import shutil
         shutil.move(str(old_validated), str(new_validated))
-        record_folder_renamed(get_thread_id(), old_path, new_path)
+        # Only record metadata for context-scoped operations
+        if scope == "context":
+            record_folder_renamed(get_thread_id(), old_path, new_path)
         return f"Folder renamed: {old_path}/ -> {new_path}/"
     except SecurityError as e:
         return f"Security error: {e}"
@@ -495,13 +558,15 @@ def rename_folder(old_path: str, new_path: str) -> str:
 
 @tool
 @require_permission("write")
-def move_file(source: str, destination: str) -> str:
+def move_file(source: str, destination: str, scope: Literal["context", "shared"] = "context") -> str:
     """
     Move or rename a file.
 
     Args:
         source: Current file path.
         destination: New file path.
+        scope: "context" (default) for group/thread-scoped storage,
+               "shared" for organization-wide shared storage (admin-only writes).
 
     Returns:
         Success message or error description.
@@ -512,7 +577,7 @@ def move_file(source: str, destination: str) -> str:
         >>> move_file("file.txt", "docs/file.txt")
         "File moved: file.txt -> docs/file.txt"
     """
-    sandbox = get_sandbox()
+    sandbox = _get_sandbox_with_scope(scope)
     try:
         source_validated = sandbox._validate_path(source, allow_directories=True)
         dest_validated = sandbox._validate_path(destination, allow_directories=True)
@@ -528,7 +593,9 @@ def move_file(source: str, destination: str) -> str:
 
         import shutil
         shutil.move(str(source_validated), str(dest_validated))
-        record_file_moved(get_thread_id(), source, destination)
+        # Only record metadata for context-scoped operations
+        if scope == "context":
+            record_file_moved(get_thread_id(), source, destination)
         return f"File moved: {source} -> {destination}"
     except SecurityError as e:
         return f"Security error: {e}"
@@ -538,7 +605,7 @@ def move_file(source: str, destination: str) -> str:
 
 @tool
 @require_permission("read")
-def glob_files(pattern: str, directory: str = "") -> str:
+def glob_files(pattern: str, directory: str = "", scope: Literal["context", "shared"] = "context") -> str:
     """Find files by name pattern or extension. [Files]
 
     USE THIS WHEN: Finding files of a specific type (*.csv, *.json) or matching a name pattern.
@@ -548,6 +615,8 @@ def glob_files(pattern: str, directory: str = "") -> str:
     Args:
         pattern: Glob pattern (*.py, **/*.json, data/**/*.csv).
         directory: Base directory to search (empty for root).
+        scope: "context" (default) for group/thread-scoped storage,
+               "shared" for organization-wide shared storage.
 
     Returns:
         List of matching files with sizes and timestamps.
@@ -555,7 +624,7 @@ def glob_files(pattern: str, directory: str = "") -> str:
     import glob as stdlib_glob
     from datetime import datetime
 
-    sandbox = get_sandbox()
+    sandbox = _get_sandbox_with_scope(scope)
     try:
         base_path = sandbox.root / directory if directory else sandbox.root
 
@@ -598,7 +667,8 @@ def grep_files(
     directory: str = "",
     output_mode: str = "content",
     context_lines: int = 2,
-    ignore_case: bool = False
+    ignore_case: bool = False,
+    scope: Literal["context", "shared"] = "context",
 ) -> str:
     """Search INSIDE file contents (like Unix grep). [Files]
 
@@ -612,6 +682,8 @@ def grep_files(
         output_mode: "files" (list), "content" (show matches), "count" (per-file totals).
         context_lines: Context lines before/after matches.
         ignore_case: Case-insensitive search.
+        scope: "context" (default) for group/thread-scoped storage,
+               "shared" for organization-wide shared storage.
 
     Returns:
         Search results in specified format.
@@ -619,7 +691,7 @@ def grep_files(
     import re
     from pathlib import Path as StdPath
 
-    sandbox = get_sandbox()
+    sandbox = _get_sandbox_with_scope(scope)
     try:
         base_path = sandbox.root / directory if directory else sandbox.root
 
@@ -717,6 +789,7 @@ def find_files_fuzzy(
     recursive: bool = True,
     limit: int = 10,
     score_cutoff: int = 70,
+    scope: Literal["context", "shared"] = "context",
 ) -> str:
     """
     Find files by fuzzy matching the filename/path (tolerates typos and partial matches).
@@ -736,6 +809,8 @@ def find_files_fuzzy(
         limit: Maximum number of results to return (default: 10).
         score_cutoff: Minimum similarity score (0-100). Default 70 = 70% similar.
                      Lower this value to get more results (but less accurate).
+        scope: "context" (default) for group/thread-scoped storage,
+               "shared" for organization-wide shared storage.
 
     Returns:
         List of matching files ranked by similarity score.
@@ -756,7 +831,7 @@ def find_files_fuzzy(
     from pathlib import Path as StdPath
     from rapidfuzz import process, fuzz
 
-    sandbox = get_sandbox()
+    sandbox = _get_sandbox_with_scope(scope)
     try:
         base_path = sandbox.root / directory if directory else sandbox.root
 

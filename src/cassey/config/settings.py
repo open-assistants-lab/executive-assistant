@@ -198,7 +198,7 @@ class Settings(BaseSettings):
     FIRECRAWL_API_URL: str = "https://api.firecrawl.dev"
 
     # OCR (local text extraction)
-    OCR_ENGINE: Literal["paddleocr", "tesseract"] = _yaml_field("OCR_ENGINE", "paddleocr")
+    OCR_ENGINE: Literal["paddleocr", "tesseract", "surya"] = _yaml_field("OCR_ENGINE", "paddleocr")
     OCR_LANG: str = _yaml_field("OCR_LANG", "en")
     OCR_USE_GPU: bool = _yaml_field("OCR_USE_GPU", False)
     OCR_MAX_FILE_MB: int = _yaml_field("OCR_MAX_FILE_MB", 10)
@@ -634,6 +634,30 @@ class Settings(BaseSettings):
         raise ValueError(
             "No group_id or thread_id context available for database operations"
         )
+
+    # ============================================================================
+    # Shared paths (Level 0: Organization-wide)
+    # ============================================================================
+
+    def get_shared_files_path(self) -> Path:
+        """
+        Get shared files directory for organization-wide file storage.
+
+        Returns: data/shared/files/
+        """
+        shared_path = self.SHARED_ROOT / "files"
+        shared_path.mkdir(parents=True, exist_ok=True)
+        return shared_path
+
+    def get_shared_db_path(self, database: str = "shared") -> Path:
+        """
+        Get shared database file path for organization-wide database.
+
+        Returns: data/shared/db/{database}.sqlite
+        """
+        db_path = self.SHARED_ROOT / "db"
+        db_path.mkdir(parents=True, exist_ok=True)
+        return db_path / f"{database}.sqlite"
 
     # Legacy file path method
     @property

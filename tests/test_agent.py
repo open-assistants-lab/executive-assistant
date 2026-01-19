@@ -11,7 +11,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 
-from cassey.agent.state import AgentState, TaskState
+from cassey.agent.state import AgentState
 from cassey.agent.router import should_continue
 from cassey.agent.nodes import call_model, call_tools, increment_iterations, should_summarize
 
@@ -31,7 +31,6 @@ class TestAgentState:
             iterations=0,
             user_id="test_user",
             channel="test",
-            task_state=None,
         )
 
         assert len(state["messages"]) == 1
@@ -40,7 +39,6 @@ class TestAgentState:
         assert state["iterations"] == 0
         assert state["user_id"] == "test_user"
         assert state["channel"] == "test"
-        assert state["task_state"] is None
 
     def test_agent_state_with_summary(self):
         """Test AgentState with structured summary."""
@@ -55,40 +53,10 @@ class TestAgentState:
             iterations=1,
             user_id="test_user",
             channel="test",
-            task_state=None,
         )
 
         assert state["structured_summary"] == summary
         assert len(state["structured_summary"]["topics"]) == 1
-
-
-class TestTaskState:
-    """Test TaskState TypedDict definition."""
-
-    def test_task_state_structure(self):
-        """Test that TaskState has expected structure."""
-        state = TaskState(
-            intent="search",
-            target="find info",
-            next_action="query kb",
-            status="in_progress",
-            notes="User looking for specific data",
-            updated_at="2024-01-01T00:00:00Z",
-        )
-
-        assert state["intent"] == "search"
-        assert state["target"] == "find info"
-        assert state["next_action"] == "query kb"
-        assert state["status"] == "in_progress"
-        assert state["notes"] == "User looking for specific data"
-        assert state["updated_at"] == "2024-01-01T00:00:00Z"
-
-    def test_task_state_optional_fields(self):
-        """Test TaskState with only some fields."""
-        state = TaskState(intent="search")
-
-        assert state["intent"] == "search"
-        # Other fields should not be set (total=False)
 
 
 # =============================================================================
@@ -111,7 +79,6 @@ class TestShouldContinue:
             iterations=1,
             user_id="test_user",
             channel="test",
-            task_state=None,
         )
 
         result = should_continue(state)
@@ -126,7 +93,6 @@ class TestShouldContinue:
                 iterations=10,  # Over limit
                 user_id="test_user",
                 channel="test",
-                task_state=None,
             )
 
             result = should_continue(state)
@@ -142,7 +108,6 @@ class TestShouldContinue:
             iterations=1,
             user_id="test_user",
             channel="test",
-            task_state=None,
         )
 
         result = should_continue(state)
@@ -158,7 +123,6 @@ class TestShouldContinue:
             iterations=0,
             user_id="test_user",
             channel="test",
-            task_state=None,
         )
 
         result = should_continue(state)
@@ -196,7 +160,6 @@ class TestCallModel:
             iterations=0,
             user_id="test_user",
             channel="test",
-            task_state=None,
         )
 
         result = await call_model(state, {}, mock_model, mock_tools)
@@ -222,7 +185,6 @@ class TestCallModel:
                 iterations=2,  # At limit
                 user_id="test_user",
                 channel="test",
-                task_state=None,
             )
 
             result = await call_model(state, {}, mock_model, mock_tools)
@@ -244,7 +206,6 @@ class TestCallModel:
                 iterations=2,  # At limit but user wants to continue
                 user_id="test_user",
                 channel="test",
-                task_state=None,
             )
 
             result = await call_model(state, {}, mock_model, mock_tools)
@@ -266,7 +227,6 @@ class TestCallModel:
             iterations=0,
             user_id="test_user",
             channel="test",
-            task_state=None,
         )
 
         with patch("cassey.agent.nodes.get_system_prompt", return_value="System prompt"):
@@ -310,7 +270,6 @@ class TestCallTools:
             iterations=0,
             user_id="test_user",
             channel="test",
-            task_state=None,
         )
 
         result = await call_tools(state, mock_tools)
@@ -336,7 +295,6 @@ class TestCallTools:
             iterations=0,
             user_id="test_user",
             channel="test",
-            task_state=None,
         )
 
         result = await call_tools(state, mock_tools)
@@ -357,7 +315,6 @@ class TestCallTools:
             iterations=0,
             user_id="test_user",
             channel="test",
-            task_state=None,
         )
 
         result = await call_tools(state, mock_tools)
@@ -376,7 +333,6 @@ class TestCallTools:
             iterations=0,
             user_id="test_user",
             channel="test",
-            task_state=None,
         )
 
         result = await call_tools(state, mock_tools)
@@ -403,45 +359,12 @@ class TestCallTools:
             iterations=0,
             user_id="test_user",
             channel="test",
-            task_state=None,
         )
 
         result = await call_tools(state, tools_with_error)
 
         assert len(result["messages"]) == 1
         assert "error" in result["messages"][0].content.lower()
-
-    @pytest.mark.asyncio
-    async def test_call_tools_with_task_state_patch(self, mock_tools):
-        """Test tool that returns task_state_patch."""
-        from langchain_core.messages.tool import ToolCall
-
-        tool = AsyncMock(spec=BaseTool)
-        tool.name = "state_tool"
-        tool._arun = AsyncMock(return_value={"task_state_patch": {"status": "done", "result": "success"}})
-        tool.ainvoke = AsyncMock(return_value={"task_state_patch": {"status": "done", "result": "success"}})
-
-        tools_with_patch = {**mock_tools, "state_tool": tool}
-
-        tool_call = ToolCall(name="state_tool", args={}, id="call_1", type="tool_call")
-        ai_msg = AIMessage(content="", tool_calls=[tool_call])
-
-        state = AgentState(
-            messages=[ai_msg],
-            structured_summary=None,
-            iterations=0,
-            user_id="test_user",
-            channel="test",
-            task_state={"status": "pending"},
-        )
-
-        result = await call_tools(state, tools_with_patch)
-
-        # Check that task_state was updated
-        assert "task_state" in result
-        assert result["task_state"]["status"] == "done"
-        assert result["task_state"]["result"] == "success"
-        assert "updated_at" in result["task_state"]
 
 
 class TestIncrementIterations:
@@ -455,7 +378,6 @@ class TestIncrementIterations:
             iterations=0,
             user_id="test_user",
             channel="test",
-            task_state=None,
         )
 
         result = increment_iterations(state)
@@ -469,7 +391,6 @@ class TestIncrementIterations:
             iterations=5,
             user_id="test_user",
             channel="test",
-            task_state=None,
         )
 
         result = increment_iterations(state)
@@ -483,7 +404,6 @@ class TestIncrementIterations:
             iterations=0,  # Required field
             user_id="test_user",
             channel="test",
-            task_state=None,
         )
 
         # Use get to simulate missing
@@ -505,7 +425,6 @@ class TestShouldSummarize:
                 iterations=0,
                 user_id="test_user",
                 channel="test",
-                task_state=None,
             )
 
             result = await should_summarize(state)
@@ -522,7 +441,6 @@ class TestShouldSummarize:
                     iterations=0,
                     user_id="test_user",
                     channel="test",
-                    task_state=None,
                 )
 
                 result = await should_summarize(state)
@@ -542,7 +460,6 @@ class TestShouldSummarize:
                     iterations=0,
                     user_id="test_user",
                     channel="test",
-                    task_state=None,
                 )
 
                 result = await should_summarize(state)

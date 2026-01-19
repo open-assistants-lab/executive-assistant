@@ -131,16 +131,26 @@ async def refresh_meta(thread_id: str) -> dict[str, Any]:
     now = _now_iso()
     meta["updated_at"] = now
 
-    # Check for group_id first, then use thread_id
+    # Priority: user_id (individual) > group_id (team) > thread_id (fallback)
+    from cassey.storage.group_storage import get_user_id
+    user_id = get_user_id()
     group_id = get_workspace_id()
-    storage_id = group_id if group_id else thread_id
-    is_group = bool(group_id)
 
-    # Files inventory - use group path if group_id exists, otherwise thread path
+    if user_id:
+        storage_id = user_id
+        is_group = False
+    elif group_id:
+        storage_id = group_id
+        is_group = True
+    else:
+        storage_id = thread_id
+        is_group = False
+
+    # Files inventory - use group/user path based on context
     if is_group:
         files_root = settings.get_group_files_path(storage_id)
     else:
-        files_root = settings.get_thread_files_path(storage_id)
+        files_root = settings.get_user_files_path(storage_id)
 
     file_paths: list[str] = []
     total_files = 0

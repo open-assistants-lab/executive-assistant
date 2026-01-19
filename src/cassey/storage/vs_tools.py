@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from typing import Literal
 from uuid import uuid4
 
 from langchain_core.tools import tool
@@ -39,6 +40,28 @@ def _get_storage_id() -> str:
         return thread_id
 
     raise ValueError("No thread_id in context")
+
+
+def _get_storage_id_with_scope(scope: Literal["context", "shared"] = "context") -> str:
+    """
+    Get storage ID based on scope.
+
+    Args:
+        scope: "context" (default) uses group_id/thread_id from context,
+               "shared" uses organization-wide shared storage.
+
+    Returns:
+        Storage identifier for the requested scope.
+
+    Raises:
+        ValueError: If scope is invalid or no context available for context-scoped operations.
+    """
+    if scope == "shared":
+        return "shared"  # Fixed ID for shared storage
+    elif scope == "context":
+        return _get_storage_id()  # Uses group_id/thread_id from context
+    else:
+        raise ValueError(f"Invalid scope: {scope}. Must be 'context' or 'shared'.")
 
 
 def _format_doc_line(doc_id: str, content: str, metadata: dict | None, score: float | None) -> str:
@@ -83,7 +106,12 @@ def _parse_documents(documents_str: str) -> list[dict] | str:
 # =============================================================================
 
 @tool
-def create_vs_collection(collection_name: str, content: str = "", documents: str = "") -> str:
+def create_vs_collection(
+    collection_name: str,
+    content: str = "",
+    documents: str = "",
+    scope: Literal["context", "shared"] = "context",
+) -> str:
     """
     Create a VS collection for semantic search.
 
@@ -117,6 +145,8 @@ def create_vs_collection(collection_name: str, content: str = "", documents: str
         content: Single document text (leave empty to use documents parameter or create empty).
         documents: JSON array for bulk import: [{"content": "...", "metadata": {...}}]
                     Leave empty to use content parameter or create empty collection.
+        scope: "context" (default) for group/thread-scoped storage,
+               "shared" for organization-wide shared storage (admin-only writes).
 
     Returns:
         Success message with collection info.
@@ -148,7 +178,7 @@ def create_vs_collection(collection_name: str, content: str = "", documents: str
         parsed = []
 
     try:
-        storage_id = _get_storage_id()
+        storage_id = _get_storage_id_with_scope(scope)
 
         # Check if collection already exists
         existing = list_lancedb_collections(storage_id=storage_id)
@@ -163,7 +193,9 @@ def create_vs_collection(collection_name: str, content: str = "", documents: str
             documents=parsed if parsed else None
         )
 
-        record_vs_table_added(storage_id, collection_name)
+        # Only record metadata for context-scoped VS
+        if scope == "context":
+            record_vs_table_added(storage_id, collection_name)
 
         if parsed:
             chunk_count = collection.count()
@@ -175,7 +207,12 @@ def create_vs_collection(collection_name: str, content: str = "", documents: str
 
 
 @tool
-def search_vs(query: str, collection_name: str = "", limit: int = 5) -> str:
+def search_vs(
+    query: str,
+    collection_name: str = "",
+    limit: int = 5,
+    scope: Literal["context", "shared"] = "context",
+) -> str:
     """
     Search VS collections for semantically similar documents (search by meaning, not exact words).
 
@@ -203,6 +240,8 @@ def search_vs(query: str, collection_name: str = "", limit: int = 5) -> str:
         query: Search query text (use natural language, describe what you're looking for).
         collection_name: Specific collection to search, or empty for all collections.
         limit: Maximum results per collection (default: 5).
+        scope: "context" (default) for group/thread-scoped storage,
+               "shared" for organization-wide shared storage.
 
     Returns:
         Search results with relevance scores.
@@ -211,7 +250,7 @@ def search_vs(query: str, collection_name: str = "", limit: int = 5) -> str:
         return "Error: Search query cannot be empty"
 
     try:
-        storage_id = _get_storage_id()
+        storage_id = _get_storage_id_with_scope(scope)
 
         # Determine which collections to search
         if collection_name:
@@ -259,15 +298,19 @@ def search_vs(query: str, collection_name: str = "", limit: int = 5) -> str:
 
 
 @tool
-def vs_list() -> str:
+def vs_list(scope: Literal["context", "shared"] = "context") -> str:
     """
     List all VS collections with document counts.
+
+    Args:
+        scope: "context" (default) for group/thread-scoped storage,
+               "shared" for organization-wide shared storage.
 
     Returns:
         List of all collections and their document counts.
     """
     try:
-        storage_id = _get_storage_id()
+        storage_id = _get_storage_id_with_scope(scope)
         collections = list_lancedb_collections(storage_id=storage_id)
 
         if not collections:
@@ -294,18 +337,20 @@ def vs_list() -> str:
 
 
 @tool
-def describe_vs_collection(collection_name: str) -> str:
+def describe_vs_collection(collection_name: str, scope: Literal["context", "shared"] = "context") -> str:
     """
     Describe a VS collection and preview sample documents.
 
     Args:
         collection_name: Name of the collection to describe.
+        scope: "context" (default) for group/thread-scoped storage,
+               "shared" for organization-wide shared storage.
 
     Returns:
         Collection details and sample documents.
     """
     try:
-        storage_id = _get_storage_id()
+        storage_id = _get_storage_id_with_scope(scope)
         validate_identifier(collection_name)
 
         collection = get_lancedb_collection(storage_id, collection_name)
@@ -333,25 +378,29 @@ def describe_vs_collection(collection_name: str) -> str:
 
 
 @tool
-def drop_vs_collection(collection_name: str) -> str:
+def drop_vs_collection(collection_name: str, scope: Literal["context", "shared"] = "context") -> str:
     """
     Drop a VS collection and all its documents.
 
     Args:
         collection_name: Name of the collection to drop.
+        scope: "context" (default) for group/thread-scoped storage,
+               "shared" for organization-wide shared storage (admin-only writes).
 
     Returns:
         Confirmation message.
     """
     try:
-        storage_id = _get_storage_id()
+        storage_id = _get_storage_id_with_scope(scope)
         validate_identifier(collection_name)
 
         collection = get_lancedb_collection(storage_id, collection_name)
         count = collection.count()
 
         drop_lancedb_collection(storage_id, collection_name)
-        record_vs_table_removed(storage_id, collection_name)
+        # Only record metadata for context-scoped VS
+        if scope == "context":
+            record_vs_table_removed(storage_id, collection_name)
 
         return f"Deleted VS collection '{collection_name}' ({count} chunks removed)"
 
@@ -360,7 +409,12 @@ def drop_vs_collection(collection_name: str) -> str:
 
 
 @tool
-def add_vs_documents(collection_name: str, content: str = "", documents: str = "") -> str:
+def add_vs_documents(
+    collection_name: str,
+    content: str = "",
+    documents: str = "",
+    scope: Literal["context", "shared"] = "context",
+) -> str:
     """
     Add documents to an existing VS collection.
 
@@ -378,6 +432,8 @@ def add_vs_documents(collection_name: str, content: str = "", documents: str = "
         collection_name: Name of the collection to add to.
         content: Single document text (leave empty to use documents parameter).
         documents: JSON array for bulk import: [{"content": "...", "metadata": {...}}]
+        scope: "context" (default) for group/thread-scoped storage,
+               "shared" for organization-wide shared storage (admin-only writes).
 
     Returns:
         Confirmation message with chunk count.
@@ -404,11 +460,13 @@ def add_vs_documents(collection_name: str, content: str = "", documents: str = "
         return "Error: Either content or documents must be provided"
 
     try:
-        storage_id = _get_storage_id()
+        storage_id = _get_storage_id_with_scope(scope)
         collection = get_lancedb_collection(storage_id, collection_name)
 
         added = collection.add_documents(parsed)
-        record_vs_table_added(storage_id, collection_name)
+        # Only record metadata for context-scoped VS
+        if scope == "context":
+            record_vs_table_added(storage_id, collection_name)
 
         return f"Added {added} chunks to VS collection '{collection_name}' from {len(parsed)} document(s)"
 
@@ -417,7 +475,11 @@ def add_vs_documents(collection_name: str, content: str = "", documents: str = "
 
 
 @tool
-def delete_vs_documents(collection_name: str, ids: str) -> str:
+def delete_vs_documents(
+    collection_name: str,
+    ids: str,
+    scope: Literal["context", "shared"] = "context",
+) -> str:
     """
     Delete chunks by ID from a collection.
 
@@ -427,6 +489,8 @@ def delete_vs_documents(collection_name: str, ids: str) -> str:
     Args:
         collection_name: Name of the collection.
         ids: Comma-separated list of chunk IDs to delete.
+        scope: "context" (default) for group/thread-scoped storage,
+               "shared" for organization-wide shared storage (admin-only writes).
 
     Returns:
         Confirmation message.
@@ -438,11 +502,13 @@ def delete_vs_documents(collection_name: str, ids: str) -> str:
         return "Error: No valid IDs provided"
 
     try:
-        storage_id = _get_storage_id()
+        storage_id = _get_storage_id_with_scope(scope)
         collection = get_lancedb_collection(storage_id, collection_name)
 
         deleted = collection.delete(id_list)
-        record_vs_table_added(storage_id, collection_name)
+        # Only record metadata for context-scoped VS
+        if scope == "context":
+            record_vs_table_added(storage_id, collection_name)
 
         return f"Deleted {deleted} chunk(s) from VS collection '{collection_name}'"
 
@@ -451,7 +517,11 @@ def delete_vs_documents(collection_name: str, ids: str) -> str:
 
 
 @tool
-def add_file_to_vs(collection_name: str, file_path: str) -> str:
+def add_file_to_vs(
+    collection_name: str,
+    file_path: str,
+    scope: Literal["context", "shared"] = "context",
+) -> str:
     """
     Add/insert a file from the files directory to a VS collection.
 
@@ -465,6 +535,8 @@ def add_file_to_vs(collection_name: str, file_path: str) -> str:
     Args:
         collection_name: Name of the VS collection to add to.
         file_path: Path to the file relative to files directory.
+        scope: "context" (default) for group/thread-scoped storage,
+               "shared" for organization-wide shared storage (admin-only writes).
 
     Returns:
         Confirmation message with chunk count.
@@ -473,15 +545,15 @@ def add_file_to_vs(collection_name: str, file_path: str) -> str:
         >>> add_file_to_vs("notes", "config.txt")
         "Added 3 chunks to VS collection 'notes' from config.txt"
     """
-    from cassey.storage.file_sandbox import get_sandbox
+    from cassey.storage.file_sandbox import _get_sandbox_with_scope
 
     validate_identifier(collection_name)
 
     try:
-        storage_id = _get_storage_id()
+        storage_id = _get_storage_id_with_scope(scope)
 
-        # Get the file sandbox for this thread/group
-        sandbox = get_sandbox()
+        # Get the file sandbox based on scope
+        sandbox = _get_sandbox_with_scope(scope)
 
         # Validate and read the file
         try:
@@ -500,13 +572,17 @@ def add_file_to_vs(collection_name: str, file_path: str) -> str:
                 collection_name=collection_name,
                 embedding_dimension=384,
             )
-            record_vs_table_added(storage_id, collection_name)
+            # Only record metadata for context-scoped VS
+            if scope == "context":
+                record_vs_table_added(storage_id, collection_name)
 
         # Add document with filename metadata
         collection = get_lancedb_collection(storage_id, collection_name)
         documents = [{"content": content, "metadata": {"filename": file_path}}]
         added = collection.add_documents(documents)
-        record_vs_table_added(storage_id, collection_name)
+        # Only record metadata for context-scoped VS
+        if scope == "context":
+            record_vs_table_added(storage_id, collection_name)
 
         return f"Added {added} chunks to VS collection '{collection_name}' from file '{file_path}'"
 

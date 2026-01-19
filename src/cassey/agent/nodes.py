@@ -243,16 +243,6 @@ async def call_tools(
                 loop = asyncio.get_running_loop()
                 result = await loop.run_in_executor(None, ctx.run, tool.invoke, tool_args)
 
-            if isinstance(result, dict):
-                if "task_state" in result:
-                    state_updates["task_state"] = result.get("task_state")
-                if "task_state_patch" in result:
-                    current = state.get("task_state") or {}
-                    patch = result.get("task_state_patch") or {}
-                    merged = {**current, **{k: v for k, v in patch.items() if v not in ("", None)}}
-                    if merged:
-                        merged["updated_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-                    state_updates["task_state"] = merged or None
 
             outputs.append(
                 ToolMessage(

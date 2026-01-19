@@ -287,12 +287,29 @@ def get_db_storage_dir(storage_id: str | None = None) -> Path:
         Path to the DB directory.
     """
     if storage_id is None:
-        storage_id = get_workspace_id()
+        # Priority: user_id (individual) > group_id (team) > thread_id (fallback)
+        from cassey.storage.group_storage import get_user_id
+        from cassey.storage.file_sandbox import get_thread_id
+
+        storage_id = get_user_id()
+        if storage_id is None:
+            storage_id = get_workspace_id()
+        if storage_id is None:
+            storage_id = get_thread_id()
 
     if not storage_id:
         raise ValueError("No storage_id provided and none in context")
 
-    db_path = settings.get_workspace_db_path(storage_id)
+    # Use user path if not a group, otherwise use group path
+    from cassey.storage.group_storage import get_workspace_id
+    group_id = get_workspace_id()
+    if storage_id == group_id:
+        # This is a group, use group path
+        db_path = settings.get_workspace_db_path(storage_id)
+    else:
+        # This is a user_id, use user path
+        db_path = settings.get_user_db_path(storage_id)
+
     db_path.parent.mkdir(parents=True, exist_ok=True)
     return db_path.parent
 
@@ -334,7 +351,17 @@ def get_sqlite_db(storage_id: str | None = None) -> SQLiteDatabase:
         SQLiteDatabase instance.
     """
     if storage_id is None:
-        storage_id = get_workspace_id()
+        # Priority: user_id (individual) > group_id (team) > thread_id (fallback)
+        from cassey.storage.group_storage import get_user_id
+        from cassey.storage.file_sandbox import get_thread_id
+
+        storage_id = get_user_id()
+        if storage_id is None:
+            storage_id = get_workspace_id()
+        if storage_id is None:
+            storage_id = get_thread_id()
+        if storage_id is None:
+            raise ValueError("No context (user_id, group_id, or thread_id) available")
 
     path = get_db_storage_dir(storage_id)
     conn = _get_sqlite_connection(storage_id, path)

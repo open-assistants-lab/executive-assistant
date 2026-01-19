@@ -89,6 +89,22 @@ class BaseChannel(ABC):
         self.agent = agent
         self.registry = registry  # Optional UserRegistry instance
 
+    def get_channel_name(self) -> str:
+        """Get the channel name (e.g., 'telegram', 'http', 'slack')."""
+        return self.__class__.__name__.lower().replace("channel", "")
+
+    def format_user_id(self, raw_user_id: str) -> str:
+        """
+        Format user_id with channel prefix for unique identification.
+
+        Args:
+            raw_user_id: The raw user ID from the channel (e.g., '123456')
+
+        Returns:
+            User ID with channel prefix (e.g., 'telegram:123456')
+        """
+        return f"{self.get_channel_name()}:{raw_user_id}"
+
     async def initialize_agent_with_channel(self) -> None:
         """
         Re-create the agent with this channel as the channel parameter.

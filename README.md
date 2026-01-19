@@ -19,7 +19,7 @@ Cassey is a multi-channel AI agent that helps you stay organized and productive.
 ### Build a Knowledge Base
 - **Semantic search**: Store documents and find them by meaning, not just keywords
 - **Smart retrieval**: Ask "What did we decide about the API pricing?" and get the right answer
-- **Workspace collaboration**: Share knowledge across team conversations while keeping private data isolated
+- **Group collaboration**: Share knowledge across team conversations while keeping private data isolated
 
 ### Automate Data Work
 - **Python execution**: Run calculations, data processing, and file operations in a secure sandbox
@@ -68,21 +68,51 @@ Cassey works where you work:
 
 ## Storage That Respects Your Privacy
 
-Cassey takes data isolation seriously:
+Cassey takes data isolation seriously with a unified `scope` parameter across all storage tools:
 
-### Thread-Scoped Storage (Private)
-Each conversation gets its own isolated workspace:
-- **Files**: Private file storage for that conversation
-- **Database**: Temporary working data (timesheets, analysis results)
-- **Memories**: Embedded user memories for personalization
+### Context-Scoped Storage (Default)
+All storage tools support `scope="context"` (default):
+- **In a group**: Uses `data/groups/{group_id}/` for team collaboration
+- **Individual threads**: Uses `data/users/{thread_id}/` for private data
 
-Files and databases live under `data/users/{thread_id}/`—completely separated from other users.
+```python
+# Context-scoped (automatic - uses group or thread)
+create_db_table("users", data=[...], scope="context")
+write_file("notes.txt", "My notes", scope="context")
+create_vs_collection("knowledge", content="Team decisions", scope="context")
+```
 
-### Workspace Storage (Shared)
-For team collaboration, create shared workspaces under `data/groups/{workspace_id}/`:
-- **Vector Store**: Long-term knowledge base accessible to all team members
-- **Files**: Shared documents and resources
-- **Database**: Team-wide datasets and analysis
+### Organization-Wide Shared Storage
+All storage tools support `scope="shared"` for organization-wide data:
+- **Location**: `data/shared/`
+- **Accessible by**: All users (read), admins (write)
+- **Use cases**: Company-wide knowledge, shared templates, org data
+
+```python
+# Organization-wide shared
+create_db_table("org_users", data=[...], scope="shared")
+write_file("policy.txt", "Company policy", scope="shared")
+create_vs_collection("org_knowledge", content="Company processes", scope="shared")
+```
+
+### Storage Hierarchy
+```
+data/
+├── shared/              # scope="shared" (organization-wide)
+│   ├── files/           # Shared file storage
+│   ├── db/              # Shared database
+│   └── vs/              # Shared vector store
+├── groups/              # scope="context" when group_id is set
+│   └── {group_id}/      # Team groups
+│       ├── files/
+│       ├── db/
+│       └── vs/
+└── users/               # scope="context" for individual threads
+    └── {thread_id}/
+        ├── files/
+        ├── db/
+        └── vs/
+```
 
 ### Merge & Identity Management
 - Start as anonymous (identified by `thread_id`)
@@ -198,7 +228,7 @@ See `.env.example` for all available options.
 | `/start` | Start conversation / show welcome message |
 | `/help` | Show available commands and usage |
 | `/reminders` | List active reminders |
-| `/groups` | Manage shared workspaces |
+| `/groups` | Manage shared groups |
 | `/debug` | Toggle verbose status mode (see LLM/tool timing) |
 | `/id` | Show your user/thread ID for debugging |
 
@@ -257,10 +287,10 @@ curl http://localhost:8000/health
 - **Import/Export**: CSV, JSON, Parquet formats
 - **Use case**: Temporary working data (timesheets, logs, analysis results)
 
-### Vector Store (per-workspace)
+### Vector Store (per-group/thread)
 - **Semantic search**: Find documents by meaning, not just keywords
 - **Hybrid search**: Combines full-text + vector similarity
-- **Persistent**: Survives thread resets (workspace-scoped)
+- **Persistent**: Survives thread resets (group/thread-scoped)
 - **Use case**: Long-term knowledge base (meeting notes, decisions, docs)
 
 ### Python Execution
@@ -296,19 +326,21 @@ Cassey uses a **ReAct agent pattern** with LangGraph:
 
 ```
 data/
-├── users/              # Thread-scoped (private)
-│   └── {thread_id}/
-│       ├── files/      # Private files
-│       ├── db/         # Working database
-│       ├── vs/         # Thread VS (rarely used)
-│       └── mem/        # Embedded memories
-├── groups/             # Workspace-scoped (shared)
-│   └── {workspace_id}/
+├── shared/             # Organization-wide (scope="shared")
+│   ├── files/          # Shared files
+│   ├── db/             # Shared database
+│   └── vs/             # Knowledge base
+├── groups/             # Group-scoped (scope="context" with group_id)
+│   └── {group_id}/
 │       ├── files/      # Shared files
 │       ├── db/         # Team database
 │       └── vs/         # Knowledge base
-└── shared/             # Organization-wide
-    └── shared.db       # Admin-writable database
+└── users/              # Thread-scoped (scope="context" without group_id)
+    └── {thread_id}/
+        ├── files/      # Private files
+        ├── db/         # Working database
+        ├── vs/         # Thread VS (rarely used)
+        └── mem/        # Embedded memories
 ```
 
 ### PostgreSQL Schema
