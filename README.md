@@ -1,109 +1,94 @@
 # Cassey
 
-Multi-channel AI agent platform with LangGraph ReAct agent.
+Your intelligent assistant that manages tasks, tracks work, stores knowledge, and never forgets a reminder.
 
-## Features
+## What Cassey Can Do For You
 
-- **ReAct Agent** - Tool-using agent with LangGraph
-- **Multi-Channel** - Telegram, HTTP, Email (planned)
-- **Thread/User Isolation** - Per-thread file and database storage
-- **Merge Operations** - Merge threads into persistent user identity
-- **Audit Logging** - Message and conversation tracking
-- **Time Tools** - Current time/date in any timezone
-- **Reminders** - Scheduled notifications with recurrence
-- **Web Search** - SearXNG integration
-- **Python Execution** - Sandboxed code execution for calculations and data processing
-- **File Search** - Glob patterns and grep content search
-- **Status Updates** - Real-time progress feedback during agent execution
-- **Debug Mode** - Verbose LLM/tool timing via `/debug` command (Telegram)
-- **Millisecond Logging** - High-precision timing for performance analysis
+Cassey is a multi-channel AI agent that helps you stay organized and productive. Whether you're tracking timesheets, managing a knowledge base, or automating data analysis, Cassey intelligently selects the right tools for the job.
 
-## Architecture
+### Track Your Work
+- **Timesheet logging**: Simply tell Cassey what you worked on, and it stores structured data in your private database
+- **Time-aware**: Knows the current time in any timezone, perfect for distributed teams
+- **Data analysis**: Query your logged work with SQL, export to CSV/JSON, or visualize trends
 
-### Storage
-- `conversations` - Conversation metadata per thread/channel
-- `messages` - Full message audit log
-- `file_paths` - File ownership tracking per thread
-- `db_paths` - Database ownership tracking per thread
-- `user_registry` - Operation audit log (merge/split/remove)
-- `reminders` - Scheduled reminder notifications
+### Never Forget a Reminder
+- **Scheduled notifications**: "Remind me to review PRs at 3pm every weekday"
+- **Recurring patterns**: Daily, weekly, or custom schedules with flexible recurrence rules
+- **Multi-channel delivery**: Get reminders on Telegram or HTTP webhook
 
-### Thread-Scoped Storage Layout
-All per-thread data lives under `data/users/{thread_id}/`:
+### Build a Knowledge Base
+- **Semantic search**: Store documents and find them by meaning, not just keywords
+- **Smart retrieval**: Ask "What did we decide about the API pricing?" and get the right answer
+- **Workspace collaboration**: Share knowledge across team conversations while keeping private data isolated
 
-```
-data/users/{thread_id}/
-  files/   # user files
-  db/      # DuckDB DB
-  vs/      # DuckDB + Hybrid VS (vs.db with FTS + VSS)
-  mem/     # embedded memory
-```
+### Automate Data Work
+- **Python execution**: Run calculations, data processing, and file operations in a secure sandbox
+- **Web search**: Find current information from the web
+- **File operations**: Read, write, search, and organize files with natural language commands
 
-### Workspace Storage
-Shared workspaces live under `data/groups/{workspace_id}/` with similar structure.
+### Intelligent Tool Selection
+Cassey uses a skills system to choose the right approach:
+- **Database tools** for structured data and temporary analysis (timesheets, logs, datasets)
+- **Vector Store** for long-term knowledge retrieval (meeting notes, decisions, documentation)
+- **File tools** for browsing and exact-text search (codebases, document archives)
 
-### Tools
-Note: Tool naming is being standardized to verb-first. Some tools may still be exposed under legacy names until the migration is complete.
+You don't need to remember which tool does what—Cassey figures it out from context.
 
-**File Operations:**
-- `file_read` - Read file contents (planned rename: `read_file`)
-- `write_file` - Write files
-- `list_files` - Browse directory contents
-- `create_folder` / `delete_folder` / `rename_folder` - Folder management
-- `move_file` - Move/rename files
-- `glob_files` - Find files by pattern (`*.py`, `**/*.json`)
-- `grep_files` - Search file contents with regex
+## How Cassey Thinks
 
-**Database (per-thread, temporary):**
-- `db_create_table` - Create table from JSON data
-- `db_query` - Execute SQL queries
-- `db_insert_table` - Insert rows into existing table
-- `db_list_tables` - Show all tables in workspace
-- `db_describe_table` - Show table schema
-- `db_drop_table` - Delete a table
-- `db_export_table` / `db_import_table` - Data export/import
+Cassey is a **ReAct agent** built on LangGraph. Unlike simple chatbots, it:
 
-**Vector Store (per-workspace, DuckDB + Hybrid):**
-- `create_vs_collection` - Create VS collection
-- `search_vs` - Full-text or hybrid search
-- `add_vs_documents` - Add documents to existing VS collection
-- `vs_list` - List all VS collections with document counts
-- `describe_vs_collection` - Show VS collection schema and samples
-- `delete_vs_documents` - Delete specific documents
-- `drop_vs_collection` - Delete a VS collection
+1. **Reasons** about your request using an LLM
+2. **Acts** by calling tools (file operations, database queries, web search, etc.)
+3. **Observes** the results and decides what to do next
+4. **Responds** with a clear confirmation of what was done
 
-**Time & Reminders:**
-- `time_get_current` - Current time in any timezone (planned rename: `get_current_time`)
-- `time_get_current_date` - Current date (planned rename: `get_current_date`)
-- `time_list` - Available timezones (planned rename: `list_timezones`)
-- `set_reminder` - Create reminders with recurrence
-- `list_reminders` - Show active reminders
-- `cancel_reminder` - Cancel pending reminders
-- `edit_reminder` - Modify existing reminders
+This cycle continues until your task is complete—with safeguards to prevent infinite loops.
 
-**Code Execution:**
-- `execute_python` - Sandboxed Python for calculations, data processing, file I/O
-  - Thread-scoped file access
-  - Allowed modules: json, csv, math, datetime, random, statistics, urllib, etc.
-  - 30s timeout, path traversal protection
+### Real-Time Progress Updates
+Cassey keeps you informed while working:
+- **Normal mode**: Clean status updates edited in place
+- **Debug mode**: Detailed timing information (toggle with `/debug`)
+- **Per-message limits**: Prevents runaway execution (20 LLM calls, 30 tool calls per message)
 
-**Web Search:**
-- `web_search` - Search via SearXNG
+## Multi-Channel Access
 
-**OCR (optional, local):**
-- `ocr_extract_text` - Extract text from images/PDFs (local OCR)
-- `ocr_extract_structured` - OCR + LLM to produce structured JSON
-- `extract_from_image` - Auto-select extraction method
+Cassey works where you work:
 
-**Other:**
-- Calculator tool
+### Telegram
+- Chat with Cassey in any Telegram conversation
+- Commands: `/start`, `/help`, `/reminders`, `/groups`, `/debug`, `/id`
+- Perfect for mobile quick-tasks and reminders on-the-go
 
-### Thread vs User Isolation
+### HTTP API
+- Integrate Cassey into your applications
+- REST endpoints for messaging and conversation history
+- SSE streaming for real-time responses
+- Ideal for workflows, webhooks, and custom integrations
 
-- **Anonymous users**: Identified by `thread_id` (e.g., `telegram:123456789`)
-- **Merged users**: Have persistent `user_id` with ownership across threads
-- **Files & Database**: Each stored in sanitized thread-specific directories
-- **Merge**: Updates ownership records only (no checkpoint migration)
+## Storage That Respects Your Privacy
+
+Cassey takes data isolation seriously:
+
+### Thread-Scoped Storage (Private)
+Each conversation gets its own isolated workspace:
+- **Files**: Private file storage for that conversation
+- **Database**: Temporary working data (timesheets, analysis results)
+- **Memories**: Embedded user memories for personalization
+
+Files and databases live under `data/users/{thread_id}/`—completely separated from other users.
+
+### Workspace Storage (Shared)
+For team collaboration, create shared workspaces under `data/groups/{workspace_id}/`:
+- **Vector Store**: Long-term knowledge base accessible to all team members
+- **Files**: Shared documents and resources
+- **Database**: Team-wide datasets and analysis
+
+### Merge & Identity Management
+- Start as anonymous (identified by `thread_id`)
+- Merge multiple threads into a persistent `user_id`
+- Ownership tracking for all files, databases, and reminders
+- Audit log for all operations
 
 ## Quick Start
 
@@ -113,12 +98,12 @@ cp .env.example .env
 # Edit .env with your API keys
 
 # Start PostgreSQL
-docker-compose up -d
+docker-compose up -d postgres_db
 
 # Run migrations (auto-run on first start)
 psql $POSTGRES_URL < migrations/001_initial_schema.sql
 
-# Run bot (default: Telegram)
+# Run Cassey (default: Telegram)
 uv run cassey
 
 # Run HTTP only
@@ -128,9 +113,85 @@ CASSEY_CHANNELS=http uv run cassey
 CASSEY_CHANNELS=telegram,http uv run cassey
 ```
 
-## Telegram Bot Commands
+**For local testing**, always use `uv run cassey` instead of Docker. Only build Docker when everything works (see `CLAUDE.md` for testing workflow).
 
-Cassey supports several commands in Telegram:
+## What Makes Cassey Different
+
+### Unlike Simple Chatbots
+- **Tool-using**: Can read files, query databases, search the web, execute Python
+- **Persistent**: Remembers context across sessions with PostgreSQL checkpointing
+- **Multi-step**: Handles complex tasks that require multiple tool calls
+- **Safe**: Sandboxed execution, per-message limits, audit logging
+
+### Unlike Other AI Agents
+- **Intelligent storage**: Knows when to use DB (structured) vs VS (semantic) vs files (raw)
+- **Skills system**: Progressive disclosure of advanced patterns (load with `load_skill`)
+- **Privacy-first**: Thread isolation by design, merge only when you request it
+- **Multi-channel**: Same agent works on Telegram, HTTP, and more (planned: Email, Slack)
+
+### Production-Ready Features
+- **Middleware stack**: Summarization, retry logic, call limits, todo tracking, context editing
+- **High-precision logging**: Millisecond timestamps for performance analysis
+- **Debug mode**: Toggle verbose status updates to understand agent behavior
+- **Status updates**: Real-time progress feedback during long-running tasks
+
+## Example Workflows
+
+### Timesheet Tracking
+```
+You: Log 4 hours of API development
+Cassey: Created timesheet table and logged entry.
+
+You: How many hours did I work this week?
+Cassey: [queries database] You worked 32 hours total:
+     - API development: 16h
+     - Bug fixes: 12h
+     - Meetings: 4h
+```
+
+### Knowledge Management
+```
+You: Save this: API rate limit is 1000 req/min for pro accounts
+Cassey: Saved to knowledge base.
+
+You: What's the rate limit for pro accounts?
+Cassey: [searches vector store] 1000 requests per minute.
+```
+
+### Data Analysis
+```
+You: Analyze this CSV and find the average
+Cassey: [imports CSV, runs Python] The average is 42.7.
+     I've created a chart and saved it to analysis.png.
+```
+
+## Configuration
+
+Essential environment variables:
+
+```bash
+# LLM Provider (choose one)
+OPENAI_API_KEY=sk-...           # OpenAI (GPT-4, GPT-4o)
+ANTHROPIC_API_KEY=sk-...        # Anthropic (Claude)
+ZHIPU_API_KEY=...               # Zhipu (GLM-4)
+
+# Channels
+CASSEY_CHANNELS=telegram,http   # Available channels
+
+# Telegram (if using telegram channel)
+TELEGRAM_BOT_TOKEN=...
+
+# PostgreSQL (required for state persistence)
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_USER=cassey
+POSTGRES_PASSWORD=your_password
+POSTGRES_DB=cassey_db
+```
+
+See `.env.example` for all available options.
+
+## Telegram Bot Commands
 
 | Command | Description |
 |---------|-------------|
@@ -143,7 +204,7 @@ Cassey supports several commands in Telegram:
 
 ### Debug Mode
 
-The `/debug` command enables verbose status updates:
+Toggle detailed progress tracking:
 
 ```bash
 /debug           # Show current debug status
@@ -166,7 +227,7 @@ Example verbose output:
 When `CASSEY_CHANNELS=http`, a FastAPI server starts on port 8000:
 
 ```bash
-# Send message (streamed by default)
+# Send message
 curl -X POST http://localhost:8000/message \
   -H "Content-Type: application/json" \
   -d '{"content": "hello", "user_id": "user123", "stream": false}'
@@ -183,245 +244,84 @@ curl http://localhost:8000/health
 - `GET /conversations/{id}` - Get conversation history
 - `GET /health` - Health check
 
-## Database Schema
+## Tool Capabilities
 
-### Core Tables
+### File Operations
+- **Read/write**: Create, edit, and organize files
+- **Search**: Find files by pattern (`*.py`, `**/*.json`) or search contents with regex
+- **Secure**: Thread-scoped paths prevent access to other users' data
+
+### Database (per-thread)
+- **Create tables**: From JSON/CSV with automatic schema inference
+- **Query**: Full SQL support via DuckDB
+- **Import/Export**: CSV, JSON, Parquet formats
+- **Use case**: Temporary working data (timesheets, logs, analysis results)
+
+### Vector Store (per-workspace)
+- **Semantic search**: Find documents by meaning, not just keywords
+- **Hybrid search**: Combines full-text + vector similarity
+- **Persistent**: Survives thread resets (workspace-scoped)
+- **Use case**: Long-term knowledge base (meeting notes, decisions, docs)
+
+### Python Execution
+- **Sandboxed**: 30s timeout, path traversal protection, thread-scoped I/O
+- **Modules**: json, csv, math, datetime, random, statistics, urllib, etc.
+- **Use case**: Calculations, data processing, file transformations
+
+### Web Search
+- **SearXNG integration**: Privacy-focused search aggregator
+- **No API key needed**: Self-hosted SearXNG instance
+
+### Time & Reminders
+- **Timezone-aware**: Current time/date in any timezone
+- **Flexible scheduling**: One-time or recurring reminders
+- **Multi-thread**: Trigger reminders across multiple conversations
+
+### OCR (optional, local)
+- **Image/PDF text extraction**: PaddleOCR or Tesseract
+- **Structured extraction**: OCR + LLM for JSON output
+- **Use case**: Extract data from screenshots, scans, receipts
+
+## Architecture Overview
+
+Cassey uses a **ReAct agent pattern** with LangGraph:
+
+1. **User message** → Channel (Telegram/HTTP)
+2. **Channel** → Agent with state (messages, iterations, summary)
+3. **Agent** → ReAct loop (Think → Act → Observe)
+4. **Tools** → Storage (files, DB, VS), external APIs
+5. **Response** → Channel → User
+
+### Storage Hierarchy
+
+```
+data/
+├── users/              # Thread-scoped (private)
+│   └── {thread_id}/
+│       ├── files/      # Private files
+│       ├── db/         # Working database
+│       ├── vs/         # Thread VS (rarely used)
+│       └── mem/        # Embedded memories
+├── groups/             # Workspace-scoped (shared)
+│   └── {workspace_id}/
+│       ├── files/      # Shared files
+│       ├── db/         # Team database
+│       └── vs/         # Knowledge base
+└── shared/             # Organization-wide
+    └── shared.db       # Admin-writable database
+```
+
+### PostgreSQL Schema
 
 | Table | Purpose |
 |-------|---------|
-| checkpoints | LangGraph state snapshots |
-| conversations | Conversation metadata per thread |
-| messages | Message audit log |
-| file_paths | File ownership per thread |
-| db_paths | Database ownership per thread |
-| user_registry | Operation audit (merge/split/remove) |
-| reminders | Scheduled reminder notifications |
-
-### Key Columns
-
-- `conversations.user_id` - NULL for anonymous, set after merge
-- `file_paths.thread_id` - Maps to sanitized directory name
-- `db_paths.thread_id` - Maps to .db file name
-- `reminders.user_id` - Owner of the reminder
-- `reminders.thread_ids` - Threads that can trigger the reminder
-
-## Merge Operations
-
-Merge threads into a persistent user identity:
-
-```python
-from cassey.storage.user_registry import UserRegistry
-
-registry = UserRegistry()
-result = await registry.merge_threads(
-    source_thread_ids=["telegram:123456", "http:abc123"],
-    target_user_id="user@example.com"
-)
-# Returns: {conversations_updated, file_paths_updated, db_paths_updated}
-```
-
-**Important**: This updates ownership records only. LangGraph checkpoints remain separate.
-
-## File Operations
-
-Files are stored in per-thread directories:
-
-```
-data/files/
-  telegram_123456789/
-    notes.txt
-    data.csv
-  http_abc123/
-    report.md
-```
-
-Sanitized thread_id used as directory name (replaces `:`, `/`, `@`, `\` with `_`).
-
-### File Search
-
-```python
-# Find files by pattern
-glob_files("*.py")           # All Python files
-glob_files("**/*.json")       # Recursive JSON search
-glob_files("test_*")          # Files starting with test_
-
-# Search file contents
-grep_files("TODO", output_mode="files")     # Which files contain TODO
-grep_files("API_KEY", output_mode="content") # Show matching lines
-grep_files("error", output_mode="count")     # Count matches
-```
-
-## Database (DB)
-
-Each thread gets its own DB for temporary working data:
-
-```
-data/db/
-  telegram_123456789.db
-  http_abc123.db
-```
-
-Available tools:
-- `db_create_table(table_name, data, columns)` - Create table from JSON
-- `db_query(sql)` - Execute SQL query
-- `db_insert_table(table_name, data)` - Insert rows
-- `db_list_tables()` - Show all tables
-- `db_describe_table(table_name)` - Show table schema
-- `db_drop_table(table_name)` - Delete a table
-- `db_export_table(table_name, filename, format)` - Export to CSV/JSON/Parquet
-- `db_import_table(table_name, filename)` - Import from CSV
-
-## Vector Store (VS)
-
-The VS is per-workspace and persists across sessions. Each workspace has its own VS stored under `data/groups/{workspace_id}/vs/` (DuckDB + Hybrid FTS + VSS).
-
-**Implementation:** Uses DuckDB with full-text search (FTS) and vector similarity search (VSS) extensions for hybrid search. Cross-platform (Linux, macOS, Windows).
-
-```
-data/groups/{workspace_id}/vs/
-  vs.db      # DuckDB database with FTS + VSS indexes
-```
-
-VS vs Database:
-- **Database** (`db_*` tools): Temporary working data during analysis
-- **Vector Store** (`vs_*` tools): Longer-term reference data for retrieval
-
-Available tools:
-- `create_vs_collection(collection_name, documents)` - Create VS collection
-- `search_vs(query, collection_name, limit)` - Hybrid search (semantic + fulltext)
-- `add_vs_documents(collection_name, documents)` - Add more documents to existing collection
-- `vs_list()` - List all VS collections with document counts
-- `describe_vs_collection(collection_name)` - Show collection schema and sample documents
-- `delete_vs_documents(collection_name, document_ids)` - Delete specific documents
-- `drop_vs_collection(collection_name)` - Delete a VS collection
-
-**Example usage:**
-```python
-# Store documents in VS
-create_vs_collection("notes", '[{"content": "Meeting: Q1 revenue was $1.2M", "metadata": "finance"}]')
-
-# Search
-search_vs("revenue Q1", "notes")
-# Returns: [0.12] Meeting: Q1 revenue was $1.2M [metadata: finance]
-
-# Add more documents
-add_vs_documents("notes", '[{"content": "Q2 revenue projection: $1.5M"}]')
-
-# List all collections
-vs_list()
-# Returns: Vector Store collections:
-# - notes: 2 chunks
-```
-
-## Python Code Execution
-
-The `execute_python` tool allows sandboxed Python execution:
-
-```python
-# Math calculations
-execute_python("print(2 + 2)")
-# "4"
-
-# Data processing
-execute_python("""
-import csv, json
-with open('data.csv') as f:
-    data = list(csv.DictReader(f))
-print(json.dumps(data))
-""")
-
-# File I/O (thread-scoped)
-execute_python("""
-with open('output.json', 'w') as f:
-    json.dump({'result': 42}, f)
-""")
-```
-
-**Security:**
-- 30 second timeout
-- Path traversal protection
-- File extension whitelist
-- Max file size: 10MB
-- Thread-scoped directories
-
-## Configuration
-
-Environment variables:
-
-```bash
-# Required
-OPENAI_API_KEY=sk-...
-TELEGRAM_BOT_TOKEN=...
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_USER=cassey
-POSTGRES_PASSWORD=cassey_password
-POSTGRES_DB=cassey_db
-
-# Channels
-CASSEY_CHANNELS=telegram  # Options: telegram, http (comma-separated)
-
-# Optional
-DEFAULT_LLM_PROVIDER=openai  # Options: openai, anthropic, zhipu
-SEARXNG_HOST=https://searxng.example.com  # Web search
-HTTP_HOST=0.0.0.0   # HTTP server host (default: 0.0.0.0)
-HTTP_PORT=8000      # HTTP server port (default: 8000)
-USERS_ROOT=./data/users  # Thread-scoped storage root
-SHARED_DB_PATH=./data/shared/shared.db  # Shared organization-wide DB file
-ADMIN_USER_IDS=  # Comma-separated admin user IDs for shared DB writes
-ADMIN_THREAD_IDS=  # Comma-separated admin thread IDs for shared DB writes
-
-# Agent runtime
-AGENT_RUNTIME=langchain  # Options: langchain, custom
-AGENT_RUNTIME_FALLBACK=  # Optional fallback runtime (e.g., custom)
-
-# LangChain middleware
-MW_SUMMARIZATION_ENABLED=true
-MW_SUMMARIZATION_MAX_TOKENS=10000
-MW_SUMMARIZATION_TARGET_TOKENS=2000
-MW_MODEL_CALL_LIMIT=50
-MW_TOOL_CALL_LIMIT=100
-MW_TOOL_RETRY_ENABLED=true
-MW_MODEL_RETRY_ENABLED=true
-MW_HITL_ENABLED=false
-MW_TODO_LIST_ENABLED=true              # TodoListMiddleware for multi-step task tracking
-MW_CONTEXT_EDITING_ENABLED=false       # ContextEditingMiddleware (safety net, disabled by default)
-MW_CONTEXT_EDITING_TRIGGER_TOKENS=100000  # Trigger token count for context trimming
-MW_CONTEXT_EDITING_KEEP_TOOL_USES=10   # Number of recent tool uses to keep
-
-# Status updates (real-time progress feedback)
-MW_STATUS_UPDATE_ENABLED=true          # Send status updates during agent execution
-MW_STATUS_SHOW_TOOL_ARGS=false         # Include tool arguments in status (security)
-MW_STATUS_UPDATE_INTERVAL=0.5          # Minimum seconds between status updates
-
-# Logging
-LOG_LEVEL=INFO                         # DEBUG, INFO, WARNING, ERROR
-# Logs include millisecond timestamps for performance analysis
-```
-
-Legacy storage paths (`FILES_ROOT`, `DB_ROOT`) are deprecated and only used for fallback reads.
-
-Notes:
-- `AGENT_RUNTIME=langchain` uses `MW_*` settings for middleware behavior.
-- `AGENT_RUNTIME=custom` uses `ENABLE_SUMMARIZATION`, `SUMMARY_THRESHOLD`, and `MAX_ITERATIONS`.
-
-## Project Structure
-
-```
-cassey/
-├── src/cassey/
-│   ├── channels/       # Telegram, HTTP
-│   ├── storage/        # User registry, file sandbox, database, reminders
-│   ├── tools/          # LangChain tools (file, database, time, python, search, etc.)
-│   ├── agent/          # Agent runtimes (custom graph + LangChain)
-│   ├── scheduler.py    # APScheduler integration
-│   └── config/         # Settings
-├── migrations/         # SQL migrations
-├── tests/              # Unit tests
-├── pyproject.toml
-├── TODO.md
-└── README.md
-```
+| `checkpoints` | LangGraph state snapshots (conversation history) |
+| `conversations` | Conversation metadata per thread |
+| `messages` | Message audit log |
+| `file_paths` | File ownership per thread |
+| `db_paths` | Database ownership per thread |
+| `user_registry` | Operation audit (merge/split/remove) |
+| `reminders` | Scheduled reminder notifications |
 
 ## Testing
 
@@ -443,6 +343,32 @@ RUN_LIVE_LLM_TESTS=1 uv run pytest -m "langchain_integration and vcr" --record-m
 ./scripts/pytest_record_cassettes.sh
 ```
 
-Notes:
-- Cassettes are stored in `tests/cassettes/`.
-- If prompts/tools change, delete the cassette file and re-run to record a new baseline.
+## Project Structure
+
+```
+cassey/
+├── src/cassey/
+│   ├── channels/       # Telegram, HTTP
+│   ├── storage/        # User registry, file sandbox, DB, VS, reminders
+│   ├── tools/          # LangChain tools (file, DB, time, Python, search, OCR)
+│   ├── agent/          # Agent runtimes (custom graph + LangChain)
+│   ├── scheduler.py    # APScheduler integration
+│   └── config/         # Settings
+├── migrations/         # SQL migrations
+├── tests/              # Unit tests
+├── discussions/        # Design docs and plans
+├── scripts/            # Utility scripts
+├── pyproject.toml
+├── TODO.md
+└── README.md
+```
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## Contributing
+
+Contributions welcome! Please read `CLAUDE.md` for development workflow and testing guidelines.
+
+**Remember**: Always test locally with `uv run cassey` before building Docker. See `CLAUDE.md` for details.

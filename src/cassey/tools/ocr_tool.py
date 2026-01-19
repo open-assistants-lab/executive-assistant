@@ -225,18 +225,8 @@ def choose_ocr_method(instruction: str, image_size_kb: int) -> str:
     return "local"
 
 
-@tool
-def ocr_extract_text(image_path: str, output_format: str = "text") -> str:
-    """
-    Extract text from an image or PDF using local OCR.
-
-    Args:
-        image_path: Path to image/PDF file (relative to thread sandbox).
-        output_format: "text" or "json".
-
-    Returns:
-        Extracted text or JSON with bounding boxes (if supported).
-    """
+def _ocr_extract_text_impl(image_path: str, output_format: str = "text") -> str:
+    """Core OCR text extraction implementation."""
     try:
         validated = _validate_ocr_path(image_path)
         if validated.suffix.lower() == ".pdf":
@@ -260,23 +250,28 @@ def ocr_extract_text(image_path: str, output_format: str = "text") -> str:
 
 
 @tool
-async def ocr_extract_structured(image_path: str, instruction: str = "Extract structured data") -> str:
+def ocr_extract_text(image_path: str, output_format: str = "text") -> str:
     """
-    Extract structured data using local OCR + LLM formatting.
+    Extract text from an image or PDF using local OCR.
 
     Args:
         image_path: Path to image/PDF file (relative to thread sandbox).
-        instruction: What to extract.
+        output_format: "text" or "json".
 
     Returns:
-        JSON string.
+        Extracted text or JSON with bounding boxes (if supported).
     """
+    return _ocr_extract_text_impl(image_path, output_format)
+
+
+async def _ocr_extract_structured_impl(image_path: str, instruction: str = "Extract structured data") -> str:
+    """Core OCR structured extraction implementation."""
     try:
         validated = _validate_ocr_path(image_path)
         if validated.suffix.lower() == ".pdf":
             ocr_text = _extract_pdf_text(validated, output_format="text")
         else:
-            ocr_text = ocr_extract_text(image_path, output_format="text")
+            ocr_text = _ocr_extract_text_impl(image_path, output_format="text")
         if ocr_text.startswith("Error:") or ocr_text.startswith("No text"):
             return ocr_text
     except Exception as e:
@@ -325,6 +320,21 @@ async def ocr_extract_structured(image_path: str, instruction: str = "Extract st
 
 
 @tool
+async def ocr_extract_structured(image_path: str, instruction: str = "Extract structured data") -> str:
+    """
+    Extract structured data using local OCR + LLM formatting.
+
+    Args:
+        image_path: Path to image/PDF file (relative to thread sandbox).
+        instruction: What to extract.
+
+    Returns:
+        JSON string.
+    """
+    return await _ocr_extract_structured_impl(image_path, instruction)
+
+
+@tool
 async def extract_from_image(
     image_path: str,
     instruction: str = "Extract all text",
@@ -352,9 +362,9 @@ async def extract_from_image(
         method = choose_ocr_method(instruction, image_size_kb)
 
     if method == "local":
-        return ocr_extract_text(image_path)
+        return _ocr_extract_text_impl(image_path)
     if method == "vision":
-        return await ocr_extract_structured(image_path, instruction)
+        return await _ocr_extract_structured_impl(image_path, instruction)
 
     return f"Unknown method: {method}"
 
