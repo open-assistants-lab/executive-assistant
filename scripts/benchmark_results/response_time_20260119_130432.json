@@ -1,0 +1,170 @@
+[
+  {
+    "scenario": "simple_hello",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "timestamp": "2026-01-19T13:04:22.213992",
+    "timings_ms": {
+      "state_build": 0.0030994415283203125,
+      "memory_retrieval": 0,
+      "checkpoint_load": 345.9329605102539,
+      "agent_stream_start": 0.014781951904296875,
+      "llm_total": 1630.662202835083,
+      "agent_stream_end": 9.547710418701172,
+      "total": 1995.0189590454102,
+      "overhead": 364.35675621032715,
+      "overhead_percent": 18.263322990407417
+    },
+    "metrics": {
+      "events_processed": 4,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "simple_hello",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "timestamp": "2026-01-19T13:04:24.209209",
+    "timings_ms": {
+      "state_build": 0.003814697265625,
+      "memory_retrieval": 0,
+      "checkpoint_load": 15.012025833129883,
+      "agent_stream_start": 0.023126602172851562,
+      "llm_total": 1458.7101936340332,
+      "agent_stream_end": 10.302066802978516,
+      "total": 1491.2030696868896,
+      "overhead": 32.492876052856445,
+      "overhead_percent": 2.1789705717061745
+    },
+    "metrics": {
+      "events_processed": 4,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "simple_hello",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "timestamp": "2026-01-19T13:04:25.700496",
+    "timings_ms": {
+      "state_build": 0.008106231689453125,
+      "memory_retrieval": 0,
+      "checkpoint_load": 13.943910598754883,
+      "agent_stream_start": 0.012159347534179688,
+      "llm_total": 1256.518840789795,
+      "agent_stream_end": 11.729955673217773,
+      "total": 1286.0000133514404,
+      "overhead": 29.481172561645508,
+      "overhead_percent": 2.29247062640495
+    },
+    "metrics": {
+      "events_processed": 4,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "with_memory",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "timestamp": "2026-01-19T13:04:26.986607",
+    "timings_ms": {
+      "state_build": 0.0059604644775390625,
+      "memory_retrieval": 257.8401565551758,
+      "checkpoint_load": 9.683847427368164,
+      "agent_stream_start": 0.007867813110351562,
+      "llm_total": 1723.694086074829,
+      "agent_stream_end": 22.995948791503906,
+      "total": 2019.3238258361816,
+      "overhead": 295.62973976135254,
+      "overhead_percent": 14.640036232867962
+    },
+    "metrics": {
+      "events_processed": 4,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "with_memory",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "timestamp": "2026-01-19T13:04:29.006023",
+    "timings_ms": {
+      "state_build": 0.0050067901611328125,
+      "memory_retrieval": 36.86809539794922,
+      "checkpoint_load": 13.223886489868164,
+      "agent_stream_start": 0.016927719116210938,
+      "llm_total": 1693.6397552490234,
+      "agent_stream_end": 9.374141693115234,
+      "total": 1755.8400630950928,
+      "overhead": 62.200307846069336,
+      "overhead_percent": 3.5424814112298044
+    },
+    "metrics": {
+      "events_processed": 4,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "with_memory",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "timestamp": "2026-01-19T13:04:30.761956",
+    "timings_ms": {
+      "state_build": 0.0050067901611328125,
+      "memory_retrieval": 37.35089302062988,
+      "checkpoint_load": 12.389183044433594,
+      "agent_stream_start": 0.014066696166992188,
+      "llm_total": 2098.407030105591,
+      "agent_stream_end": 12.859821319580078,
+      "total": 2165.294885635376,
+      "overhead": 66.88785552978516,
+      "overhead_percent": 3.0890875868003462
+    },
+    "metrics": {
+      "events_processed": 4,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  }
+]

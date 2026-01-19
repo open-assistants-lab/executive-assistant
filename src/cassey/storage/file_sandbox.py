@@ -273,18 +273,15 @@ def get_sandbox(user_id: str | None = None) -> FileSandbox:
 @tool
 @require_permission("read")
 def read_file(file_path: str) -> str:
-    """
-    Read a file from the files directory.
+    """Read file contents as text. [Files]
+
+    USE THIS WHEN: You need to read a specific file's contents (reports, notes, configurations).
 
     Args:
-        file_path: Path to the file relative to files directory.
+        file_path: Path relative to files directory.
 
     Returns:
         File contents as string.
-
-    Examples:
-        >>> read_file("notes.txt")
-        "Hello, world!"
     """
     sandbox = get_sandbox()
     try:
@@ -301,19 +298,16 @@ def read_file(file_path: str) -> str:
 @tool
 @require_permission("write")
 def write_file(file_path: str, content: str) -> str:
-    """
-    Write content to a file in the files directory.
+    """Write content to a file (creates or overwrites). [Files]
+
+    USE THIS WHEN: Saving reports, exporting analysis results, storing reference materials.
 
     Args:
-        file_path: Path to the file relative to files directory.
-        content: Content to write.
+        file_path: Path relative to files directory.
+        content: Text content to write.
 
     Returns:
-        Success message or error description.
-
-    Examples:
-        >>> write_file("notes.txt", "Hello, world!")
-        "File written: notes.txt"
+        Success message with file path.
     """
     sandbox = get_sandbox()
     try:
@@ -338,31 +332,18 @@ def file_write(file_path: str, content: str) -> str:
 @tool
 @require_permission("read")
 def list_files(directory: str = "", recursive: bool = False) -> str:
-    """
-    List files and folders in a directory (browse directory structure).
+    """Browse directory structure (file/folder names only). [Files]
 
-    USE THIS WHEN: You want to see what's in a folder, explore directory structure,
-    or get an overview of available files. This shows file/folder NAMES only.
+    USE THIS WHEN: Exploring folders, seeing what's available, verifying file locations.
 
-    For finding files by pattern, use glob_files instead.
-    For searching file contents, use grep_files instead.
+    For pattern search: glob_files. For content search: grep_files.
 
     Args:
         directory: Subdirectory to list (empty for root).
-        recursive: If True, list all files recursively.
+        recursive: List all files recursively if True.
 
     Returns:
-        List of files and directories.
-
-    Examples:
-        >>> list_files()
-        "Files in files: notes.txt, data/"
-
-        >>> list_files("docs")
-        "Files in docs/: file1.txt, file2.md, subdir/"
-
-        >>> list_files("docs", recursive=True)
-        "Files in docs/: file1.txt\\n  subdir/file2.txt"
+        List of files and folders.
     """
     sandbox = get_sandbox()
     try:
@@ -558,33 +539,18 @@ def move_file(source: str, destination: str) -> str:
 @tool
 @require_permission("read")
 def glob_files(pattern: str, directory: str = "") -> str:
-    """
-    Find files by name pattern or extension (like "find . -name").
+    """Find files by name pattern or extension. [Files]
 
-    USE THIS WHEN: You need to find files of a specific type (e.g., "*.py", "*.json"),
-    or find files matching a name pattern. Shows file sizes and timestamps.
+    USE THIS WHEN: Finding files of a specific type (*.csv, *.json) or matching a name pattern.
 
-    For browsing a folder, use list_files instead.
-    For searching inside file contents, use grep_files instead.
+    For browsing: list_files. For content search: grep_files.
 
     Args:
-        pattern: Glob pattern (e.g., "*.py", "**/*.json", "data/**/*.csv").
-        directory: Base directory to search in (empty for sandbox root).
+        pattern: Glob pattern (*.py, **/*.json, data/**/*.csv).
+        directory: Base directory to search (empty for root).
 
     Returns:
-        List of matching files with sizes and modified times.
-
-    Examples:
-        >>> glob_files("*.py")
-        "Found 3 Python files:
-        - main.py (1024 bytes, 2024-01-15 10:30)
-        - utils.py (512 bytes, 2024-01-14 15:20)
-        - config.py (256 bytes, 2024-01-13 09:00)"
-
-        >>> glob_files("**/*.json", "docs")
-        "Found 2 JSON files:
-        - docs/data/schema.json (2048 bytes)
-        - docs/api/endpoints.json (1024 bytes)"
+        List of matching files with sizes and timestamps.
     """
     import glob as stdlib_glob
     from datetime import datetime
@@ -634,48 +600,21 @@ def grep_files(
     context_lines: int = 2,
     ignore_case: bool = False
 ) -> str:
-    """
-    Search INSIDE file contents (like Unix grep command).
+    """Search INSIDE file contents (like Unix grep). [Files]
 
-    USE THIS WHEN: You need to find specific text or patterns WITHIN files,
-    e.g., find which files contain "TODO", search for function names, find API keys.
-    This searches file CONTENTS, not filenames.
+    USE THIS WHEN: Finding specific text/patterns WITHIN files (e.g., which files contain "TODO", function definitions).
 
-    For browsing a folder, use list_files instead.
-    For finding files by name/type, use glob_files instead.
-    For fuzzy filename search, use find_files_fuzzy instead.
+    For browsing: list_files. For filename search: glob_files.
 
     Args:
-        pattern: Regular expression pattern to search for.
-        directory: Directory to search in (empty for sandbox root).
-        output_mode: Output format:
-            - "files": Only list matching files
-            - "content": Show matching lines with context (default)
-            - "count": Show match counts per file
-        context_lines: Number of context lines before/after matches (for content mode).
+        pattern: Regular expression to search for.
+        directory: Directory to search (empty for root).
+        output_mode: "files" (list), "content" (show matches), "count" (per-file totals).
+        context_lines: Context lines before/after matches.
         ignore_case: Case-insensitive search.
 
     Returns:
-        Search results in the specified format.
-
-    Examples:
-        >>> grep_files("TODO", output_mode="files")
-        "Found 'TODO' in 2 files:
-        - main.py
-        - utils.py"
-
-        >>> grep_files("import.*os", output_mode="content", context_lines=1)
-        "Found 'import.*os' in 2 files:
-        main.py:
-        3: import os
-        4: import sys
-        ..."
-
-        >>> grep_files("error", output_mode="count", ignore_case=True)
-        "Found 'error' (case-insensitive) in 3 files:
-        - main.py: 5 matches
-        - utils.py: 2 matches
-        - config.py: 1 match"
+        Search results in specified format.
     """
     import re
     from pathlib import Path as StdPath

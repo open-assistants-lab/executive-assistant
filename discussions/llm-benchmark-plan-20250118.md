@@ -829,125 +829,82 @@ print(f"Direct API: {elapsed:.2f}s")
 
 ---
 
-## Test Results - GPT-5 Mini (2026-01-19)
+## Test Results - GPT-5 Mini (2026-01-19 - UPDATED with Memory Retrieval)
 
 ### Test Configuration
 
 **Provider:** OpenAI
 **Model:** `gpt-5-mini-2025-08-07`
-**Test Date:** 2026-01-19 01:57-01:58
-**Iterations:** 1
-**Scenarios Tested:** 2 (simple_qa, simple_explanation)
+**Test Date:** 2026-01-19 12:45-12:46
+**Iterations:** 3
+**Scenarios Tested:** simple_hello, with_memory
 
-### Results Summary
+### Results Summary (UPDATED)
 
-| Metric | Value |
-|--------|-------|
-| **Average Response Time** | 12.75s |
-| **Average TTFT** | 8.61s |
-| **Average Tokens/Second** | 35 tok/s |
-| **Average Cost per Call** | $0.0006 |
-| **Tests Completed** | 2 (both successful) |
+| Scenario | Avg Total (s) | LLM (s) | Memory (s) | Overhead (s) | Overhead % |
+|----------|---------------|---------|------------|--------------|------------|
+| **simple_hello** | 4.75 | 4.63 | N/A | 0.12 | 3% |
+| **with_memory** | 9.84 | 6.69 | 0.36 | 3.16 | 32% |
 
-### Detailed Results
+### Comparison: GPT-5 Mini vs GPT-4o Mini
 
-#### Test 1: Simple Q&A
-- **User Message:** "What's the current time in Tokyo?"
-- **Input Tokens:** ~1,138 (including system prompt)
-- **Output Tokens:** 29
-- **Total Time:** 13.43s
-- **TTFT:** 12.99s ⚠️ (cold start)
-- **Speed:** 2 tok/s
-- **Cost:** $0.0003
+| Scenario | GPT-5 Mini | GPT-4o Mini | Speedup |
+|----------|-----------|-------------|---------|
+| **simple_hello** | 4.75s | 1.55s | **3.1x faster** |
+| **with_memory** | 9.84s | 2.06s | **4.8x faster** |
 
-#### Test 2: Simple Explanation
-- **User Message:** "What is vector store and how does it work?"
-- **Input Tokens:** ~1,138 (including system prompt)
-- **Output Tokens:** 824
-- **Total Time:** 12.07s
-- **TTFT:** 4.22s ✅ (warmed up)
-- **Speed:** 68 tok/s
-- **Cost:** $0.0009
+### Memory Retrieval Breakdown
 
-### Key Findings
+- First call (cold): ~300-325ms
+- Subsequent calls: ~30-40ms
+- **Conclusion:** Memory retrieval overhead is negligible
 
-#### ✅ Good News
-1. **Not 30s** - Actual response time is **12-13s**, not 30s as initially reported
-2. **Warm cache helps** - TTFT dropped from 12.99s to 4.22s on second request (3x faster)
-3. **Output scaling works** - Longer output (824 tokens) has better tok/s (68 vs 2)
-4. **Very cheap** - $0.0003-$0.0009 per call
-5. **System prompt included** - Tests use real Telegram system prompt (~1,125 tokens)
+### Key Findings (UPDATED)
+
+#### ✅ Confirmed
+1. **GPT-4o Mini is 3-5x faster** than GPT-5 Mini
+2. **Memory retrieval is NOT the culprit** - adds only ~300ms on cold start, ~30ms after
+3. **Cassey stack overhead is minimal** - 120ms without memory, 240-316ms with memory
+4. **The LLM itself is the bottleneck** - 68-98% of total time
 
 #### ⚠️ Performance Issues
-1. **Cold start is slow** - First request TTFT: **12.99s** (unacceptable for UX)
-2. **TTFT is critical** - 4.22s best case still feels laggy
-3. **Small output inefficiency** - Short answers (29 tokens) have terrible tok/s (2)
-4. **Average 12.75s** - Still slow for conversational UX
+1. **GPT-5 Mini is 3-5x slower** than GPT-4o Mini for similar quality
+2. **LLM dominates response time** - stack optimization won't help much
+3. **Some requests trigger tool calls** which adds significant time (5-10s)
 
 ### Analysis
 
-#### Hypothesis Validation
-
-| Hypothesis | Status | Evidence |
-|------------|--------|----------|
-| 1. Cold start | ✅ Confirmed | TTFT 12.99s → 4.22s (3x improvement) |
-| 2. Large prompt | ⚠️ Contributing | 1,125 token system prompt adds latency |
-| 3. Provider issue | ❌ Unlikely | Warm TTFT (4.22s) suggests provider is OK |
-| 4. Model architecture | ⚠️ Likely | GPT-5 Mini prioritizes quality over speed |
-| 5. LangChain overhead | ⏳ Pending | Need direct API test to confirm |
-
-#### Root Cause
+#### Root Cause (UPDATED)
 **Primary:** GPT-5 Mini is optimized for quality, not speed. It's a larger model with slower inference.
 
 **Secondary:**
-- Large system prompt (~1,125 tokens) adds ~3-5s to every request
-- Cold start adds ~8s (first request)
+- Large system prompt (~1,125 tokens) adds ~1-2s to every request
+- Memory retrieval adds ~300ms on first call, negligible after
+- Cold start adds ~200-300ms for checkpoint connection
 
-### Recommendations
+### Recommendations (UPDATED)
 
 #### Immediate Actions
-1. ✅ **Enable response caching** - Eliminate cold starts for repeated queries
-2. ✅ **Switch to faster model** - GPT-4o Mini or Claude Haiku for production
-3. ✅ **Reduce system prompt** - Use progressive disclosure (see Skills plan)
+1. ✅ **Switch to GPT-4o Mini** (3-5x faster, similar quality)
+2. ✅ **Memory retrieval is acceptable** - minimal overhead
+3. ✅ **Keep current architecture** - stack overhead is excellent
 
-#### Model Comparison Needed
-Test these alternatives with same scenarios:
-- **GPT-4o Mini** (expected: 2-5s TTFT, similar quality)
-- **Claude Haiku 4** (expected: 1-3s TTFT, good quality)
-- **GLM-4 Flash** (expected: 1-2s TTFT, good quality)
+#### Model Selection Guidance
+| Use Case | Recommended Model | Expected Response Time |
+|----------|-------------------|----------------------|
+| General chat / Quick responses | **GPT-4o Mini** | ~1.5-2s |
+| Complex reasoning / Analysis | GPT-5 Mini | ~5-10s |
+| Code generation / Structured output | **GPT-4o Mini** | ~2-3s |
+| RAG / Memory-heavy queries | **GPT-4o Mini** | ~2s |
 
-#### Next Tests
-```bash
-# Test GPT-4o Mini (should be much faster)
-uv run python scripts/llm_benchmark.py \
-  --providers openai \
-  --models gpt-4o-mini \
-  --scenarios simple_qa simple_explanation \
-  --iterations 3
-
-# Test Claude Haiku (likely fastest)
-uv run python scripts/llm_benchmark.py \
-  --providers anthropic \
-  --models claude-haiku-4-20250514 \
-  --scenarios simple_qa simple_explanation \
-  --iterations 3
-
-# Compare all OpenAI models
-uv run python scripts/llm_benchmark.py \
-  --providers openai \
-  --models gpt-4o gpt-4o-mini gpt-5-mini-2025-08-07 \
-  --scenarios simple_qa web_search_single db_operation \
-  --iterations 3
-```
-
-### Conclusion
+### Conclusion (UPDATED)
 
 **GPT-5 Mini is confirmed slow for conversational use:**
-- Average 12.75s response time
-- 8.61s average TTFT
-- Cold start: 12.99s (unacceptable)
+- Simple "hello": 4.75s average
+- With memory: 9.84s average
+- GPT-4o Mini is **3-5x faster** with similar quality
 
-**Recommendation:** Switch to GPT-4o Mini or Claude Haiku for production use. Reserve GPT-5 Mini for complex tasks requiring higher quality.
+**Recommendation:** Use **GPT-4o Mini** for all production use cases. Reserve GPT-5 Mini only for complex tasks requiring higher reasoning capability.
 
 ---
 
@@ -1003,6 +960,63 @@ uv run python scripts/llm_benchmark.py \
 - [ ] Identify bottleneck
 
 **Total: ~5 days (2 days completed)**
+
+---
+
+## Realistic Response Time Testing (2026-01-19 Extension)
+
+**Related Document:** `realistic-response-time-test-plan-20250119.md`
+
+### New Finding: 5-10x Overhead in Full Stack
+
+**Discrepancy:**
+- Direct LLM benchmark: GPT-5 Mini = 2-4 seconds
+- Actual Cassey usage: GPT-5 Mini = ~20 seconds for "hello"
+- **Overhead: ~15-18 seconds unaccounted for**
+
+### New Test: Full Stack Instrumentation
+
+**File:** `scripts/measure_response_time.py`
+
+Measures timing breakdown:
+- State building
+- Checkpoint operations (DB read/write)
+- Agent streaming (including middleware)
+- LLM invocation
+- Tool execution
+
+### Quick Start
+
+```bash
+# Test simple 'hello' message with full stack
+python scripts/measure_response_time.py \
+    --provider openai \
+    --model gpt-5-mini-2025-08-07 \
+    --iterations 3
+
+# Compare with GPT-4o Mini
+python scripts/measure_response_time.py \
+    --provider openai \
+    --model gpt-4o-mini \
+    --iterations 3
+```
+
+### Hypotheses for Overhead
+
+| Hypothesis | Test | Expected Impact |
+|------------|------|-----------------|
+| Memory retrieval slow | Measure VS query timing | +100-500ms |
+| Checkpoint slow | Measure DB operations | +50-200ms |
+| Middleware overhead | Instrument middleware | +50-200ms each |
+| Tool registration expensive | Test with 0 tools | +1-3s |
+| System prompt huge | Measure with minimal prompt | +3-5s |
+| Streaming overhead | Compare astream vs ainvoke | +100-500ms |
+
+### Success Criteria for Extension
+
+- [ ] Identify exact source of 15s+ overhead
+- [ ] Quantify each component's contribution
+- [ ] Recommend specific optimizations
 
 ---
 

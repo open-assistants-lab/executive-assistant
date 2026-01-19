@@ -17,12 +17,15 @@ Usage:
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from langchain_core.messages.utils import count_tokens_approximately
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+logger = logging.getLogger(__name__)
 
 
 class MiddlewareDebug:
@@ -85,7 +88,12 @@ class MiddlewareDebug:
         Returns:
             Dict with before/after stats, or None if no summarization.
         """
-        if not self._captured_before or not self._captured_after:
+        if not self._captured_before:
+            logger.warning("detect_summarization() called before capture_before_model()")
+            return None
+
+        if not self._captured_after:
+            logger.warning("detect_summarization() called before capture_after_model()")
             return None
 
         # Summarization typically reduces messages significantly
@@ -120,7 +128,12 @@ class MiddlewareDebug:
         Returns:
             Dict with before/after stats, or None if no context editing.
         """
-        if not self._captured_before or not self._captured_after:
+        if not self._captured_before:
+            logger.warning("detect_context_editing() called before capture_before_model()")
+            return None
+
+        if not self._captured_after:
+            logger.warning("detect_context_editing() called before capture_after_model()")
             return None
 
         # Context editing reduces tool_uses while keeping messages

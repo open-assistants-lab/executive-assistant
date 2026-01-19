@@ -17,8 +17,10 @@ from cassey.storage.user_registry import UserRegistry
 from cassey.channels.telegram import TelegramChannel
 from cassey.channels.http import HttpChannel
 from cassey.agent.langchain_agent import create_langchain_agent
+from cassey.skills import SkillsBuilder
 from cassey.agent.prompts import get_system_prompt
 from cassey.scheduler import start_scheduler, stop_scheduler, register_notification_handler
+from cassey.skills import load_and_register_skills, get_skills_registry
 
 
 def config_verify() -> int:
@@ -135,9 +137,18 @@ async def main() -> None:
     model = create_model()
     print(f" Using LLM provider: {settings.DEFAULT_LLM_PROVIDER}")
 
-    # Load tools
+    # Load skills from content directory
+    skills_dir = Path(__file__).parent / "skills" / "content"
+    skills_count = load_and_register_skills(skills_dir)
+    print(f" Loaded {skills_count} skills")
+
+    # Load tools (includes load_skill tool)
     tools = await get_all_tools()
     print(f" Loaded {len(tools)} tools")
+
+    # Create skills builder (adds skill descriptions to system prompt)
+    registry = get_skills_registry()
+    skills_builder = SkillsBuilder(registry)
 
     # Create checkpointer
     checkpointer = await get_async_checkpointer()
@@ -150,7 +161,11 @@ async def main() -> None:
     def build_agent(channel_name: str) -> Any:
         cache_key = f"langchain:{channel_name}"
         if cache_key not in agent_cache:
+            # Get base system prompt
             system_prompt = get_system_prompt(channel_name)
+            # Add skill descriptions to system prompt
+            system_prompt = skills_builder.build_prompt(system_prompt)
+            # Create agent with enhanced prompt
             agent_cache[cache_key] = create_langchain_agent(
                 model=model,
                 tools=tools,

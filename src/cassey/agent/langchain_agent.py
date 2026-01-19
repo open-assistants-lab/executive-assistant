@@ -84,12 +84,12 @@ def _build_middleware(model: BaseChatModel, channel: Any = None) -> list[Any]:
 
     if settings.MW_MODEL_CALL_LIMIT and settings.MW_MODEL_CALL_LIMIT > 0:
         middleware.append(
-            ModelCallLimitMiddleware(thread_limit=settings.MW_MODEL_CALL_LIMIT)
+            ModelCallLimitMiddleware(run_limit=settings.MW_MODEL_CALL_LIMIT)
         )
 
     if settings.MW_TOOL_CALL_LIMIT and settings.MW_TOOL_CALL_LIMIT > 0:
         middleware.append(
-            ToolCallLimitMiddleware(thread_limit=settings.MW_TOOL_CALL_LIMIT)
+            ToolCallLimitMiddleware(run_limit=settings.MW_TOOL_CALL_LIMIT)
         )
 
     if settings.MW_TOOL_RETRY_ENABLED:

@@ -33,6 +33,10 @@ logger = logging.getLogger(__name__)
 _llm_timing_by_thread: dict[str, dict] = {}
 
 # Thread-local storage for middleware debug tracking
+# NOTE: No lock needed - relies on:
+# 1. GIL-protected dict operations in CPython
+# 2. ContextVar isolation (different conversations = different thread_ids)
+# 3. Sequential task execution per conversation in asyncio
 _middleware_debug_by_thread: dict[str, MiddlewareDebug] = {}
 _retry_tracker_by_thread: dict[str, RetryTracker] = {}
 
@@ -43,9 +47,8 @@ def get_middleware_debug() -> MiddlewareDebug:
     if not thread_id:
         return MiddlewareDebug()  # Return empty instance if no thread_id
 
-    if thread_id not in _middleware_debug_by_thread:
-        _middleware_debug_by_thread[thread_id] = MiddlewareDebug()
-    return _middleware_debug_by_thread[thread_id]
+    # setdefault() is atomic under GIL for CPython dict operations
+    return _middleware_debug_by_thread.setdefault(thread_id, MiddlewareDebug())
 
 
 def get_retry_tracker() -> RetryTracker:
@@ -54,18 +57,17 @@ def get_retry_tracker() -> RetryTracker:
     if not thread_id:
         return RetryTracker()  # Return empty instance if no thread_id
 
-    if thread_id not in _retry_tracker_by_thread:
-        _retry_tracker_by_thread[thread_id] = RetryTracker()
-    return _retry_tracker_by_thread[thread_id]
+    # setdefault() is atomic under GIL for CPython dict operations
+    return _retry_tracker_by_thread.setdefault(thread_id, RetryTracker())
 
 
 def clear_middleware_debug() -> None:
     """Clear middleware debug tracking for current thread."""
     thread_id = get_thread_id()
-    if thread_id and thread_id in _middleware_debug_by_thread:
-        del _middleware_debug_by_thread[thread_id]
-    if thread_id and thread_id in _retry_tracker_by_thread:
-        del _retry_tracker_by_thread[thread_id]
+    if thread_id:
+        # pop() is atomic under GIL for CPython dict operations
+        _middleware_debug_by_thread.pop(thread_id, None)
+        _retry_tracker_by_thread.pop(thread_id, None)
 
 
 def record_llm_call(elapsed: float, tokens: dict | None = None) -> None:
@@ -80,6 +82,7 @@ def record_llm_call(elapsed: float, tokens: dict | None = None) -> None:
     if not thread_id:
         return
 
+    # setdefault() and dict operations are atomic under GIL
     if thread_id not in _llm_timing_by_thread:
         _llm_timing_by_thread[thread_id] = {"count": 0, "total_time": 0, "calls": []}
 
@@ -115,11 +118,13 @@ class StatusUpdateMiddleware(AgentMiddleware):
         channel: "BaseChannel",
         show_tool_args: bool = False,
         update_interval: float = 0.5,
+        expected_llm_calls: int = 1,
     ) -> None:
         super().__init__()
         self.channel = channel
         self.show_tool_args = show_tool_args
         self.update_interval = update_interval
+        self.expected_llm_calls = expected_llm_calls
 
         # State tracking
         self.tool_count: int = 0
@@ -179,7 +184,10 @@ class StatusUpdateMiddleware(AgentMiddleware):
             # Initialize middleware debug tracking for this run
             self.middleware_debug = get_middleware_debug()
             self.retry_tracker = get_retry_tracker()
-            self.retry_tracker.start_run(expected_llm_calls=1, expected_tools=0)
+            self.retry_tracker.start_run(
+                expected_llm=self.expected_llm_calls,
+                expected_tools=0
+            )
         except ValueError:
             logger.warning("StatusMiddleware: No thread_id in context")
             self.current_conversation_id = None
@@ -290,14 +298,13 @@ class StatusUpdateMiddleware(AgentMiddleware):
         # Get LLM timing info if any was recorded
         thread_id = get_thread_id()
         llm_summary = ""
-        if thread_id and thread_id in _llm_timing_by_thread:
-            llm_info = _llm_timing_by_thread[thread_id]
-            if llm_info["count"] > 0:
+        if thread_id:
+            # pop() is atomic under GIL
+            llm_info = _llm_timing_by_thread.pop(thread_id, None)
+            if llm_info and llm_info["count"] > 0:
                 count = llm_info["count"]
                 llm_time = llm_info["total_time"]
                 llm_summary = f" | LLM: {count} call ({llm_time:.1f}s)"
-            # Clear timing for next run
-            del _llm_timing_by_thread[thread_id]
 
         # Check for retries
         if self.retry_tracker:
@@ -309,13 +316,14 @@ class StatusUpdateMiddleware(AgentMiddleware):
             if tool_retry_result:
                 self.retry_tracker.log_tool_retries(tool_retry_result, print)
 
-        if elapsed < 1:
-            await self._send_status(f"✅ Done{llm_summary}")
-        else:
-            await self._send_status(f"✅ Done in {elapsed:.1f}s{llm_summary}")
-
-        # Clear middleware debug tracking
-        clear_middleware_debug()
+        try:
+            if elapsed < 1:
+                await self._send_status(f"✅ Done{llm_summary}")
+            else:
+                await self._send_status(f"✅ Done in {elapsed:.1f}s{llm_summary}")
+        finally:
+            # ⚡ CRITICAL: Always cleanup, even on exception
+            clear_middleware_debug()
 
         return None
 
@@ -347,12 +355,17 @@ class StatusUpdateMiddleware(AgentMiddleware):
         return args_str
 
 
-def create_status_middleware(channel: "BaseChannel") -> StatusUpdateMiddleware | None:
+def create_status_middleware(
+    channel: "BaseChannel",
+    expected_llm_calls: int = 1,
+) -> StatusUpdateMiddleware | None:
     """
     Factory function to create StatusUpdateMiddleware if enabled.
 
     Args:
         channel: The channel instance to send status updates through.
+        expected_llm_calls: Expected number of LLM calls per agent turn
+            (default: 1 for simple agents, use 2+ for reflection/chained reasoning agents).
 
     Returns:
         StatusUpdateMiddleware instance if enabled, None otherwise.
@@ -364,4 +377,5 @@ def create_status_middleware(channel: "BaseChannel") -> StatusUpdateMiddleware |
         channel=channel,
         show_tool_args=settings.MW_STATUS_SHOW_TOOL_ARGS,
         update_interval=settings.MW_STATUS_UPDATE_INTERVAL,
+        expected_llm_calls=expected_llm_calls,
     )

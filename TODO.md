@@ -2,6 +2,22 @@
 
 ## Completed ✅
 
+### Skills System Implementation (2025-01-19)
+- [x] Created SkillsRegistry with in-memory caching
+- [x] Created load_skills_from_directory() loader
+- [x] Created load_skill tool with fuzzy matching
+- [x] Created SkillsBuilder for progressive disclosure (renamed from SkillsMiddleware)
+- [x] Integrated skills into main.py (auto-load on startup)
+- [x] Created 10 skills total:
+  - 5 Core Infrastructure: data_management, progress_tracking, record_keeping, synthesis, workflow_patterns
+  - 5 Personal Application: task_tracking, information_retrieval, report_generation, planning, organization
+- [x] Integration tests: All 10 skills load successfully, fuzzy matching works
+- [x] **Phase 3: Tool Description Alignment** - Updated DB and file tool descriptions with Minimalist Format
+  - 8 DB tools updated (create, insert, query, list, describe, delete, export, import)
+  - 6 file tools updated (read, write, list, glob, grep)
+  - Focus: "when to use" (not "how to use") - skills teach workflows
+- See: `discussions/subagents-vs-skills-plan-20250119.md` for full design
+
 ### Status Update Middleware & Debug Mode (2026-01-19)
 - [x] Create `StatusUpdateMiddleware` for real-time progress feedback
 - [x] Add `/debug` command to Telegram (verbose mode toggle)
@@ -101,6 +117,13 @@ CREATE TABLE reminders (
   - [x] Added retry detection via `RetryTracker` class
   - [x] Logs when LLM or tools retry unexpectedly
   - [x] See: `discussions/middleware-debug-logging-20250119.md`
+- [x] **Realistic Response Time Testing** (2026-01-19)
+  - [x] Created `scripts/measure_response_time.py` for full-stack timing
+  - [x] Created `discussions/realistic-response-time-test-plan-20250119.md`
+  - [x] Identified overhead source: LLM is 68-98% of total time, stack overhead is minimal (120-320ms)
+  - [x] Compared GPT-5 Mini vs GPT-4o Mini: GPT-4o Mini is 3-5x faster
+  - [x] Memory retrieval adds ~300ms cold, ~30ms warm (negligible)
+  - [x] Recommendation: Switch to GPT-4o Mini for production
 - [ ] Context editing middleware (see `discussions/context-editing-middleware-plan-20260116-1655.md`)
 - [ ] **ShellToolMiddleware** (see `discussions/shell-tool-middleware-plan-20260116.md`)
   - [ ] Add settings to `src/cassey/config/settings.py`

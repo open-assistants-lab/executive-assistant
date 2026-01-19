@@ -1,0 +1,65 @@
+[
+  {
+    "scenario": "simple_hello",
+    "provider": "openai",
+    "model": "gpt-5-mini-2025-08-07",
+    "timestamp": "2026-01-19T12:38:55.138302",
+    "timings_ms": {
+      "state_build": 0.00286102294921875,
+      "checkpoint_load": -1768786735138.3118,
+      "agent_stream_start": 0,
+      "llm_total": 298.02894592285156,
+      "agent_stream_end": -0.00095367431640625,
+      "total": 298.02799224853516,
+      "overhead": -0.00095367431640625,
+      "overhead_percent": -0.0003199948800819187
+    },
+    "metrics": {
+      "events_processed": 0,
+      "middleware_events": []
+    },
+    "error": "Invalid checkpointer provided. Expected an instance of `BaseCheckpointSaver`, `True`, `False`, or `None`. Received _GeneratorContextManager. Pass a proper saver (e.g., InMemorySaver, AsyncPostgresSaver)."
+  },
+  {
+    "scenario": "simple_hello",
+    "provider": "openai",
+    "model": "gpt-5-mini-2025-08-07",
+    "timestamp": "2026-01-19T12:38:55.436361",
+    "timings_ms": {
+      "state_build": 0.00286102294921875,
+      "checkpoint_load": -1768786735436.3708,
+      "agent_stream_start": 0,
+      "llm_total": 4.287958145141602,
+      "agent_stream_end": 0.0,
+      "total": 4.287958145141602,
+      "overhead": 0.0,
+      "overhead_percent": 0.0
+    },
+    "metrics": {
+      "events_processed": 0,
+      "middleware_events": []
+    },
+    "error": "Invalid checkpointer provided. Expected an instance of `BaseCheckpointSaver`, `True`, `False`, or `None`. Received _GeneratorContextManager. Pass a proper saver (e.g., InMemorySaver, AsyncPostgresSaver)."
+  },
+  {
+    "scenario": "simple_hello",
+    "provider": "openai",
+    "model": "gpt-5-mini-2025-08-07",
+    "timestamp": "2026-01-19T12:38:55.440671",
+    "timings_ms": {
+      "state_build": 0.00095367431640625,
+      "checkpoint_load": -1768786735440.675,
+      "agent_stream_start": 0,
+      "llm_total": 4.212856292724609,
+      "agent_stream_end": 0.0,
+      "total": 4.212856292724609,
+      "overhead": 0.0,
+      "overhead_percent": 0.0
+    },
+    "metrics": {
+      "events_processed": 0,
+      "middleware_events": []
+    },
+    "error": "Invalid checkpointer provided. Expected an instance of `BaseCheckpointSaver`, `True`, `False`, or `None`. Received _GeneratorContextManager. Pass a proper saver (e.g., InMemorySaver, AsyncPostgresSaver)."
+  }
+]

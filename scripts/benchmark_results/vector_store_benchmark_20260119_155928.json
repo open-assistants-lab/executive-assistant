@@ -1,0 +1,27 @@
+{
+  "timestamp": "2026-01-19 15:59:28",
+  "results": [
+    {
+      "db_type": "duckdb",
+      "test_name": "duckdb_100_docs",
+      "num_documents": 100,
+      "insert_time_sec": 11.444,
+      "insert_throughput_docs_sec": 8.74,
+      "avg_vector_search_time_ms": 19.421,
+      "avg_hybrid_search_time_ms": 13.76,
+      "storage_mb": 3.26,
+      "peak_memory_mb": 134.51
+    },
+    {
+      "db_type": "lancedb",
+      "test_name": "lancedb_100_docs",
+      "num_documents": 100,
+      "insert_time_sec": 0.138,
+      "insert_throughput_docs_sec": 725.55,
+      "avg_vector_search_time_ms": 29.568,
+      "avg_hybrid_search_time_ms": 29.568,
+      "storage_mb": 0.2,
+      "peak_memory_mb": 1.35
+    }
+  ]
+}
