@@ -1,4 +1,4 @@
-"""Vector Store tools using DuckDB + Hybrid (FTS + VSS)."""
+"""Vector Store tools using LanceDB for high-performance vector search."""
 
 from __future__ import annotations
 
@@ -14,11 +14,11 @@ from cassey.storage.meta_registry import (
     record_vs_table_added,
     record_vs_table_removed,
 )
-from cassey.storage.duckdb_storage import (
-    create_duckdb_collection,
-    drop_duckdb_collection,
-    get_duckdb_collection,
-    list_duckdb_collections,
+from cassey.storage.lancedb_storage import (
+    create_lancedb_collection,
+    drop_lancedb_collection,
+    get_lancedb_collection,
+    list_lancedb_collections,
 )
 
 
@@ -83,19 +83,50 @@ def _parse_documents(documents_str: str) -> list[dict] | str:
 # =============================================================================
 
 @tool
-def create_vs_collection(collection_name: str, documents: str = "") -> str:
+def create_vs_collection(collection_name: str, content: str = "", documents: str = "") -> str:
     """
-    Create a VS collection in DuckDB.
+    Create a VS collection for semantic search.
 
-    A collection groups related documents for semantic + fulltext search.
+    USE THIS WHEN:
+    - You want to store documents for semantic search (find by meaning, not exact words)
+    - User asks to "save this for later" and wants to search by topic/concept
+    - User wants to build a knowledge base for semantic queries
+
+    NOT for:
+    - Saving regular files → use write_file instead
+    - Searching file contents by exact text → use grep_files instead
+    - Browsing file structure → use list_files instead
+
+    A collection groups related documents for semantic vector search.
     Documents are automatically chunked if they're too large.
+
+    **Two ways to add documents:**
+
+    1. **Single document (recommended for simple use):**
+       create_vs_collection("notes", content="Meeting notes from today")
+
+    2. **Multiple documents (bulk import):**
+       create_vs_collection("notes", documents='[{"content": "..."}]')
+
+    3. **Empty collection first:** Create structure, then add documents with add_vs_documents
+       create_vs_collection("notes")
+       add_vs_documents("notes", content="Document 1")
 
     Args:
         collection_name: Collection name (letters/numbers/underscore/hyphen).
-        documents: JSON array of document objects: [{"content": "...", "metadata": {...}}]
+        content: Single document text (leave empty to use documents parameter or create empty).
+        documents: JSON array for bulk import: [{"content": "...", "metadata": {...}}]
+                    Leave empty to use content parameter or create empty collection.
 
     Returns:
         Success message with collection info.
+
+    Examples:
+        create_vs_collection("notes", content="Today we discussed Q1 goals")
+        → "Created VS collection 'notes' with 2 chunks from 1 document(s)"
+
+        create_vs_collection("docs", documents='[{"content": "Doc 1"}, {"content": "Doc 2"}]')
+        → "Created VS collection 'docs' with 4 chunks from 2 document(s)"
     """
     # Validate collection name
     try:
@@ -103,21 +134,29 @@ def create_vs_collection(collection_name: str, documents: str = "") -> str:
     except Exception as e:
         return f"Error: Invalid collection name - {e}"
 
-    # Parse documents
-    parsed = _parse_documents(documents)
-    if isinstance(parsed, str):
-        return parsed
+    # Handle content parameter (single document)
+    if content and content.strip():
+        # Convert single content to document format
+        parsed = [{"content": content, "metadata": {}}]
+    elif documents and documents.strip():
+        # Parse documents JSON
+        parsed = _parse_documents(documents)
+        if isinstance(parsed, str):
+            return parsed
+    else:
+        # Create empty collection
+        parsed = []
 
     try:
         storage_id = _get_storage_id()
 
         # Check if collection already exists
-        existing = list_duckdb_collections(storage_id=storage_id)
+        existing = list_lancedb_collections(storage_id=storage_id)
         if collection_name in existing:
-            drop_duckdb_collection(storage_id, collection_name)
+            drop_lancedb_collection(storage_id, collection_name)
 
         # Create collection
-        collection = create_duckdb_collection(
+        collection = create_lancedb_collection(
             storage_id=storage_id,
             collection_name=collection_name,
             embedding_dimension=384,
@@ -138,14 +177,30 @@ def create_vs_collection(collection_name: str, documents: str = "") -> str:
 @tool
 def search_vs(query: str, collection_name: str = "", limit: int = 5) -> str:
     """
-    Search VS collections with hybrid search (semantic + fulltext).
+    Search VS collections for semantically similar documents (search by meaning, not exact words).
 
-    Hybrid search finds documents that:
-    - Contain your search terms (fulltext match)
-    - Are semantically similar (vector similarity)
+    USE THIS WHEN:
+    - User wants to find documents by topic, concept, or meaning
+    - User asks "what do we know about X" or "find information about Y"
+    - You need to search stored documents by semantic similarity
+
+    NOT for:
+    - Searching file contents by exact text match → use grep_files instead
+    - Finding files by name/pattern → use glob_files instead
+    - Browsing directory structure → use list_files instead
+
+    Vector search finds documents that are semantically similar to your query.
+    For best results, use natural language queries describing what you're looking for.
+
+    Examples:
+        search_vs("meeting goals", "notes")
+        → Finds documents about meetings, objectives, targets, even if those exact words aren't used
+
+        search_vs("database performance")
+        → Finds documents about databases, optimization, speed, queries, etc.
 
     Args:
-        query: Search query text.
+        query: Search query text (use natural language, describe what you're looking for).
         collection_name: Specific collection to search, or empty for all collections.
         limit: Maximum results per collection (default: 5).
 
@@ -161,12 +216,12 @@ def search_vs(query: str, collection_name: str = "", limit: int = 5) -> str:
         # Determine which collections to search
         if collection_name:
             validate_identifier(collection_name)
-            collections = list_duckdb_collections(storage_id=storage_id)
+            collections = list_lancedb_collections(storage_id=storage_id)
             if collection_name not in collections:
                 return f"Error: VS collection '{collection_name}' not found"
             collections = [collection_name]
         else:
-            collections = list_duckdb_collections(storage_id=storage_id)
+            collections = list_lancedb_collections(storage_id=storage_id)
 
         if not collections:
             return "No VS collections found. Use create_vs_collection to create one first."
@@ -175,10 +230,10 @@ def search_vs(query: str, collection_name: str = "", limit: int = 5) -> str:
 
         for coll_name in collections:
             try:
-                collection = get_duckdb_collection(storage_id, coll_name)
+                collection = get_lancedb_collection(storage_id, coll_name)
 
-                # Use hybrid search
-                search_results = collection.search(query=query, limit=limit, search_type="hybrid")
+                # Use vector search
+                search_results = collection.search(query=query, limit=limit, search_type="vector")
 
                 if search_results:
                     header = f"--- From '{coll_name}' ---"
@@ -213,7 +268,7 @@ def vs_list() -> str:
     """
     try:
         storage_id = _get_storage_id()
-        collections = list_duckdb_collections(storage_id=storage_id)
+        collections = list_lancedb_collections(storage_id=storage_id)
 
         if not collections:
             return "Vector Store is empty. Use create_vs_collection to create a collection."
@@ -223,10 +278,10 @@ def vs_list() -> str:
 
         for name in collections:
             try:
-                collection = get_duckdb_collection(storage_id, name)
+                collection = get_lancedb_collection(storage_id, name)
                 count = collection.count()
                 total_docs += count
-                lines.append(f"- {name}: {count} chunks (DuckDB + Hybrid)")
+                lines.append(f"- {name}: {count} chunks (LanceDB)")
             except Exception:
                 lines.append(f"- {name}: (error)")
 
@@ -253,13 +308,13 @@ def describe_vs_collection(collection_name: str) -> str:
         storage_id = _get_storage_id()
         validate_identifier(collection_name)
 
-        collection = get_duckdb_collection(storage_id, collection_name)
+        collection = get_lancedb_collection(storage_id, collection_name)
         count = collection.count()
 
         lines = [f"Collection '{collection_name}':"]
         lines.append(f"Total chunks: {count}")
         lines.append(f"Vector dimension: {collection.dimension}")
-        lines.append(f"Search type: Hybrid (FTS + VSS)")
+        lines.append(f"Search type: Vector similarity")
 
         # Show sample documents
         docs = collection.documents
@@ -292,10 +347,10 @@ def drop_vs_collection(collection_name: str) -> str:
         storage_id = _get_storage_id()
         validate_identifier(collection_name)
 
-        collection = get_duckdb_collection(storage_id, collection_name)
+        collection = get_lancedb_collection(storage_id, collection_name)
         count = collection.count()
 
-        drop_duckdb_collection(storage_id, collection_name)
+        drop_lancedb_collection(storage_id, collection_name)
         record_vs_table_removed(storage_id, collection_name)
 
         return f"Deleted VS collection '{collection_name}' ({count} chunks removed)"
@@ -305,28 +360,52 @@ def drop_vs_collection(collection_name: str) -> str:
 
 
 @tool
-def add_vs_documents(collection_name: str, documents: str) -> str:
+def add_vs_documents(collection_name: str, content: str = "", documents: str = "") -> str:
     """
     Add documents to an existing VS collection.
+
+    **Two ways to add documents:**
+
+    1. **Single document (recommended for simple use):**
+       add_vs_documents("notes", content="Additional meeting notes")
+
+    2. **Multiple documents (bulk import):**
+       add_vs_documents("notes", documents='[{"content": "Doc 1"}, {"content": "Doc 2"}]')
 
     Documents are automatically chunked if too large.
 
     Args:
         collection_name: Name of the collection to add to.
-        documents: JSON array of document objects: [{"content": "...", "metadata": {...}}]
+        content: Single document text (leave empty to use documents parameter).
+        documents: JSON array for bulk import: [{"content": "...", "metadata": {...}}]
 
     Returns:
         Confirmation message with chunk count.
+
+    Examples:
+        add_vs_documents("notes", content="Follow-up from yesterday")
+        → "Added 1 chunks to VS collection 'notes' from 1 document(s)"
+
+        add_vs_documents("docs", documents='[{"content": "New doc"}]')
+        → "Added 2 chunks to VS collection 'docs' from 1 document(s)"
     """
     validate_identifier(collection_name)
 
-    parsed = _parse_documents(documents)
-    if isinstance(parsed, str):
-        return parsed
+    # Handle content parameter (single document)
+    if content and content.strip():
+        # Convert single content to document format
+        parsed = [{"content": content, "metadata": {}}]
+    elif documents and documents.strip():
+        # Parse documents JSON
+        parsed = _parse_documents(documents)
+        if isinstance(parsed, str):
+            return parsed
+    else:
+        return "Error: Either content or documents must be provided"
 
     try:
         storage_id = _get_storage_id()
-        collection = get_duckdb_collection(storage_id, collection_name)
+        collection = get_lancedb_collection(storage_id, collection_name)
 
         added = collection.add_documents(parsed)
         record_vs_table_added(storage_id, collection_name)
@@ -360,7 +439,7 @@ def delete_vs_documents(collection_name: str, ids: str) -> str:
 
     try:
         storage_id = _get_storage_id()
-        collection = get_duckdb_collection(storage_id, collection_name)
+        collection = get_lancedb_collection(storage_id, collection_name)
 
         deleted = collection.delete(id_list)
         record_vs_table_added(storage_id, collection_name)
@@ -374,7 +453,12 @@ def delete_vs_documents(collection_name: str, ids: str) -> str:
 @tool
 def add_file_to_vs(collection_name: str, file_path: str) -> str:
     """
-    Add a file from the files directory to a VS collection.
+    Add/insert a file from the files directory to a VS collection.
+
+    Use this tool when the user wants to:
+    - Insert/add a file to VS
+    - Save a file for semantic search
+    - Index file contents in a collection
 
     This reads a file and automatically chunks and indexes it for semantic search.
 
@@ -409,9 +493,9 @@ def add_file_to_vs(collection_name: str, file_path: str) -> str:
             return f"File not found: {file_path}. Use /file to see available files."
 
         # Check if collection exists, create if not
-        collections = list_duckdb_collections(storage_id=storage_id)
+        collections = list_lancedb_collections(storage_id=storage_id)
         if collection_name not in collections:
-            collection = create_duckdb_collection(
+            collection = create_lancedb_collection(
                 storage_id=storage_id,
                 collection_name=collection_name,
                 embedding_dimension=384,
@@ -419,7 +503,7 @@ def add_file_to_vs(collection_name: str, file_path: str) -> str:
             record_vs_table_added(storage_id, collection_name)
 
         # Add document with filename metadata
-        collection = get_duckdb_collection(storage_id, collection_name)
+        collection = get_lancedb_collection(storage_id, collection_name)
         documents = [{"content": content, "metadata": {"filename": file_path}}]
         added = collection.add_documents(documents)
         record_vs_table_added(storage_id, collection_name)

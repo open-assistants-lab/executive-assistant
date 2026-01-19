@@ -158,7 +158,7 @@ class Settings(BaseSettings):
     MW_STATUS_SHOW_TOOL_ARGS: bool = _yaml_field("MIDDLEWARE_STATUS_UPDATES_SHOW_TOOL_ARGS", False)
     MW_STATUS_UPDATE_INTERVAL: float = _yaml_field("MIDDLEWARE_STATUS_UPDATES_UPDATE_INTERVAL", 0.5)
 
-    # Vector Store (DuckDB + Hybrid)
+    # Vector Store (LanceDB)
     VS_EMBEDDING_MODEL: str = _yaml_field("VECTOR_STORE_EMBEDDING_MODEL", "all-MiniLM-L6-v2")
     VS_EMBEDDING_DIMENSION: int = _yaml_field("VECTOR_STORE_EMBEDDING_DIMENSION", 384)
     VS_CHUNK_SIZE: int = _yaml_field("VECTOR_STORE_CHUNK_SIZE", 3000)

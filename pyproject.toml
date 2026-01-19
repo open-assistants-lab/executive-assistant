@@ -47,6 +47,10 @@ dependencies = [
     "sentence-transformers>=3.0.0",
     "huggingface-hub>=0.34.0,<1.0",
     "temporalio>=1.21.1",
+    # LanceDB vector store (alternative to DuckDB)
+    "lancedb>=0.15.0",
+    "pyarrow>=14.0.0",
+    "psutil>=6.0.0",
 ]
 
 [dependency-groups]

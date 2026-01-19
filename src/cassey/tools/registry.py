@@ -118,13 +118,19 @@ async def get_orchestrator_tools() -> list[BaseTool]:
 
 
 async def get_sqlite_helper_tools() -> list[BaseTool]:
-    """Get SQLite helper tools for syntax guidance."""
+    """Get SQLite helper tools for syntax guidance (deprecated, use skills)."""
     from cassey.skills.sqlite_helper import sqlite_guide
     return [sqlite_guide]
 
 
+async def get_skills_tools() -> list[BaseTool]:
+    """Get skills tools for on-demand skill loading."""
+    from cassey.skills.tool import load_skill
+    return [load_skill]
+
+
 async def get_vs_tools() -> list[BaseTool]:
-    """Get Vector Store tools backed by DuckDB + Hybrid (FTS + VSS)."""
+    """Get Vector Store tools backed by LanceDB for high-performance vector search."""
     from cassey.storage.vs_tools import get_vs_tools as _get
     return await _get()
 
@@ -259,6 +265,9 @@ async def get_all_tools() -> list[BaseTool]:
 
     # Add SQLite helper tools
     all_tools.extend(await get_sqlite_helper_tools())
+
+    # Add skills tools (load_skill)
+    all_tools.extend(await get_skills_tools())
 
     # Add shared database tools
     all_tools.extend(await get_shared_db_tools())

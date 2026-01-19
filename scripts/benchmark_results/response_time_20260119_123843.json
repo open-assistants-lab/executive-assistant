@@ -1,0 +1,65 @@
+[
+  {
+    "scenario": "simple_hello",
+    "provider": "openai",
+    "model": "gpt-5-mini-2025-08-07",
+    "timestamp": "2026-01-19T12:38:43.085568",
+    "timings_ms": {
+      "state_build": 0.005245208740234375,
+      "checkpoint_load": -1768786723085.58,
+      "agent_stream_start": 0,
+      "llm_total": 104.87604141235352,
+      "agent_stream_end": 0.0,
+      "total": 104.87604141235352,
+      "overhead": 0.0,
+      "overhead_percent": 0.0
+    },
+    "metrics": {
+      "events_processed": 0,
+      "middleware_events": []
+    },
+    "error": "'coroutine' object is not iterable"
+  },
+  {
+    "scenario": "simple_hello",
+    "provider": "openai",
+    "model": "gpt-5-mini-2025-08-07",
+    "timestamp": "2026-01-19T12:38:43.191483",
+    "timings_ms": {
+      "state_build": 0.00286102294921875,
+      "checkpoint_load": -1768786723191.4949,
+      "agent_stream_start": 0,
+      "llm_total": 1.3148784637451172,
+      "agent_stream_end": -0.00095367431640625,
+      "total": 1.313924789428711,
+      "overhead": -0.00095367431640625,
+      "overhead_percent": -0.07258210851025222
+    },
+    "metrics": {
+      "events_processed": 0,
+      "middleware_events": []
+    },
+    "error": "'coroutine' object is not iterable"
+  },
+  {
+    "scenario": "simple_hello",
+    "provider": "openai",
+    "model": "gpt-5-mini-2025-08-07",
+    "timestamp": "2026-01-19T12:38:43.192832",
+    "timings_ms": {
+      "state_build": 0.0019073486328125,
+      "checkpoint_load": -1768786723192.836,
+      "agent_stream_start": 0,
+      "llm_total": 75.01983642578125,
+      "agent_stream_end": -0.00095367431640625,
+      "total": 75.01888275146484,
+      "overhead": -0.00095367431640625,
+      "overhead_percent": -0.0012712456936552128
+    },
+    "metrics": {
+      "events_processed": 0,
+      "middleware_events": []
+    },
+    "error": "'coroutine' object is not iterable"
+  }
+]

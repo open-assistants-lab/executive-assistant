@@ -1,0 +1,226 @@
+[
+  {
+    "scenario": "simple_hello",
+    "provider": "ollama",
+    "model": "deepseek-v3.2:cloud",
+    "timestamp": "2026-01-19T16:00:34.076322",
+    "timings_ms": {
+      "state_build": 0.0021457672119140625,
+      "memory_retrieval": 0,
+      "checkpoint_load": 251.05786323547363,
+      "agent_stream_start": 0.010013580322265625,
+      "llm_total": 5124.474048614502,
+      "agent_stream_end": 7.956981658935547,
+      "message_extraction": 0,
+      "markdown_conversion": 0.015974044799804688,
+      "telegram_api_estimate": 3500.0221729278564,
+      "post_agent_total": 3500.0381469726562,
+      "total_including_telegram": 8891.234159469604,
+      "agent_only_total": 5391.196012496948,
+      "overhead": 266.7219638824463,
+      "overhead_percent": 4.947361647845433
+    },
+    "metrics": {
+      "events_processed": 4,
+      "messages_extracted": 1,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "simple_hello",
+    "provider": "ollama",
+    "model": "deepseek-v3.2:cloud",
+    "timestamp": "2026-01-19T16:00:39.468605",
+    "timings_ms": {
+      "state_build": 0.0069141387939453125,
+      "memory_retrieval": 0,
+      "checkpoint_load": 26.96704864501953,
+      "agent_stream_start": 0.013113021850585938,
+      "llm_total": 5403.93590927124,
+      "agent_stream_end": 10.226011276245117,
+      "message_extraction": 0,
+      "markdown_conversion": 0.011920928955078125,
+      "telegram_api_estimate": 3500.018358230591,
+      "post_agent_total": 3500.030279159546,
+      "total_including_telegram": 8944.536209106445,
+      "agent_only_total": 5444.505929946899,
+      "overhead": 40.57002067565918,
+      "overhead_percent": 0.7451552298346906
+    },
+    "metrics": {
+      "events_processed": 4,
+      "messages_extracted": 1,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "simple_hello",
+    "provider": "ollama",
+    "model": "deepseek-v3.2:cloud",
+    "timestamp": "2026-01-19T16:00:44.913825",
+    "timings_ms": {
+      "state_build": 0.003814697265625,
+      "memory_retrieval": 0,
+      "checkpoint_load": 25.207996368408203,
+      "agent_stream_start": 0.0152587890625,
+      "llm_total": 5341.194152832031,
+      "agent_stream_end": 12.169837951660156,
+      "message_extraction": 0,
+      "markdown_conversion": 0.0152587890625,
+      "telegram_api_estimate": 3500.018835067749,
+      "post_agent_total": 3500.0340938568115,
+      "total_including_telegram": 8882.723808288574,
+      "agent_only_total": 5382.689714431763,
+      "overhead": 41.495561599731445,
+      "overhead_percent": 0.770907553680382
+    },
+    "metrics": {
+      "events_processed": 4,
+      "messages_extracted": 1,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "with_tools",
+    "provider": "ollama",
+    "model": "deepseek-v3.2:cloud",
+    "timestamp": "2026-01-19T16:00:50.297506",
+    "timings_ms": {
+      "state_build": 0.00476837158203125,
+      "memory_retrieval": 0,
+      "checkpoint_load": 30.146121978759766,
+      "agent_stream_start": 0.023126602172851562,
+      "llm_total": 2587.951898574829,
+      "agent_stream_end": 8750.171899795532,
+      "message_extraction": 0,
+      "markdown_conversion": 0.008106231689453125,
+      "telegram_api_estimate": 3500.009059906006,
+      "post_agent_total": 3500.0171661376953,
+      "total_including_telegram": 14872.992038726807,
+      "agent_only_total": 11372.974872589111,
+      "overhead": 8785.022974014282,
+      "overhead_percent": 77.24472332377826
+    },
+    "metrics": {
+      "events_processed": 14,
+      "messages_extracted": 3,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model",
+        "tools",
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model",
+        "tools",
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "with_tools",
+    "provider": "ollama",
+    "model": "deepseek-v3.2:cloud",
+    "timestamp": "2026-01-19T16:01:01.671018",
+    "timings_ms": {
+      "state_build": 0.004291534423828125,
+      "memory_retrieval": 0,
+      "checkpoint_load": 29.048919677734375,
+      "agent_stream_start": 0.010013580322265625,
+      "llm_total": 2345.816135406494,
+      "agent_stream_end": 2712.4149799346924,
+      "message_extraction": 0,
+      "markdown_conversion": 0.01811981201171875,
+      "telegram_api_estimate": 3500.0288486480713,
+      "post_agent_total": 3500.046968460083,
+      "total_including_telegram": 8590.843200683594,
+      "agent_only_total": 5090.796232223511,
+      "overhead": 2744.9800968170166,
+      "overhead_percent": 53.920447246384676
+    },
+    "metrics": {
+      "events_processed": 9,
+      "messages_extracted": 2,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model",
+        "tools",
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "with_tools",
+    "provider": "ollama",
+    "model": "deepseek-v3.2:cloud",
+    "timestamp": "2026-01-19T16:01:06.763105",
+    "timings_ms": {
+      "state_build": 0.008821487426757812,
+      "memory_retrieval": 0,
+      "checkpoint_load": 21.567106246948242,
+      "agent_stream_start": 0.007152557373046875,
+      "llm_total": 4031.766891479492,
+      "agent_stream_end": 3165.661334991455,
+      "message_extraction": 0,
+      "markdown_conversion": 0.011682510375976562,
+      "telegram_api_estimate": 3500.0181198120117,
+      "post_agent_total": 3500.0298023223877,
+      "total_including_telegram": 10722.712993621826,
+      "agent_only_total": 7222.6831912994385,
+      "overhead": 3190.9162998199463,
+      "overhead_percent": 44.17909820084281
+    },
+    "metrics": {
+      "events_processed": 9,
+      "messages_extracted": 2,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model",
+        "tools",
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  }
+]

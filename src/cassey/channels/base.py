@@ -310,6 +310,9 @@ class BaseChannel(ABC):
         set_workspace_user_id(message.user_id)
 
         try:
+            import time
+            pre_agent_start = time.time()
+
             set_user_id(message.user_id)
             # Log incoming message if audit is enabled
             if self.registry:
@@ -331,10 +334,15 @@ class BaseChannel(ABC):
             # (messages, structured_summary, iterations) when we provide the thread_id in config
             state = {"messages": [HumanMessage(content=enhanced_content)]}
 
+            pre_agent_elapsed = time.time() - pre_agent_start
+            logger.info(f"Pre-agent overhead: {pre_agent_elapsed:.2f}s")
+
             # Stream agent responses
             messages = []
             event_count = 0
             event_types = []
+            limit_info = {}  # Store limit information from events
+            agent_start = time.time()
             async for event in self.agent.astream(state, config):
                 event_count += 1
                 event_type = type(event).__name__
@@ -347,11 +355,30 @@ class BaseChannel(ABC):
                         event=lambda: event,
                     )
                 print(f"[DEBUG] Event {event_count}: type={event_type}, keys={list(event.keys()) if isinstance(event, dict) else 'N/A'}")
+                # Log full event details for first 10 events
+                if event_count <= 10:
+                    print(f"[DEBUG]   Full event: {event}")
+
+                # Extract limit information from middleware events
+                if isinstance(event, dict):
+                    for key, value in event.items():
+                        if "LimitMiddleware" in key and "before_model" in key:
+                            if isinstance(value, dict) and "messages" in value:
+                                # Extract limit info from middleware message
+                                for msg in value.get("messages", []):
+                                    if hasattr(msg, "content") and "limit" in msg.content.lower():
+                                        limit_info[key] = {
+                                            "message": msg.content,
+                                            "jump_to": value.get("jump_to", "unknown")
+                                        }
+                                        print(f"[DEBUG]   Limit detected: {key} -> {msg.content}")
+
                 for msg in self._extract_messages_from_event(event):
                     messages.append(msg)
                     print(f"[DEBUG]   Extracted message: type={type(msg).__name__}, has_content={hasattr(msg, 'content') and bool(msg.content)}, has_tool_calls={hasattr(msg, 'tool_calls') and bool(msg.tool_calls)}")
-                    # Log each response message if audit is enabled
-                    if self.registry:
+                    # Log each response message if audit is enabled AND message has content or tool_calls
+                    # BUGFIX: Don't log empty messages - they corrupt conversation history
+                    if self.registry and (hasattr(msg, 'content') and msg.content or (hasattr(msg, 'tool_calls') and msg.tool_calls)):
                         await self.registry.log_message(
                             conversation_id=thread_id,
                             user_id=message.user_id,
@@ -359,9 +386,23 @@ class BaseChannel(ABC):
                             message=msg,
                         )
 
+            agent_elapsed = time.time() - agent_start
+            logger.info(f"Agent processing: {agent_elapsed:.2f}s")
             print(f"[DEBUG] Stream summary: {event_count} events, types={event_types}, {len(messages)} messages extracted")
+
+            # Log limit information if detected
+            if limit_info:
+                print(f"[DEBUG] Limit information detected:")
+                for key, info in limit_info.items():
+                    print(f"[DEBUG]   {key}: {info['message']}, jump_to={info['jump_to']}")
+
             # Return messages with metadata for better error handling
-            return messages, {"event_count": event_count, "event_types": event_types}
+            metadata = {
+                "event_count": event_count,
+                "event_types": event_types,
+                "limit_info": limit_info
+            }
+            return messages, metadata
         finally:
             # Clear context to prevent leaking between conversations
             clear_thread_id()

@@ -24,6 +24,7 @@ from cassey.channels.management_commands import (
     meta_command,
 )
 from cassey.config.settings import settings
+from loguru import logger
 
 
 class TelegramChannel(BaseChannel):
@@ -354,6 +355,9 @@ class TelegramChannel(BaseChannel):
 
     async def handle_message(self, message: MessageFormat) -> None:
         """Handle incoming message through the agent."""
+        import time
+        request_start = time.time()
+
         thread_id = self.get_thread_id(message)
         lock = self._get_thread_lock(thread_id)
 
@@ -396,11 +400,14 @@ class TelegramChannel(BaseChannel):
                     content_preview = (msg.content[:100] if hasattr(msg, "content") and msg.content else "")
                     print(f"[DEBUG]   Message {i}: type={msg_type}, has_content={has_content}, has_tool_calls={has_tool_calls}, content='{content_preview}'")
 
-                # Send responses back
+                # Send responses back (time this - it's Telegram API overhead)
+                post_agent_start = time.time()
                 for msg in messages:
                     if hasattr(msg, "content") and msg.content:
                         # send_message will handle markdown conversion
                         await self.send_message(message.conversation_id, msg.content)
+                post_agent_elapsed = time.time() - post_agent_start
+                logger.info(f"Post-agent (send to Telegram): {post_agent_elapsed:.2f}s")
 
                 # Determine reason for empty response based on events
                 event_types = metadata.get("event_types", [])
@@ -410,22 +417,38 @@ class TelegramChannel(BaseChannel):
                 if not messages:
                     print("[DEBUG] No messages from agent - determining reason...")
 
-                    # Check if model call limit was hit
-                    has_model_limit = any("ModelCallLimitMiddleware" in str(t) for t in event_types)
-                    has_tool_limit = any("ToolCallLimit" in str(t) for t in event_types)
+                    # Check limit info from metadata
+                    limit_info = metadata.get("limit_info", {})
+                    has_model_limit = any("ModelCallLimit" in k for k in limit_info.keys())
+                    has_tool_limit = any("ToolCallLimit" in k for k in limit_info.keys())
 
                     if has_model_limit:
+                        # Extract limit details
+                        model_limit_key = next(k for k in limit_info.keys() if "ModelCallLimit" in k)
+                        limit_msg = limit_info[model_limit_key]["message"]
+                        print(f"[DEBUG] Model limit hit: {limit_msg}")
+
                         await self.send_message(
                             message.conversation_id,
-                            "⚠️ *Conversation limit reached*\n\n"
-                            "This conversation has used too many AI calls. Please send /reset to start fresh.\n\n"
-                            "Your data (files, VS, DB) will be preserved."
+                            f"⚠️ *Model call limit reached*\n\n"
+                            f"{limit_msg}\n\n"
+                            f"Current config (config.yaml):\n"
+                            f"• model_call_limit: {settings.MW_MODEL_CALL_LIMIT} (per message)\n\n"
+                            f"Please try a simpler task or send /reset to start fresh."
                         )
                     elif has_tool_limit:
+                        # Extract limit details
+                        tool_limit_key = next(k for k in limit_info.keys() if "ToolCallLimit" in k)
+                        limit_msg = limit_info[tool_limit_key]["message"]
+                        print(f"[DEBUG] Tool limit hit: {limit_msg}")
+
                         await self.send_message(
                             message.conversation_id,
-                            "⚠️ *Tool limit reached*\n\n"
-                            "Too many tools were used in this request. Please try a simpler task or send /reset."
+                            f"⚠️ *Tool call limit reached*\n\n"
+                            f"{limit_msg}\n\n"
+                            f"Current config (config.yaml):\n"
+                            f"• tool_call_limit: {settings.MW_TOOL_CALL_LIMIT} (per message)\n\n"
+                            f"Please try a simpler task or send /reset to start fresh."
                         )
                     elif metadata.get("event_count", 0) <= 5:
                         await self.send_message(
@@ -486,6 +509,10 @@ class TelegramChannel(BaseChannel):
 
                 # Clear status message ID so next user message creates a new status
                 self._status_messages.pop(message.conversation_id, None)
+
+                # Log total request latency
+                total_elapsed = time.time() - request_start
+                logger.info(f"Total request latency for {message.conversation_id}: {total_elapsed:.1f}s")
 
     def _clean_markdown(self, text: str) -> str:
         """Clean markdown for Telegram compatibility.
@@ -769,7 +796,7 @@ class TelegramChannel(BaseChannel):
             return
 
         try:
-            # Create MessageFormat
+            # Create MessageFormat with Telegram timestamp
             message = MessageFormat(
                 content=update.message.text,
                 user_id=str(update.effective_user.id),
@@ -779,6 +806,7 @@ class TelegramChannel(BaseChannel):
                     "username": update.effective_user.username,
                     "first_name": update.effective_user.first_name,
                     "chat_type": update.effective_chat.type,
+                    "telegram_date": update.message.date.isoformat() if update.message.date else None,
                 },
             )
 

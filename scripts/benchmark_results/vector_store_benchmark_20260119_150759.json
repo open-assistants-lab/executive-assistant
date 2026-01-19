@@ -1,0 +1,71 @@
+{
+  "timestamp": "2026-01-19 15:07:59",
+  "results": [
+    {
+      "db_type": "duckdb",
+      "test_name": "duckdb_100_docs",
+      "num_documents": 100,
+      "insert_time_sec": 19.339,
+      "insert_throughput_docs_sec": 5.17,
+      "avg_vector_search_time_ms": 535.692,
+      "avg_hybrid_search_time_ms": 14.542,
+      "storage_mb": 3.26,
+      "peak_memory_mb": 134.57
+    },
+    {
+      "db_type": "lancedb",
+      "test_name": "lancedb_100_docs",
+      "num_documents": 100,
+      "insert_time_sec": 0.153,
+      "insert_throughput_docs_sec": 654.86,
+      "avg_vector_search_time_ms": 16.835,
+      "avg_hybrid_search_time_ms": 16.835,
+      "storage_mb": 0.2,
+      "peak_memory_mb": 1.35
+    },
+    {
+      "db_type": "duckdb",
+      "test_name": "duckdb_500_docs",
+      "num_documents": 500,
+      "insert_time_sec": 1.708,
+      "insert_throughput_docs_sec": 292.82,
+      "avg_vector_search_time_ms": 18.405,
+      "avg_hybrid_search_time_ms": 13.759,
+      "storage_mb": 4.51,
+      "peak_memory_mb": 6.66
+    },
+    {
+      "db_type": "lancedb",
+      "test_name": "lancedb_500_docs",
+      "num_documents": 500,
+      "insert_time_sec": 0.504,
+      "insert_throughput_docs_sec": 991.23,
+      "avg_vector_search_time_ms": 13.244,
+      "avg_hybrid_search_time_ms": 13.244,
+      "storage_mb": 0.89,
+      "peak_memory_mb": 6.66
+    },
+    {
+      "db_type": "duckdb",
+      "test_name": "duckdb_1000_docs",
+      "num_documents": 1000,
+      "insert_time_sec": 3.331,
+      "insert_throughput_docs_sec": 300.2,
+      "avg_vector_search_time_ms": 17.898,
+      "avg_hybrid_search_time_ms": 14.485,
+      "storage_mb": 6.01,
+      "peak_memory_mb": 13.3
+    },
+    {
+      "db_type": "lancedb",
+      "test_name": "lancedb_1000_docs",
+      "num_documents": 1000,
+      "insert_time_sec": 0.999,
+      "insert_throughput_docs_sec": 1000.61,
+      "avg_vector_search_time_ms": 15.906,
+      "avg_hybrid_search_time_ms": 15.906,
+      "storage_mb": 1.75,
+      "peak_memory_mb": 13.3
+    }
+  ]
+}

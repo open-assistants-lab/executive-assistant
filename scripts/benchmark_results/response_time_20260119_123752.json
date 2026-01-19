@@ -1,0 +1,65 @@
+[
+  {
+    "scenario": "simple_hello",
+    "provider": "openai",
+    "model": "gpt-5-mini-2025-08-07",
+    "timestamp": "2026-01-19T12:37:52.873474",
+    "timings_ms": {
+      "state_build": 0.0021457672119140625,
+      "checkpoint_load": -1768786672873.485,
+      "agent_stream_start": 0,
+      "llm_total": 115.20218849182129,
+      "agent_stream_end": -0.0011920928955078125,
+      "total": 115.20099639892578,
+      "overhead": -0.0011920928955078125,
+      "overhead_percent": -0.0010347939104447957
+    },
+    "metrics": {
+      "events_processed": 0,
+      "middleware_events": []
+    },
+    "error": "create_langchain_agent() missing 1 required positional argument: 'tools'"
+  },
+  {
+    "scenario": "simple_hello",
+    "provider": "openai",
+    "model": "gpt-5-mini-2025-08-07",
+    "timestamp": "2026-01-19T12:37:52.988697",
+    "timings_ms": {
+      "state_build": 0.0021457672119140625,
+      "checkpoint_load": -1768786672988.706,
+      "agent_stream_start": 0,
+      "llm_total": 0.141143798828125,
+      "agent_stream_end": -0.0011920928955078125,
+      "total": 0.1399517059326172,
+      "overhead": -0.0011920928955078125,
+      "overhead_percent": -0.8517887563884157
+    },
+    "metrics": {
+      "events_processed": 0,
+      "middleware_events": []
+    },
+    "error": "create_langchain_agent() missing 1 required positional argument: 'tools'"
+  },
+  {
+    "scenario": "simple_hello",
+    "provider": "openai",
+    "model": "gpt-5-mini-2025-08-07",
+    "timestamp": "2026-01-19T12:37:52.988849",
+    "timings_ms": {
+      "state_build": 0.0021457672119140625,
+      "checkpoint_load": -1768786672988.852,
+      "agent_stream_start": 0,
+      "llm_total": 0.0782012939453125,
+      "agent_stream_end": 0.0,
+      "total": 0.0782012939453125,
+      "overhead": 0.0,
+      "overhead_percent": 0.0
+    },
+    "metrics": {
+      "events_processed": 0,
+      "middleware_events": []
+    },
+    "error": "create_langchain_agent() missing 1 required positional argument: 'tools'"
+  }
+]

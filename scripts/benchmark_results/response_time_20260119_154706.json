@@ -1,0 +1,226 @@
+[
+  {
+    "scenario": "simple_hello",
+    "provider": "openai",
+    "model": "gpt-5-mini-2025-08-07",
+    "timestamp": "2026-01-19T15:46:32.477687",
+    "timings_ms": {
+      "state_build": 0.0030994415283203125,
+      "memory_retrieval": 0,
+      "checkpoint_load": 326.524019241333,
+      "agent_stream_start": 0.0171661376953125,
+      "llm_total": 2980.004072189331,
+      "agent_stream_end": 8.503913879394531,
+      "message_extraction": 0,
+      "markdown_conversion": 0.010967254638671875,
+      "telegram_api_estimate": 3500.0088214874268,
+      "post_agent_total": 3500.0197887420654,
+      "total_including_telegram": 6820.595979690552,
+      "agent_only_total": 3320.5761909484863,
+      "overhead": 340.5721187591553,
+      "overhead_percent": 10.25641633182567
+    },
+    "metrics": {
+      "events_processed": 4,
+      "messages_extracted": 0,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "simple_hello",
+    "provider": "openai",
+    "model": "gpt-5-mini-2025-08-07",
+    "timestamp": "2026-01-19T15:46:35.798456",
+    "timings_ms": {
+      "state_build": 0.008106231689453125,
+      "memory_retrieval": 0,
+      "checkpoint_load": 13.65804672241211,
+      "agent_stream_start": 0.010967254638671875,
+      "llm_total": 3056.823968887329,
+      "agent_stream_end": 13.458967208862305,
+      "message_extraction": 0,
+      "markdown_conversion": 0.014066696166992188,
+      "telegram_api_estimate": 3500.0147819519043,
+      "post_agent_total": 3500.0288486480713,
+      "total_including_telegram": 6587.625980377197,
+      "agent_only_total": 3087.597131729126,
+      "overhead": 30.773162841796875,
+      "overhead_percent": 0.9966702755862191
+    },
+    "metrics": {
+      "events_processed": 4,
+      "messages_extracted": 0,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "simple_hello",
+    "provider": "openai",
+    "model": "gpt-5-mini-2025-08-07",
+    "timestamp": "2026-01-19T15:46:38.886242",
+    "timings_ms": {
+      "state_build": 0.0069141387939453125,
+      "memory_retrieval": 0,
+      "checkpoint_load": 19.607067108154297,
+      "agent_stream_start": 0.0171661376953125,
+      "llm_total": 4411.811828613281,
+      "agent_stream_end": 13.679027557373047,
+      "message_extraction": 0,
+      "markdown_conversion": 0.014066696166992188,
+      "telegram_api_estimate": 3500.016927719116,
+      "post_agent_total": 3500.030994415283,
+      "total_including_telegram": 7950.112104415894,
+      "agent_only_total": 4450.08111000061,
+      "overhead": 38.2692813873291,
+      "overhead_percent": 0.8599681767895653
+    },
+    "metrics": {
+      "events_processed": 4,
+      "messages_extracted": 0,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "with_tools",
+    "provider": "openai",
+    "model": "gpt-5-mini-2025-08-07",
+    "timestamp": "2026-01-19T15:46:43.336588",
+    "timings_ms": {
+      "state_build": 0.010967254638671875,
+      "memory_retrieval": 0,
+      "checkpoint_load": 22.13907241821289,
+      "agent_stream_start": 0.014066696166992188,
+      "llm_total": 3905.1499366760254,
+      "agent_stream_end": 8743.913173675537,
+      "message_extraction": 0,
+      "markdown_conversion": 0.02384185791015625,
+      "telegram_api_estimate": 3500.016927719116,
+      "post_agent_total": 3500.0407695770264,
+      "total_including_telegram": 16175.935983657837,
+      "agent_only_total": 12675.89521408081,
+      "overhead": 8770.745277404785,
+      "overhead_percent": 69.19231446203457
+    },
+    "metrics": {
+      "events_processed": 14,
+      "messages_extracted": 0,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model",
+        "tools",
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model",
+        "tools",
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "with_tools",
+    "provider": "openai",
+    "model": "gpt-5-mini-2025-08-07",
+    "timestamp": "2026-01-19T15:46:56.012718",
+    "timings_ms": {
+      "state_build": 0.007867813110351562,
+      "memory_retrieval": 0,
+      "checkpoint_load": 21.796226501464844,
+      "agent_stream_start": 0.026941299438476562,
+      "llm_total": 3296.6017723083496,
+      "agent_stream_end": 1791.419267654419,
+      "message_extraction": 0,
+      "markdown_conversion": 0.014781951904296875,
+      "telegram_api_estimate": 3500.0159740448,
+      "post_agent_total": 3500.030755996704,
+      "total_including_telegram": 8615.375995635986,
+      "agent_only_total": 5115.345239639282,
+      "overhead": 1818.7434673309326,
+      "overhead_percent": 35.55465725435933
+    },
+    "metrics": {
+      "events_processed": 9,
+      "messages_extracted": 0,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model",
+        "tools",
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "with_tools",
+    "provider": "openai",
+    "model": "gpt-5-mini-2025-08-07",
+    "timestamp": "2026-01-19T15:47:01.128273",
+    "timings_ms": {
+      "state_build": 0.0069141387939453125,
+      "memory_retrieval": 0,
+      "checkpoint_load": 19.345998764038086,
+      "agent_stream_start": 0.015020370483398438,
+      "llm_total": 3412.4298095703125,
+      "agent_stream_end": 1586.2541198730469,
+      "message_extraction": 0,
+      "markdown_conversion": 0.016927719116210938,
+      "telegram_api_estimate": 3500.0219345092773,
+      "post_agent_total": 3500.0388622283936,
+      "total_including_telegram": 8524.749755859375,
+      "agent_only_total": 5024.710893630981,
+      "overhead": 1612.281084060669,
+      "overhead_percent": 32.087041785912476
+    },
+    "metrics": {
+      "events_processed": 9,
+      "messages_extracted": 0,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model",
+        "tools",
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  }
+]

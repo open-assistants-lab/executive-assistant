@@ -1,0 +1,194 @@
+#!/usr/bin/env python
+"""Test simplified VS tools interface.
+
+This validates that the new simplified parameters work correctly:
+- create_vs_collection with content parameter (single document)
+- create_vs_collection with documents parameter (JSON array)
+- create_vs_collection empty, then add_vs_documents with content
+- search_vs for semantic search
+"""
+
+import sys
+from pathlib import Path
+
+# Add project root to path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+from contextvars import ContextVar
+from cassey.storage.vs_tools import (
+    create_vs_collection,
+    add_vs_documents,
+    search_vs,
+    vs_list,
+    drop_vs_collection,
+)
+from cassey.storage.file_sandbox import set_thread_id
+
+
+def test_simplified_vs_interface():
+    """Test the simplified VS tools with content parameter."""
+
+    storage_id = "test_vs_simplified"
+    collection_name = "test_collection"
+
+    # Set context
+    set_thread_id(storage_id)
+
+    print("=" * 60)
+    print("VS Tools Simplified Interface Test")
+    print("=" * 60)
+
+    # Test 1: Create collection with single content (simple method)
+    print("\n[1/5] Creating collection with single content (simple method)...")
+    result = create_vs_collection.invoke({
+        "collection_name": collection_name,
+        "content": "Cassey is an AI assistant built with LangGraph for task automation."
+    })
+    print(f"   Result: {result}")
+    if "Created VS collection" in result and "chunks from 1 document" in result:
+        print("   ✅ Single content method works")
+    else:
+        print(f"   ❌ Failed: {result}")
+        return False
+
+    # Test 2: Add another single document
+    print("\n[2/5] Adding another single document...")
+    result = add_vs_documents.invoke({
+        "collection_name": collection_name,
+        "content": "LanceDB is an embedded vector database for semantic search."
+    })
+    print(f"   Result: {result}")
+    if "Added" in result and "chunks" in result and "document" in result:
+        print("   ✅ Add single content works")
+    else:
+        print(f"   ❌ Failed: {result}")
+        return False
+
+    # Test 3: Search for semantically similar content
+    print("\n[3/5] Searching for 'AI assistant'...")
+    result = search_vs.invoke({
+        "query": "AI assistant",
+        "collection_name": collection_name,
+        "limit": 5
+    })
+    print(f"   Result preview:")
+    if "Search results" in result or "From" in result:
+        # Show first few lines
+        for line in result.split('\n')[:5]:
+            print(f"      {line}")
+        print("   ✅ Semantic search works")
+    else:
+        print(f"   ❌ Failed: {result}")
+        return False
+
+    # Test 4: List collections
+    print("\n[4/5] Listing VS collections...")
+    result = vs_list.invoke({})
+    print(f"   Result: {result}")
+    if collection_name in result:
+        print("   ✅ Collection listed correctly")
+    else:
+        print(f"   ❌ Collection not found in list")
+
+    # Test 5: Test JSON array method (backward compatibility)
+    print("\n[5/5] Testing JSON array method (backward compatibility)...")
+    result = create_vs_collection.invoke({
+        "collection_name": f"{collection_name}_json",
+        "documents": '[{"content": "Test document 1"}, {"content": "Test document 2"}]'
+    })
+    print(f"   Result: {result}")
+    if "Created VS collection" in result and "2 document" in result:
+        print("   ✅ JSON array method still works (backward compatible)")
+    else:
+        print(f"   ❌ Failed: {result}")
+        return False
+
+    # Cleanup
+    print("\n[Cleanup] Removing test collections...")
+    drop_vs_collection.invoke({"collection_name": collection_name})
+    drop_vs_collection.invoke({"collection_name": f"{collection_name}_json"})
+    print("   ✅ Test collections removed")
+
+    print("\n" + "=" * 60)
+    print("✅ All VS simplified interface tests passed!")
+    print("=" * 60)
+    return True
+
+
+def test_empty_collection_workflow():
+    """Test creating empty collection then adding documents."""
+
+    storage_id = "test_vs_workflow"
+    collection_name = "test_workflow"
+
+    # Set context
+    set_thread_id(storage_id)
+
+    print("\n" + "=" * 60)
+    print("VS Empty Collection Workflow Test")
+    print("=" * 60)
+
+    # Create empty collection
+    print("\n[1/3] Creating empty collection...")
+    result = create_vs_collection.invoke({
+        "collection_name": collection_name
+    })
+    print(f"   Result: {result}")
+    if "empty, ready for documents" in result:
+        print("   ✅ Empty collection created")
+    else:
+        print(f"   ❌ Failed: {result}")
+        return False
+
+    # Add documents
+    print("\n[2/3] Adding documents to empty collection...")
+    result = add_vs_documents.invoke({
+        "collection_name": collection_name,
+        "content": "This is a test document added to empty collection."
+    })
+    print(f"   Result: {result}")
+    if "Added" in result:
+        print("   ✅ Documents added to empty collection")
+    else:
+        print(f"   ❌ Failed: {result}")
+        return False
+
+    # Search
+    print("\n[3/3] Searching the collection...")
+    result = search_vs.invoke({
+        "query": "test document",
+        "collection_name": collection_name
+    })
+    print(f"   Result preview: {result[:100]}...")
+    if "Search results" in result or "From" in result:
+        print("   ✅ Search works on populated collection")
+    else:
+        print(f"   ❌ Failed: {result}")
+        return False
+
+    # Cleanup
+    print("\n[Cleanup] Removing test collection...")
+    drop_vs_collection.invoke({"collection_name": collection_name})
+    print("   ✅ Test collection removed")
+
+    print("\n" + "=" * 60)
+    print("✅ Empty collection workflow test passed!")
+    print("=" * 60)
+    return True
+
+
+if __name__ == "__main__":
+    # Run tests
+    test1_passed = test_simplified_vs_interface()
+    test2_passed = test_empty_collection_workflow()
+
+    # Summary
+    print("\n" + "=" * 60)
+    print("FINAL RESULTS")
+    print("=" * 60)
+    print(f"Simplified Interface Test: {'✅ PASSED' if test1_passed else '❌ FAILED'}")
+    print(f"Empty Collection Workflow: {'✅ PASSED' if test2_passed else '❌ FAILED'}")
+    print("=" * 60)
+
+    sys.exit(0 if (test1_passed and test2_passed) else 1)

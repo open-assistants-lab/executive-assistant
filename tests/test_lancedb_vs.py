@@ -1,4 +1,4 @@
-"""Tests for DuckDB Vector Store operations."""
+"""Tests for LanceDB Vector Store operations."""
 
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -14,7 +14,7 @@ from cassey.storage.chunking import (
 
 
 # =============================================================================
-# Chunking Tests
+# Chunking Tests (shared with DuckDB)
 # =============================================================================
 
 class TestChunking:
@@ -101,11 +101,11 @@ Third paragraph."""
 
 
 # =============================================================================
-# DuckDB Collection Tests
+# LanceDB Collection Tests
 # =============================================================================
 
-class TestDuckDBCollection:
-    """Test DuckDB collection operations."""
+class TestLanceDBCollection:
+    """Test LanceDB collection operations."""
 
     @pytest.fixture
     def temp_vs_root(self, tmp_path):
@@ -116,42 +116,39 @@ class TestDuckDBCollection:
 
     @pytest.fixture
     def collection(self, temp_vs_root):
-        """Create a DuckDBCollection for testing."""
-        from cassey.storage.duckdb_storage import DuckDBCollection
-        import duckdb
+        """Create a LanceDBCollection for testing."""
+        from cassey.storage.lancedb_storage import LanceDBCollection
+        import lancedb
+        import pyarrow as pa
 
-        conn = duckdb.connect(":memory:")
-        collection = DuckDBCollection(
+        db_path = temp_vs_root / ".lancedb"
+        db = lancedb.connect(str(db_path))
+
+        # Define schema
+        dimension = 384
+        schema = pa.schema([
+            pa.field("id", pa.string()),
+            pa.field("document_id", pa.string()),
+            pa.field("content", pa.string()),
+            pa.field("metadata", pa.string()),
+            pa.field("vector", pa.list_(pa.float32(), dimension)),
+        ])
+
+        # Create table
+        table = db.create_table(
+            "test_collection",
+            schema=schema,
+            mode="overwrite"
+        )
+
+        collection = LanceDBCollection(
             name="test_collection",
             workspace_id="test_group",
-            conn=conn,
+            db=db,
+            table=table,
             dimension=384,
             path=temp_vs_root
         )
-
-        # Initialize tables (normally done by create_duckdb_collection)
-        docs_table = collection._table_name()
-        vectors_table = collection._vector_table_name()
-
-        # Create documents table
-        conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {docs_table} (
-                id VARCHAR PRIMARY KEY,
-                document_id VARCHAR,
-                content TEXT,
-                metadata JSON DEFAULT '{{}}',
-                created_at TIMESTAMP DEFAULT NOW()
-            );
-        """)
-
-        # Create vectors table
-        conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {vectors_table} (
-                id VARCHAR PRIMARY KEY,
-                embedding FLOAT[384],
-                FOREIGN KEY (id) REFERENCES {docs_table}(id)
-            );
-        """)
 
         return collection
 
@@ -222,19 +219,19 @@ class TestVSStorage:
 
     def test_get_vs_storage_dir(self, temp_vs_root):
         """Test getting VS storage directory."""
-        from cassey.storage.duckdb_storage import get_vs_storage_dir
+        from cassey.storage.lancedb_storage import get_vs_storage_dir
 
-        with patch("cassey.storage.duckdb_storage.settings.GROUPS_ROOT", temp_vs_root):
+        with patch("cassey.storage.lancedb_storage.settings.GROUPS_ROOT", temp_vs_root):
             path = get_vs_storage_dir(storage_id="test_group")
             assert "test_group" in str(path)
             assert "vs" in str(path)
 
     def test_get_vs_storage_dir_from_context(self, temp_vs_root):
         """Test getting VS storage dir from context."""
-        from cassey.storage.duckdb_storage import get_vs_storage_dir, _get_storage_id
+        from cassey.storage.lancedb_storage import get_vs_storage_dir, _get_storage_id
         from cassey.storage.group_storage import set_group_id
 
-        with patch("cassey.storage.duckdb_storage.settings.GROUPS_ROOT", temp_vs_root):
+        with patch("cassey.storage.lancedb_storage.settings.GROUPS_ROOT", temp_vs_root):
             set_group_id("test_group")
             path = get_vs_storage_dir()
             assert "test_group" in str(path)
@@ -250,38 +247,15 @@ class TestVSIntegration:
     """Integration tests with real database."""
 
     @pytest.mark.asyncio
-    async def test_create_duckdb_collection(self, db_conn, clean_test_data):
-        """Test creating and using DuckDB collection."""
-        from cassey.storage.duckdb_storage import DuckDBCollection
-        import duckdb
+    async def test_create_lancedb_collection(self, db_conn, clean_test_data):
+        """Test creating and using LanceDB collection."""
+        from cassey.storage.lancedb_storage import create_lancedb_collection
 
-        # Create in-memory collection for testing
-        conn = duckdb.connect(":memory:")
-        collection = DuckDBCollection(
-            name="test_collection",
-            workspace_id="test_group",
-            conn=conn
+        # Create a test collection
+        collection = create_lancedb_collection(
+            storage_id="test_group",
+            collection_name="test_collection"
         )
-
-        # Initialize tables
-        docs_table = collection._table_name()
-        vectors_table = collection._vector_table_name()
-        conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {docs_table} (
-                id VARCHAR PRIMARY KEY,
-                document_id VARCHAR,
-                content TEXT,
-                metadata JSON DEFAULT '{{}}',
-                created_at TIMESTAMP DEFAULT NOW()
-            );
-        """)
-        conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {vectors_table} (
-                id VARCHAR PRIMARY KEY,
-                embedding FLOAT[384],
-                FOREIGN KEY (id) REFERENCES {docs_table}(id)
-            );
-        """)
 
         # Add documents with mocked embeddings
         with patch("cassey.storage.chunking.get_embeddings") as mock_embed:
@@ -295,22 +269,26 @@ class TestVSIntegration:
             count = collection.add_documents(docs)
             assert count >= 2
 
+        # Clean up
+        from cassey.storage.lancedb_storage import drop_lancedb_collection
+        drop_lancedb_collection(storage_id="test_group", collection_name="test_collection")
+
     @pytest.mark.asyncio
-    async def test_list_duckdb_collections(self, db_conn, clean_test_data):
+    async def test_list_lancedb_collections(self, db_conn, clean_test_data):
         """Test listing collections."""
-        from cassey.storage.duckdb_storage import list_duckdb_collections
+        from cassey.storage.lancedb_storage import list_lancedb_collections
 
         # Should return empty list or available collections
-        collections = list_duckdb_collections(storage_id="test_group")
+        collections = list_lancedb_collections(storage_id="test_group")
         assert isinstance(collections, list)
 
     @pytest.mark.asyncio
-    async def test_drop_duckdb_collections(self, db_conn, clean_test_data):
+    async def test_drop_lancedb_collections(self, db_conn, clean_test_data):
         """Test dropping collections."""
-        from cassey.storage.duckdb_storage import drop_all_duckdb_collections
+        from cassey.storage.lancedb_storage import drop_all_lancedb_collections
 
         # Should not raise
-        count = drop_all_duckdb_collections(storage_id="test_group")
+        count = drop_all_lancedb_collections(storage_id="test_group")
         assert isinstance(count, int)
 
 
@@ -331,41 +309,38 @@ class TestSearchTypes:
     @pytest.fixture
     def populated_collection(self, temp_vs_root):
         """Create a collection with test data."""
-        from cassey.storage.duckdb_storage import DuckDBCollection
-        import duckdb
+        from cassey.storage.lancedb_storage import LanceDBCollection
+        import lancedb
+        import pyarrow as pa
 
-        conn = duckdb.connect(":memory:")
-        collection = DuckDBCollection(
+        db_path = temp_vs_root / ".lancedb"
+        db = lancedb.connect(str(db_path))
+
+        # Define schema
+        dimension = 384
+        schema = pa.schema([
+            pa.field("id", pa.string()),
+            pa.field("document_id", pa.string()),
+            pa.field("content", pa.string()),
+            pa.field("metadata", pa.string()),
+            pa.field("vector", pa.list_(pa.float32(), dimension)),
+        ])
+
+        # Create table
+        table = db.create_table(
+            "test_collection",
+            schema=schema,
+            mode="overwrite"
+        )
+
+        collection = LanceDBCollection(
             name="test_collection",
             workspace_id="test_group",
-            conn=conn,
+            db=db,
+            table=table,
             dimension=384,
             path=temp_vs_root
         )
-
-        # Initialize tables (normally done by create_duckdb_collection)
-        docs_table = collection._table_name()
-        vectors_table = collection._vector_table_name()
-
-        # Create documents table
-        conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {docs_table} (
-                id VARCHAR PRIMARY KEY,
-                document_id VARCHAR,
-                content TEXT,
-                metadata JSON DEFAULT '{{}}',
-                created_at TIMESTAMP DEFAULT NOW()
-            );
-        """)
-
-        # Create vectors table
-        conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {vectors_table} (
-                id VARCHAR PRIMARY KEY,
-                embedding FLOAT[384],
-                FOREIGN KEY (id) REFERENCES {docs_table}(id)
-            );
-        """)
 
         # Add documents with mocked embeddings
         with patch("cassey.storage.chunking.get_embeddings") as mock_embed:
@@ -382,15 +357,6 @@ class TestSearchTypes:
 
         return collection
 
-    def test_hybrid_search(self, populated_collection):
-        """Test hybrid search (vector + fulltext)."""
-        results = populated_collection.search(
-            "Python",
-            limit=5,
-            search_type="hybrid"
-        )
-        assert isinstance(results, list)
-
     def test_vector_search(self, populated_collection):
         """Test vector-only search."""
         with patch("cassey.storage.chunking.get_embeddings") as mock_embed:
@@ -404,81 +370,32 @@ class TestSearchTypes:
             assert isinstance(results, list)
 
     def test_fulltext_search(self, populated_collection):
-        """Test fulltext-only search."""
-        results = populated_collection.search(
-            "Python",
-            limit=5,
-            search_type="fulltext"
-        )
-        assert isinstance(results, list)
+        """Test fulltext-only search (LanceDB falls back to vector search).
 
+        Note: LanceDB doesn't have native full-text search. The fulltext search
+        type will fall back to vector search, which is the expected behavior.
+        """
+        with patch("cassey.storage.chunking.get_embeddings") as mock_embed:
+            mock_embed.return_value = [[0.3] * 384]
 
-# =============================================================================
-# Schema Tests
-# =============================================================================
+            results = populated_collection.search(
+                "Python",
+                limit=5,
+                search_type="fulltext"
+            )
+            assert isinstance(results, list)
 
-class TestSchema:
-    """Test database schema creation."""
+    def test_hybrid_search(self, populated_collection):
+        """Test hybrid search (LanceDB falls back to vector)."""
+        with patch("cassey.storage.chunking.get_embeddings") as mock_embed:
+            mock_embed.return_value = [[0.3] * 384]
 
-    @pytest.fixture
-    def temp_vs_root(self, tmp_path):
-        """Create a temporary VS root."""
-        root = tmp_path / "groups" / "test_group" / "vs"
-        root.mkdir(parents=True, exist_ok=True)
-        return root
-
-    @pytest.fixture
-    def collection(self, temp_vs_root):
-        """Create a DuckDBCollection for testing."""
-        from cassey.storage.duckdb_storage import DuckDBCollection
-        import duckdb
-
-        conn = duckdb.connect(":memory:")
-        collection = DuckDBCollection(
-            name="test_collection",
-            workspace_id="test_group",
-            conn=conn,
-            dimension=384,
-            path=temp_vs_root
-        )
-
-        # Initialize tables (normally done by create_duckdb_collection)
-        docs_table = collection._table_name()
-        vectors_table = collection._vector_table_name()
-
-        # Create documents table
-        conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {docs_table} (
-                id VARCHAR PRIMARY KEY,
-                document_id VARCHAR,
-                content TEXT,
-                metadata JSON DEFAULT '{{}}',
-                created_at TIMESTAMP DEFAULT NOW()
-            );
-        """)
-
-        # Create vectors table
-        conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {vectors_table} (
-                id VARCHAR PRIMARY KEY,
-                embedding FLOAT[384],
-                FOREIGN KEY (id) REFERENCES {docs_table}(id)
-            );
-        """)
-
-        return collection
-
-    def test_table_names(self, collection):
-        """Test that table names are generated correctly."""
-        # Table names include the workspace_id prefix
-        assert "test_collection_docs" in collection._table_name()
-        assert "test_collection_vectors" in collection._vector_table_name()
-
-    def test_fts_table_name(self, collection):
-        """Test FTS table name generation."""
-        fts_name = collection._fts_table_name()
-        assert "fts_main" in fts_name
-        assert "test_collection" in fts_name
+            results = populated_collection.search(
+                "Python",
+                limit=5,
+                search_type="hybrid"
+            )
+            assert isinstance(results, list)
 
 
 # =============================================================================
@@ -490,35 +407,12 @@ class TestErrorHandling:
 
     def test_search_empty_collection(self, tmp_path):
         """Test searching an empty collection."""
-        from cassey.storage.duckdb_storage import DuckDBCollection
-        import duckdb
+        from cassey.storage.lancedb_storage import create_lancedb_collection
 
-        conn = duckdb.connect(":memory:")
-        collection = DuckDBCollection(
-            name="empty_collection",
-            workspace_id="test_group",
-            conn=conn
+        collection = create_lancedb_collection(
+            storage_id="test_group",
+            collection_name="empty_collection",
         )
-
-        # Initialize tables
-        docs_table = collection._table_name()
-        vectors_table = collection._vector_table_name()
-        conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {docs_table} (
-                id VARCHAR PRIMARY KEY,
-                document_id VARCHAR,
-                content TEXT,
-                metadata JSON DEFAULT '{{}}',
-                created_at TIMESTAMP DEFAULT NOW()
-            );
-        """)
-        conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {vectors_table} (
-                id VARCHAR PRIMARY KEY,
-                embedding FLOAT[384],
-                FOREIGN KEY (id) REFERENCES {docs_table}(id)
-            );
-        """)
 
         # Should not error, just return empty results
         results = collection.search("test query", limit=5)
@@ -527,14 +421,11 @@ class TestErrorHandling:
 
     def test_add_empty_documents(self, tmp_path):
         """Test adding empty document list."""
-        from cassey.storage.duckdb_storage import DuckDBCollection
-        import duckdb
+        from cassey.storage.lancedb_storage import create_lancedb_collection
 
-        conn = duckdb.connect(":memory:")
-        collection = DuckDBCollection(
-            name="test_collection",
-            workspace_id="test_group",
-            conn=conn
+        collection = create_lancedb_collection(
+            storage_id="test_group",
+            collection_name="test_collection",
         )
 
         count = collection.add_documents([])

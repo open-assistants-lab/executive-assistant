@@ -48,40 +48,57 @@ def _get_db() -> SQLiteDatabase:
 @require_permission("write")
 def create_db_table(
     table_name: str,
-    data: str,
+    data: str = "",
     columns: str = "",
 ) -> str:
-    """
-    Create a table in the thread's DB.
+    """Create a new table for structured data storage. [DB]
 
-    The DB is for temporary working data specific to this conversation.
-    For persistent knowledge base storage, use kb_create_table instead.
+    USE THIS WHEN: Starting a new tracking task (timesheets, habits, expenses) or when you need queryable, tabular data for analysis.
 
-    The data should be provided as a JSON array of objects or JSON array of arrays.
+    See also: data_management skill for guidance on schema design.
 
     Args:
-        table_name: Name for the new table (must be a valid SQL identifier).
-        data: JSON array of objects (e.g., '[{"a": 1, "b": 2}, {"a": 3, "b": 4}]')
-               or JSON array of arrays with columns parameter.
-        columns: Comma-separated column names (required if data is array of arrays).
-               Example: "name,age,city"
+        table_name: Name for the new table (letters, numbers, underscore).
+        data: JSON array of objects to create table with data.
+               Leave empty to create empty table structure.
+        columns: Comma-separated column names (e.g., "name,email,phone").
+               Required when creating empty table; optional with data.
 
     Returns:
-        Success message with row count.
-
-    Examples:
-        >>> create_db_table("users", '[{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]')
-        "Table 'users' created with 2 rows"
-
-        >>> create_db_table("products", '[["Apple", 1.99], ["Banana", 0.99]]', columns="name,price")
-        "Table 'products' created with 2 rows"
+        Success message with row count or table schema.
     """
     import json
 
+    # Handle empty data (create table structure only)
+    if not data or not data.strip():
+        if not columns:
+            return "Error: Either data or columns must be provided"
+
+        column_list = [col.strip() for col in columns.split(",")]
+        # Add TEXT type to columns without explicit type
+        column_defs = []
+        for col in column_list:
+            if " " in col:  # Already has type (e.g., "id INTEGER PRIMARY KEY")
+                column_defs.append(col)
+            else:  # Just column name, add TEXT type
+                column_defs.append(f"{col} TEXT")
+
+        try:
+            thread_id = _get_current_thread_id()
+            db = _get_db()
+            db.create_table(table_name, column_defs)
+            record_db_path(thread_id, settings.get_thread_db_path(thread_id))
+            record_db_table_added(thread_id, table_name)
+            col_str = ", ".join(column_defs)
+            return f"Table '{table_name}' created with columns: {col_str}"
+        except Exception as e:
+            return f"Error creating table: {str(e)}"
+
+    # Parse data
     try:
         parsed_data = json.loads(data)
     except json.JSONDecodeError as e:
-        return f"Error: Invalid JSON data - {str(e)}"
+        return f'Error: Invalid JSON data - {str(e)}. Expected format: \'[{{"name": "Alice", "age": 30}}]\''
 
     # Determine column names
     column_list = None
@@ -109,21 +126,16 @@ def insert_db_table(
     table_name: str,
     data: str,
 ) -> str:
-    """
-    Insert data into an existing table in the DB.
+    """Add rows to an existing table. [DB]
 
-    The data should be provided as a JSON array of objects with keys matching table columns.
+    USE THIS WHEN: You need to add new records/entries to a table you've already created.
 
     Args:
         table_name: Name of the table to insert into.
-        data: JSON array of objects (e.g., '[{"a": 1, "b": 2}, {"a": 3, "b": 4}]').
+        data: JSON array of objects with keys matching table columns.
 
     Returns:
         Success message with row count.
-
-    Examples:
-        >>> insert_db_table("users", '[{"name": "Charlie", "age": 35}]')
-        "Inserted 1 row into 'users'"
     """
     import json
 
@@ -152,35 +164,20 @@ def insert_db_table(
 def query_db(
     sql: str,
 ) -> str:
-    """
-    Execute a SQL query on the thread's DB (SQLite).
+    """Execute SQL queries to retrieve, analyze, or modify data. [DB]
 
-    IMPORTANT: This database uses SQLite (not DuckDB). Use SQLite-compatible syntax.
+    USE THIS WHEN: You need to search/filter data, calculate aggregates (SUM, AVG, COUNT), join tables, or perform complex analysis.
 
-    Supported:
-    - Standard SQL: SELECT, INSERT, UPDATE, DELETE, CREATE TABLE, DROP TABLE
-    - JSON for arrays: json_array(), json_extract(), json_each()
-    - Dates: date('now'), datetime('now'), strftime('%Y-%m-%d', col)
-    - Auto-increment: INTEGER PRIMARY KEY (automatic)
-
-    Not Supported (DuckDB-specific):
-    - Array literals [1,2,3] -> Use json_array(1,2,3)
-    - read_csv_auto() -> Use import_db_table tool instead
-    - DuckDB-specific functions -> Use SQLite equivalents
-
-    Examples:
-    - CREATE TABLE timesheets (id INTEGER PRIMARY KEY, date TEXT, hours REAL, project)
-    - INSERT INTO timesheets (date, hours, project) VALUES ('2025-01-17', 4.5, 'Cassey')
-    - SELECT * FROM timesheets WHERE date >= date('now', '-7 days')
-    - SELECT * FROM timesheets WHERE EXISTS (SELECT 1 FROM json_each(tags) WHERE value = 'billing')
-
-    For help with SQLite syntax, use the sqlite_guide tool.
+    Database: SQLite (not DuckDB). Use SQLite-compatible syntax.
+    - JSON: json_array(), json_extract(), json_each()
+    - Dates: date('now'), strftime('%Y-%m-%d', col)
+    - See sqlite_guide tool for syntax help.
 
     Args:
-        sql: SQL query to execute (can be SELECT, PRAGMA, etc.).
+        sql: SQL query (SELECT, INSERT, UPDATE, DELETE, etc.).
 
     Returns:
-        Query results formatted as text table.
+        Query results formatted as text table, or rows affected for writes.
     """
     try:
         db = _get_db()
@@ -237,15 +234,12 @@ def _format_query_results(columns: list[str], rows: list[tuple]) -> str:
 @tool
 @require_permission("read")
 def list_db_tables() -> str:
-    """
-    List all tables in the thread's DB.
+    """List all tables in the database. [DB]
+
+    USE THIS WHEN: You need to see what tables exist or verify table names.
 
     Returns:
         List of table names.
-
-    Examples:
-        >>> list_db_tables()
-        "Tables in DB:\\n- users\\n- products"
     """
     try:
         db = _get_db()
@@ -263,18 +257,15 @@ def list_db_tables() -> str:
 @tool
 @require_permission("read")
 def describe_db_table(table_name: str) -> str:
-    """
-    Get schema information for a table.
+    """Get table schema (column names and types). [DB]
+
+    USE THIS WHEN: You need to see what columns exist in a table before querying or inserting data.
 
     Args:
         table_name: Name of the table to describe.
 
     Returns:
         Table schema with column names and types.
-
-    Examples:
-        >>> describe_db_table("users")
-        "Table 'users' schema:\\n- name: TEXT\\n- age: INTEGER"
     """
     try:
         validate_identifier(table_name)
@@ -300,18 +291,17 @@ def describe_db_table(table_name: str) -> str:
 @tool
 @require_permission("write")
 def delete_db_table(table_name: str) -> str:
-    """
-    Drop a table from the DB.
+    """Delete a table and all its data. [DB]
+
+    USE THIS WHEN: You need to remove an entire table permanently.
+
+    Warning: This cannot be undone.
 
     Args:
-        table_name: Name of the table to drop.
+        table_name: Name of the table to delete.
 
     Returns:
         Success message or error.
-
-    Examples:
-        >>> delete_db_table("old_table")
-        "Table 'old_table' dropped"
     """
     try:
         validate_identifier(table_name)
@@ -336,20 +326,17 @@ def export_db_table(
     filename: str,
     format: Literal["csv"] = "csv",
 ) -> str:
-    """
-    Export a group table to a file in the context's file directory.
+    """Export table data to a CSV file. [DB → Files]
+
+    USE THIS WHEN: You need to export data for analysis in other tools, create reports, or backup data.
 
     Args:
         table_name: Name of the table to export.
         filename: Name for the exported file (extension added automatically).
-        format: Export format - only "csv" is supported.
+        format: Export format (only "csv" supported).
 
     Returns:
-        Success message with file path.
-
-    Examples:
-        >>> export_db_table("users", "my_data", "csv")
-        "Exported 'users' to files/.../my_data.csv (2 rows)"
+        Success message with file path and row count.
     """
     try:
         validate_identifier(table_name)
@@ -388,21 +375,16 @@ def import_db_table(
     table_name: str,
     filename: str,
 ) -> str:
-    """
-    Import a CSV file into a new DB table.
+    """Import CSV file data into a new table. [Files → DB]
 
-    The file must exist in the context's file directory.
+    USE THIS WHEN: You have CSV data in your files directory that you want to query or analyze with SQL.
 
     Args:
         table_name: Name for the new table.
-        filename: Name of the CSV file to import (must exist in files directory).
+        filename: Name of the CSV file (must exist in files directory).
 
     Returns:
         Success message with row count.
-
-    Examples:
-        >>> import_db_table("sales", "sales_data.csv")
-        "Imported 'sales_data.csv' into table 'sales' (150 rows)"
     """
     try:
         validate_identifier(table_name)

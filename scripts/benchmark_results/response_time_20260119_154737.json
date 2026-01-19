@@ -1,0 +1,75 @@
+[
+  {
+    "scenario": "simple_hello",
+    "provider": "openai",
+    "model": "gpt-5-mini-2025-08-07",
+    "timestamp": "2026-01-19T15:47:27.928883",
+    "timings_ms": {
+      "state_build": 0.0019073486328125,
+      "memory_retrieval": 0,
+      "checkpoint_load": 279.0560722351074,
+      "agent_stream_start": 0.010967254638671875,
+      "llm_total": 3828.892946243286,
+      "agent_stream_end": 10.977029800415039,
+      "message_extraction": 0,
+      "markdown_conversion": 0.012874603271484375,
+      "telegram_api_estimate": 3500.014066696167,
+      "post_agent_total": 3500.0269412994385,
+      "total_including_telegram": 7623.236894607544,
+      "agent_only_total": 4123.2099533081055,
+      "overhead": 294.31700706481934,
+      "overhead_percent": 7.138055311218992
+    },
+    "metrics": {
+      "events_processed": 4,
+      "messages_extracted": 0,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "with_tools",
+    "provider": "openai",
+    "model": "gpt-5-mini-2025-08-07",
+    "timestamp": "2026-01-19T15:47:32.052339",
+    "timings_ms": {
+      "state_build": 0.006198883056640625,
+      "memory_retrieval": 0,
+      "checkpoint_load": 14.380931854248047,
+      "agent_stream_start": 0.012874603271484375,
+      "llm_total": 2938.976049423218,
+      "agent_stream_end": 2061.702251434326,
+      "message_extraction": 0,
+      "markdown_conversion": 0.0069141387939453125,
+      "telegram_api_estimate": 3500.0040531158447,
+      "post_agent_total": 3500.0109672546387,
+      "total_including_telegram": 8520.17617225647,
+      "agent_only_total": 5020.165205001831,
+      "overhead": 2081.1891555786133,
+      "overhead_percent": 41.45658699648021
+    },
+    "metrics": {
+      "events_processed": 9,
+      "messages_extracted": 0,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model",
+        "tools",
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  }
+]

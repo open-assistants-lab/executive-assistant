@@ -162,12 +162,12 @@ async def refresh_meta(thread_id: str) -> dict[str, Any]:
         "last_updated": now,
     }
 
-    # VS tables (DuckDB + Hybrid)
+    # VS tables (LanceDB)
     vs_tables: list[str] = []
     try:
-        from cassey.storage.duckdb_storage import list_duckdb_collections
+        from cassey.storage.lancedb_storage import list_lancedb_collections
 
-        vs_tables = list_duckdb_collections(workspace_id=storage_id)
+        vs_tables = list_lancedb_collections(storage_id=storage_id)
     except Exception:
         vs_tables = []
 

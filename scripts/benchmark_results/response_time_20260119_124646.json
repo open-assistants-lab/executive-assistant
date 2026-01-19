@@ -1,0 +1,86 @@
+[
+  {
+    "scenario": "simple_hello",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "timestamp": "2026-01-19T12:46:41.703165",
+    "timings_ms": {
+      "state_build": 0.0021457672119140625,
+      "memory_retrieval": 0,
+      "checkpoint_load": 292.01817512512207,
+      "agent_stream_start": 0.014781951904296875,
+      "llm_total": 1783.5326194763184,
+      "agent_stream_end": 5.998134613037109,
+      "total": 2088.1850719451904,
+      "overhead": 304.65245246887207,
+      "overhead_percent": 14.589341556066273
+    },
+    "metrics": {
+      "events_processed": 4,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "simple_hello",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "timestamp": "2026-01-19T12:46:43.791569",
+    "timings_ms": {
+      "state_build": 0.004291534423828125,
+      "memory_retrieval": 0,
+      "checkpoint_load": 14.59503173828125,
+      "agent_stream_start": 0.015735626220703125,
+      "llm_total": 1375.032901763916,
+      "agent_stream_end": 10.07699966430664,
+      "total": 1402.6072025299072,
+      "overhead": 27.57430076599121,
+      "overhead_percent": 1.965931781631733
+    },
+    "metrics": {
+      "events_processed": 4,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "simple_hello",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "timestamp": "2026-01-19T12:46:45.194272",
+    "timings_ms": {
+      "state_build": 0.0030994415283203125,
+      "memory_retrieval": 0,
+      "checkpoint_load": 15.465974807739258,
+      "agent_stream_start": 0.014781951904296875,
+      "llm_total": 1143.6901092529297,
+      "agent_stream_end": 7.4710845947265625,
+      "total": 1171.0190773010254,
+      "overhead": 27.328968048095703,
+      "overhead_percent": 2.3337765009844023
+    },
+    "metrics": {
+      "events_processed": 4,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  }
+]

@@ -1,0 +1,221 @@
+[
+  {
+    "scenario": "simple_hello",
+    "provider": "anthropic",
+    "model": "claude-haiku-4-20250514",
+    "timestamp": "2026-01-19T15:57:24.433454",
+    "timings_ms": {
+      "state_build": 0.0030994415283203125,
+      "memory_retrieval": 0,
+      "checkpoint_load": 226.9279956817627,
+      "agent_stream_start": 0.009775161743164062,
+      "llm_total": 2571.83575630188,
+      "agent_stream_end": 12.144327163696289,
+      "message_extraction": 0,
+      "markdown_conversion": 0.010967254638671875,
+      "telegram_api_estimate": 3500.013828277588,
+      "post_agent_total": 3500.0247955322266,
+      "total_including_telegram": 6316.848993301392,
+      "agent_only_total": 2816.824197769165,
+      "overhead": 244.98844146728516,
+      "overhead_percent": 8.697328064041349
+    },
+    "metrics": {
+      "events_processed": 4,
+      "messages_extracted": 1,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "simple_hello",
+    "provider": "anthropic",
+    "model": "claude-haiku-4-20250514",
+    "timestamp": "2026-01-19T15:57:27.250479",
+    "timings_ms": {
+      "state_build": 0.003814697265625,
+      "memory_retrieval": 0,
+      "checkpoint_load": 12.084007263183594,
+      "agent_stream_start": 0.01621246337890625,
+      "llm_total": 2858.5991859436035,
+      "agent_stream_end": 3.763914108276367,
+      "message_extraction": 0,
+      "markdown_conversion": 0.0057220458984375,
+      "telegram_api_estimate": 3500.0100135803223,
+      "post_agent_total": 3500.0157356262207,
+      "total_including_telegram": 6379.223823547363,
+      "agent_only_total": 2879.2080879211426,
+      "overhead": 20.608901977539062,
+      "overhead_percent": 0.7157836928840801
+    },
+    "metrics": {
+      "events_processed": 4,
+      "messages_extracted": 1,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "simple_hello",
+    "provider": "anthropic",
+    "model": "claude-haiku-4-20250514",
+    "timestamp": "2026-01-19T15:57:30.129776",
+    "timings_ms": {
+      "state_build": 0.0019073486328125,
+      "memory_retrieval": 0,
+      "checkpoint_load": 12.472867965698242,
+      "agent_stream_start": 0.014066696166992188,
+      "llm_total": 1268.970012664795,
+      "agent_stream_end": 8.018970489501953,
+      "message_extraction": 0,
+      "markdown_conversion": 0.0050067901611328125,
+      "telegram_api_estimate": 3500.012159347534,
+      "post_agent_total": 3500.0171661376953,
+      "total_including_telegram": 4792.757987976074,
+      "agent_only_total": 1292.740821838379,
+      "overhead": 23.770809173583984,
+      "overhead_percent": 1.83879156378616
+    },
+    "metrics": {
+      "events_processed": 4,
+      "messages_extracted": 1,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "with_tools",
+    "provider": "anthropic",
+    "model": "claude-haiku-4-20250514",
+    "timestamp": "2026-01-19T15:57:31.422612",
+    "timings_ms": {
+      "state_build": 0.0026226043701171875,
+      "memory_retrieval": 0,
+      "checkpoint_load": 9.71221923828125,
+      "agent_stream_start": 0.0069141387939453125,
+      "llm_total": 1349.0431308746338,
+      "agent_stream_end": 1265.3460502624512,
+      "message_extraction": 0,
+      "markdown_conversion": 0.0059604644775390625,
+      "telegram_api_estimate": 3500.0081062316895,
+      "post_agent_total": 3500.014066696167,
+      "total_including_telegram": 6127.69889831543,
+      "agent_only_total": 2627.6848316192627,
+      "overhead": 1278.641700744629,
+      "overhead_percent": 48.66039052167034
+    },
+    "metrics": {
+      "events_processed": 9,
+      "messages_extracted": 2,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model",
+        "tools",
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "with_tools",
+    "provider": "anthropic",
+    "model": "claude-haiku-4-20250514",
+    "timestamp": "2026-01-19T15:57:34.050378",
+    "timings_ms": {
+      "state_build": 0.00286102294921875,
+      "memory_retrieval": 0,
+      "checkpoint_load": 11.809110641479492,
+      "agent_stream_start": 0.0059604644775390625,
+      "llm_total": 4164.534091949463,
+      "agent_stream_end": 1280.7397842407227,
+      "message_extraction": 0,
+      "markdown_conversion": 0.005245208740234375,
+      "telegram_api_estimate": 3500.0078678131104,
+      "post_agent_total": 3500.0131130218506,
+      "total_including_telegram": 8961.529016494751,
+      "agent_only_total": 5461.5159034729,
+      "overhead": 1296.9818115234375,
+      "overhead_percent": 23.74765238161634
+    },
+    "metrics": {
+      "events_processed": 9,
+      "messages_extracted": 2,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model",
+        "tools",
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "with_tools",
+    "provider": "anthropic",
+    "model": "claude-haiku-4-20250514",
+    "timestamp": "2026-01-19T15:57:39.511974",
+    "timings_ms": {
+      "state_build": 0.0030994415283203125,
+      "memory_retrieval": 0,
+      "checkpoint_load": 9.340763092041016,
+      "agent_stream_start": 0.009059906005859375,
+      "llm_total": 1327.6360034942627,
+      "agent_stream_end": 2917.2279834747314,
+      "message_extraction": 0,
+      "markdown_conversion": 0.0059604644775390625,
+      "telegram_api_estimate": 3500.0088214874268,
+      "post_agent_total": 3500.0147819519043,
+      "total_including_telegram": 7756.594896316528,
+      "agent_only_total": 4256.580114364624,
+      "overhead": 2928.9441108703613,
+      "overhead_percent": 68.80979641346565
+    },
+    "metrics": {
+      "events_processed": 9,
+      "messages_extracted": 2,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model",
+        "tools",
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  }
+]

@@ -81,6 +81,18 @@ class SQLiteDatabase:
         self.conn.execute(f"DROP TABLE IF EXISTS {table_name}")
         self.commit()
 
+    def create_table(self, table_name: str, columns: list[str]) -> None:
+        """Create an empty table with specified columns.
+
+        Args:
+            table_name: Name for the new table.
+            columns: List of column definitions (e.g., ["id INTEGER PRIMARY KEY", "name TEXT"])
+        """
+        validate_identifier(table_name)
+        cols_def = ", ".join(columns)
+        self.conn.execute(f"CREATE TABLE IF NOT EXISTS {table_name} ({cols_def})")
+        self.commit()
+
     def create_table_from_data(
         self,
         table_name: str,
@@ -297,7 +309,8 @@ def _get_sqlite_connection(storage_id: str, path: Path) -> sqlite3.Connection:
         SQLite connection object.
     """
     db_path = path / "db.sqlite"
-    conn = sqlite3.connect(str(db_path))
+    # Allow sharing connections across threads (needed for async environment)
+    conn = sqlite3.connect(str(db_path), check_same_thread=False)
 
     # Enable WAL mode for better concurrency
     conn.execute("PRAGMA journal_mode=WAL")

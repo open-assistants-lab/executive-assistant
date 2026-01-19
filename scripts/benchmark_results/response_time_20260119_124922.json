@@ -1,0 +1,140 @@
+[
+  {
+    "scenario": "simple_hello",
+    "provider": "anthropic",
+    "model": "claude-haiku-4-5-20251001",
+    "timestamp": "2026-01-19T12:49:22.386444",
+    "timings_ms": {
+      "state_build": 0.0021457672119140625,
+      "memory_retrieval": 0,
+      "checkpoint_load": -1768787362386.454,
+      "agent_stream_start": 0,
+      "llm_total": 0.007867813110351562,
+      "agent_stream_end": 0.0,
+      "total": 0.007867813110351562,
+      "overhead": 0.0,
+      "overhead_percent": 0.0
+    },
+    "metrics": {
+      "events_processed": 0,
+      "middleware_events": [],
+      "memories_retrieved": 0
+    },
+    "error": "ANTHROPIC_API_KEY not set"
+  },
+  {
+    "scenario": "simple_hello",
+    "provider": "anthropic",
+    "model": "claude-haiku-4-5-20251001",
+    "timestamp": "2026-01-19T12:49:22.386465",
+    "timings_ms": {
+      "state_build": 0.0011920928955078125,
+      "memory_retrieval": 0,
+      "checkpoint_load": -1768787362386.4683,
+      "agent_stream_start": 0,
+      "llm_total": 0.00286102294921875,
+      "agent_stream_end": 0.0,
+      "total": 0.00286102294921875,
+      "overhead": 0.0,
+      "overhead_percent": 0.0
+    },
+    "metrics": {
+      "events_processed": 0,
+      "middleware_events": [],
+      "memories_retrieved": 0
+    },
+    "error": "ANTHROPIC_API_KEY not set"
+  },
+  {
+    "scenario": "simple_hello",
+    "provider": "anthropic",
+    "model": "claude-haiku-4-5-20251001",
+    "timestamp": "2026-01-19T12:49:22.386473",
+    "timings_ms": {
+      "state_build": 0.0,
+      "memory_retrieval": 0,
+      "checkpoint_load": -1768787362386.4739,
+      "agent_stream_start": 0,
+      "llm_total": 0.0011920928955078125,
+      "agent_stream_end": 0.0,
+      "total": 0.0011920928955078125,
+      "overhead": 0.0,
+      "overhead_percent": 0.0
+    },
+    "metrics": {
+      "events_processed": 0,
+      "middleware_events": [],
+      "memories_retrieved": 0
+    },
+    "error": "ANTHROPIC_API_KEY not set"
+  },
+  {
+    "scenario": "with_memory",
+    "provider": "anthropic",
+    "model": "claude-haiku-4-5-20251001",
+    "timestamp": "2026-01-19T12:49:22.386480",
+    "timings_ms": {
+      "state_build": 0.0,
+      "memory_retrieval": 312.99829483032227,
+      "checkpoint_load": -1768787362699.479,
+      "agent_stream_start": 0,
+      "llm_total": 313.007116317749,
+      "agent_stream_end": -0.00095367431640625,
+      "total": 313.0061626434326,
+      "overhead": -0.00095367431640625,
+      "overhead_percent": -0.0003046822811257706
+    },
+    "metrics": {
+      "events_processed": 0,
+      "middleware_events": [],
+      "memories_retrieved": 0
+    },
+    "error": "ANTHROPIC_API_KEY not set"
+  },
+  {
+    "scenario": "with_memory",
+    "provider": "anthropic",
+    "model": "claude-haiku-4-5-20251001",
+    "timestamp": "2026-01-19T12:49:22.699503",
+    "timings_ms": {
+      "state_build": 0.003814697265625,
+      "memory_retrieval": 26.578187942504883,
+      "checkpoint_load": -1768787362726.0952,
+      "agent_stream_start": 0,
+      "llm_total": 26.59463882446289,
+      "agent_stream_end": -0.0016689300537109375,
+      "total": 26.59296989440918,
+      "overhead": -0.0016689300537109375,
+      "overhead_percent": -0.006275831771846619
+    },
+    "metrics": {
+      "events_processed": 0,
+      "middleware_events": [],
+      "memories_retrieved": 0
+    },
+    "error": "ANTHROPIC_API_KEY not set"
+  },
+  {
+    "scenario": "with_memory",
+    "provider": "anthropic",
+    "model": "claude-haiku-4-5-20251001",
+    "timestamp": "2026-01-19T12:49:22.726125",
+    "timings_ms": {
+      "state_build": 0.00476837158203125,
+      "memory_retrieval": 28.127193450927734,
+      "checkpoint_load": -1768787362754.266,
+      "agent_stream_start": 0,
+      "llm_total": 28.14316749572754,
+      "agent_stream_end": -0.0011920928955078125,
+      "total": 28.14197540283203,
+      "overhead": -0.0011920928955078125,
+      "overhead_percent": -0.004235995797892168
+    },
+    "metrics": {
+      "events_processed": 0,
+      "middleware_events": [],
+      "memories_retrieved": 0
+    },
+    "error": "ANTHROPIC_API_KEY not set"
+  }
+]

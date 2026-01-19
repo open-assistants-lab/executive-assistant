@@ -8,29 +8,30 @@
 
 llm:
   # Default LLM provider: anthropic, openai, zhipu, ollama
-  default_provider: openai
+  # default_provider: openai
+  default_provider: ollama
 
- # Global fallback models (used when provider-specific model not set)
-  default_model: null  # Use provider-specific default
-  fast_model: null     # Use provider-specific fast model
+  # Global fallback models (used when provider-specific model not set)
+  default_model: null # Use provider-specific default
+  fast_model: null # Use provider-specific fast model
 
   # Provider-specific model configurations
   anthropic:
-    default_model: null  # Uses claude-sonnet-4-20250514 by default
-    fast_model: null     # Uses claude-haiku-4-20250514 by default
+    default_model: claude-haiku-4-5-20251001 # Uses claude-sonnet-4-20250514 by default
+    fast_model: claude-haiku-4-5-20251001 # Uses claude-haiku-4-20250514 by default
 
   openai:
-    default_model: gpt-5-mini-2025-08-07  # Uses gpt-4o by default
-    fast_model: gpt-5-nano-2025-08-07     # Uses gpt-4o-mini by default
+    default_model: gpt-5-mini-2025-08-07 # Uses gpt-4o by default
+    fast_model: gpt-5-nano-2025-08-07 # Uses gpt-4o-mini by default
 
   zhipu:
     default_model: glm-4-plus
     fast_model: glm-4-flash
 
   ollama:
-    default_model: deepseek-v3.2:cloud
-    fast_model: deepseek-v3.2:cloud
-    mode: cloud  # cloud or local
+    default_model: gpt-oss:20b-cloud
+    fast_model: gpt-oss:20b-cloud
+    mode: cloud # cloud or local
     cloud_url: "https://ollama.com"
     local_url: "http://localhost:11434"
 
@@ -78,12 +79,12 @@ middleware:
   # Summarization Middleware - reduces context size when it gets too large
   summarization:
     enabled: true
-    max_tokens: 10000      # Trigger summarization at this token count
-    target_tokens: 2000    # Target size after summarization
+    max_tokens: 10000 # Trigger summarization at this token count
+    target_tokens: 2000 # Target size after summarization
 
-  # Call Limits - prevent runaway agent execution
-  model_call_limit: 50
-  tool_call_limit: 100
+  # Call Limits - prevent runaway agent execution (per-message limits)
+  model_call_limit: 30 # Max 10 LLM calls per message (prevents infinite loops)
+  tool_call_limit: 50 # Max 20 tool calls per message
 
   # Retry Middleware - retry failed calls
   tool_retry_enabled: true
@@ -104,8 +105,8 @@ middleware:
   # Status Update Middleware - real-time progress feedback
   status_updates:
     enabled: true
-    show_tool_args: false  # Show tool arguments (security risk if true)
-    update_interval: 0.5   # Minimum seconds between status updates
+    show_tool_args: false # Show tool arguments (security risk if true)
+    update_interval: 0.5 # Minimum seconds between status updates
 
 # ============================================================================
 # Vector Store Configuration
@@ -115,27 +116,27 @@ vector_store:
   # Sentence-transformers model for embeddings
   embedding_model: "all-MiniLM-L6-v2"
   embedding_dimension: 384
-  chunk_size: 3000  # Default chunk size in characters
+  chunk_size: 3000 # Default chunk size in characters
 
 # ============================================================================
 # Context Management
 # ============================================================================
 
 context:
-  max_tokens: 100000  # Max tokens before summarization
+  max_tokens: 100000 # Max tokens before summarization
   enable_summarization: true
-  summary_threshold: 20  # Summarize after N messages
+  summary_threshold: 20 # Summarize after N messages
 
 # ============================================================================
 # Memory (Embedded User Memories)
 # ============================================================================
 
 memory:
-  auto_extract: false  # Auto-extract memories from each message
-  confidence_min: 0.6  # Minimum confidence to save a memory
-  max_per_turn: 3      # Max memories to extract per turn
-  extract_model: fast  # Model variant: "default", "fast", or specific model
-  extract_provider: null  # Override provider for extraction
+  auto_extract: false # Auto-extract memories from each message
+  confidence_min: 0.6 # Minimum confidence to save a memory
+  max_per_turn: 3 # Max memories to extract per turn
+  extract_model: fast # Model variant: "default", "fast", or specific model
+  extract_provider: null # Override provider for extraction
   extract_temperature: 0.0
 
 # ============================================================================
@@ -143,15 +144,15 @@ memory:
 # ============================================================================
 
 logging:
-  level: INFO  # DEBUG, INFO, WARNING, ERROR, CRITICAL
-  file: null   # Optional log file path
+  level: INFO # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  file: null # Optional log file path
 
 # ============================================================================
 # OCR (Text Extraction from Images/PDFs)
 # ============================================================================
 
 ocr:
-  engine: paddleocr  # paddleocr or tesseract
+  engine: paddleocr # paddleocr or tesseract
   lang: en
   use_gpu: false
   max_file_mb: 10
@@ -198,8 +199,8 @@ allowed_file_extensions:
 # ============================================================================
 
 admin:
-  user_ids: []  # Comma-separated list of admin user IDs
-  thread_ids: []  # Comma-separated list of admin thread IDs
+  user_ids: [] # Comma-separated list of admin user IDs
+  thread_ids: [] # Comma-separated list of admin thread IDs
 
 # ============================================================================
 # Channels Configuration

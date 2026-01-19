@@ -1,0 +1,170 @@
+[
+  {
+    "scenario": "simple_hello",
+    "provider": "ollama",
+    "model": "deepseek-r1:32b",
+    "timestamp": "2026-01-19T13:01:52.527662",
+    "timings_ms": {
+      "state_build": 0.009059906005859375,
+      "memory_retrieval": 0,
+      "checkpoint_load": 237.34092712402344,
+      "agent_stream_start": 0.015020370483398438,
+      "llm_total": 4898.561000823975,
+      "agent_stream_end": 10.581016540527344,
+      "total": 5155.2441120147705,
+      "overhead": 256.6831111907959,
+      "overhead_percent": 4.979068024976204
+    },
+    "metrics": {
+      "events_processed": 4,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "simple_hello",
+    "provider": "ollama",
+    "model": "deepseek-r1:32b",
+    "timestamp": "2026-01-19T13:01:57.682989",
+    "timings_ms": {
+      "state_build": 0.006198883056640625,
+      "memory_retrieval": 0,
+      "checkpoint_load": 28.619766235351562,
+      "agent_stream_start": 0.010013580322265625,
+      "llm_total": 3931.2498569488525,
+      "agent_stream_end": 11.106014251708984,
+      "total": 3975.0959873199463,
+      "overhead": 43.84613037109375,
+      "overhead_percent": 1.1030206694620044
+    },
+    "metrics": {
+      "events_processed": 4,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "simple_hello",
+    "provider": "ollama",
+    "model": "deepseek-r1:32b",
+    "timestamp": "2026-01-19T13:02:01.658168",
+    "timings_ms": {
+      "state_build": 0.0040531158447265625,
+      "memory_retrieval": 0,
+      "checkpoint_load": 26.09086036682129,
+      "agent_stream_start": 0.015020370483398438,
+      "llm_total": 4054.7120571136475,
+      "agent_stream_end": 10.988950729370117,
+      "total": 4096.236944198608,
+      "overhead": 41.52488708496094,
+      "overhead_percent": 1.0137325464966458
+    },
+    "metrics": {
+      "events_processed": 4,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "with_memory",
+    "provider": "ollama",
+    "model": "deepseek-r1:32b",
+    "timestamp": "2026-01-19T13:02:05.754525",
+    "timings_ms": {
+      "state_build": 0.0059604644775390625,
+      "memory_retrieval": 249.41301345825195,
+      "checkpoint_load": 18.934011459350586,
+      "agent_stream_start": 0.015020370483398438,
+      "llm_total": 4555.952787399292,
+      "agent_stream_end": 14.254093170166016,
+      "total": 4843.457937240601,
+      "overhead": 287.5051498413086,
+      "overhead_percent": 5.935948109112828
+    },
+    "metrics": {
+      "events_processed": 4,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "with_memory",
+    "provider": "ollama",
+    "model": "deepseek-r1:32b",
+    "timestamp": "2026-01-19T13:02:10.598082",
+    "timings_ms": {
+      "state_build": 0.0040531158447265625,
+      "memory_retrieval": 34.256935119628906,
+      "checkpoint_load": 23.383140563964844,
+      "agent_stream_start": 0.012874603271484375,
+      "llm_total": 3674.5047569274902,
+      "agent_stream_end": 9.324073791503906,
+      "total": 3746.5109825134277,
+      "overhead": 72.0062255859375,
+      "overhead_percent": 1.921954210784952
+    },
+    "metrics": {
+      "events_processed": 4,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  },
+  {
+    "scenario": "with_memory",
+    "provider": "ollama",
+    "model": "deepseek-r1:32b",
+    "timestamp": "2026-01-19T13:02:14.344648",
+    "timings_ms": {
+      "state_build": 0.00286102294921875,
+      "memory_retrieval": 33.4322452545166,
+      "checkpoint_load": 20.153045654296875,
+      "agent_stream_start": 0.011920928955078125,
+      "llm_total": 4236.678123474121,
+      "agent_stream_end": 15.465021133422852,
+      "total": 4309.458017349243,
+      "overhead": 72.77989387512207,
+      "overhead_percent": 1.6888410000079113
+    },
+    "metrics": {
+      "events_processed": 4,
+      "middleware_events": [
+        "SummarizationMiddleware.before_model",
+        "model",
+        "ToolCallLimitMiddleware.after_model",
+        "TodoListMiddleware.after_model"
+      ],
+      "memories_retrieved": 0
+    },
+    "error": null
+  }
+]
