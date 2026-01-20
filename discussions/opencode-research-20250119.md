@@ -3,7 +3,7 @@
 **Date:** 2025-01-19
 **Author:** Claude (Sonnet 4.5)
 **Status:** Research Complete
-**Purpose:** Draw inspiration from OpenCode for improving Cassey's day-to-day activity specialization
+**Purpose:** Draw inspiration from OpenCode for improving Executive Assistant's day-to-day activity specialization
 
 ---
 
@@ -66,7 +66,7 @@ OpenCode implements **distinct agent personalities** with different capabilities
 - Can be invoked via `@general` in messages
 - Handles tasks requiring multiple tool calls
 
-**Why This Matters for Cassey:**
+**Why This Matters for Executive Assistant:**
 - Different tasks require different permission levels
 - Users want to explore without making accidental changes
 - Planning mode builds trust by being explicit about permissions
@@ -248,9 +248,9 @@ OpenCode's **plan mode** is particularly innovative:
 
 ---
 
-## Comparison with Cassey
+## Comparison with Executive Assistant
 
-| Aspect | OpenCode | Cassey (Current) |
+| Aspect | OpenCode | Executive Assistant (Current) |
 |--------|----------|------------------|
 | **Agent Modes** | build (full), plan (read-only) | Single agent mode |
 | **Tool Descriptions** | Separate `.txt` files with detailed prompts | Inline docstrings |
@@ -262,12 +262,12 @@ OpenCode's **plan mode** is particularly innovative:
 
 ---
 
-## Inspiration for Cassey
+## Inspiration for Executive Assistant
 
 ### 1. **Add Agent Modes**
 
 ```python
-# src/cassey/agent/modes.py
+# src/executive_assistant/agent/modes.py
 
 class AgentMode(Enum):
     """Agent operational modes."""
@@ -296,7 +296,7 @@ class AgentModeManager:
 
 ### 2. **Separate Tool Descriptions from Implementation**
 
-**Current (Cassey):**
+**Current (Executive Assistant):**
 ```python
 @tool
 def read_file(file_path: str) -> str:
@@ -306,13 +306,13 @@ def read_file(file_path: str) -> str:
 
 **Inspired by OpenCode:**
 ```python
-# src/cassey/tools/read.py
+# src/executive_assistant/tools/read.py
 @tool
 def read_file(file_path: str) -> str:
     """Read a file from the local filesystem."""
     # Implementation
 
-# src/cassey/tools/descriptions/read.txt
+# src/executive_assistant/tools/descriptions/read.txt
 """
 Reads a file from the local filesystem. You can access any file directly.
 
@@ -338,7 +338,7 @@ Best Practices:
 ### 3. **Add Transition Tools**
 
 ```python
-# src/cassey/tools/mode_transitions.py
+# src/executive_assistant/tools/mode_transitions.py
 
 @tool
 def enter_plan_mode():
@@ -412,7 +412,7 @@ OpenCode includes explicit guidance on **when to use each tool**:
 - OCR → extract text from images/PDFs
 ```
 
-**For Cassey, add to system prompt:**
+**For Executive Assistant, add to system prompt:**
 ```python
 def _get_tool_heuristics() -> str:
     return """
@@ -441,7 +441,7 @@ You have the capability to call multiple tools in a single response.
 It is always better to speculatively read multiple files as a batch.
 ```
 
-**For Cassey:**
+**For Executive Assistant:**
 - Add to system prompt: "When multiple independent tools are needed, call them in parallel"
 - Example: Read multiple files at once instead of sequentially
 - LangGraph's parallel execution already supports this
@@ -449,7 +449,7 @@ It is always better to speculatively read multiple files as a batch.
 ### 7. **Permission Prompts for Destructive Operations**
 
 ```python
-# src/cassey/tools/confirmation_tool.py
+# src/executive_assistant/tools/confirmation_tool.py
 
 @tool
 def confirm_destructive_operation(operation: str, details: str) -> bool:
@@ -477,7 +477,7 @@ def confirm_destructive_operation(operation: str, details: str) -> bool:
 OpenCode has a `@general` subagent for complex searches:
 
 ```python
-# src/cassey/agent/subagents.py
+# src/executive_assistant/agent/subagents.py
 
 class GeneralSubagent:
     """Handle complex multi-step tasks."""
@@ -504,7 +504,7 @@ class GeneralSubagent:
 
 ### 1. **codesearch.ts → semantic_search**
 
-OpenCode has semantic code search via `codesearch.ts`. Cassey could add:
+OpenCode has semantic code search via `codesearch.ts`. Executive Assistant could add:
 ```python
 @tool
 def semantic_search(query: str, scope: str = "codebase") -> list[dict]:
@@ -559,7 +559,7 @@ def add_workspace(path: str, name: str) -> str:
 
 ---
 
-## Implementation Roadmap for Cassey
+## Implementation Roadmap for Executive Assistant
 
 ### Phase 1: Agent Modes (Week 1)
 1. Implement `AgentMode` enum (FULL, PLAN, SAFE)
@@ -568,7 +568,7 @@ def add_workspace(path: str, name: str) -> str:
 4. Add permission prompts for destructive ops in PLAN mode
 
 ### Phase 2: Tool Descriptions (Week 2)
-1. Create `src/cassey/tools/descriptions/` directory
+1. Create `src/executive_assistant/tools/descriptions/` directory
 2. Extract detailed descriptions from existing tools
 3. Add usage guidelines, best practices, examples
 4. Inject descriptions into tool definitions
@@ -614,7 +614,7 @@ def add_workspace(path: str, name: str) -> str:
 5. **Parallel Execution** - Encourage batch operations for efficiency
 6. **Subagent Delegation** - Specialized agents for complex tasks
 
-**What Cassey Should Adopt:**
+**What Executive Assistant Should Adopt:**
 
 ✅ **High Priority:**
 - Agent modes (PLAN vs FULL)

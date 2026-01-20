@@ -8,7 +8,7 @@ from typing import AsyncGenerator, Generator
 import pytest
 import asyncpg
 
-from cassey.config import settings
+from executive_assistant.config import settings
 
 
 # =============================================================================
@@ -90,7 +90,7 @@ def mock_get_db_conn(mock_conn: AsyncMock) -> AsyncMock:
     """Patch get_db_conn to return mock connection."""
     from unittest.mock import patch
 
-    with patch("cassey.storage.group_storage.get_db_conn", return_value=mock_conn):
+    with patch("executive_assistant.storage.group_storage.get_db_conn", return_value=mock_conn):
         yield mock_conn
 
 
@@ -158,11 +158,11 @@ def temp_settings(tmp_path: Path):
 @pytest.fixture(autouse=True)
 def clean_context() -> Generator[None, None, None]:
     """Clean up context variables before and after each test."""
-    from cassey.storage.group_storage import (
+    from executive_assistant.storage.group_storage import (
         set_group_id, clear_group_id,
         set_user_id, clear_user_id,
     )
-    from cassey.storage.file_sandbox import set_thread_id
+    from executive_assistant.storage.file_sandbox import set_thread_id
 
     # Clean before
     clear_group_id()

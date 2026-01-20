@@ -11,7 +11,7 @@
 
 **Symptom:** User receives all messages in one batch after 144s, not progressively.
 
-**Root Cause:** `src/cassey/channels/base.py` accumulates all messages before sending:
+**Root Cause:** `src/executive_assistant/channels/base.py` accumulates all messages before sending:
 
 ```python
 # Line 367-398 in stream_agent_response()
@@ -141,7 +141,7 @@ target_tokens: 1000
 
 Search for:
 - `SummarizeMiddleware` (different from `SummarizationMiddleware`)
-- Custom summarization in `src/cassey/agent/summary_extractor.py`
+- Custom summarization in `src/executive_assistant/agent/summary_extractor.py`
 - Manual summarization calls
 
 ### 2. Check Checkpointer Behavior

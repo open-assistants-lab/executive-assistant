@@ -796,17 +796,17 @@ python3 -m pytest tests/integration_tests/test_collection_query.py::TestCollecti
 
 ---
 
-## Cassey Integration Notes
+## Executive Assistant Integration Notes
 
 - **Persistence path:** `data/users/{thread_id}/kb/` (directory). SeekDB writes `seekdb.db`, `seekdb.db-wal`, and `seekdb.db-shm` inside this directory.
 - **Embedded mode requirement:** pyseekdb embedded uses `pylibseekdb`, which is **Linux-only**. On macOS/Windows you must run a SeekDB server and use remote mode.
-- **Embedding defaults:** Cassey defaults to `SEEKDB_EMBEDDING_MODE=default` to enable local embeddings.
+- **Embedding defaults:** Executive Assistant defaults to `SEEKDB_EMBEDDING_MODE=default` to enable local embeddings.
 - **Full-text parser:** configurable via `SEEKDB_FULLTEXT_PARSER` (default `space`).
 - **Distance metric:** configurable via `SEEKDB_DISTANCE_METRIC` (default `cosine`).
 
-## Cassey Implementation Details (2026-01-16)
+## Executive Assistant Implementation Details (2026-01-16)
 - Removed DuckDB KB storage/tools and replaced with SeekDB-backed KB tools (same tool signatures).
-- Added per-thread SeekDB storage helpers in `src/cassey/storage/seekdb_storage.py`.
+- Added per-thread SeekDB storage helpers in `src/executive_assistant/storage/seekdb_storage.py`.
 - KB persistence now uses `data/users/{thread_id}/kb/` (directory) for embedded SeekDB.
 - `SEEKDB_EMBEDDING_MODE` default set to `default` (local embeddings enabled).
 - Management `/kb` commands now call SeekDB-backed KB tools.

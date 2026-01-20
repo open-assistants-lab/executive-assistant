@@ -9,14 +9,14 @@
 
 ## Executive Summary
 
-Add email as a new communication channel for Cassey using **Stalwart Mail Server** - an all-in-one open-source mail & collaboration server.
+Add email as a new communication channel for Executive Assistant using **Stalwart Mail Server** - an all-in-one open-source mail & collaboration server.
 
 **Key Features:**
 - ✅ Email (IMAP/SMTP) - Send and receive emails
 - ✅ Calendar (CalDAV) - Sync and manage calendar events
 - ✅ Contacts (CardDAV) - Sync and manage contacts
 - ✅ Self-hosted - No third-party API dependencies
-- ✅ Static email addresses - Users get `user@cassey.ai`
+- ✅ Static email addresses - Users get `user@executive_assistant.ai`
 - ✅ Thread continuity - Conversation tracking via email headers
 
 **Solution:** Stalwart Mail Server + custom EmailChannel implementation
@@ -27,7 +27,7 @@ Add email as a new communication channel for Cassey using **Stalwart Mail Server
 
 ### Why Email?
 
-Users want multiple ways to interact with Cassey:
+Users want multiple ways to interact with Executive Assistant:
 - **Telegram** - Already implemented, great for quick messages
 - **Email** - Needed for:
   - Longer-form conversations
@@ -57,11 +57,11 @@ After researching self-hosted email servers, **Stalwart** emerged as the best ch
 
 **Stalwart is licensed under AGPL-3.0**, which means:
 - ✅ Free to use, modify, and self-host
-- ✅ Connecting via standard protocols (IMAP, SMTP, CalDAV, CardDAV) does NOT make Cassey a derivative work
-- ✅ No enterprise license required for deploying Cassey with Stalwart
+- ✅ Connecting via standard protocols (IMAP, SMTP, CalDAV, CardDAV) does NOT make Executive Assistant a derivative work
+- ✅ No enterprise license required for deploying Executive Assistant with Stalwart
 - ⚠️ Only if you modify Stalwart's source code directly must you share those modifications
 
-**Conclusion:** Cassey can integrate with Stalwart via standard protocols without licensing concerns.
+**Conclusion:** Executive Assistant can integrate with Stalwart via standard protocols without licensing concerns.
 
 ---
 
@@ -71,7 +71,7 @@ After researching self-hosted email servers, **Stalwart** emerged as the best ch
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         Cassey                                   │
+│                         Executive Assistant                                   │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
 │  │   Telegram   │  │    Email     │  │     HTTP     │          │
 │  │   Channel    │  │   Channel    │  │   Channel    │          │
@@ -100,7 +100,7 @@ After researching self-hosted email servers, **Stalwart** emerged as the best ch
 ```python
 class EmailChannel(BaseChannel):
     """
-    Email channel for Cassey using IMAP/SMTP + CalDAV/CardDAV.
+    Email channel for Executive Assistant using IMAP/SMTP + CalDAV/CardDAV.
 
     Features:
     - IMAP polling for incoming emails
@@ -125,7 +125,7 @@ class EmailChannel(BaseChannel):
 **Key Modules:**
 1. **IMAP Poller** - Background task that checks for new emails
 2. **Email Parser** - Converts emails to MessageFormat
-3. **SMTP Sender** - Sends Cassey's responses
+3. **SMTP Sender** - Sends Executive Assistant's responses
 4. **CalDAV Client** - Syncs calendar events
 5. **CardDAV Client** - Syncs contacts
 
@@ -136,12 +136,12 @@ class EmailChannel(BaseChannel):
 ### Incoming Email Flow
 
 ```
-1. User sends email → john@cassey.ai
+1. User sends email → john@executive_assistant.ai
 2. Stalwart receives via SMTP (port 25)
 3. Stalwart stores in IMAP inbox
 4. EmailChannel IMAP poller detects new email
 5. EmailChannel parses to MessageFormat:
-   - user_id: "email:john@cassey.ai"
+   - user_id: "email:john@executive_assistant.ai"
    - conversation_id: "email:{thread_id}"
    - content: Email body (HTML/text)
    - attachments: List of files
@@ -159,23 +159,23 @@ Emails are grouped into conversations using standard headers:
 
 Example:
 ```
-Email 1: Message-ID: <msg1@cassey.ai>
-Email 2: Message-ID: <msg2@cassey.ai>
-         In-Reply-To: <msg1@cassey.ai>
-         References: <msg1@cassey.ai>
-Email 3: Message-ID: <msg3@cassey.ai>
-         In-Reply-To: <msg2@cassey.ai>
-         References: <msg1@cassey.ai> <msg2@cassey.ai>
+Email 1: Message-ID: <msg1@executive_assistant.ai>
+Email 2: Message-ID: <msg2@executive_assistant.ai>
+         In-Reply-To: <msg1@executive_assistant.ai>
+         References: <msg1@executive_assistant.ai>
+Email 3: Message-ID: <msg3@executive_assistant.ai>
+         In-Reply-To: <msg2@executive_assistant.ai>
+         References: <msg1@executive_assistant.ai> <msg2@executive_assistant.ai>
 ```
 
 ### User Identification
 
 ```python
 # Extract user email from "From:" header
-from_email = "john@cassey.ai"
+from_email = "john@executive_assistant.ai"
 
 # Map to user_id
-user_id = f"email:{from_email}"  # "email:john@cassey.ai"
+user_id = f"email:{from_email}"  # "email:john@executive_assistant.ai"
 
 # Validate against allowed list
 if from_email not in ALLOWED_EMAILS:
@@ -197,46 +197,46 @@ docker run -d \
   --name stalwart-mail \
   -p 25:25 -p 587:587 -p 993:993 -p 8008:8008 \
   -v /opt/stalwart-mail:/data \
-  -e STALWART_DOMAIN=cassey.ai \
+  -e STALWART_DOMAIN=executive_assistant.ai \
   stalwartlabs/mail-server:latest
 ```
 
 **1.2 Configure DNS Records**
 
 ```dns
-# MX Record (receives email for @cassey.ai)
-cassey.ai.  IN  MX  10  mail.cassey.ai.
+# MX Record (receives email for @executive_assistant.ai)
+executive_assistant.ai.  IN  MX  10  mail.executive_assistant.ai.
 
 # A Record (mail server IP)
-mail.cassey.ai.  IN  A  YOUR_SERVER_IP
+mail.executive_assistant.ai.  IN  A  YOUR_SERVER_IP
 
 # SPF (prevents spam)
-cassey.ai.  IN  TXT  "v=spf1 mx include:spf.mx.cloudflare.net ~all"
+executive_assistant.ai.  IN  TXT  "v=spf1 mx include:spf.mx.cloudflare.net ~all"
 
 # DKIM (email authentication)
-selector1._domainkey.cassey.ai.  IN  TXT  "p=YOUR_DKIM_KEY"
+selector1._domainkey.executive_assistant.ai.  IN  TXT  "p=YOUR_DKIM_KEY"
 
 # dmarc (policy)
-_dmarc.cassey.ai.  IN  TXT  "v=DMARC1; p=none; rua=mailto:dmarc@cassey.ai"
+_dmarc.executive_assistant.ai.  IN  TXT  "v=DMARC1; p=none; rua=mailto:dmarc@executive_assistant.ai"
 ```
 
 **1.3 Create Email Accounts**
 
 ```bash
-# Cassey's account
-hello@cassey.ai
+# Executive Assistant's account
+hello@executive_assistant.ai
 
 # Test users
-alice@cassey.ai
-bob@cassey.ai
+alice@executive_assistant.ai
+bob@executive_assistant.ai
 ```
 
 **1.4 Test IMAP/SMTP Connectivity**
 
 ```bash
 # Test with swaks (email tool)
-swaks --to hello@cassey.ai \
-      --from alice@cassey.ai \
+swaks --to hello@executive_assistant.ai \
+      --from alice@executive_assistant.ai \
       --server localhost:25 \
       --body "Test email"
 
@@ -250,19 +250,19 @@ openssl s_client -connect localhost:993
 
 | File | Purpose |
 |------|---------|
-| `src/cassey/channels/email_channel.py` | EmailChannel class |
-| `src/cassey/chapters/email_imap.py` | IMAP polling background task |
-| `src/cassey/chapters/email_smtp.py` | SMTP sender |
-| `src/cassey/storage/caldav_storage.py` | CalDAV calendar client |
-| `src/cassey/storage/carddav_storage.py` | CardDAV contacts client |
+| `src/executive_assistant/channels/email_channel.py` | EmailChannel class |
+| `src/executive_assistant/chapters/email_imap.py` | IMAP polling background task |
+| `src/executive_assistant/chapters/email_smtp.py` | SMTP sender |
+| `src/executive_assistant/storage/caldav_storage.py` | CalDAV calendar client |
+| `src/executive_assistant/storage/carddav_storage.py` | CardDAV contacts client |
 | `tests/test_email_channel.py` | Unit tests |
 
 **Files to Modify:**
 
 | File | Changes |
 |------|---------|
-| `src/cassey/main.py` | Register EmailChannel |
-| `src/cassey/config/settings.py` | Add email config |
+| `src/executive_assistant/main.py` | Register EmailChannel |
+| `src/executive_assistant/config/settings.py` | Add email config |
 | `config.yaml` | Add email channel settings |
 | `pyproject.toml` | Add dependencies |
 | `.env.example` | Add environment variables |
@@ -292,7 +292,7 @@ openssl s_client -connect localhost:993
 3. **SMTP Sender** (MessageFormat → Email)
    ```python
    async def send_message(self, conversation_id: str, content: str, **kwargs):
-       """Send Cassey's response via SMTP."""
+       """Send Executive Assistant's response via SMTP."""
        # Build email with In-Reply-To/References
        # Add attachments if any
        # Send via SMTP
@@ -301,7 +301,7 @@ openssl s_client -connect localhost:993
 4. **CalDAV Integration**
    ```python
    async def _sync_calendar_events(self):
-       """Sync calendar events with Cassey's reminders."""
+       """Sync calendar events with Executive Assistant's reminders."""
        # Connect to CalDAV
        # Fetch upcoming events
        # Integrate with reminder system
@@ -322,17 +322,17 @@ openssl s_client -connect localhost:993
 
 ```bash
 # Email Channel Configuration
-CASSEY_CHANNELS=email,telegram
+EXECUTIVE_ASSISTANT_CHANNELS=email,telegram
 
 # Stalwart IMAP Configuration
 EMAIL_IMAP_SERVER=localhost:993
-EMAIL_IMAP_USERNAME=hello@cassey.ai
+EMAIL_IMAP_USERNAME=hello@executive_assistant.ai
 EMAIL_IMAP_PASSWORD=app_password_here
 EMAIL_IMAP_USE_TLS=true
 
 # Stalwart SMTP Configuration
 EMAIL_SMTP_SERVER=localhost:587
-EMAIL_SMTP_USERNAME=hello@cassey.ai
+EMAIL_SMTP_USERNAME=hello@executive_assistant.ai
 EMAIL_SMTP_PASSWORD=app_password_here
 EMAIL_SMTP_USE_TLS=true
 
@@ -341,7 +341,7 @@ EMAIL_CALDAV_URL=http://localhost:8008
 EMAIL_CARDDAV_URL=http://localhost:8008
 
 # Monitored Accounts (comma-separated)
-EMAIL_MONITORED_ACCOUNTS=hello@cassey.ai,alice@cassey.ai,bob@cassey.ai
+EMAIL_MONITORED_ACCOUNTS=hello@executive_assistant.ai,alice@executive_assistant.ai,bob@executive_assistant.ai
 
 # Polling Interval (seconds)
 EMAIL_POLL_INTERVAL=30
@@ -358,8 +358,8 @@ channels:
     caldav_url: "http://localhost:8008"
     carddav_url: "http://localhost:8008"
     monitored_accounts:
-      - hello@cassey.ai
-      - alice@cassey.ai
+      - hello@executive_assistant.ai
+      - alice@executive_assistant.ai
     poll_interval: 30  # seconds
 ```
 
@@ -376,7 +376,7 @@ channels:
 **Integration Tests:**
 
 1. Send test email → Verify receipt
-2. Cassey reply → Verify delivery
+2. Executive Assistant reply → Verify delivery
 3. Thread continuity (reply chain)
 4. CalDAV event sync
 5. CardDAV contact sync
@@ -384,16 +384,16 @@ channels:
 **Manual Testing:**
 
 ```bash
-# 1. Start Cassey with email channel
-uv run cassey
+# 1. Start Executive Assistant with email channel
+uv run executive_assistant
 
 # 2. Send test email via command line
-swaks --to hello@cassey.ai \
-      --from alice@cassey.ai \
+swaks --to hello@executive_assistant.ai \
+      --from alice@executive_assistant.ai \
       --server localhost:25 \
-      --body "Hello Cassey, what's the weather?"
+      --body "Hello Executive Assistant, what's the weather?"
 
-# 3. Verify Cassey responds
+# 3. Verify Executive Assistant responds
 # Check IMAP inbox for reply
 ```
 
@@ -437,7 +437,7 @@ services:
     volumes:
       - /opt/stalwart-mail:/data
     environment:
-      - STALWART_DOMAIN=cassey.ai
+      - STALWART_DOMAIN=executive_assistant.ai
     restart: unless-stopped
 ```
 
@@ -487,7 +487,7 @@ services:
 
 ## Open Questions
 
-1. **Email Address Provisioning**: How will users be assigned `user@cassey.ai` addresses?
+1. **Email Address Provisioning**: How will users be assigned `user@executive_assistant.ai` addresses?
    - Manual admin assignment?
    - Self-service registration?
    - Integration with group system?
@@ -524,9 +524,9 @@ services:
 - vobject: https://github.com/eventable/vobject
 
 **Existing Architecture:**
-- Channel base class: `src/cassey/channels/base.py`
-- Telegram implementation: `src/cassey/channels/telegram.py`
-- Message format: `src/cassey/channels/base.py` (MessageFormat class)
+- Channel base class: `src/executive_assistant/channels/base.py`
+- Telegram implementation: `src/executive_assistant/channels/telegram.py`
+- Message format: `src/executive_assistant/channels/base.py` (MessageFormat class)
 
 ---
 
@@ -539,11 +539,11 @@ services:
 
 **Calendar & Contacts Integration:**
 
-CalDAV integration point: `src/cassey/storage/reminders.py`
-- Sync calendar events to Cassey's reminder system
-- Allow Cassey to create events via CalDAV
+CalDAV integration point: `src/executive_assistant/storage/reminders.py`
+- Sync calendar events to Executive Assistant's reminder system
+- Allow Executive Assistant to create events via CalDAV
 
-CardDAV integration point: `src/cassey/storage/group_storage.py`
+CardDAV integration point: `src/executive_assistant/storage/group_storage.py`
 - Sync contacts to user profiles
 - Extract contact metadata (name, email, phone)
 

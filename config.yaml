@@ -1,4 +1,4 @@
-# Cassey Default Configuration
+# Executive Assistant Default Configuration
 # This file contains application default settings.
 # For secrets and environment-specific overrides, use .env file.
 
@@ -47,8 +47,8 @@ storage:
   postgres:
     host: localhost
     port: 5432
-    user: cassey
-    db: cassey_db
+    user: executive_assistant
+    db: executive_assistant_db
     # password should be in .env
 
   # Storage paths (relative to project root)
@@ -67,7 +67,7 @@ storage:
 
 agent:
   # Agent display name - customize this for your deployment
-  name: "Cassey"
+  name: "Executive Assistant"
   # Maximum ReAct loop iterations to prevent infinite loops
   max_iterations: 20
 

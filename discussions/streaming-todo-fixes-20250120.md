@@ -11,7 +11,7 @@
 All messages arrive in one batch after agent completes, not progressively as generated.
 
 ### Root Cause
-`src/cassey/channels/base.py` accumulates all messages before sending:
+`src/executive_assistant/channels/base.py` accumulates all messages before sending:
 
 ```python
 # Line 367-398
@@ -46,7 +46,7 @@ async for event in self.agent.astream(state, config):
 Todo list appears with final answer, not during execution.
 
 ### Root Cause
-`src/cassey/agent/todo_display.py` checks `state["todos"]` in `aafter_model()`, but the state update from `write_todos` hasn't been applied yet when the hook runs.
+`src/executive_assistant/agent/todo_display.py` checks `state["todos"]` in `aafter_model()`, but the state update from `write_todos` hasn't been applied yet when the hook runs.
 
 **Timeline:**
 1. LLM calls `write_todos([{"content": "Understand", ...}])`
@@ -82,7 +82,7 @@ async def aafter_model(self, state, runtime):
 ## Implementation Plan
 
 ### Fix 1: Streaming
-**File:** `src/cassey/channels/base.py`
+**File:** `src/executive_assistant/channels/base.py`
 
 1. Remove `messages` list accumulation
 2. Send immediately in the loop
@@ -90,7 +90,7 @@ async def aafter_model(self, state, runtime):
 4. Keep message logging for audit
 
 ### Fix 2: Todo Display
-**File:** `src/cassey/agent/todo_display.py`
+**File:** `src/executive_assistant/agent/todo_display.py`
 
 1. Read from `tool_call["args"]` instead of `state["todos"]`
 2. Keep fallback to `state["todos"]` for `aafter_agent()`

@@ -23,7 +23,7 @@ After fixing critical usability issues with DB tools, this analysis reviews VS (
 
 ### Overview
 
-File tools are located in `src/cassey/storage/file_sandbox.py` and include:
+File tools are located in `src/executive_assistant/storage/file_sandbox.py` and include:
 - `read_file`, `write_file` - Basic file operations
 - `list_files`, `create_folder`, `delete_folder`, `rename_folder` - Directory management
 - `move_file` - File operations
@@ -109,7 +109,7 @@ Examples:
 
 ### Overview
 
-Reminder tools are located in `src/cassey/tools/reminder_tools.py` and include:
+Reminder tools are located in `src/executive_assistant/tools/reminder_tools.py` and include:
 - `reminder_set` - Create reminders with flexible time parsing
 - `reminder_list` - List reminders with optional status filter
 - `reminder_cancel` - Cancel pending reminders
@@ -178,7 +178,7 @@ raise ValueError(
 
 ### Overview
 
-VS tools are located in `src/cassey/storage/vs_tools.py` and include:
+VS tools are located in `src/executive_assistant/storage/vs_tools.py` and include:
 - `create_vs_collection` - Create collection with optional documents
 - `search_vs` - Semantic vector search
 - `vs_list` - List all collections
@@ -276,7 +276,7 @@ create_vs_collection("notes")  # Creates empty, ready for documents
 add_vs_documents("notes", content="First document")
 ```
 
-**File Modified:** `src/cassey/storage/vs_tools.py`
+**File Modified:** `src/executive_assistant/storage/vs_tools.py`
 
 **Changes:**
 - Line 86: Added `content: str = ""` parameter to `create_vs_collection`
@@ -386,7 +386,7 @@ Returns:
 """
 ```
 
-**File Modified:** `src/cassey/storage/vs_tools.py`
+**File Modified:** `src/executive_assistant/storage/vs_tools.py`
 
 **Changes:**
 - Line 87-130: Complete rewrite of `create_vs_collection` description
@@ -432,7 +432,7 @@ From `search_vs`:
 
 ### Files Modified
 
-1. **src/cassey/storage/vs_tools.py** (3 tools updated)
+1. **src/executive_assistant/storage/vs_tools.py** (3 tools updated)
    - `create_vs_collection`: Added `content` parameter, complete description rewrite
    - `search_vs`: Added "USE THIS WHEN" guidance with cross-references
    - `add_vs_documents`: Added `content` parameter, improved description
@@ -512,7 +512,7 @@ VS Tools Simplified Interface Test
 ### Low Priority
 
 **Future monitoring:**
-- Watch Cassey's usage of VS tools in production
+- Watch Executive Assistant's usage of VS tools in production
 - Monitor for any remaining JSON format issues
 - Collect user feedback on tool clarity
 
@@ -561,7 +561,7 @@ VS Tools Simplified Interface Test
 ### Next Steps
 
 1. **Deploy:** Changes are ready for production
-2. **Monitor:** Watch Cassey's usage of VS tools for any issues
+2. **Monitor:** Watch Executive Assistant's usage of VS tools for any issues
 3. **Feedback:** Collect user feedback on tool usability
 
 ---

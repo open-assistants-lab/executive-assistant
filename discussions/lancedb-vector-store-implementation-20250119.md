@@ -52,21 +52,21 @@ Based on benchmark research:
 ### Files Created
 | File | Purpose |
 |------|---------|
-| `src/cassey/storage/lancedb_storage.py` | LanceDB implementation matching DuckDB interface |
+| `src/executive_assistant/storage/lancedb_storage.py` | LanceDB implementation matching DuckDB interface |
 | `tests/test_lancedb_vs.py` | Test suite (22 tests) |
 
 ### Files Modified
 | File | Changes |
 |------|---------|
-| `src/cassey/storage/vs_tools.py` | Switched imports from `duckdb_storage` to `lancedb_storage` |
-| `src/cassey/storage/meta_registry.py` | Use `list_lancedb_collections` |
-| `src/cassey/agent/prompts.py` | Updated documentation "DuckDB + Hybrid" → "LanceDB" |
-| `src/cassey/tools/registry.py` | Updated docstring |
-| `src/cassey/config/settings.py` | Updated comment |
+| `src/executive_assistant/storage/vs_tools.py` | Switched imports from `duckdb_storage` to `lancedb_storage` |
+| `src/executive_assistant/storage/meta_registry.py` | Use `list_lancedb_collections` |
+| `src/executive_assistant/agent/prompts.py` | Updated documentation "DuckDB + Hybrid" → "LanceDB" |
+| `src/executive_assistant/tools/registry.py` | Updated docstring |
+| `src/executive_assistant/config/settings.py` | Updated comment |
 | `pyproject.toml` | Added `lancedb>=0.15.0`, `pyarrow>=14.0.0`, `psutil>=6.0.0` |
 
 ### Files Deleted
-- `src/cassey/storage/duckdb_storage.py` (deprecated)
+- `src/executive_assistant/storage/duckdb_storage.py` (deprecated)
 - `tests/test_duckdb_vs.py` (deprecated)
 
 ---
@@ -312,7 +312,7 @@ uv run pytest tests/test_lancedb_vs.py -v
 uv run python scripts/benchmark_vector_stores.py --documents 100 500 1000
 
 # Test with real agent
-uv run cassey
+uv run executive_assistant
 # Then try: "Create a VS collection called 'notes' and add some documents"
 ```
 
@@ -332,7 +332,7 @@ uv run cassey
 ### Creating a Collection
 
 ```python
-from cassey.storage.lancedb_storage import create_lancedb_collection
+from executive_assistant.storage.lancedb_storage import create_lancedb_collection
 
 collection = create_lancedb_collection(
     storage_id="ws:user:123",
@@ -347,7 +347,7 @@ collection = create_lancedb_collection(
 ### Searching a Collection
 
 ```python
-from cassey.storage.lancedb_storage import get_lancedb_collection
+from executive_assistant.storage.lancedb_storage import get_lancedb_collection
 
 collection = get_lancedb_collection("ws:user:123", "my_docs")
 results = collection.search(
@@ -363,7 +363,7 @@ for result in results:
 ### Listing Collections
 
 ```python
-from cassey.storage.lancedb_storage import list_lancedb_collections
+from executive_assistant.storage.lancedb_storage import list_lancedb_collections
 
 collections = list_lancedb_collections("ws:user:123")
 print(f"Found {len(collections)} collections")

@@ -10,10 +10,10 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from cassey.storage.file_sandbox import set_thread_id, set_user_id
-from cassey.storage.group_storage import set_group_id, set_user_id as set_workspace_user_id
-from cassey.storage.helpers import sanitize_thread_id_to_user_id
-from cassey.storage.vs_tools import vs_list
+from executive_assistant.storage.file_sandbox import set_thread_id, set_user_id
+from executive_assistant.storage.group_storage import set_group_id, set_user_id as set_workspace_user_id
+from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
+from executive_assistant.storage.vs_tools import vs_list
 
 
 async def test_vs_list_tool():

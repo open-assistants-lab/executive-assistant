@@ -29,7 +29,7 @@ Additional risk factors:
 ## Implementation (2025-01-16)
 
 ### Step 1: SanitizingCheckpointSaver Wrapper
-**File:** `src/cassey/storage/checkpoint.py`
+**File:** `src/executive_assistant/storage/checkpoint.py`
 
 Added `SanitizingCheckpointSaver` class that wraps the base checkpointer and automatically sanitizes checkpoints on load:
 - Detects orphaned `tool_calls` in `AIMessage`
@@ -44,7 +44,7 @@ New: Detect corruption → Sanitize (remove only corrupted messages) → Continu
 ```
 
 ### Step 2: Telegram Channel Error Handling
-**File:** `src/cassey/channels/telegram.py`
+**File:** `src/executive_assistant/channels/telegram.py`
 
 Changes:
 - **Per-thread locks**: Added `_thread_locks` dict with `_get_thread_lock()` method to serialize concurrent messages per thread
@@ -53,7 +53,7 @@ Changes:
 - Removed aggressive startup cleanup and pre-check (now handled by wrapper)
 
 ### Step 3: Data Migration
-**Files:** `src/cassey/config/settings.py`, `src/cassey/storage/*.py`, `scripts/migrate_data.py`
+**Files:** `src/executive_assistant/config/settings.py`, `src/executive_assistant/storage/*.py`, `scripts/migrate_data.py`
 
 Consolidated per-thread data structure:
 ```
@@ -121,7 +121,7 @@ If sanitization fails → Then reset
 
 ```python
 # In telegram.py handle_message():
-from cassey.agent.checkpoint_utils import validate_and_recover_checkpoint
+from executive_assistant.agent.checkpoint_utils import validate_and_recover_checkpoint
 
 # Load checkpoint state
 state = await load_checkpoint_state(thread_id)
@@ -190,7 +190,7 @@ Implementation outline:
   - Option B: persist the sanitized state back into the checkpoint before calling the agent.
 
 Where to integrate:
-- `src/cassey/channels/telegram.py` before `stream_agent_response()`.
+- `src/executive_assistant/channels/telegram.py` before `stream_agent_response()`.
 - Or in `BaseChannel.stream_agent_response()` as a channel-agnostic hook.
 
 ### Step 2: Stop reset-on-any-error
@@ -204,7 +204,7 @@ Implementation outline:
 - Prefer provider-agnostic validation of message history (local check) over error-string matching.
 
 Where to change:
-- `src/cassey/channels/telegram.py` in the `except` path of `handle_message()`.
+- `src/executive_assistant/channels/telegram.py` in the `except` path of `handle_message()`.
 
 ### Step 3: Add per-thread message lock
 **Goal:** Prevent concurrent message handling from interleaving tool calls.
@@ -216,7 +216,7 @@ Implementation outline:
 - Note: in multi-process deployments, use a distributed lock or a per-thread queue instead.
 
 Where to change:
-- `src/cassey/channels/telegram.py` (or in `BaseChannel` for all channels).
+- `src/executive_assistant/channels/telegram.py` (or in `BaseChannel` for all channels).
 
 ### Step 4 (Optional): Safe checkpoint saver guard
 **Goal:** Avoid saving invalid checkpoints at the source.
@@ -228,7 +228,7 @@ Implementation outline:
 - Trade-off: the tool-call request may be lost after a crash; decide if correctness > continuity.
 
 Where to change:
-- `src/cassey/storage/checkpoint.py` (wrap `AsyncPostgresSaver`).
+- `src/executive_assistant/storage/checkpoint.py` (wrap `AsyncPostgresSaver`).
 
 ### Step 5 (Optional): Replay pending tool calls
 **Goal:** Complete partial state instead of dropping it.
@@ -238,7 +238,7 @@ Implementation outline:
 - Only allow idempotent tools; require confirmation for side-effect tools.
 
 Where to change:
-- `src/cassey/agent/checkpoint_utils.py` plus a small dispatcher in channel or agent startup.
+- `src/executive_assistant/agent/checkpoint_utils.py` plus a small dispatcher in channel or agent startup.
 
 ## Expected Outcome
 - No more OpenAI 400s from orphaned tool_calls.
@@ -251,8 +251,8 @@ Where to change:
 - Ensure tool-call mismatch no longer triggers full context loss by default.
 
 ## Related Files
-- `src/cassey/agent/nodes.py`
-- `src/cassey/agent/graph.py`
-- `src/cassey/agent/checkpoint_utils.py`
-- `src/cassey/channels/telegram.py`
-- `src/cassey/storage/checkpoint.py`
+- `src/executive_assistant/agent/nodes.py`
+- `src/executive_assistant/agent/graph.py`
+- `src/executive_assistant/agent/checkpoint_utils.py`
+- `src/executive_assistant/channels/telegram.py`
+- `src/executive_assistant/storage/checkpoint.py`

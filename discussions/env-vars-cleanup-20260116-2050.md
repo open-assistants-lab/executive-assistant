@@ -10,10 +10,10 @@
   - `FILES_ROOT` defaults to `./data/files`
   - `DB_ROOT` defaults to `./data/db`
 - These defaults are still used by:
-  - `src/cassey/storage/file_sandbox.py`
-  - `src/cassey/storage/db_storage.py`
-  - `src/cassey/tools/python_tool.py`
-  - `src/cassey/config/settings.py` (legacy migration helpers)
+  - `src/executive_assistant/storage/file_sandbox.py`
+  - `src/executive_assistant/storage/db_storage.py`
+  - `src/executive_assistant/tools/python_tool.py`
+  - `src/executive_assistant/config/settings.py` (legacy migration helpers)
 - With env entries removed, the app falls back to defaults and continues to work.
 
 ## Notes

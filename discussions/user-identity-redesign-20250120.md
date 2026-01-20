@@ -557,7 +557,7 @@ def confirm_identity_merge(code: str) -> str:
 - [x] Update Telegram channel to auto-create `anon_*` users
 - [x] Update HTTP channel to auto-create `anon_*` users
 - [x] Update user_registry.py functions
-- [x] Add tests (manual - Cassey starts successfully)
+- [x] Add tests (manual - Executive Assistant starts successfully)
 
 ### Phase 2: Merge Flow ✅ COMPLETED
 - [x] Add `request_identity_merge()` tool
@@ -566,7 +566,7 @@ def confirm_identity_merge(code: str) -> str:
 - [x] Implement verification code system
 - [x] Handle file/DB/VS conflicts during merge
 - [x] Add `get_my_identity()` tool for debugging
-- [x] Add tests (Cassey starts with 55 tools)
+- [x] Add tests (Executive Assistant starts with 55 tools)
 
 ### Phase 3: User-Based Path Implementation ✅ COMPLETED
 - [x] Update file_sandbox.py to use user_id paths
@@ -585,25 +585,25 @@ def confirm_identity_merge(code: str) -> str:
 ## Files to Modify
 
 1. **Database Schema**:
-   - `src/cassey/storage/user_registry.py` - Add identities table
+   - `src/executive_assistant/storage/user_registry.py` - Add identities table
 
 2. **Channel Handlers**:
-   - `src/cassey/channels/telegram.py` - Auto-create anon users
-   - `src/cassey/channels/http.py` - Auto-create anon users (future)
+   - `src/executive_assistant/channels/telegram.py` - Auto-create anon users
+   - `src/executive_assistant/channels/http.py` - Auto-create anon users (future)
 
 3. **Storage Paths** (CRITICAL - change from thread_id to user_id):
-   - `src/cassey/config/settings.py` - Already has `get_user_*_path(user_id)` functions
-   - `src/cassey/storage/file_sandbox.py` - Use user_id instead of thread_id for paths
-   - `src/cassey/storage/db_storage.py` - Use user_id instead of thread_id for paths
-   - `src/cassey/storage/vs_tools.py` - Use user_id instead of thread_id for storage_id
-   - `src/cassey/tools/mem_tools.py` - Use user_id instead of thread_id for mem.db path ⚠️ MISSED!
-   - `src/cassey/storage/meta_registry.py` - Use user_id instead of thread_id for meta.json ⚠️ MISSED!
+   - `src/executive_assistant/config/settings.py` - Already has `get_user_*_path(user_id)` functions
+   - `src/executive_assistant/storage/file_sandbox.py` - Use user_id instead of thread_id for paths
+   - `src/executive_assistant/storage/db_storage.py` - Use user_id instead of thread_id for paths
+   - `src/executive_assistant/storage/vs_tools.py` - Use user_id instead of thread_id for storage_id
+   - `src/executive_assistant/tools/mem_tools.py` - Use user_id instead of thread_id for mem.db path ⚠️ MISSED!
+   - `src/executive_assistant/storage/meta_registry.py` - Use user_id instead of thread_id for meta.json ⚠️ MISSED!
 
 4. **Tools**:
-   - `src/cassey/tools/identity_tools.py` - NEW: Merge tools
+   - `src/executive_assistant/tools/identity_tools.py` - NEW: Merge tools
 
 5. **Utilities**:
-   - `src/cassey/storage/helpers.py` - NEW: Sanitization functions, merge data helpers
+   - `src/executive_assistant/storage/helpers.py` - NEW: Sanitization functions, merge data helpers
 
 ## Benefits
 
@@ -655,8 +655,8 @@ user_id = "user_550e8400-..."  # ✅ Same user
 
 ### ✅ Phase 1: Anonymous Identity Tracking
 - Created `migrations/003_add_identities_table.sql` with identities table
-- Added `sanitize_thread_id_to_user_id()` in `src/cassey/storage/helpers.py`
-- Added identity management functions to `src/cassey/storage/user_registry.py`:
+- Added `sanitize_thread_id_to_user_id()` in `src/executive_assistant/storage/helpers.py`
+- Added identity management functions to `src/executive_assistant/storage/user_registry.py`:
   - `create_identity_if_not_exists()`
   - `get_identity_by_thread_id()`
   - `get_persistent_user_id()`
@@ -667,13 +667,13 @@ user_id = "user_550e8400-..."  # ✅ Same user
 
 ### ✅ Phase 2: Merge Flow
 - Created `migrations/004_add_verification_codes.sql` for verification codes
-- Created `src/cassey/tools/identity_tools.py` with 4 tools:
+- Created `src/executive_assistant/tools/identity_tools.py` with 4 tools:
   - `request_identity_merge()` - Initiate verification with email/phone
   - `confirm_identity_merge()` - Complete merge after verification code
   - `merge_additional_identity()` - Merge more threads to existing user
   - `get_my_identity()` - Debug tool to see current identity status
-- Updated `src/cassey/tools/registry.py` to include identity tools
-- Cassey now loads **55 tools** (was 51, added 4 identity tools)
+- Updated `src/executive_assistant/tools/registry.py` to include identity tools
+- Executive Assistant now loads **55 tools** (was 51, added 4 identity tools)
 - Verification code system with 15-minute expiration
 - Data movement with conflict handling (renames with source identifier)
 - ⚠️ **Testing**: Startup verified (tools load successfully), functional testing pending
@@ -701,7 +701,7 @@ Advanced conflict resolution features for future consideration:
 ## Testing Status
 
 ### ✅ Startup Testing (Completed)
-- Cassey starts successfully with 55 tools loaded
+- Executive Assistant starts successfully with 55 tools loaded
 - No import errors or runtime errors
 - All tools registered correctly
 

@@ -89,7 +89,7 @@ def _get_sandbox(scope: Literal["thread", "shared"] = "thread") -> FileSandbox:
 ```python
 def _get_db(scope: Literal["thread", "shared"] = "thread") -> SQLiteDatabase:
     if scope == "shared":
-        from cassey.storage.shared_db_storage import get_shared_db_storage
+        from executive_assistant.storage.shared_db_storage import get_shared_db_storage
         # Admin check for writes
         return get_shared_db_storage()
     return get_sqlite_db()  # Uses group_id/thread_id context
@@ -135,8 +135,8 @@ def _get_vs_storage(scope: Literal["thread", "shared"] = "thread"):
 ## Phase 4: Cleanup
 
 ### 4.1 Remove deprecated files
-- [x] `src/cassey/storage/shared_db_tools.py` (replaced by scope parameter) - DELETED
-- [ ] `src/cassey/storage/shared_db_storage.py` (KEPT - still used by db_tools.py for scope="shared")
+- [x] `src/executive_assistant/storage/shared_db_tools.py` (replaced by scope parameter) - DELETED
+- [ ] `src/executive_assistant/storage/shared_db_storage.py` (KEPT - still used by db_tools.py for scope="shared")
 
 ### 4.2 Update documentation
 - [ ] Update tool inventory
@@ -191,16 +191,16 @@ create_db_table("org_users", data=[...], scope="shared")
 ## Files to Modify
 
 1. **File tools:**
-   - `src/cassey/storage/file_sandbox.py`
+   - `src/executive_assistant/storage/file_sandbox.py`
 
 2. **DB tools:**
-   - `src/cassey/storage/db_tools.py`
+   - `src/executive_assistant/storage/db_tools.py`
 
 3. **VS tools:**
-   - `src/cassey/storage/vs_tools.py`
+   - `src/executive_assistant/storage/vs_tools.py`
 
 4. **Registry:**
-   - `src/cassey/tools/registry.py`
+   - `src/executive_assistant/tools/registry.py`
 
 5. **Tests:**
    - `tests/` (add scope tests)
@@ -209,11 +209,11 @@ create_db_table("org_users", data=[...], scope="shared")
 
 ## Files to Delete
 
-1. `src/cassey/storage/shared_db_tools.py` ✅ DELETED
+1. `src/executive_assistant/storage/shared_db_tools.py` ✅ DELETED
 
 ## Files to Keep
 
-1. `src/cassey/storage/shared_db_storage.py` - KEPT (still used by db_tools.py for scope="shared")
+1. `src/executive_assistant/storage/shared_db_storage.py` - KEPT (still used by db_tools.py for scope="shared")
 
 ---
 

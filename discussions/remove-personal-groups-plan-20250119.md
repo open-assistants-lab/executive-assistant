@@ -38,12 +38,12 @@ Two distinct scopes, no overlap:
 5. `thread_groups` table maps thread_id → group_id
 
 **Key Files:**
-- `src/cassey/storage/group_storage.py:278-320` - `ensure_user_group()`
-- `src/cassey/storage/group_storage.py:322-352` - `ensure_thread_group()`
-- `src/cassey/channels/telegram.py:836-868` - File upload context setting
-- `src/cassey/storage/file_sandbox.py:230-270` - Path resolution priority
-- `src/cassey/storage/db_tools.py:41-44` - DB tools (BUG: uses thread_id, ignores group_id)
-- `src/cassey/storage/db_storage.py:66-87` - DB path resolution logic
+- `src/executive_assistant/storage/group_storage.py:278-320` - `ensure_user_group()`
+- `src/executive_assistant/storage/group_storage.py:322-352` - `ensure_thread_group()`
+- `src/executive_assistant/channels/telegram.py:836-868` - File upload context setting
+- `src/executive_assistant/storage/file_sandbox.py:230-270` - Path resolution priority
+- `src/executive_assistant/storage/db_tools.py:41-44` - DB tools (BUG: uses thread_id, ignores group_id)
+- `src/executive_assistant/storage/db_storage.py:66-87` - DB path resolution logic
 
 **Database Tables:**
 ```sql
@@ -92,7 +92,7 @@ data/groups/telegram_6282871705/db/db.sqlite                          ← Databa
 ```
 
 **Root Cause:**
-DB tools (`src/cassey/storage/db_tools.py`) are hardcoded to use `thread_id` path, ignoring the `group_id` context that file uploads use.
+DB tools (`src/executive_assistant/storage/db_tools.py`) are hardcoded to use `thread_id` path, ignoring the `group_id` context that file uploads use.
 
 **Code Analysis:**
 ```python
@@ -209,7 +209,7 @@ ALTER TABLE user_workspaces
 
 ### Phase 1: Update Path Resolution (Core Fix)
 
-**File:** `src/cassey/storage/file_sandbox.py`
+**File:** `src/executive_assistant/storage/file_sandbox.py`
 
 **Current logic (lines 230-270):**
 ```python
@@ -254,7 +254,7 @@ def get_sandbox(user_id: str | None = None):
 
 ### Phase 2: Update Telegram Channel
 
-**File:** `src/cassey/channels/telegram.py`
+**File:** `src/executive_assistant/channels/telegram.py`
 
 **Current behavior (lines 836-868):**
 ```python
@@ -281,7 +281,7 @@ set_user_id(str(update.effective_user.id))
 
 ### Phase 3: Update Group Storage
 
-**File:** `src/cassey/storage/group_storage.py`
+**File:** `src/executive_assistant/storage/group_storage.py`
 
 **Functions to modify:**
 
@@ -332,7 +332,7 @@ set_user_id(str(update.effective_user.id))
 
 ### Phase 4: Update Database & Vector Store Routing
 
-**File:** `src/cassey/storage/db_storage.py`
+**File:** `src/executive_assistant/storage/db_storage.py`
 
 **Current logic (lines 60-85):**
 ```python
@@ -372,12 +372,12 @@ def _get_db_path(thread_id=None, workspace_id=None, user_id=None):
 ```
 
 **Apply same logic to:**
-- `src/cassey/storage/lancedb_storage.py` (vector stores)
-- `src/cassey/storage/memory_storage.py` (memories)
-- `src/cassey/storage/reminder.py` (reminders)
+- `src/executive_assistant/storage/lancedb_storage.py` (vector stores)
+- `src/executive_assistant/storage/memory_storage.py` (memories)
+- `src/executive_assistant/storage/reminder.py` (reminders)
 
 **CRITICAL FIX: Update db_tools.py**
-**File:** `src/cassey/storage/db_tools.py`
+**File:** `src/executive_assistant/storage/db_tools.py`
 
 **Current bug (lines 41-44, 87-90):**
 ```python
@@ -397,19 +397,19 @@ record_db_path(thread_id, settings.get_thread_db_path(thread_id))  # ← Hardcod
 def _get_db() -> SQLiteDatabase:
     """Get the current context's SQLite database (group or user)."""
     # Use DBStorage which respects group_id context
-    from cassey.storage.db_storage import get_db_storage
+    from executive_assistant.storage.db_storage import get_db_storage
     return get_sqlite_db_from_storage(get_db_storage())
 
 # In create_db_table():
 db = _get_db()
 # Get current context ID (group_id or thread_id fallback)
-from cassey.storage.group_storage import get_workspace_id, get_thread_id
+from executive_assistant.storage.group_storage import get_workspace_id, get_thread_id
 workspace_id = get_workspace_id()
 thread_id = get_thread_id()
 current_id = workspace_id if workspace_id else thread_id
 
 # Record the correct path (respects group_id context)
-from cassey.storage.db_storage import get_db_storage
+from executive_assistant.storage.db_storage import get_db_storage
 storage = get_db_storage()
 record_db_path(current_id, storage._get_db_path())
 ```
@@ -488,7 +488,7 @@ ALTER TABLE groups
 
 ### Phase 6: Update Settings & Path Helpers
 
-**File:** `src/cassey/config/settings.py`
+**File:** `src/executive_assistant/config/settings.py`
 
 **Remove:**
 ```python
@@ -556,8 +556,8 @@ import shutil
 from pathlib import Path
 from sqlalchemy import text
 
-from cassey.storage.database import get_db
-from cassey.config.settings import settings
+from executive_assistant.storage.database import get_db
+from executive_assistant.config.settings import settings
 
 USERS_ROOT = settings.USERS_ROOT
 GROUPS_ROOT = settings.GROUPS_ROOT
@@ -765,15 +765,15 @@ async def test_individual_vs_team_storage():
 
 | File | Changes |
 |------|----------|
-| `src/cassey/storage/file_sandbox.py` | Update path resolution priority (user_id first) |
-| `src/cassey/channels/telegram.py` | Set user_id context, not group_id for individuals |
-| `src/cassey/storage/group_storage.py` | Remove `ensure_user_group()`, update `ensure_thread_group()` |
-| `src/cassey/storage/db_storage.py` | Support user_id-based paths |
-| `src/cassey/storage/db_tools.py` | **CRITICAL:** Fix split storage bug (use group_id context) |
-| `src/cassey/storage/lancedb_storage.py` | Support user_id-based paths |
-| `src/cassey/storage/memory_storage.py` | Support user_id-based paths |
-| `src/cassey/storage/reminder.py` | Support user_id-based paths |
-| `src/cassey/config/settings.py` | Add `get_user_*path()` helpers |
+| `src/executive_assistant/storage/file_sandbox.py` | Update path resolution priority (user_id first) |
+| `src/executive_assistant/channels/telegram.py` | Set user_id context, not group_id for individuals |
+| `src/executive_assistant/storage/group_storage.py` | Remove `ensure_user_group()`, update `ensure_thread_group()` |
+| `src/executive_assistant/storage/db_storage.py` | Support user_id-based paths |
+| `src/executive_assistant/storage/db_tools.py` | **CRITICAL:** Fix split storage bug (use group_id context) |
+| `src/executive_assistant/storage/lancedb_storage.py` | Support user_id-based paths |
+| `src/executive_assistant/storage/memory_storage.py` | Support user_id-based paths |
+| `src/executive_assistant/storage/reminder.py` | Support user_id-based paths |
+| `src/executive_assistant/config/settings.py` | Add `get_user_*path()` helpers |
 | `migrations/005_remove_personal_groups.sql` | Drop `user_workspaces`, individual groups |
 | `scripts/migrate_personal_groups_to_users.py` | Data migration script |
 | `tests/test_file_sandbox.py` | Update tests for new path logic |
@@ -795,6 +795,6 @@ async def test_individual_vs_team_storage():
 ## References
 
 - Current architecture discussion: `workspace-to-group-refactoring-plan.md`
-- Group storage implementation: `src/cassey/storage/group_storage.py`
-- File sandbox implementation: `src/cassey/storage/file_sandbox.py`
-- Telegram channel: `src/cassey/channels/telegram.py`
+- Group storage implementation: `src/executive_assistant/storage/group_storage.py`
+- File sandbox implementation: `src/executive_assistant/storage/file_sandbox.py`
+- Telegram channel: `src/executive_assistant/channels/telegram.py`

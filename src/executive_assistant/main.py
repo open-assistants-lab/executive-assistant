@@ -1,0 +1,298 @@
+"""Main entry point for running Executive Assistant bot."""
+
+import asyncio
+import os
+import signal
+import sys
+from pathlib import Path
+from typing import Any
+
+from executive_assistant.config import create_model, settings
+from executive_assistant.config.loader import get_yaml_defaults
+from executive_assistant.config.llm_factory import validate_llm_config
+from executive_assistant.logging import configure_logging
+from executive_assistant.tools.registry import get_all_tools
+from executive_assistant.storage.checkpoint import get_async_checkpointer
+from executive_assistant.storage.user_registry import UserRegistry
+from executive_assistant.channels.telegram import TelegramChannel
+from executive_assistant.channels.http import HttpChannel
+from executive_assistant.agent.langchain_agent import create_langchain_agent
+from executive_assistant.skills import SkillsBuilder
+from executive_assistant.agent.prompts import get_system_prompt
+from executive_assistant.scheduler import start_scheduler, stop_scheduler, register_notification_handler
+from executive_assistant.skills import load_and_register_skills, get_skills_registry
+
+
+def config_verify() -> int:
+    """Verify configuration loading and print status.
+
+    Returns:
+        Exit code (0 for success, 1 for errors).
+    """
+    print("Executive Assistant Configuration Verification")
+    print("=" * 40)
+
+    errors = []
+    warnings = []
+
+    # 1. Check config.yaml
+    try:
+        defaults = get_yaml_defaults()
+        print(f"✓ config.yaml loaded ({len(defaults)} keys)")
+    except Exception as e:
+        errors.append(f"config.yaml: {e}")
+        print(f"✗ config.yaml: {e}")
+
+    # 2. Check storage paths
+    try:
+        for path_name, path_value in [
+            ("SHARED_ROOT", settings.SHARED_ROOT),
+            ("GROUPS_ROOT", settings.GROUPS_ROOT),
+            ("USERS_ROOT", settings.USERS_ROOT),
+        ]:
+            path = Path(path_value)
+            if path.exists() or path.parent.exists():
+                print(f"✓ {path_name}: {path_value}")
+            else:
+                print(f"  {path_name}: {path_value} (will be created)")
+    except Exception as e:
+        errors.append(f"Storage paths: {e}")
+        print(f"✗ Storage paths: {e}")
+
+    # 3. Check LLM configuration
+    try:
+        validate_llm_config()
+        print(f"✓ LLM provider: {settings.DEFAULT_LLM_PROVIDER}")
+    except ValueError as e:
+        errors.append(f"LLM config: {e}")
+        print(f"✗ LLM config: {e}")
+
+    # 4. Check required secrets
+    required_secrets = {
+        "ANTHROPIC_API_KEY": settings.ANTHROPIC_API_KEY,
+        "OPENAI_API_KEY": settings.OPENAI_API_KEY,
+        "ZHIPUAI_API_KEY": settings.ZHIPUAI_API_KEY,
+        "OLLAMA_CLOUD_API_KEY": settings.OLLAMA_CLOUD_API_KEY,
+    }
+
+    has_llm_key = False
+    for key_name, key_value in required_secrets.items():
+        if key_value and key_value not in ["sk-ant-xxx", "sk-xxx", "your-zhipu-key", "your-ollama-cloud-api-key"]:
+            has_llm_key = True
+            break
+
+    if has_llm_key:
+        print(f"✓ LLM API key configured")
+    else:
+        warnings.append("No LLM API key found")
+        print(f"⚠ No LLM API key found (set ANTHROPIC_API_KEY or OPENAI_API_KEY)")
+
+    # 5. Check database configuration
+    try:
+        print(f"✓ PostgreSQL: {settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}")
+    except Exception as e:
+        errors.append(f"PostgreSQL config: {e}")
+        print(f"✗ PostgreSQL config: {e}")
+
+    # 6. Check checkpoint storage
+    print(f"✓ Checkpoint storage: {settings.CHECKPOINT_STORAGE}")
+
+    # Summary
+    print("=" * 40)
+    if errors:
+        print(f"\n❌ Verification failed with {len(errors)} error(s)")
+        for error in errors:
+            print(f"  - {error}")
+        return 1
+
+    if warnings:
+        print(f"\n⚠️  Verification passed with {len(warnings)} warning(s)")
+        for warning in warnings:
+            print(f"  - {warning}")
+    else:
+        print("\n✅ All checks passed!")
+
+    return 0
+
+
+def get_channels():
+    """Get configured channels based on environment."""
+    channels_str = os.getenv("EXECUTIVE_ASSISTANT_CHANNELS", "telegram").lower()
+    return [c.strip() for c in channels_str.split(",")]
+
+
+async def main() -> None:
+    """Start the Executive Assistant bot."""
+    configure_logging()
+
+    # Validate LLM configuration on startup
+    try:
+        validate_llm_config()
+    except ValueError as e:
+        print(f"\n{e}\n")
+        print("Please configure your LLM settings in .env file.")
+        sys.exit(1)
+
+    # Create LLM model
+    model = create_model()
+    print(f" Using LLM provider: {settings.DEFAULT_LLM_PROVIDER}")
+
+    # Load skills from content directory
+    skills_dir = Path(__file__).parent / "skills" / "content"
+    skills_count = load_and_register_skills(skills_dir)
+    print(f" Loaded {skills_count} skills")
+
+    # Load tools (includes load_skill tool)
+    tools = await get_all_tools()
+    print(f" Loaded {len(tools)} tools")
+
+    # Create skills builder (adds skill descriptions to system prompt)
+    registry = get_skills_registry()
+    skills_builder = SkillsBuilder(registry)
+
+    # Create checkpointer
+    checkpointer = await get_async_checkpointer()
+    print(f" Checkpointer: {settings.CHECKPOINT_STORAGE}")
+
+    print(" Agent runtime: langchain")
+
+    agent_cache: dict[str, Any] = {}
+
+    def build_agent(channel_name: str) -> Any:
+        cache_key = f"langchain:{channel_name}"
+        if cache_key not in agent_cache:
+            # Get base system prompt
+            system_prompt = get_system_prompt(channel_name)
+            # Add skill descriptions to system prompt
+            system_prompt = skills_builder.build_prompt(system_prompt)
+            # Create agent with enhanced prompt
+            agent_cache[cache_key] = create_langchain_agent(
+                model=model,
+                tools=tools,
+                checkpointer=checkpointer,
+                system_prompt=system_prompt,
+            )
+        return agent_cache[cache_key]
+
+    # Create user registry (for audit logging)
+    registry = UserRegistry(conn_string=settings.POSTGRES_URL)
+
+    # Start the reminder scheduler
+    print(" DEBUG: About to call start_scheduler()...", flush=True)
+    await start_scheduler()
+    print(" DEBUG: start_scheduler() returned", flush=True)
+    print(" Reminder scheduler started", flush=True)
+
+    # Determine which channels to run
+    enabled_channels = get_channels()
+    print(f"DEBUG: Enabled channels: {enabled_channels}", flush=True)
+    active_channels = []
+
+    for channel_name in enabled_channels:
+        print(f"DEBUG: Creating channel: {channel_name}", flush=True)
+        if channel_name == "telegram":
+            print(f"DEBUG: Building telegram agent...", flush=True)
+            agent = build_agent("telegram")
+            print(f"DEBUG: Creating TelegramChannel...", flush=True)
+            channel = TelegramChannel(agent=agent)
+            print(f"DEBUG: Setting registry...", flush=True)
+            channel.registry = registry
+
+            # Register notification handler for reminders
+            async def telegram_notification_handler(thread_ids, message):
+                """Send reminder notification via Telegram."""
+                for thread_id in thread_ids:
+                    # Extract chat_id from thread_id (format: telegram:chat_id)
+                    if thread_id.startswith("telegram:"):
+                        chat_id = thread_id.split(":", 1)[1]
+                        await channel.send_message(chat_id, f"🔔 Reminder: {message}")
+
+            register_notification_handler("telegram", telegram_notification_handler)
+
+            active_channels.append(channel)
+            print(" Telegram channel created", flush=True)
+        elif channel_name == "http":
+            print(f"DEBUG: Creating HTTP channel...", flush=True)
+            agent = build_agent("http")
+            channel = HttpChannel(
+                agent=agent,
+                host=os.getenv("HTTP_HOST", "0.0.0.0"),
+                port=int(os.getenv("HTTP_PORT", "8000")),
+            )
+            channel.registry = registry
+
+            # Register notification handler for reminders
+            async def http_notification_handler(thread_ids, message):
+                """HTTP channel doesn't support push notifications yet."""
+                # HTTP clients would need to poll or use websockets
+                print(f"HTTP reminder notification (not delivered): {message}")
+
+            register_notification_handler("http", http_notification_handler)
+
+            active_channels.append(channel)
+            print(f" HTTP channel created (port {channel.port})")
+        else:
+            print(f" Unknown channel: {channel_name}")
+
+    print(f"DEBUG: Channel loop completed, active_channels={len(active_channels)}", flush=True)
+    if not active_channels:
+        print(" Error: No valid channels configured")
+        await stop_scheduler()
+        sys.exit(1)
+
+    # Setup graceful shutdown
+    print("DEBUG: Setting up graceful shutdown...", flush=True)
+    shutdown_event = asyncio.Event()
+
+    def signal_handler(sig, frame):
+        print("\nShutting down...")
+        shutdown_event.set()
+
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    # Start all channels
+    print("\nExecutive Assistant is starting...", flush=True)
+    for i, channel in enumerate(active_channels):
+        print(f"DEBUG: Starting channel {i+1}/{len(active_channels)}...", flush=True)
+        await channel.start()
+        print(f"DEBUG: Channel {i+1} started", flush=True)
+
+    print(f"DEBUG: All channels started, about to print 'Bot is running'...", flush=True)
+    try:
+        print(f" Bot is running. Channels: {', '.join(enabled_channels)}. Press Ctrl+C to stop.", flush=True)
+        await shutdown_event.wait()
+    finally:
+        for channel in active_channels:
+            await channel.stop()
+        await stop_scheduler()
+        print(" Bot stopped")
+
+
+def run_main() -> None:
+    """Synchronous entry point for console script.
+
+    Handles CLI commands:
+    - executive_assistant config verify - Verify configuration
+    - executive_assistant (no args) - Start the bot
+    """
+    # Check for CLI commands
+    if len(sys.argv) > 1:
+        command = sys.argv[1].lower()
+        if command == "config":
+            if len(sys.argv) > 2 and sys.argv[2].lower() == "verify":
+                sys.exit(config_verify())
+            else:
+                print("Available commands:")
+                print("  executive_assistant config verify  - Verify configuration")
+                sys.exit(1)
+
+    # Default: start the bot
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        sys.exit(0)
+
+
+if __name__ == "__main__":
+    run_main()

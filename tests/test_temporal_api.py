@@ -30,38 +30,37 @@ class TestTemporalSettings:
 
     def test_temporal_settings_defaults(self):
         """Test default Temporal settings."""
-        from cassey.config.settings import get_settings
+        from executive_assistant.config.settings import get_settings
         s = get_settings()
 
         assert s.TEMPORAL_PORT == 7233
         assert s.TEMPORAL_NAMESPACE == "default"
-        assert s.TEMPORAL_TASK_QUEUE == "cassey-workflows"
+        assert s.TEMPORAL_TASK_QUEUE == "executive_assistant-workflows"
         assert s.TEMPORAL_CLIENT_TIMEOUT == 30
         assert s.TEMPORAL_CONNECTION_RETRY == 3
         assert s.TEMPORAL_WEB_UI_URL == "http://localhost:8080"
 
     def test_temporal_enabled_property(self):
         """Test temporal_enabled property reflects HOST configuration."""
-        from cassey.config.settings import get_settings
+        from executive_assistant.config.settings import get_settings
         s = get_settings()
 
-        # If TEMPORAL_HOST is set in environment, temporal_enabled should be True
-        if os.getenv("TEMPORAL_HOST"):
+        if s.TEMPORAL_HOST:
             assert s.temporal_enabled
         else:
             assert not s.temporal_enabled
 
     def test_temporal_target_property(self):
         """Test temporal_target property returns host:port."""
-        from cassey.config.settings import get_settings
+        from executive_assistant.config.settings import get_settings
         s = get_settings()
 
-        if os.getenv("TEMPORAL_HOST"):
+        if s.TEMPORAL_HOST:
             target = s.temporal_target
             assert ":" in target
             host, port = target.split(":")
-            assert host == os.getenv("TEMPORAL_HOST")
-            assert port == str(os.getenv("TEMPORAL_PORT", 7233))
+            assert host == s.TEMPORAL_HOST
+            assert port == str(s.TEMPORAL_PORT)
         else:
             pytest.skip("TEMPORAL_HOST is set - cannot test 'no host' behavior")
 
@@ -194,13 +193,13 @@ class TestTemporalMocked:
 
     def test_temporal_properties_with_host(self):
         """Test temporal_enabled and temporal_target when HOST is set."""
-        from cassey.config.settings import get_settings
+        from executive_assistant.config.settings import get_settings
         s = get_settings()
 
-        if os.getenv("TEMPORAL_HOST"):
+        if s.TEMPORAL_HOST:
             assert s.temporal_enabled
             target = s.temporal_target
-            assert os.getenv("TEMPORAL_HOST") in target
+            assert s.TEMPORAL_HOST in target
         else:
             assert not s.temporal_enabled
 

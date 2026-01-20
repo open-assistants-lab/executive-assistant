@@ -73,21 +73,21 @@ Use `verb_domain_object` for domain-specific tools, `verb_object` for global too
 
 ## Implementation Steps
 1. Rename tool functions in source files
-2. Update tool registry (`src/cassey/tools/registry.py`)
+2. Update tool registry (`src/executive_assistant/tools/registry.py`)
 3. Update storage `__init__.py` exports
 4. Update any hardcoded references (management_commands.py, prompts.py)
 5. Test and restart
 
 ## Files to Modify
-- `src/cassey/storage/file_sandbox.py`
-- `src/cassey/storage/db_tools.py`
-- `src/cassey/storage/kb_tools.py`
-- `src/cassey/tools/mem_tools.py`
-- `src/cassey/tools/time_tool.py`
-- `src/cassey/tools/search_tool.py`
-- `src/cassey/tools/python_tool.py`
-- `src/cassey/tools/orchestrator_tools.py`
-- `src/cassey/tools/registry.py`
-- `src/cassey/storage/__init__.py`
-- `src/cassey/channels/management_commands.py`
-- `src/cassey/channels/base.py`
+- `src/executive_assistant/storage/file_sandbox.py`
+- `src/executive_assistant/storage/db_tools.py`
+- `src/executive_assistant/storage/kb_tools.py`
+- `src/executive_assistant/tools/mem_tools.py`
+- `src/executive_assistant/tools/time_tool.py`
+- `src/executive_assistant/tools/search_tool.py`
+- `src/executive_assistant/tools/python_tool.py`
+- `src/executive_assistant/tools/orchestrator_tools.py`
+- `src/executive_assistant/tools/registry.py`
+- `src/executive_assistant/storage/__init__.py`
+- `src/executive_assistant/channels/management_commands.py`
+- `src/executive_assistant/channels/base.py`

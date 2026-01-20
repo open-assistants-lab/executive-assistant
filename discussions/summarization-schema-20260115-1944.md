@@ -1,4 +1,4 @@
-# Cassey Summarization Schema + Update Rules (v1)
+# Executive Assistant Summarization Schema + Update Rules (v1)
 
 ## Goals
 - Prevent summary-driven confusion by making the latest user intent explicit and dominant.
@@ -98,7 +98,7 @@ Open Questions:
 - **Topic boundary**: travel planning and AML compliance must never be in the same active topic.
 
 ## Implementation Notes (fits current code)
-- Current summarizer lives in `src/cassey/agent/nodes.py` and stores a plain text `summary`.
+- Current summarizer lives in `src/executive_assistant/agent/nodes.py` and stores a plain text `summary`.
 - Suggested incremental change:
   1) Store structured JSON summary in Postgres (`conversations.summary` as JSONB).
   2) Render a compact text view for the prompt.

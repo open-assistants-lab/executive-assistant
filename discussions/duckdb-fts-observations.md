@@ -194,6 +194,6 @@ LIMIT 10;
 
 | File | Status |
 |------|--------|
-| `src/cassey/storage/duckdb_storage.py` | ⚠️ FTS created but not used |
-| `src/cassey/storage/mem_storage.py` | ✅ FTS used correctly |
+| `src/executive_assistant/storage/duckdb_storage.py` | ⚠️ FTS created but not used |
+| `src/executive_assistant/storage/mem_storage.py` | ✅ FTS used correctly |
 | `tests/hybrid_benchmark.py` | ⚠️ Also uses LIKE instead of FTS |

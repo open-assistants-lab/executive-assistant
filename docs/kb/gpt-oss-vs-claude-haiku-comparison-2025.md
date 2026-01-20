@@ -286,7 +286,7 @@ Claude Haiku:  ███████████░ 0.848s - 6.877s (avg: 2.466s
 
 ---
 
-## Recommendations for Cassey
+## Recommendations for Executive Assistant
 
 ### 🥇 **Primary Recommendation: GPT-OSS 20B (Ollama Cloud)**
 
@@ -360,7 +360,7 @@ def choose_model(task_type: str) -> str:
 ### 1. **Implement Post-Processing**
 Add response cleaning to strip "Thinking..." prefix:
 ```python
-# src/cassey/agent/nodes.py
+# src/executive_assistant/agent/nodes.py
 def clean_llm_response(response: str) -> str:
     """Remove thinking artifacts from LLM responses."""
     if "Thinking..." in response:
@@ -379,7 +379,7 @@ model = "claude-3-5-haiku-20250114"  # Newer Haiku (check docs for exact name)
 ### 3. **Add Model Routing (Optional)**
 If you use Haiku for simple tasks:
 ```python
-# src/cassey/config/llm_factory.py
+# src/executive_assistant/config/llm_factory.py
 MODEL_ROUTING = {
     "simple": "claude-3-5-haiku-20250114",  # Fast for Q&A, math
     "complex": "gpt-oss:20b-cloud",  # Better for coding, explanations
@@ -400,7 +400,7 @@ Plan migration to Haiku 4.6 before February 19th, 2026.
 
 ## Conclusion
 
-**GPT-OSS 20B via Ollama Cloud is the recommended choice for Cassey:**
+**GPT-OSS 20B via Ollama Cloud is the recommended choice for Executive Assistant:**
 
 ✅ **100% free** vs $0.80/1M tokens (Haiku)
 ✅ **More consistent** (0.830s vs 2.541s std dev)

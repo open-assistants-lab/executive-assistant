@@ -1,10 +1,10 @@
 # Bugs Found - Code Review (2025-01-18)
 
-This document tracks bugs discovered during code review of the Cassey codebase.
+This document tracks bugs discovered during code review of the Executive Assistant codebase.
 
 ## Bug #1: Double fetchone() in `export_db_table`
 
-**Location:** `src/cassey/storage/db_tools.py:374`
+**Location:** `src/executive_assistant/storage/db_tools.py:374`
 
 **Severity:** High - Logic error causes incorrect row count reporting
 
@@ -26,7 +26,7 @@ row_count = row[0] if row else 0
 
 ## Bug #2: Hardcoded Vector Dimension in SQL Query
 
-**Location:** `src/cassey/storage/duckdb_storage.py:146`
+**Location:** `src/executive_assistant/storage/duckdb_storage.py:146`
 
 **Severity:** Medium - Breaks if embedding dimension changes
 
@@ -51,7 +51,7 @@ This same issue appears in multiple locations:
 
 ## Bug #3: Missing Import for SecurityError
 
-**Location:** `src/cassey/storage/kb_tools.py:426`
+**Location:** `src/executive_assistant/storage/kb_tools.py:426`
 
 **Severity:** Medium - Unbound exception type
 
@@ -68,14 +68,14 @@ except SecurityError as e:
 
 **Fix:** Import `SecurityError` from the appropriate module:
 ```python
-from cassey.storage.file_sandbox import SecurityError
+from executive_assistant.storage.file_sandbox import SecurityError
 ```
 
 ---
 
 ## Bug #4: Table Name Parsing Edge Case
 
-**Location:** `src/cassey/storage/duckdb_storage.py:593-602`
+**Location:** `src/executive_assistant/storage/duckdb_storage.py:593-602`
 
 **Severity:** Low - Edge case could cause incorrect collection names
 
@@ -102,7 +102,7 @@ if table_name.startswith(prefix):
 
 ## Bug #5: SQL Injection Risk - Quote Character Not Sanitized
 
-**Location:** `src/cassey/storage/duckdb_storage.py:267`
+**Location:** `src/executive_assistant/storage/duckdb_storage.py:267`
 
 **Severity:** Medium - Potential for SQL injection or query breakage
 
@@ -131,7 +131,7 @@ This same pattern appears in multiple methods:
 
 ### Resource Management - Unclosed DuckDB Connections
 
-**Location:** `src/cassey/storage/duckdb_storage.py:364-388`
+**Location:** `src/executive_assistant/storage/duckdb_storage.py:364-388`
 
 The `_get_duckdb_connection()` function caches connections with `@lru_cache` but never explicitly closes them. In long-running processes, this could lead to:
 - File descriptor exhaustion
@@ -180,7 +180,7 @@ The codebase uses multiple terms for similar concepts:
 
 ### Bug #1 Fix: Double fetchone() in export_db_table
 
-**File:** `src/cassey/storage/db_tools.py:373-375`
+**File:** `src/executive_assistant/storage/db_tools.py:373-375`
 
 **Before:**
 ```python
@@ -202,7 +202,7 @@ row_count = row[0] if row else 0
 
 ### Bug #2 Fix: Hardcoded vector dimension
 
-**File:** `src/cassey/storage/duckdb_storage.py`
+**File:** `src/executive_assistant/storage/duckdb_storage.py`
 
 **Locations fixed:**
 1. Line 146 - `search_vector()`
@@ -227,16 +227,16 @@ array_distance(v.embedding, ?::FLOAT[{self.dimension}]) as distance
 
 ### Bug #3 Fix: Missing SecurityError import
 
-**File:** `src/cassey/storage/kb_tools.py:12`
+**File:** `src/executive_assistant/storage/kb_tools.py:12`
 
 **Before:**
 ```python
-from cassey.storage.file_sandbox import get_thread_id
+from executive_assistant.storage.file_sandbox import get_thread_id
 ```
 
 **After:**
 ```python
-from cassey.storage.file_sandbox import SecurityError, get_thread_id
+from executive_assistant.storage.file_sandbox import SecurityError, get_thread_id
 ```
 
 **Explanation:** The `add_file_to_kb` tool catches `SecurityError` (line 426) but never imported it. This would cause `NameError` when a security error actually occurs.
@@ -247,7 +247,7 @@ from cassey.storage.file_sandbox import SecurityError, get_thread_id
 
 ### Bug #4 Fix: Table name parsing edge case
 
-**File:** `src/cassey/storage/duckdb_storage.py:601-604`
+**File:** `src/executive_assistant/storage/duckdb_storage.py:601-604`
 
 **Before:**
 ```python
@@ -272,7 +272,7 @@ if suffix:
 
 ### Bug #5 Fix: SQL injection - quote character not sanitized
 
-**File:** `src/cassey/storage/duckdb_storage.py`
+**File:** `src/executive_assistant/storage/duckdb_storage.py`
 
 **Locations fixed:**
 1. Line 267 - `_table_name()`

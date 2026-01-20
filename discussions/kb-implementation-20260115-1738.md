@@ -7,13 +7,13 @@
 - Created the KB directory under `data/`.
 
 ## Files Changed / Added
-- `src/cassey/config/settings.py`
+- `src/executive_assistant/config/settings.py`
   - Added `KB_ROOT` setting with default `./data/kb`.
   - Added `resolve_kb_root` validator to keep paths absolute.
-- `src/cassey/storage/kb_storage.py` (new)
+- `src/executive_assistant/storage/kb_storage.py` (new)
   - `KBStorage` subclass of `DBStorage` scoped to `settings.KB_ROOT`.
   - `get_kb_storage()` global accessor.
-- `src/cassey/storage/__init__.py`
+- `src/executive_assistant/storage/__init__.py`
   - Exported `KBStorage` and `get_kb_storage`.
 - `README.md`
   - Added `KB_ROOT` env var to configuration.

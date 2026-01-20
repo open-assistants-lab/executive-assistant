@@ -11,9 +11,9 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 
-from cassey.agent.state import AgentState
-from cassey.agent.router import should_continue
-from cassey.agent.nodes import call_model, call_tools, increment_iterations, should_summarize
+from executive_assistant.agent.state import AgentState
+from executive_assistant.agent.router import should_continue
+from executive_assistant.agent.nodes import call_model, call_tools, increment_iterations
 
 
 # =============================================================================
@@ -86,7 +86,7 @@ class TestShouldContinue:
 
     def test_continue_with_iteration_limit(self):
         """Test that iteration limit is respected."""
-        with patch("cassey.agent.router.settings.MAX_ITERATIONS", 5):
+        with patch("executive_assistant.agent.router.settings.MAX_ITERATIONS", 5):
             state = AgentState(
                 messages=[AIMessage(content="Done")],
                 structured_summary=None,
@@ -175,7 +175,7 @@ class TestCallModel:
 
         tool_call = ToolCall(name="test_tool", args={}, id="1", type="tool_call")
 
-        with patch("cassey.agent.nodes.settings.MAX_ITERATIONS", 2):
+        with patch("executive_assistant.agent.nodes.settings.MAX_ITERATIONS", 2):
             state = AgentState(
                 messages=[
                     HumanMessage(content="Hello"),
@@ -196,7 +196,7 @@ class TestCallModel:
     @pytest.mark.asyncio
     async def test_call_model_with_continue_phrase(self, mock_model, mock_tools):
         """Test iteration reset when user says continue."""
-        with patch("cassey.agent.nodes.settings.MAX_ITERATIONS", 2):
+        with patch("executive_assistant.agent.nodes.settings.MAX_ITERATIONS", 2):
             state = AgentState(
                 messages=[
                     HumanMessage(content="Please continue"),
@@ -229,7 +229,7 @@ class TestCallModel:
             channel="test",
         )
 
-        with patch("cassey.agent.nodes.get_system_prompt", return_value="System prompt"):
+        with patch("executive_assistant.agent.nodes.get_system_prompt", return_value="System prompt"):
             result = await call_model(state, {}, mock_model, mock_tools, system_prompt="Custom prompt")
 
             assert "messages" in result
@@ -412,60 +412,6 @@ class TestIncrementIterations:
         assert result["iterations"] == 1
 
 
-class TestShouldSummarize:
-    """Test should_summarize function."""
-
-    @pytest.mark.asyncio
-    async def test_should_summarize_disabled(self):
-        """Test that summarization respects the enable flag."""
-        with patch("cassey.agent.nodes.settings.ENABLE_SUMMARIZATION", False):
-            state = AgentState(
-                messages=[HumanMessage(content=str(i)) for i in range(100)],
-                structured_summary=None,
-                iterations=0,
-                user_id="test_user",
-                channel="test",
-            )
-
-            result = await should_summarize(state)
-            assert result == "continue"
-
-    @pytest.mark.asyncio
-    async def test_should_summarize_below_threshold(self):
-        """Test that summarization doesn't trigger below threshold."""
-        with patch("cassey.agent.nodes.settings.ENABLE_SUMMARIZATION", True):
-            with patch("cassey.agent.nodes.settings.SUMMARY_THRESHOLD", 20):
-                state = AgentState(
-                    messages=[HumanMessage(content=str(i)) for i in range(5)],
-                    structured_summary=None,
-                    iterations=0,
-                    user_id="test_user",
-                    channel="test",
-                )
-
-                result = await should_summarize(state)
-                assert result == "continue"
-
-    @pytest.mark.asyncio
-    async def test_should_summarize_above_threshold(self):
-        """Test that summarization triggers at threshold."""
-        with patch("cassey.agent.nodes.settings.ENABLE_SUMMARIZATION", True):
-            with patch("cassey.agent.nodes.settings.SUMMARY_THRESHOLD", 10):
-                # Create 15 human messages (above threshold of 10)
-                messages = [HumanMessage(content=str(i)) for i in range(15)]
-
-                state = AgentState(
-                    messages=messages,
-                    structured_summary=None,
-                    iterations=0,
-                    user_id="test_user",
-                    channel="test",
-                )
-
-                result = await should_summarize(state)
-                assert result == "summarize"
-
-
 # =============================================================================
 # Graph Creation Tests
 # =============================================================================
@@ -475,12 +421,12 @@ class TestGraphCreation:
 
     def test_create_graph_imports(self):
         """Test that create_graph can be imported."""
-        from cassey.agent.graph import create_graph
+        from executive_assistant.agent.graph import create_graph
         assert create_graph is not None
 
     def test_create_react_graph_imports(self):
         """Test that create_react_graph can be imported."""
-        from cassey.agent.graph import create_react_graph
+        from executive_assistant.agent.graph import create_react_graph
         assert create_react_graph is not None
 
 
@@ -493,12 +439,12 @@ class TestTopicClassifier:
 
     def test_topic_classifier_imports(self):
         """Test that topic classifier can be imported."""
-        from cassey.agent.topic_classifier import StructuredSummaryBuilder
+        from executive_assistant.agent.topic_classifier import StructuredSummaryBuilder
         assert StructuredSummaryBuilder is not None
 
     def test_structured_summary_builder_render(self):
         """Test rendering structured summary for prompt."""
-        from cassey.agent.topic_classifier import StructuredSummaryBuilder
+        from executive_assistant.agent.topic_classifier import StructuredSummaryBuilder
 
         summary = {
             "topics": [
@@ -525,7 +471,7 @@ class TestPrompts:
 
     def test_get_system_prompt(self):
         """Test getting system prompt for a channel."""
-        from cassey.agent.prompts import get_system_prompt
+        from executive_assistant.agent.prompts import get_system_prompt
 
         prompt = get_system_prompt("telegram")
         assert prompt is not None
@@ -533,7 +479,7 @@ class TestPrompts:
 
     def test_get_system_prompt_for_unknown_channel(self):
         """Test getting system prompt for unknown channel."""
-        from cassey.agent.prompts import get_system_prompt
+        from executive_assistant.agent.prompts import get_system_prompt
 
         prompt = get_system_prompt("unknown_channel")
         assert prompt is not None
@@ -549,7 +495,7 @@ class TestCheckpointUtils:
 
     def test_checkpoint_utils_imports(self):
         """Test that checkpoint utils can be imported."""
-        from cassey.agent.checkpoint_utils import (
+        from executive_assistant.agent.checkpoint_utils import (
             detect_corrupted_messages,
             sanitize_corrupted_messages,
             should_propose_before_action,
@@ -570,7 +516,7 @@ class TestAgentIntegration:
 
     def test_agent_module_exports(self):
         """Test that agent module exports expected symbols."""
-        from cassey import agent
+        from executive_assistant import agent
 
         expected_exports = [
             "AgentState",

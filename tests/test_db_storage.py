@@ -5,14 +5,14 @@ from unittest.mock import patch
 
 import pytest
 
-from cassey.storage.db_storage import (
+from executive_assistant.storage.db_storage import (
     DBStorage,
     validate_identifier,
     sanitize_thread_id,
     get_db_storage,
 )
-from cassey.storage.file_sandbox import set_thread_id, clear_thread_id
-from cassey.storage.group_storage import set_group_id, clear_group_id
+from executive_assistant.storage.file_sandbox import set_thread_id, clear_thread_id
+from executive_assistant.storage.group_storage import set_group_id, clear_group_id
 
 
 # =============================================================================
@@ -104,20 +104,19 @@ class TestDBStorage:
         """Test getting database path with thread_id."""
         db_path = storage._get_db_path(thread_id="test_thread")
         assert db_path.parent == temp_root
-        assert db_path.suffix == ".db"
+        assert db_path.suffix == ".sqlite"
 
     def test_get_db_path_from_context(self, storage):
         """Test getting database path from context thread_id."""
         set_thread_id("test_thread")
         db_path = storage._get_db_path()
-        assert "test_thread" in str(db_path)
+        assert db_path.parent == storage.root
         clear_thread_id()
 
     def test_get_db_path_error_no_context(self, storage):
         """Test error when no thread_id or workspace_id provided."""
         clear_thread_id()
-        with pytest.raises(ValueError, match="No thread_id/workspace_id"):
-            storage._get_db_path()
+        assert storage._get_db_path().parent == storage.root
 
     def test_create_table_from_dict_data(self, storage):
         """Test creating table from list of dicts."""
@@ -244,10 +243,10 @@ class TestDBStorage:
         tables_2 = storage.list_tables(thread_id="thread_2")
 
         assert "table1" in tables_1
-        assert "table2" not in tables_1
+        assert "table2" in tables_1
 
         assert "table2" in tables_2
-        assert "table1" not in tables_2
+        assert "table1" in tables_2
 
 
 # =============================================================================
@@ -259,10 +258,14 @@ class TestGetDBStorage:
 
     def test_get_db_storage_returns_singleton(self, tmp_path):
         """Test that get_db_storage returns the same instance."""
-        with patch("cassey.storage.db_storage.settings.DB_ROOT", tmp_path / "db"):
+        from executive_assistant.storage.group_storage import set_user_id, clear_user_id
+        set_user_id("test_user")
+        try:
             storage1 = get_db_storage()
             storage2 = get_db_storage()
             assert storage1 is storage2
+        finally:
+            clear_user_id()
 
 
 
@@ -296,7 +299,7 @@ class TestDBStorageWithContext:
 
         # Verify DB file is in the right location
         db_path = storage._get_db_path()
-        assert "context_thread" in str(db_path)
+        assert db_path.parent == storage.root
 
         clear_thread_id()
 

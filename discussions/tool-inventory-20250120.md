@@ -1,12 +1,12 @@
-# Cassey Tool Inventory - 2025-01-20
+# Executive Assistant Tool Inventory - 2025-01-20
 
 ## Overview
 
-Cassey has **51 tools** organized into categories. All storage tools (DB, File, VS) now support the unified `scope="context"|"shared"` parameter.
+Executive Assistant has **51 tools** organized into categories. All storage tools (DB, File, VS) now support the unified `scope="context"|"shared"` parameter.
 
 ## Storage Tools (26 tools with scope parameter)
 
-### Database Tools (8 tools) - `src/cassey/storage/db_tools.py`
+### Database Tools (8 tools) - `src/executive_assistant/storage/db_tools.py`
 
 All DB tools support `scope="context"|"shared"`:
 - `scope="context"` (default): Uses group_id/thread_id storage at `data/groups/{group_id}/db/` or `data/users/{thread_id}/db/`
@@ -23,7 +23,7 @@ All DB tools support `scope="context"|"shared"`:
 | `export_db_table` | Export table data to a CSV file | ✅ |
 | `import_db_table` | Import CSV file data into a new table | ✅ |
 
-### File Tools (10 tools) - `src/cassey/storage/file_sandbox.py`
+### File Tools (10 tools) - `src/executive_assistant/storage/file_sandbox.py`
 
 All file tools support `scope="context"|"shared"`:
 - `scope="context"` (default): Uses group_id/thread_id storage at `data/groups/{group_id}/files/` or `data/users/{thread_id}/files/`
@@ -42,7 +42,7 @@ All file tools support `scope="context"|"shared"`:
 | `grep_files` | Search INSIDE file contents (like Unix grep) | ✅ |
 | `find_files_fuzzy` | Find files by fuzzy matching the filename/path | ✅ |
 
-### Vector Store Tools (8 tools) - `src/cassey/storage/vs_tools.py`
+### Vector Store Tools (8 tools) - `src/executive_assistant/storage/vs_tools.py`
 
 All VS tools support `scope="context"|"shared"`:
 - `scope="context"` (default): Uses group_id/thread_id storage at `data/groups/{group_id}/vs/` or `data/users/{thread_id}/vs/`
@@ -61,7 +61,7 @@ All VS tools support `scope="context"|"shared"`:
 
 ## Memory Tools (9 tools)
 
-Located in: `src/cassey/tools/mem_tools.py`
+Located in: `src/executive_assistant/tools/mem_tools.py`
 
 | Tool | Description |
 |------|-------------|
@@ -77,7 +77,7 @@ Located in: `src/cassey/tools/mem_tools.py`
 
 ## Time Tools (3 tools)
 
-Located in: `src/cassey/tools/time_tool.py`
+Located in: `src/executive_assistant/tools/time_tool.py`
 
 | Tool | Description |
 |------|-------------|
@@ -87,7 +87,7 @@ Located in: `src/cassey/tools/time_tool.py`
 
 ## Reminder Tools (4 tools)
 
-Located in: `src/cassey/tools/reminder_tools.py`
+Located in: `src/executive_assistant/tools/reminder_tools.py`
 
 | Tool | Description |
 |------|-------------|
@@ -98,7 +98,7 @@ Located in: `src/cassey/tools/reminder_tools.py`
 
 ## Python Tool (1 tool)
 
-Located in: `src/cassey/tools/python_tool.py`
+Located in: `src/executive_assistant/tools/python_tool.py`
 
 | Tool | Description |
 |------|-------------|
@@ -106,7 +106,7 @@ Located in: `src/cassey/tools/python_tool.py`
 
 ## Web Search Tools (variable)
 
-Located in: `src/cassey/tools/search_tool.py`
+Located in: `src/executive_assistant/tools/search_tool.py`
 
 | Tool | Description |
 |------|-------------|
@@ -114,7 +114,7 @@ Located in: `src/cassey/tools/search_tool.py`
 
 ## OCR Tools (2 tools)
 
-Located in: `src/cassey/tools/ocr_tool.py`
+Located in: `src/executive_assistant/tools/ocr_tool.py`
 
 | Tool | Description |
 |------|-------------|
@@ -123,7 +123,7 @@ Located in: `src/cassey/tools/ocr_tool.py`
 
 ## Firecrawl Tools (2 tools)
 
-Located in: `src/cassey/tools/firecrawl_tool.py`
+Located in: `src/executive_assistant/tools/firecrawl_tool.py`
 
 | Tool | Description |
 |------|-------------|
@@ -132,7 +132,7 @@ Located in: `src/cassey/tools/firecrawl_tool.py`
 
 ## Confirmation Tool (1 tool)
 
-Located in: `src/cassey/tools/confirmation_tool.py`
+Located in: `src/executive_assistant/tools/confirmation_tool.py`
 
 | Tool | Description |
 |------|-------------|
@@ -140,7 +140,7 @@ Located in: `src/cassey/tools/confirmation_tool.py`
 
 ## Meta Tools (2 tools)
 
-Located in: `src/cassey/tools/meta_tools.py`
+Located in: `src/executive_assistant/tools/meta_tools.py`
 
 | Tool | Description |
 |------|-------------|
@@ -149,7 +149,7 @@ Located in: `src/cassey/tools/meta_tools.py`
 
 ## Skills Tools (1 tool)
 
-Located in: `src/cassey/skills/tool.py`
+Located in: `src/executive_assistant/skills/tool.py`
 
 | Tool | Description |
 |------|-------------|

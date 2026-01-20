@@ -2,7 +2,7 @@
 
 ## Goal
 
-Enable Cassey to create workflows on-the-fly with scheduling (one-off or recurring) using a chain of `create_agent()` executors, backed by Temporal for durable execution.
+Enable Executive Assistant to create workflows on-the-fly with scheduling (one-off or recurring) using a chain of `create_agent()` executors, backed by Temporal for durable execution.
 
 ## Key Principles
 
@@ -17,7 +17,7 @@ Enable Cassey to create workflows on-the-fly with scheduling (one-off or recurri
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                        VM 1: Cassey Application                         │
+│                        VM 1: Executive Assistant Application                         │
 │                                                                         │
 │  ┌───────────────────────────────────────────────────────────────────┐ │
 │  │  Temporal Worker                                                   │ │
@@ -25,7 +25,7 @@ Enable Cassey to create workflows on-the-fly with scheduling (one-off or recurri
 │  │  - Polls Temporal Server for workflow/activity tasks               │ │
 │  │  - Executes workflow chains (executors)                           │ │
 │  │  - Runs activities (agent calls, tool invocations)                │ │
-│  │  - Connects to Cassey tools, SQLite, PostgreSQL                   │ │
+│  │  - Connects to Executive Assistant tools, SQLite, PostgreSQL                   │ │
 │  └───────────────────────────────────────────────────────────────────┘ │
 │                            ↕ gRPC (port 7233)                          │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -55,7 +55,7 @@ Enable Cassey to create workflows on-the-fly with scheduling (one-off or recurri
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                         Cassey                              │
+│                         Executive Assistant                              │
 │  (create_agent with workflow tools)                         │
 │                                                             │
 │  Tool: create_workflow()                                    │
@@ -140,7 +140,7 @@ class ExecutorSpec(BaseModel):
 
     # Agent configuration
     model: str  # e.g., "gpt-4o", "gpt-4o-mini"
-    tools: list[str]  # Tool names from Cassey's registry
+    tools: list[str]  # Tool names from Executive Assistant's registry
     system_prompt: str
 
     # Structured output schema
@@ -358,7 +358,7 @@ With Temporal, many tracking tables become optional since Temporal provides buil
 ### Required Tables
 
 ```sql
--- Workflow definitions (created by users via Cassey)
+-- Workflow definitions (created by users via Executive Assistant)
 CREATE TABLE workflows (
     id                  SERIAL PRIMARY KEY,
     workflow_id         UUID DEFAULT gen_random_uuid(),  -- Public ID
@@ -372,7 +372,7 @@ CREATE TABLE workflows (
 
     -- Temporal references
     temporal_workflow_id TEXT,             -- Temporal's workflow ID (for cancellation)
-    task_queue          TEXT DEFAULT 'cassey-workflows',  -- Temporal task queue
+    task_queue          TEXT DEFAULT 'executive_assistant-workflows',  -- Temporal task queue
 
     -- Status
     status              VARCHAR(20) DEFAULT 'active',  -- active, paused, archived
@@ -434,8 +434,8 @@ from temporalio import workflow, activity
 from datetime import timedelta, datetime
 
 @workflow.defn
-class CasseyWorkflow:
-    """Cassey workflow that executes a chain of executors (activities)."""
+class Executive AssistantWorkflow:
+    """Executive Assistant workflow that executes a chain of executors (activities)."""
 
     @workflow.run
     async def run(self, spec: WorkflowSpec) -> dict:
@@ -515,7 +515,7 @@ class CasseyWorkflow:
 
 # Recurring workflow (using Temporal Cron)
 @workflow.defn
-class CasseyRecurringWorkflow:
+class Executive AssistantRecurringWorkflow:
     """Recurring workflow that executes on a schedule."""
 
     @workflow.run
@@ -526,7 +526,7 @@ class CasseyRecurringWorkflow:
         # Cron scheduling is configured when starting the workflow
 
         # Execute the main workflow logic
-        main_workflow = CasseyWorkflow()
+        main_workflow = Executive AssistantWorkflow()
         result = await main_workflow.run(spec)
 
         # Workflow will be re-scheduled by Temporal's cron
@@ -576,7 +576,7 @@ def send_notification(user_id: str, message: str) -> bool:
     pass
 ```
 
-### Starting Workflows from Cassey
+### Starting Workflows from Executive Assistant
 
 ```python
 from temporalio.client import Client
@@ -594,29 +594,29 @@ async def create_workflow(spec: WorkflowSpec) -> str:
     if spec.schedule_type == "immediate":
         # Run immediately
         handle = await client.start_workflow(
-            CasseyWorkflow.run,
+            Executive AssistantWorkflow.run,
             args=[spec],
             id=f"workflow-{workflow_id}",
-            task_queue="cassey-workflows"
+            task_queue="executive_assistant-workflows"
         )
 
     elif spec.schedule_type == "scheduled":
         # Run at specific time
         handle = await client.start_workflow(
-            CasseyWorkflow.run,
+            Executive AssistantWorkflow.run,
             args=[spec],
             id=f"workflow-{workflow_id}",
             start_delay=timedelta_until(spec.schedule_time),
-            task_queue="cassey-workflows"
+            task_queue="executive_assistant-workflows"
         )
 
     elif spec.schedule_type == "recurring":
         # Run on cron schedule
         handle = await client.start_workflow(
-            CasseyRecurringWorkflow.run,
+            Executive AssistantRecurringWorkflow.run,
             args=[spec],
             id=f"workflow-{workflow_id}-cron",
-            task_queue="cassey-workflows",
+            task_queue="executive_assistant-workflows",
             cron_expression=spec.cron_expression
         )
 
@@ -752,7 +752,7 @@ CREATE TABLE workflows (
 
     -- Temporal references
     temporal_workflow_id TEXT,
-    task_queue          TEXT DEFAULT 'cassey-workflows',
+    task_queue          TEXT DEFAULT 'executive_assistant-workflows',
 
     -- Scheduling (for queryability)
     schedule_type       VARCHAR(20) NOT NULL,
@@ -821,7 +821,7 @@ The PG tables are mainly for your app's quick queries. Temporal is the source of
 
 ---
 
-## Tools for Cassey (Temporal-Based)
+## Tools for Executive Assistant (Temporal-Based)
 
 ```python
 from temporalio.client import Client
@@ -907,8 +907,8 @@ async def create_workflow(
         ]
         await create_workflow("Price Monitor", "Check prices", executors, "recurring", cron_expression="0 9 * * *")
     """
-    from cassey.workflows.storage import save_workflow_to_db
-    from cassey.workflows.temporal_workflows import CasseyWorkflow, CasseyRecurringWorkflow
+    from executive_assistant.workflows.storage import save_workflow_to_db
+    from executive_assistant.workflows.temporal_workflows import Executive AssistantWorkflow, Executive AssistantRecurringWorkflow
 
     client = await get_temporal_client()
 
@@ -932,27 +932,27 @@ async def create_workflow(
     # Start Temporal workflow
     if spec.schedule_type == "immediate":
         handle = await client.start_workflow(
-            CasseyWorkflow.run,
+            Executive AssistantWorkflow.run,
             args=[spec],
             id=f"workflow-{spec.workflow_id}",
-            task_queue="cassey-workflows"
+            task_queue="executive_assistant-workflows"
         )
     elif spec.schedule_type == "scheduled":
         # Calculate delay for scheduled start
         delay_seconds = (spec.schedule_time - datetime.now()).total_seconds()
         handle = await client.start_workflow(
-            CasseyWorkflow.run,
+            Executive AssistantWorkflow.run,
             args=[spec],
             id=f"workflow-{spec.workflow_id}",
-            task_queue="cassey-workflows",
+            task_queue="executive_assistant-workflows",
             start_delay=timedelta(seconds=delay_seconds)
         )
     elif spec.schedule_type == "recurring":
         handle = await client.start_workflow(
-            CasseyRecurringWorkflow.run,
+            Executive AssistantRecurringWorkflow.run,
             args=[spec],
             id=f"workflow-{spec.workflow_id}-cron",
-            task_queue="cassey-workflows",
+            task_queue="executive_assistant-workflows",
             cron_expression=spec.cron_expression
         )
 
@@ -976,7 +976,7 @@ async def list_workflows(
     Returns:
         List of workflows with scheduling info
     """
-    from cassey.workflows.storage import get_workflows_by_user
+    from executive_assistant.workflows.storage import get_workflows_by_user
     return await get_workflows_by_user(user_id, status)
 
 
@@ -1063,7 +1063,7 @@ async def pause_workflow(
     workflow_id: str
 ) -> str:
     """Pause a workflow (stops future executions until resumed)."""
-    from cassey.workflows.storage import set_workflow_status
+    from executive_assistant.workflows.storage import set_workflow_status
     await set_workflow_status(workflow_id, "paused")
     return f"Paused workflow {workflow_id}"
 
@@ -1073,7 +1073,7 @@ async def resume_workflow(
     workflow_id: str
 ) -> str:
     """Resume a paused workflow."""
-    from cassey.workflows.storage import set_workflow_status
+    from executive_assistant.workflows.storage import set_workflow_status
     await set_workflow_status(workflow_id, "active")
     return f"Resumed workflow {workflow_id}"
 ```
@@ -1090,14 +1090,14 @@ The worker polls Temporal Server for workflow/activity tasks and executes them.
 ```python
 from temporalio.worker import Worker
 from temporalio.client import Client
-from cassey.workflows.temporal_workflows import CasseyWorkflow, CasseyRecurringWorkflow
-from cassey.workflows.temporal_activities import (
+from executive_assistant.workflows.temporal_workflows import Executive AssistantWorkflow, Executive AssistantRecurringWorkflow
+from executive_assistant.workflows.temporal_activities import (
     run_executor,
     send_notification
 )
 
 async def run_worker():
-    """Run the Temporal worker for Cassey workflows."""
+    """Run the Temporal worker for Executive Assistant workflows."""
 
     # Connect to Temporal Server
     client = await Client.connect("temporal.vm2.internal:7233")
@@ -1105,8 +1105,8 @@ async def run_worker():
     # Create and run worker
     worker = Worker(
         client,
-        task_queue="cassey-workflows",
-        workflows=[CasseyWorkflow, CasseyRecurringWorkflow],
+        task_queue="executive_assistant-workflows",
+        workflows=[Executive AssistantWorkflow, Executive AssistantRecurringWorkflow],
         activities=[run_executor, send_notification],
     )
 
@@ -1114,7 +1114,7 @@ async def run_worker():
     await worker.run()
 
 
-# Run worker (separate process or within Cassey app)
+# Run worker (separate process or within Executive Assistant app)
 if __name__ == "__main__":
     asyncio.run(run_worker())
 ```
@@ -1296,14 +1296,14 @@ Result:
 - [ ] Deploy Temporal Server on VM 2 (self-hosted)
 - [ ] Configure PostgreSQL for Temporal's state store
 - [ ] Set up Temporal Web UI (port 8080)
-- [ ] Configure task queues (cassey-workflows, cassey-reminders)
+- [ ] Configure task queues (executive_assistant-workflows, executive_assistant-reminders)
 
-### Cassey Application
+### Executive Assistant Application
 - [ ] Create workflows table in PostgreSQL
 - [ ] Implement `WorkflowSpec`, `ExecutorSpec`, `LoopSpec` dataclasses
-- [ ] Create `cassey/workflows/temporal_workflows.py` with workflow definitions
-- [ ] Create `cassey/workflows/temporal_activities.py` with activities
-- [ ] Implement Temporal worker integration in Cassey app
+- [ ] Create `executive_assistant/workflows/temporal_workflows.py` with workflow definitions
+- [ ] Create `executive_assistant/workflows/temporal_activities.py` with activities
+- [ ] Implement Temporal worker integration in Executive Assistant app
 - [ ] Create workflow tools (create_workflow, list_workflows, cancel_workflow, etc.)
 - [ ] Implement `save_workflow_to_db`, `get_workflows_by_user` storage functions
 - [ ] Add tool manifest snapshotting (hash + JSON)
@@ -1335,7 +1335,7 @@ Result:
 | **Tracking** | Temporal Web UI provides full observability |
 | **Error handling** | Temporal RetryPolicy with configurable backoff |
 | **Scheduling** | Temporal durable timers + cron for recurring workflows |
-| **Infrastructure** | VM 1: Cassey + Worker → VM 2: Temporal Server |
+| **Infrastructure** | VM 1: Executive Assistant + Worker → VM 2: Temporal Server |
 
 **Key benefit:** Temporal provides durable execution, automatic retries, built-in scheduling, and full observability out of the box. You focus on defining executor chains; Temporal handles the rest.
 
@@ -1386,7 +1386,7 @@ TEMPORAL_PORT=7233
 
 **Deliverables**:
 - Temporal worker process
-- `CasseyWorkflow` class with `run()` method
+- `Executive AssistantWorkflow` class with `run()` method
 - `run_executor` activity
 - Connection handling + reconnection logic
 
@@ -1396,7 +1396,7 @@ TEMPORAL_PORT=7233
 - Workflow pause/resume
 
 **Deliverables**:
-- `CasseyRecurringWorkflow` class
+- `Executive AssistantRecurringWorkflow` class
 - Cron scheduling integration
 - Pause/resume state management
 
@@ -1455,7 +1455,7 @@ Add to `.env`:
 TEMPORAL_HOST=temporal.gongchatea.com.au
 TEMPORAL_PORT=7233
 TEMPORAL_NAMESPACE=default  # Usually 'default' for self-hosted
-TEMPORAL_TASK_QUEUE=cassey-workflows
+TEMPORAL_TASK_QUEUE=executive_assistant-workflows
 TEMPORAL_CLIENT_TIMEOUT=30  # Seconds
 TEMPORAL_CONNECTION_RETRY=3
 ```
@@ -1466,7 +1466,7 @@ TEMPORAL_CONNECTION_RETRY=3
 
 ### gRPC vs REST: What's Required?
 
-| Operation | gRPC | REST | Required For Cassey |
+| Operation | gRPC | REST | Required For Executive Assistant |
 |-----------|------|------|---------------------|
 | **Start workflow** | ✅ | ✅ | gRPC recommended |
 | **Worker poll for tasks** | ✅ | ❌ | **gRPC required** |
@@ -1490,7 +1490,7 @@ TEMPORAL_CONNECTION_RETRY=3
 | **Worker long-polling** | ✅ Efficient (keep connection open) | ❌ Requires repeated polling |
 | **Workflow heartbeating** | ✅ Built-in | ❌ Requires custom implementation |
 
-**For Cassey**: The worker needs to:
+**For Executive Assistant**: The worker needs to:
 1. Long-poll for workflow/activity tasks (requires persistent connection)
 2. Send heartbeats during long-running activities
 3. Receive signals mid-execution
@@ -1501,13 +1501,13 @@ These require gRPC's bidirectional streaming. REST would need constant polling w
 
 #### Phase 1: Configuration (✅ Complete)
 
-**`src/cassey/config/settings.py`**:
+**`src/executive_assistant/config/settings.py`**:
 ```python
 # Temporal Configuration
 TEMPORAL_HOST: str | None = None
 TEMPORAL_PORT: int = 7233
 TEMPORAL_NAMESPACE: str = "default"
-TEMPORAL_TASK_QUEUE: str = "cassey-workflows"
+TEMPORAL_TASK_QUEUE: str = "executive_assistant-workflows"
 TEMPORAL_CLIENT_TIMEOUT: int = 30
 TEMPORAL_CONNECTION_RETRY: int = 3
 
@@ -1526,12 +1526,12 @@ def temporal_target(self) -> str:
 
 #### Phase 2: Client Factory (Next)
 
-**`src/cassey/workflows/temporal_client.py`** (to be created):
+**`src/executive_assistant/workflows/temporal_client.py`** (to be created):
 ```python
 """Temporal client factory and connection management."""
 
 from temporalio.client import Client, ConnectError
-from cassey.config import settings
+from executive_assistant.config import settings
 
 _temporal_client: Client | None = None
 
@@ -1570,12 +1570,12 @@ async def close_temporal_client():
 
 #### Phase 3: Health Check (Next)
 
-**`src/cassey/workflows/health.py`** (to be created):
+**`src/executive_assistant/workflows/health.py`** (to be created):
 ```python
 """Temporal health check utilities."""
 
 import asyncio
-from cassey.config import settings
+from executive_assistant.config import settings
 
 
 async def check_temporal_connection() -> dict:
@@ -1693,7 +1693,7 @@ uv add temporalio[dev]
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        Cassey Application                         │
+│                        Executive Assistant Application                         │
 │                                                                         │
 │  ┌──────────────────────────────────────────────────────────────┐ │
 │  │  Temporal Client (singleton)                                  │ │
@@ -1721,9 +1721,9 @@ uv add temporalio[dev]
 ### Next Steps
 
 1. ✅ **Install temporalio**: `uv add temporalio` (completed: v1.21.1)
-2. ✅ **Create client factory**: `src/cassey/workflows/temporal_client.py` (completed)
-3. ✅ **Create health check**: `src/cassey/workflows/health.py` (completed)
-4. ⏳ **Implement workflow definitions**: `CasseyWorkflow`, `CasseyRecurringWorkflow`
+2. ✅ **Create client factory**: `src/executive_assistant/workflows/temporal_client.py` (completed)
+3. ✅ **Create health check**: `src/executive_assistant/workflows/health.py` (completed)
+4. ⏳ **Implement workflow definitions**: `Executive AssistantWorkflow`, `Executive AssistantRecurringWorkflow`
 5. ⏳ **Implement worker**: Process that polls for and executes activities
 
 ---
@@ -1738,21 +1738,21 @@ uv add temporalio  # Installed v1.21.1
 ```
 
 #### 2. Client Factory Module
-**File**: `src/cassey/workflows/temporal_client.py`
+**File**: `src/executive_assistant/workflows/temporal_client.py`
 
 | Function | Description |
 |----------|-------------|
 | `get_temporal_client()` | Singleton client connection with async lock |
 | `close_temporal_client()` | Cleanup connection |
 | `reset_temporal_client()` | For testing only |
-| `run_worker()` | Run Temporal worker for Cassey workflows |
+| `run_worker()` | Run Temporal worker for Executive Assistant workflows |
 | `create_workflow()` | Start a Temporal workflow execution |
 | `describe_workflow()` | Get workflow execution description |
 | `cancel_workflow()` | Cancel a running workflow |
 | `query_workflow()` | Query a workflow with a query method |
 
 #### 3. Health Check Module
-**File**: `src/cassey/workflows/health.py`
+**File**: `src/executive_assistant/workflows/health.py`
 
 | Function | Description |
 |----------|-------------|
@@ -1763,7 +1763,7 @@ uv add temporalio  # Installed v1.21.1
 
 #### 4. Package Structure
 ```
-src/cassey/workflows/
+src/executive_assistant/workflows/
 ├── __init__.py       # Package exports
 ├── temporal_client.py # Client factory + worker functions
 └── health.py         # Health check utilities
@@ -1819,8 +1819,8 @@ Temporal Health: HEALTHY
 
 | Task | Status | Description |
 |------|--------|-------------|
-| `CasseyWorkflow` class | ⏳ Pending | Workflow definition with executor chain |
-| `CasseyRecurringWorkflow` class | ⏳ Pending | Cron-based recurring workflow |
+| `Executive AssistantWorkflow` class | ⏳ Pending | Workflow definition with executor chain |
+| `Executive AssistantRecurringWorkflow` class | ⏳ Pending | Cron-based recurring workflow |
 | `run_executor` activity | ⏳ Pending | Activity that calls `create_agent()` |
 | `send_notification` activity | ⏳ Pending | Activity for notifications |
 | `WorkflowSpec` models | ⏳ Pending | Pydantic models for workflow/executor specs |
@@ -2155,7 +2155,7 @@ async def list_workflow_runs(
 
 ### Implementation Module
 
-**File**: `src/cassey/workflows/observability.py`
+**File**: `src/executive_assistant/workflows/observability.py`
 
 ```python
 """Workflow observability and logging."""
@@ -2166,7 +2166,7 @@ from typing import Any
 from pathlib import Path
 import json
 
-from cassey.config import settings
+from executive_assistant.config import settings
 
 
 @dataclass
@@ -2389,8 +2389,8 @@ def format_trace_summary(trace: WorkflowTrace) -> str:
 | `WorkflowSpec` models | ⏳ Pending | Pydantic models for workflow/executor specs |
 | `Observability` module | ⏳ Pending | Trace classes + logging functions |
 | Database schema | ⏳ Pending | `workflows` + observability tables |
-| `CasseyWorkflow` class | ⏳ Pending | Workflow definition with executor chain + tracing |
-| `CasseyRecurringWorkflow` class | ⏳ Pending | Cron-based recurring workflow |
+| `Executive AssistantWorkflow` class | ⏳ Pending | Workflow definition with executor chain + tracing |
+| `Executive AssistantRecurringWorkflow` class | ⏳ Pending | Cron-based recurring workflow |
 | `run_executor` activity | ⏳ Pending | Activity that calls `create_agent()` + records trace |
 | `send_notification` activity | ⏳ Pending | Activity for notifications |
 | Tool integration | ⏳ Pending | `create_workflow`, `get_workflow_trace` tools |

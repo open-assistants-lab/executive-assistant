@@ -2,7 +2,7 @@
 
 ## Overview
 
-Cassey can now be debugged and visualized using [LangGraph Studio](https://github.com/langchain-ai/langgraph-studio), a visual debugging tool for LangGraph applications.
+Executive Assistant can now be debugged and visualized using [LangGraph Studio](https://github.com/langchain-ai/langgraph-studio), a visual debugging tool for LangGraph applications.
 
 ## What Was Implemented
 
@@ -11,31 +11,31 @@ Cassey can now be debugged and visualized using [LangGraph Studio](https://githu
 | File | Purpose |
 |------|---------|
 | `langgraph.json` | LangGraph Studio configuration file |
-| `src/cassey/dev_server.py` | Dev server entry point for Studio |
+| `src/executive_assistant/dev_server.py` | Dev server entry point for Studio |
 
 ### Modified Files
 
 | File | Changes |
 |------|---------|
 | `pyproject.toml` | Added LangGraph dev dependencies |
-| `src/cassey/dev_server.py` | Fixed `AGENT_SYSTEM_PROMPT` import error |
+| `src/executive_assistant/dev_server.py` | Fixed `AGENT_SYSTEM_PROMPT` import error |
 
 ## Changes Detail
 
-### `src/cassey/dev_server.py` Fix
+### `src/executive_assistant/dev_server.py` Fix
 
 **Problem**: Code referenced `settings.AGENT_SYSTEM_PROMPT` which doesn't exist in Settings class.
 
-**Solution**: Changed to use `DEFAULT_SYSTEM_PROMPT` from `cassey.config.constants`.
+**Solution**: Changed to use `DEFAULT_SYSTEM_PROMPT` from `executive_assistant.config.constants`.
 
 ```python
 # Before:
-from cassey.config import create_model, settings
+from executive_assistant.config import create_model, settings
 system_prompt=settings.AGENT_SYSTEM_PROMPT,
 
 # After:
-from cassey.config import create_model
-from cassey.config.constants import DEFAULT_SYSTEM_PROMPT
+from executive_assistant.config import create_model
+from executive_assistant.config.constants import DEFAULT_SYSTEM_PROMPT
 system_prompt=DEFAULT_SYSTEM_PROMPT,
 ```
 
@@ -48,7 +48,7 @@ system_prompt=DEFAULT_SYSTEM_PROMPT,
 langgraph dev
 ```
 
-Note: When you restart Cassey for testing, also restart `langgraph dev` so Studio reflects the latest graph.
+Note: When you restart Executive Assistant for testing, also restart `langgraph dev` so Studio reflects the latest graph.
 
 ### Runtime Selection
 
@@ -85,23 +85,23 @@ Note: These are currently listed as project dependencies (not dev-only).
 
 ## Impact Assessment
 
-**Does this affect Cassey's regular operation?**
+**Does this affect Executive Assistant's regular operation?**
 
 **No.** These changes only affect the LangGraph Studio dev server.
 
-- The main Cassey application (Telegram bot, HTTP server) does NOT use `dev_server.py`
-- Production code uses different entry points in `src/cassey/main.py`
+- The main Executive Assistant application (Telegram bot, HTTP server) does NOT use `dev_server.py`
+- Production code uses different entry points in `src/executive_assistant/main.py`
 - `dev_server.py` is ONLY used when running `langgraph dev` for local debugging
 
-## Cassey Runtime Entrypoint
+## Executive Assistant Runtime Entrypoint
 
-For normal operation (Telegram/HTTP/etc), the console script `cassey` points to:
+For normal operation (Telegram/HTTP/etc), the console script `executive_assistant` points to:
 
-- `src/cassey/main.py:run_main`
+- `src/executive_assistant/main.py:run_main`
 
-This is the central entrypoint that instantiates channels based on `CASSEY_CHANNELS`
+This is the central entrypoint that instantiates channels based on `EXECUTIVE_ASSISTANT_CHANNELS`
 (e.g., `telegram`, `http`, and future channels like email). It is not tied to Telegram;
-Telegram is just the default if `CASSEY_CHANNELS` is not set.
+Telegram is just the default if `EXECUTIVE_ASSISTANT_CHANNELS` is not set.
 
 ## Configuration
 
@@ -111,9 +111,9 @@ Telegram is just the default if `CASSEY_CHANNELS` is not set.
 {
   "dependencies": ["."],
   "graphs": {
-    "cassey": {
-      "path": "src.cassey.dev_server:get_graph",
-      "title": "Cassey AI Agent",
+    "executive_assistant": {
+      "path": "src.executive_assistant.dev_server:get_graph",
+      "title": "Executive Assistant AI Agent",
       "description": "Multi-channel ReAct agent with memory, KB, and tools"
     }
   },

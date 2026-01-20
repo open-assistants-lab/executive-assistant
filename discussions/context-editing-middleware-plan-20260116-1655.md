@@ -19,8 +19,8 @@ Add a conservative ContextEditingMiddleware layer that trims large tool outputs 
 3. Keep summarization as primary context control; context editing is a safety net.
 
 ## Integration Points
-- `src/cassey/agent/langchain_agent.py`: extend `_build_middleware`.
-- `src/cassey/config/settings.py`: add settings and defaults.
+- `src/executive_assistant/agent/langchain_agent.py`: extend `_build_middleware`.
+- `src/executive_assistant/config/settings.py`: add settings and defaults.
 - `.env.example`: document new settings.
 
 ## Tests

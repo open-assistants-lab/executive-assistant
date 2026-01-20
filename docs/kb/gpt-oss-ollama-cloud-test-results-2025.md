@@ -92,7 +92,7 @@ Ollama CLI/API likely reuses connections efficiently
 
 ---
 
-## Recommendations for Cassey
+## Recommendations for Executive Assistant
 
 ### ✅ **Ollama Cloud is Excellent Choice**
 
@@ -152,7 +152,7 @@ Compare response quality between:
 
 ### 3. **Production Testing**
 
-Test with real Cassey workflows:
+Test with real Executive Assistant workflows:
 - Conversational interactions
 - Database operations
 - Web search
@@ -168,7 +168,7 @@ Test with real Cassey workflows:
 - ✅ **Consistent** performance (minimal cold/warm difference)
 - ✅ **Good quality** (OpenAI open weights)
 
-**For Cassey, this is an excellent option** that provides near-instant responses without the cold start issues we saw with OpenAI's direct API.
+**For Executive Assistant, this is an excellent option** that provides near-instant responses without the cold start issues we saw with OpenAI's direct API.
 
 ---
 

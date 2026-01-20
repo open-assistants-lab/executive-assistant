@@ -14,12 +14,12 @@ Enable real-time status updates for the HTTP channel using Server-Sent Events (S
 
 ## Current State
 
-### HTTP Channel (`src/cassey/channels/http.py`)
+### HTTP Channel (`src/executive_assistant/channels/http.py`)
 - ✅ SSE streaming for **AI response chunks** (lines 163-185)
 - ❌ Status updates are **logged only** (line 238)
 - ❌ No integration between middleware status and SSE stream
 
-### Status Middleware (`src/cassey/agent/status_middleware.py`)
+### Status Middleware (`src/executive_assistant/agent/status_middleware.py`)
 - ✅ Calls `channel.send_status()` for each status update
 - ✅ HTTP's `send_status()` exists but only logs
 
@@ -86,7 +86,7 @@ Create a thread-local status queue that the middleware can push to, and the SSE 
 
 ### Phase 1: StatusQueue Infrastructure
 
-#### File: `src/cassey/channels/status_queue.py`
+#### File: `src/executive_assistant/channels/status_queue.py`
 
 ```python
 """Thread-local status queue for HTTP channel status updates."""
@@ -153,11 +153,11 @@ def clear_status_queue() -> None:
 
 ### Phase 2: Modify HttpChannel
 
-#### Update `src/cassey/channels/http.py`
+#### Update `src/executive_assistant/channels/http.py`
 
 ```python
 # Add to imports
-from cassey.channels.status_queue import StatusQueue, set_status_queue, clear_status_queue
+from executive_assistant.channels.status_queue import StatusQueue, set_status_queue, clear_status_queue
 
 class HttpChannel(BaseChannel):
     # ... existing code ...
@@ -259,7 +259,7 @@ class HttpChannel(BaseChannel):
 
 ### Phase 3: Update StatusUpdateMiddleware
 
-#### Modify `src/cassey/agent/status_middleware.py`
+#### Modify `src/executive_assistant/agent/status_middleware.py`
 
 ```python
 async def _send_status(self, message: str, conversation_id: str | None = None) -> None:
@@ -272,7 +272,7 @@ async def _send_status(self, message: str, conversation_id: str | None = None) -
         return
 
     # Check if we're in an HTTP context with status queue
-    from cassey.channels.status_queue import get_status_queue
+    from executive_assistant.channels.status_queue import get_status_queue
     status_queue = get_status_queue()
 
     if status_queue:
@@ -413,7 +413,7 @@ middleware:
     http_sse_buffer_size: 100  # Max status events in queue
 ```
 
-### Add to `src/cassey/config/settings.py`
+### Add to `src/executive_assistant/config/settings.py`
 
 ```python
 MW_HTTP_SSE_ENABLED: bool = _yaml_field("MIDDLEWARE_STATUS_UPDATES_HTTP_SSE_ENABLED", True)

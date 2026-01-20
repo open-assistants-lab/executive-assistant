@@ -61,19 +61,19 @@ def chunk_document(content: str, filename: str, file_type: str) -> list[Chunk]:
 ## Files to Create/Modify
 
 ### New Files
-1. `src/cassey/storage/duckdb_storage.py` - DuckDB storage layer
-2. `src/cassey/storage/chunking.py` - Document chunking utilities
+1. `src/executive_assistant/storage/duckdb_storage.py` - DuckDB storage layer
+2. `src/executive_assistant/storage/chunking.py` - Document chunking utilities
 3. `tests/test_duckdb_kb.py` - DuckDB KB tests
 
 ### Modified Files
-1. `src/cassey/storage/kb_tools.py` - Update to use DuckDB
-2. `src/cassey/storage/__init__.py` - Update imports
-3. `src/cassey/config/settings.py` - Replace SeekDB settings with DuckDB
+1. `src/executive_assistant/storage/kb_tools.py` - Update to use DuckDB
+2. `src/executive_assistant/storage/__init__.py` - Update imports
+3. `src/executive_assistant/config/settings.py` - Replace SeekDB settings with DuckDB
 4. `pyproject.toml` - Replace `pyseekdb` with `duckdb>=1.1.0`
 5. `.env.example` - Update KB environment variables
 
 ### Files to Delete
-1. `src/cassey/storage/seekdb_storage.py` - Remove after migration
+1. `src/executive_assistant/storage/seekdb_storage.py` - Remove after migration
 2. `tests/test_kb.py` - Replace with DuckDB tests
 
 ## Implementation Steps

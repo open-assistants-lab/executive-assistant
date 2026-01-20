@@ -21,8 +21,8 @@ Use LangChain's `ContextEditingMiddleware` with `ClearToolUsesEdit` to:
 
 | File | Change |
 |------|--------|
-| `src/cassey/agent/langchain_agent.py` | Import and add ContextEditingMiddleware |
-| `src/cassey/config/settings.py` | Add MW_CONTEXT_* settings |
+| `src/executive_assistant/agent/langchain_agent.py` | Import and add ContextEditingMiddleware |
+| `src/executive_assistant/config/settings.py` | Add MW_CONTEXT_* settings |
 | `.env.example` | Document new settings |
 | `tests/test_langchain_agent.py` | Add middleware test |
 
@@ -100,7 +100,7 @@ def test_context_editing_middleware_when_enabled():
 
 ## Verification
 
-1. Start Cassey with `MW_CONTEXT_EDITING_ENABLED=true`
+1. Start Executive Assistant with `MW_CONTEXT_EDITING_ENABLED=true`
 2. Run a long conversation that generates 100K+ tokens of tool output
 3. Verify older tool outputs are trimmed (check logs or state inspection)
 4. Confirm conversation still functions correctly after trimming
@@ -116,11 +116,11 @@ def test_context_editing_middleware_when_enabled():
 | Performance impact | Minimal - middleware only evaluates at trigger points |
 
 ## Implementation (Completed)
-- `src/cassey/config/settings.py`: added `MW_CONTEXT_EDITING_ENABLED`, `MW_CONTEXT_EDITING_TRIGGER_TOKENS`, `MW_CONTEXT_EDITING_KEEP_TOOL_USES`.
+- `src/executive_assistant/config/settings.py`: added `MW_CONTEXT_EDITING_ENABLED`, `MW_CONTEXT_EDITING_TRIGGER_TOKENS`, `MW_CONTEXT_EDITING_KEEP_TOOL_USES`.
 - `.env.example`: documented the new context-editing settings.
-- `src/cassey/agent/langchain_agent.py`: added `ContextEditingMiddleware` with `ClearToolUsesEdit`, gated by `MW_CONTEXT_EDITING_ENABLED`.
+- `src/executive_assistant/agent/langchain_agent.py`: added `ContextEditingMiddleware` with `ClearToolUsesEdit`, gated by `MW_CONTEXT_EDITING_ENABLED`.
 - `tests/test_langchain_agent_unit.py`: added coverage for enabling and disabling context editing middleware.
-- `MW_CONTEXT_EDITING_KEEP_TOOL_USES` default updated to 10 in `src/cassey/config/settings.py` and `.env.example`.
+- `MW_CONTEXT_EDITING_KEEP_TOOL_USES` default updated to 10 in `src/executive_assistant/config/settings.py` and `.env.example`.
 
 ## Test Results
 - `uv run pytest tests/test_langchain_agent_unit.py -k context_editing -v`

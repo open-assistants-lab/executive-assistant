@@ -520,7 +520,7 @@ curl http://localhost:11434/api/chat \
 
 ---
 
-## Recommended Configuration for Cassey
+## Recommended Configuration for Executive Assistant
 
 ### Primary Model: **MiniMax M2:cloud**
 **Why:** #1 ranked open-source model globally, excellent for coding and agentic workflows

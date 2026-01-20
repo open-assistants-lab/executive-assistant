@@ -1,7 +1,7 @@
 # LLM API Cold Start Optimization Guide (2025)
 
 **Last Updated:** 2025-01-19
-**Purpose:** Optimize Cassey's LLM API calls to minimize cold start latency
+**Purpose:** Optimize Executive Assistant's LLM API calls to minimize cold start latency
 
 ---
 
@@ -70,7 +70,7 @@ OpenAI's announcement that "GPT-5.1 Instant is warmer by default" refers specifi
 
 ---
 
-## Optimization Strategies for Cassey
+## Optimization Strategies for Executive Assistant
 
 ### 1. **Periodic Warm-Up Requests** ⭐ RECOMMENDED
 
@@ -137,11 +137,11 @@ class LLMWarmupService:
         return elapsed < self.warmup_interval * 2  # Warm if within 2× interval
 ```
 
-**Usage in Cassey:**
+**Usage in Executive Assistant:**
 
 ```python
-# In src/cassey/main.py or similar
-from src.cassey.llm_service import LLMWarmupService
+# In src/executive_assistant/main.py or similar
+from src.executive_assistant.llm_service import LLMWarmupService
 
 async def startup():
     """Initialize warm-up service on startup."""
@@ -482,12 +482,12 @@ If using Azure OpenAI, use Provisioned Throughput SKU for dedicated resources.
 
 ---
 
-## Recommended Configuration for Cassey
+## Recommended Configuration for Executive Assistant
 
 ### Priority 1: Connection Pooling + Warm-Up
 
 ```python
-# In src/cassey/config/llm_factory.py or similar
+# In src/executive_assistant/config/llm_factory.py or similar
 
 import httpx
 from openai import AsyncOpenAI

@@ -1,7 +1,7 @@
 # Plan: Thread System Metadata (`meta.json`)
 
 ## Goal
-Track per-thread system inventory (files/KB/DB/reminders) in a lightweight, local file so Cassey can route requests without guessing.
+Track per-thread system inventory (files/KB/DB/reminders) in a lightweight, local file so Executive Assistant can route requests without guessing.
 
 **Location**: `data/users/{thread_id}/meta.json`
 
@@ -41,11 +41,11 @@ Track per-thread system inventory (files/KB/DB/reminders) in a lightweight, loca
 - **Reminders**: `reminder_set`, `reminder_cancel`, `reminder_edit`, `reminder_list` refresh reminder count.
 
 ## Implementation Steps
-1. Add `src/cassey/storage/meta_registry.py` for load/save/update helpers and atomic writes.
-2. Wire file operations in `src/cassey/storage/file_sandbox.py` to update meta.
-3. Wire KB operations in `src/cassey/storage/kb_tools.py` to update meta.
-4. Wire DB operations in `src/cassey/storage/db_tools.py` to update meta.
-5. Wire reminder operations in `src/cassey/tools/reminder_tools.py` to update meta counts.
+1. Add `src/executive_assistant/storage/meta_registry.py` for load/save/update helpers and atomic writes.
+2. Wire file operations in `src/executive_assistant/storage/file_sandbox.py` to update meta.
+3. Wire KB operations in `src/executive_assistant/storage/kb_tools.py` to update meta.
+4. Wire DB operations in `src/executive_assistant/storage/db_tools.py` to update meta.
+5. Wire reminder operations in `src/executive_assistant/tools/reminder_tools.py` to update meta counts.
 6. Add `refresh_meta(thread_id)` utility to rebuild the inventory by scanning files/KB/DB/reminders.
 7. Add `/meta` command + `get_meta` tool for viewing inventory (supports `refresh` and `json`).
 8. Keep updates best-effort (log/ignore errors).

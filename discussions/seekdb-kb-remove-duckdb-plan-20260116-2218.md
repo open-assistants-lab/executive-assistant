@@ -41,14 +41,14 @@ data/users/{thread_id}/kb/
 ## Implementation Steps
 
 ### 1. Clean up DuckDB KB code
-- Remove `src/cassey/storage/kb_storage.py` and the DuckDB-specific helper functions.
-- Delete `src/cassey/storage/kb_tools.py` entirely—the tool surface will be reimplemented to talk to SeekDB.
+- Remove `src/executive_assistant/storage/kb_storage.py` and the DuckDB-specific helper functions.
+- Delete `src/executive_assistant/storage/kb_tools.py` entirely—the tool surface will be reimplemented to talk to SeekDB.
 - Remove KB-related settings (`KB_ROOT`, `get_thread_kb_path`, `KB_BACKEND`, any `duckdb` dependencies in `pyproject.toml`).
 - **Keep `rapidfuzz>=3.6.0`** - still used by file search (`grep_files`), not KB.
 - Drop any DuckDB FTS references from docs (README, prompts, discussions, TODO).
 
 ### 2. Add SeekDB storage layer
-- Create `src/cassey/storage/seekdb_storage.py`.
+- Create `src/executive_assistant/storage/seekdb_storage.py`.
 - Provide:
   ```python
   from functools import lru_cache
@@ -82,7 +82,7 @@ data/users/{thread_id}/kb/
 - Expose metadata recording (via `meta_registry`) for collection creation/deletion.
 
 ### 3. Rebuild KB tools with "collection" terminology
-- Create `src/cassey/storage/kb_tools.py` that implements the tools using SeekDB's collection concept.
+- Create `src/executive_assistant/storage/kb_tools.py` that implements the tools using SeekDB's collection concept.
 - **Tool names (using "collection" terminology):**
 
   | Tool name | SeekDB behavior |
@@ -153,7 +153,7 @@ data/users/{thread_id}/kb/
 - Map output format to be user-friendly (no need to match DuckDB exactly).
 
 ### 4. Settings + dependencies
-- Add SeekDB-specific settings to `src/cassey/config/settings.py`:
+- Add SeekDB-specific settings to `src/executive_assistant/config/settings.py`:
   ```python
   # SeekDB KB (embedded mode, per-thread)
   SEEKDB_DATA_ROOT: Path | None = None  # Optional override, defaults to data/users/
@@ -170,10 +170,10 @@ data/users/{thread_id}/kb/
 **Note:** RapidFuzz is kept for file search fuzzing (`grep_files`), not used by KB.
 
 ### 5. Tool registry + tests
-- Point `src/cassey/tools/registry.py` KB section to the new SeekDB tool module:
+- Point `src/executive_assistant/tools/registry.py` KB section to the new SeekDB tool module:
   ```python
   async def get_kb_tools() -> list[BaseTool]:
-      from cassey.storage.seekdb_tools import get_kb_tools as _get
+      from executive_assistant.storage.seekdb_tools import get_kb_tools as _get
       return await _get()
   ```
 - Write unit tests covering SeekDB tool behavior (create/add/search/delete/list).
@@ -272,7 +272,7 @@ results = collection.hybrid_search(
 
 ## Peer Review & Fixes (2025-01-16)
 
-**Context:** Cassey moving to Docker for all environments (dev + prod), so Linux-only embedded mode is viable.
+**Context:** Executive Assistant moving to Docker for all environments (dev + prod), so Linux-only embedded mode is viable.
 
 ### Issues Fixed
 

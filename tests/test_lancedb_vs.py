@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from cassey.storage.chunking import (
+from executive_assistant.storage.chunking import (
     Chunk,
     chunk_by_paragraph,
     chunk_by_size,
@@ -78,7 +78,7 @@ Third paragraph."""
 
     def test_chunk_preserves_metadata(self):
         """Test that chunking preserves file metadata."""
-        from cassey.storage.chunking import chunk_by_paragraph
+        from executive_assistant.storage.chunking import chunk_by_paragraph
 
         content = "Paragraph 1\n\nParagraph 2"
         chunks = chunk_by_paragraph(content, filename="test.txt", source="test")
@@ -117,7 +117,7 @@ class TestLanceDBCollection:
     @pytest.fixture
     def collection(self, temp_vs_root):
         """Create a LanceDBCollection for testing."""
-        from cassey.storage.lancedb_storage import LanceDBCollection
+        from executive_assistant.storage.lancedb_storage import LanceDBCollection
         import lancedb
         import pyarrow as pa
 
@@ -169,7 +169,7 @@ class TestLanceDBCollection:
     def test_add_documents(self, collection):
         """Test adding documents to collection."""
         # Mock get_embeddings to avoid real embedding generation
-        with patch("cassey.storage.chunking.get_embeddings") as mock_embed:
+        with patch("executive_assistant.storage.chunking.get_embeddings") as mock_embed:
             # Return fake 384-dim embeddings
             mock_embed.return_value = [[0.0] * 384, [0.0] * 384]
 
@@ -186,7 +186,7 @@ class TestLanceDBCollection:
     def test_search(self, collection):
         """Test searching collection."""
         # Add documents first
-        with patch("cassey.storage.chunking.get_embeddings") as mock_embed:
+        with patch("executive_assistant.storage.chunking.get_embeddings") as mock_embed:
             mock_embed.return_value = [[0.0] * 384]
             mock_embed.side_effect = [
                 [[0.0] * 384, [0.0] * 384],  # For add_documents
@@ -219,19 +219,19 @@ class TestVSStorage:
 
     def test_get_vs_storage_dir(self, temp_vs_root):
         """Test getting VS storage directory."""
-        from cassey.storage.lancedb_storage import get_vs_storage_dir
+        from executive_assistant.storage.lancedb_storage import get_vs_storage_dir
 
-        with patch("cassey.storage.lancedb_storage.settings.GROUPS_ROOT", temp_vs_root):
+        with patch("executive_assistant.storage.lancedb_storage.settings.GROUPS_ROOT", temp_vs_root):
             path = get_vs_storage_dir(storage_id="test_group")
             assert "test_group" in str(path)
             assert "vs" in str(path)
 
     def test_get_vs_storage_dir_from_context(self, temp_vs_root):
         """Test getting VS storage dir from context."""
-        from cassey.storage.lancedb_storage import get_vs_storage_dir, _get_storage_id
-        from cassey.storage.group_storage import set_group_id
+        from executive_assistant.storage.lancedb_storage import get_vs_storage_dir, _get_storage_id
+        from executive_assistant.storage.group_storage import set_group_id
 
-        with patch("cassey.storage.lancedb_storage.settings.GROUPS_ROOT", temp_vs_root):
+        with patch("executive_assistant.storage.lancedb_storage.settings.GROUPS_ROOT", temp_vs_root):
             set_group_id("test_group")
             path = get_vs_storage_dir()
             assert "test_group" in str(path)
@@ -249,7 +249,7 @@ class TestVSIntegration:
     @pytest.mark.asyncio
     async def test_create_lancedb_collection(self, db_conn, clean_test_data):
         """Test creating and using LanceDB collection."""
-        from cassey.storage.lancedb_storage import create_lancedb_collection
+        from executive_assistant.storage.lancedb_storage import create_lancedb_collection
 
         # Create a test collection
         collection = create_lancedb_collection(
@@ -258,7 +258,7 @@ class TestVSIntegration:
         )
 
         # Add documents with mocked embeddings
-        with patch("cassey.storage.chunking.get_embeddings") as mock_embed:
+        with patch("executive_assistant.storage.chunking.get_embeddings") as mock_embed:
             mock_embed.return_value = [[0.0] * 384, [0.0] * 384]
 
             docs = [
@@ -270,13 +270,13 @@ class TestVSIntegration:
             assert count >= 2
 
         # Clean up
-        from cassey.storage.lancedb_storage import drop_lancedb_collection
+        from executive_assistant.storage.lancedb_storage import drop_lancedb_collection
         drop_lancedb_collection(storage_id="test_group", collection_name="test_collection")
 
     @pytest.mark.asyncio
     async def test_list_lancedb_collections(self, db_conn, clean_test_data):
         """Test listing collections."""
-        from cassey.storage.lancedb_storage import list_lancedb_collections
+        from executive_assistant.storage.lancedb_storage import list_lancedb_collections
 
         # Should return empty list or available collections
         collections = list_lancedb_collections(storage_id="test_group")
@@ -285,7 +285,7 @@ class TestVSIntegration:
     @pytest.mark.asyncio
     async def test_drop_lancedb_collections(self, db_conn, clean_test_data):
         """Test dropping collections."""
-        from cassey.storage.lancedb_storage import drop_all_lancedb_collections
+        from executive_assistant.storage.lancedb_storage import drop_all_lancedb_collections
 
         # Should not raise
         count = drop_all_lancedb_collections(storage_id="test_group")
@@ -309,7 +309,7 @@ class TestSearchTypes:
     @pytest.fixture
     def populated_collection(self, temp_vs_root):
         """Create a collection with test data."""
-        from cassey.storage.lancedb_storage import LanceDBCollection
+        from executive_assistant.storage.lancedb_storage import LanceDBCollection
         import lancedb
         import pyarrow as pa
 
@@ -343,7 +343,7 @@ class TestSearchTypes:
         )
 
         # Add documents with mocked embeddings
-        with patch("cassey.storage.chunking.get_embeddings") as mock_embed:
+        with patch("executive_assistant.storage.chunking.get_embeddings") as mock_embed:
             # Return different embeddings for variety
             mock_embed.side_effect = [
                 [[0.1] * 384, [0.2] * 384],  # For add_documents
@@ -359,7 +359,7 @@ class TestSearchTypes:
 
     def test_vector_search(self, populated_collection):
         """Test vector-only search."""
-        with patch("cassey.storage.chunking.get_embeddings") as mock_embed:
+        with patch("executive_assistant.storage.chunking.get_embeddings") as mock_embed:
             mock_embed.return_value = [[0.3] * 384]
 
             results = populated_collection.search(
@@ -375,7 +375,7 @@ class TestSearchTypes:
         Note: LanceDB doesn't have native full-text search. The fulltext search
         type will fall back to vector search, which is the expected behavior.
         """
-        with patch("cassey.storage.chunking.get_embeddings") as mock_embed:
+        with patch("executive_assistant.storage.chunking.get_embeddings") as mock_embed:
             mock_embed.return_value = [[0.3] * 384]
 
             results = populated_collection.search(
@@ -387,7 +387,7 @@ class TestSearchTypes:
 
     def test_hybrid_search(self, populated_collection):
         """Test hybrid search (LanceDB falls back to vector)."""
-        with patch("cassey.storage.chunking.get_embeddings") as mock_embed:
+        with patch("executive_assistant.storage.chunking.get_embeddings") as mock_embed:
             mock_embed.return_value = [[0.3] * 384]
 
             results = populated_collection.search(
@@ -407,7 +407,7 @@ class TestErrorHandling:
 
     def test_search_empty_collection(self, tmp_path):
         """Test searching an empty collection."""
-        from cassey.storage.lancedb_storage import create_lancedb_collection
+        from executive_assistant.storage.lancedb_storage import create_lancedb_collection
 
         collection = create_lancedb_collection(
             storage_id="test_group",
@@ -421,7 +421,7 @@ class TestErrorHandling:
 
     def test_add_empty_documents(self, tmp_path):
         """Test adding empty document list."""
-        from cassey.storage.lancedb_storage import create_lancedb_collection
+        from executive_assistant.storage.lancedb_storage import create_lancedb_collection
 
         collection = create_lancedb_collection(
             storage_id="test_group",

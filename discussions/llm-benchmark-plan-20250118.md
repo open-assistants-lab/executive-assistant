@@ -36,7 +36,7 @@ llm:
     fast_model: gpt-5-nano-2025-08-07
 ```
 
-### LLM Factory (`src/cassey/config/llm_factory.py`)
+### LLM Factory (`src/executive_assistant/config/llm_factory.py`)
 
 **Supported Providers:**
 - OpenAI (GPT-4, GPT-5, O1)
@@ -53,7 +53,7 @@ llm:
 
 ## Benchmark Goals
 
-1. **Measure realistic latency** for actual Cassey workloads
+1. **Measure realistic latency** for actual Executive Assistant workloads
 2. **Compare providers/models** on speed, cost, quality
 3. **Identify bottlenecks** (model vs network vs code)
 4. **Make data-driven decisions** on which model to use
@@ -91,9 +91,9 @@ from datetime import datetime
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from cassey.config.llm_factory import LLMFactory
-from cassey.config.settings import settings
-from cassey.agent.prompts import get_system_prompt
+from executive_assistant.config.llm_factory import LLMFactory
+from executive_assistant.config.settings import settings
+from executive_assistant.agent.prompts import get_system_prompt
 
 
 @dataclass
@@ -113,7 +113,7 @@ class BenchmarkResult:
 
 @dataclass
 class Scenario:
-    """Test scenario based on real Cassey usage."""
+    """Test scenario based on real Executive Assistant usage."""
     name: str
     description: str
     system_prompt: str
@@ -424,9 +424,9 @@ if __name__ == "__main__":
 ### File: `scripts/benchmark_scenarios.py`
 
 ```python
-"""Realistic test scenarios based on actual Cassey usage."""
+"""Realistic test scenarios based on actual Executive Assistant usage."""
 
-from cassey.agent.prompts import get_system_prompt
+from executive_assistant.agent.prompts import get_system_prompt
 
 
 TELEGRAM_SYSTEM_PROMPT = get_system_prompt("telegram")
@@ -551,7 +551,7 @@ SCENARIOS = [
         complexity="medium",
         system_prompt=TELEGRAM_SYSTEM_PROMPT,
         user_message=(
-            "Read src/cassey/agent/status_middleware.py, "
+            "Read src/executive_assistant/agent/status_middleware.py, "
             "review the code for bugs and security issues, "
             "and suggest improvements with specific code examples."
         ),
@@ -567,7 +567,7 @@ SCENARIOS = [
         description="Actual production user message",
         complexity="medium",
         system_prompt=TELEGRAM_SYSTEM_PROMPT,
-        user_message="Track my time spent on Cassey development today. Create a table and log: 2h coding, 30min docs, 1h testing.",
+        user_message="Track my time spent on Executive Assistant development today. Create a table and log: 2h coding, 30min docs, 1h testing.",
         expected_tools=["create_db_table", "insert_db_table"],
     ),
 
@@ -675,7 +675,7 @@ mkdir -p scripts/benchmark_results
 
 ```bash
 # Quick test: Compare OpenAI models only
-cd /Users/eddy/Developer/Langgraph/cassey
+cd /Users/eddy/Developer/Langgraph/executive_assistant
 python scripts/llm_benchmark.py \
     --providers openai \
     --models gpt-4o gpt-4o-mini gpt-5-mini-2025-08-07 gpt-5-nano-2025-08-07 \
@@ -864,7 +864,7 @@ print(f"Direct API: {elapsed:.2f}s")
 #### ✅ Confirmed
 1. **GPT-4o Mini is 3-5x faster** than GPT-5 Mini
 2. **Memory retrieval is NOT the culprit** - adds only ~300ms on cold start, ~30ms after
-3. **Cassey stack overhead is minimal** - 120ms without memory, 240-316ms with memory
+3. **Executive Assistant stack overhead is minimal** - 120ms without memory, 240-316ms with memory
 4. **The LLM itself is the bottleneck** - 68-98% of total time
 
 #### ⚠️ Performance Issues
@@ -971,7 +971,7 @@ print(f"Direct API: {elapsed:.2f}s")
 
 **Discrepancy:**
 - Direct LLM benchmark: GPT-5 Mini = 2-4 seconds
-- Actual Cassey usage: GPT-5 Mini = ~20 seconds for "hello"
+- Actual Executive Assistant usage: GPT-5 Mini = ~20 seconds for "hello"
 - **Overhead: ~15-18 seconds unaccounted for**
 
 ### New Test: Full Stack Instrumentation

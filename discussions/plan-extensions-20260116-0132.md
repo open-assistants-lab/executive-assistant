@@ -20,7 +20,7 @@
   - HTTP client for Firecrawl (e.g., `httpx`) **if** not using the official Firecrawl SDK
 
 ### 2) Replace Reminder Date Parser (dateutil -> dateparser)
-- File: `src/cassey/tools/reminder_tools.py`
+- File: `src/executive_assistant/tools/reminder_tools.py`
 - Replace `_parse_time_expression` logic with `dateparser.parse` using settings:
   - `PREFER_DATES_FROM = "future"` (keeps reminders forward-looking)
   - `RELATIVE_BASE = datetime.now()`
@@ -29,7 +29,7 @@
 - Update help text in `set_reminder` docstring to mention dateparser-supported expressions.
 
 ### 3) Add RapidFuzz for KB Search
-- File: `src/cassey/storage/kb_tools.py`
+- File: `src/executive_assistant/storage/kb_tools.py`
 - Behavior change (no new tool required):
   - After BM25 returns **no results**, run a fuzzy fallback over candidate docs.
   - Use `rapidfuzz.process.extract` with `fuzz.token_set_ratio` (or `WRatio`).
@@ -38,35 +38,35 @@
 - If a `table_name` is provided and not found, return fuzzy table name suggestions.
 
 ### 4) Add RapidFuzz for File Search
-- File: `src/cassey/storage/file_sandbox.py`
+- File: `src/executive_assistant/storage/file_sandbox.py`
 - Add a new tool (verb-first), e.g. `find_files_fuzzy(query, directory="", recursive=True, limit=10, score_cutoff=70)`:
   - Collect file paths (relative to sandbox root).
   - Use RapidFuzz to rank closest matches by filename/path.
   - Return ranked list with scores.
-- Register the new tool in `src/cassey/tools/registry.py` so it becomes available to the agent.
+- Register the new tool in `src/executive_assistant/tools/registry.py` so it becomes available to the agent.
 
 ### 5) Pick and Integrate a Logging Library
 - Recommendation: **Loguru** (minimal config, readable output).
 - Add `loguru` dependency.
-- Create `src/cassey/logging.py`:
+- Create `src/executive_assistant/logging.py`:
   - Configure Loguru sink/format.
   - Bridge stdlib logging via an intercept handler so existing `logging.getLogger` calls still work.
-- Call `configure_logging()` early in `src/cassey/main.py`.
-- Optional: add `LOG_LEVEL` to `src/cassey/config/settings.py` and `.env.example`.
+- Call `configure_logging()` early in `src/executive_assistant/main.py`.
+- Optional: add `LOG_LEVEL` to `src/executive_assistant/config/settings.py` and `.env.example`.
 
 ### 6) Firecrawl API Integration
-- Add settings to `src/cassey/config/settings.py`:
+- Add settings to `src/executive_assistant/config/settings.py`:
   - `FIRECRAWL_API_KEY: str | None`
   - `FIRECRAWL_API_URL: str | None` (default to official base URL)
 - Add to `.env.example` and `README.md`.
-- Create `src/cassey/tools/firecrawl_tool.py` with tools aligned to official docs:
+- Create `src/executive_assistant/tools/firecrawl_tool.py` with tools aligned to official docs:
   - `firecrawl_scrape(url, format="markdown", ...)`
   - Optional `firecrawl_crawl(url, limit=..., ...)` if supported
 - Use the official Firecrawl Python SDK if recommended by docs; otherwise implement via `httpx`:
   - Build request with API key auth header
   - Handle response normalization (text/markdown)
   - Timeouts + error mapping
-- Register tools in `src/cassey/tools/registry.py` when API key is set.
+- Register tools in `src/executive_assistant/tools/registry.py` when API key is set.
 
 ## Risks / Mitigations
 - **Dateparser behavior changes**: Add a small set of regression checks (manual or lightweight tests) for existing reminder formats.

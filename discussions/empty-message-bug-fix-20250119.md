@@ -14,7 +14,7 @@
 
 ## Problem Summary
 
-Cassey was refusing to use tools and showing "Agent stopped early" warnings. Investigation revealed that **39 out of 65 messages (60%) in the database were empty assistant messages**, corrupting the conversation history.
+Executive Assistant was refusing to use tools and showing "Agent stopped early" warnings. Investigation revealed that **39 out of 65 messages (60%) in the database were empty assistant messages**, corrupting the conversation history.
 
 ## Symptoms
 
@@ -33,7 +33,7 @@ Cassey was refusing to use tools and showing "Agent stopped early" warnings. Inv
 
 ## Root Cause
 
-**Bug location:** `src/cassey/channels/base.py:361-368` (before fix)
+**Bug location:** `src/executive_assistant/channels/base.py:361-368` (before fix)
 
 The code was logging **all** messages extracted from events to the database, regardless of whether they had content:
 
@@ -164,7 +164,7 @@ middleware:
 
 ### Code Fix
 
-**File:** `src/cassey/channels/base.py:362-368`
+**File:** `src/executive_assistant/channels/base.py:362-368`
 
 **Change:** Add check to only log messages with content or tool_calls
 
@@ -221,9 +221,9 @@ Conversation: telegram:6282871705
 - Clean conversation history
 ```
 
-### Cassey Restart
+### Executive Assistant Restart
 ```bash
-$ uv run cassey
+$ uv run executive_assistant
 Using LLM provider: ollama
 Loaded 1 skills
 Loaded 66 tools
@@ -232,7 +232,7 @@ Agent runtime: langchain
 Application started
 ```
 
-**Status:** ✅ Cassey running successfully with fix applied
+**Status:** ✅ Executive Assistant running successfully with fix applied
 
 ## Prevention
 
@@ -273,21 +273,21 @@ This bug may have been contributing to other issues:
 - **19:10** - Root cause identified in base.py
 - **19:15** - Code fix implemented
 - **19:20** - Database cleanup completed (39 messages deleted)
-- **19:23** - Cassey restarted with fix
+- **19:23** - Executive Assistant restarted with fix
 - **19:25** - Documentation completed
 - **19:35** - Issue persists: even "hi" not working, 0 messages extracted
 - **19:44** - Second root cause found: model name mismatch
   - config.yaml specified `gpt-oss:20b`
   - ollama only has `gpt-oss:20b-cloud`
   - Fixed config.yaml:32-33
-- **19:45** - Cassey restarted with correct model name
+- **19:45** - Executive Assistant restarted with correct model name
 - **19:50** - Enhanced debug logging reveals third root cause
   - ModelCallLimitMiddleware terminating with "Model call limits exceeded: thread limit (50/50)"
   - config.yaml:87 had `model_call_limit: 50`
   - Deleted 564 checkpoint entries to reset counter
   - Changed to `model_call_limit: 0` (unlimited)
   - Changed to `tool_call_limit: 0` (unlimited)
-- **19:54** - Cassey restarted with Claude Haiku 4.5 and unlimited limits
+- **19:54** - Executive Assistant restarted with Claude Haiku 4.5 and unlimited limits
 
 ## Lessons Learned
 

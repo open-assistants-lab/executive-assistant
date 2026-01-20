@@ -54,18 +54,18 @@ Add a `/debug` command that toggles **verbose status mode** per Telegram chat.
 
 ### Files Modified
 
-1. **`src/cassey/channels/telegram.py`**
+1. **`src/executive_assistant/channels/telegram.py`**
    - Added `_debug_chats: set[int]` to track chats with verbose mode
    - Added `_debug_command()` handler
    - Updated `send_status()` to check verbose mode
    - Updated `/help` command
 
-2. **`src/cassey/agent/status_middleware.py`**
+2. **`src/executive_assistant/agent/status_middleware.py`**
    - Added `record_llm_call()` function
    - Added `_llm_timing` context variable
    - Updated `aafter_agent()` to include LLM timing in summary
 
-3. **`src/cassey/agent/nodes.py`**
+3. **`src/executive_assistant/agent/nodes.py`**
    - Added call to `record_llm_call()` after each LLM invocation
 
 ### Code Changes
@@ -290,9 +290,9 @@ When verbose mode is active, logs show `[VERBOSE]` prefix:
 
 ## Related Files
 
-- Status middleware: `src/cassey/agent/status_middleware.py`
-- LLM timing: `src/cassey/agent/nodes.py`
-- Telegram channel: `src/cassey/channels/telegram.py`
+- Status middleware: `src/executive_assistant/agent/status_middleware.py`
+- LLM timing: `src/executive_assistant/agent/nodes.py`
+- Telegram channel: `src/executive_assistant/channels/telegram.py`
 
 ---
 

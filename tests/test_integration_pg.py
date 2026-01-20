@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 import asyncpg
 
-from cassey.config import settings
+from executive_assistant.config import settings
 
 
 # =============================================================================
@@ -224,10 +224,16 @@ class TestGroupOperations:
     async def test_create_group(self, db_conn, clean_test_data):
         """Test creating a new group."""
         group_id = f"test_group_{uuid.uuid4().hex[:8]}"
+        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
 
         await db_conn.execute(
-            "INSERT INTO groups (group_id, name) VALUES ($1, $2)",
-            group_id, "Test Group"
+            "INSERT INTO users (user_id) VALUES ($1)",
+            user_id,
+        )
+
+        await db_conn.execute(
+            "INSERT INTO groups (group_id, type, name, owner_user_id) VALUES ($1, $2, $3, $4)",
+            group_id, "group", "Test Group", user_id
         )
 
         # Verify group was created
@@ -244,14 +250,14 @@ class TestGroupOperations:
         group_id = f"test_group_{uuid.uuid4().hex[:8]}"
         user_id = f"test_user_{uuid.uuid4().hex[:8]}"
 
-        # Create group and user
-        await db_conn.execute(
-            "INSERT INTO groups (group_id, name) VALUES ($1, $2)",
-            group_id, "Test Group"
-        )
+        # Create user and group
         await db_conn.execute(
             "INSERT INTO users (user_id) VALUES ($1)",
             user_id
+        )
+        await db_conn.execute(
+            "INSERT INTO groups (group_id, type, name, owner_user_id) VALUES ($1, $2, $3, $4)",
+            group_id, "group", "Test Group", user_id
         )
 
         # Add member
@@ -274,18 +280,19 @@ class TestGroupOperations:
         group_id = f"test_group_{uuid.uuid4().hex[:8]}"
         user_ids = [f"test_user_{uuid.uuid4().hex[:8]}" for _ in range(3)]
 
-        # Create group and users
-        await db_conn.execute(
-            "INSERT INTO groups (group_id, name) VALUES ($1, $2)",
-            group_id, "Test Group"
-        )
+        # Create users and group
         for user_id in user_ids:
             await db_conn.execute(
                 "INSERT INTO users (user_id) VALUES ($1)",
                 user_id
             )
+        await db_conn.execute(
+            "INSERT INTO groups (group_id, type, name, owner_user_id) VALUES ($1, $2, $3, $4)",
+            group_id, "group", "Test Group", user_ids[0]
+        )
+        for user_id in user_ids:
             await db_conn.execute(
-                "INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'member')",
+                "INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'reader')",
                 group_id, user_id
             )
 

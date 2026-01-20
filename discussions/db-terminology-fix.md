@@ -48,9 +48,9 @@ The codebase and documentation use inconsistent terminology for the per-workspac
 
 | File | Locations |
 |------|-----------|
-| `src/cassey/config/settings.py` | Method docstrings |
-| `src/cassey/storage/*_storage.py` | Module docstrings, comments |
-| `src/cassey/tools/db_tools.py` | Tool descriptions |
+| `src/executive_assistant/config/settings.py` | Method docstrings |
+| `src/executive_assistant/storage/*_storage.py` | Module docstrings, comments |
+| `src/executive_assistant/tools/db_tools.py` | Tool descriptions |
 
 ---
 
@@ -124,9 +124,9 @@ The codebase and documentation use inconsistent terminology for the per-workspac
 - [ ] Update `README.md`
 - [ ] Update `docs/architecture.md` (if exists)
 - [ ] Update plan documents in `discussions/`
-- [ ] Review code comments in `src/cassey/config/settings.py`
-- [ ] Review code comments in `src/cassey/storage/`
-- [ ] Review tool descriptions in `src/cassey/tools/db_tools.py`
+- [ ] Review code comments in `src/executive_assistant/config/settings.py`
+- [ ] Review code comments in `src/executive_assistant/storage/`
+- [ ] Review tool descriptions in `src/executive_assistant/tools/db_tools.py`
 
 ---
 

@@ -11,7 +11,7 @@
 
 **Discrepancy Found:**
 - **Direct LLM benchmark:** GPT-5 Mini takes 2-4 seconds
-- **Actual Cassey usage:** GPT-5 Mini takes ~20 seconds for "hello"
+- **Actual Executive Assistant usage:** GPT-5 Mini takes ~20 seconds for "hello"
 - **Overhead:** ~15-18 seconds unaccounted for (5-10x slower!)
 
 **Why This Matters:**
@@ -27,7 +27,7 @@ The existing LLM benchmark only tests the raw API call. It doesn't measure:
 
 ## Goal
 
-Measure **realistic end-to-end response time** for Cassey and identify exactly where the 15s+ overhead comes from.
+Measure **realistic end-to-end response time** for Executive Assistant and identify exactly where the 15s+ overhead comes from.
 
 ---
 
@@ -156,7 +156,7 @@ User Message (Telegram)
 
 ```python
 """
-Realistic Cassey response time measurement.
+Realistic Executive Assistant response time measurement.
 
 Measures the full stack from message receipt to response send,
 breaking down timing by component.
@@ -172,10 +172,10 @@ import json
 
 from langchain_core.messages import HumanMessage
 
-from cassey.config.llm_factory import LLMFactory
-from cassey.config.settings import settings
-from cassey.agent.prompts import get_system_prompt
-from cassey.storage.db_storage import PostgresStorage
+from executive_assistant.config.llm_factory import LLMFactory
+from executive_assistant.config.settings import settings
+from executive_assistant.agent.prompts import get_system_prompt
+from executive_assistant.storage.db_storage import PostgresStorage
 
 
 @dataclass
@@ -243,8 +243,8 @@ class TimingBreakdown:
         }
 
 
-class CasseyResponseTimeTester:
-    """Test Cassey response time with full stack instrumentation."""
+class Executive AssistantResponseTimeTester:
+    """Test Executive Assistant response time with full stack instrumentation."""
 
     def __init__(self, provider: str = "openai", model: str = None):
         self.provider = provider
@@ -357,7 +357,7 @@ class CasseyResponseTimeTester:
         timing.state_built = time.time()
 
         # Get/create agent and checkpoint
-        from cassey.agent.langchain_agent import create_langchain_agent
+        from executive_assistant.agent.langchain_agent import create_langchain_agent
         from langgraph.checkpoint.postgres import PostgresSaver
 
         # Create checkpointer
@@ -468,7 +468,7 @@ class CasseyResponseTimeTester:
     def generate_report(self) -> str:
         """Generate markdown report."""
         lines = [
-            "# Cassey Response Time Test Report\n",
+            "# Executive Assistant Response Time Test Report\n",
             f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n",
             f"**Provider:** {self.provider}\n",
             f"**Model:** {self.model}\n",
@@ -520,7 +520,7 @@ async def main():
     """Run response time tests."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Test Cassey response time")
+    parser = argparse.ArgumentParser(description="Test Executive Assistant response time")
     parser.add_argument("--provider", default="openai", help="LLM provider")
     parser.add_argument("--model", help="Model name (default: provider default)")
     parser.add_argument("--iterations", type=int, default=3, help="Iterations per test")
@@ -529,7 +529,7 @@ async def main():
 
     args = parser.parse_args()
 
-    tester = CasseyResponseTimeTester(provider=args.provider, model=args.model)
+    tester = Executive AssistantResponseTimeTester(provider=args.provider, model=args.model)
 
     if "hello" in args.scenarios:
         results = await tester.test_simple_hello(iterations=args.iterations)
@@ -562,7 +562,7 @@ if __name__ == "__main__":
 
 ### Phase 2: Add Enhanced Middleware Timing (1 day)
 
-#### File: `src/cassey/agent/timing_middleware.py`
+#### File: `src/executive_assistant/agent/timing_middleware.py`
 
 ```python
 """
@@ -700,14 +700,14 @@ Generate comparison report:
 ### 1. Check Database Latency
 ```bash
 # Time a simple checkpoint read
-docker exec postgres_db psql -U cassey -c "\timing" -c "SELECT * FROM checkpoints LIMIT 1;"
+docker exec postgres_db psql -U executive_assistant -c "\timing" -c "SELECT * FROM checkpoints LIMIT 1;"
 ```
 
 ### 2. Check Vector Store Latency
 ```python
 # scripts/test_vs_latency.py
 import time
-from cassey.storage.kb_tools import search_kb
+from executive_assistant.storage.kb_tools import search_kb
 
 start = time.time()
 result = search_kb("test query", collection_id="test")
@@ -776,6 +776,6 @@ MW_MODEL_CALL_LIMIT=0  # Disable to remove one variable
 ## References
 
 - Existing benchmark: `llm-benchmark-plan-20250118.md`
-- Agent code: `src/cassey/agent/langchain_agent.py`
-- Channel code: `src/cassey/channels/base.py`
-- Middleware: `src/cassey/agent/status_middleware.py`, `src/cassey/agent/middleware_debug.py`
+- Agent code: `src/executive_assistant/agent/langchain_agent.py`
+- Channel code: `src/executive_assistant/channels/base.py`
+- Middleware: `src/executive_assistant/agent/status_middleware.py`, `src/executive_assistant/agent/middleware_debug.py`

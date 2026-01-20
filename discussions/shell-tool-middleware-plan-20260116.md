@@ -60,7 +60,7 @@ ShellToolMiddleware (per-thread bash session)
 
 ## Implementation Steps
 
-### 1. Add Settings (`src/cassey/config/settings.py`)
+### 1. Add Settings (`src/executive_assistant/config/settings.py`)
 
 ```python
 # ShellToolMiddleware (HostExecutionPolicy - runs in same container)
@@ -78,7 +78,7 @@ MW_SHELL_DOCKER_IMAGE: str = "python:3.12-slim"  # Container image for DockerExe
 MW_SHELL_DOCKER_NETWORK: bool = False  # Network access in container
 ```
 
-### 2. Wire Up Middleware (`src/cassey/agent/langchain_agent.py`)
+### 2. Wire Up Middleware (`src/executive_assistant/agent/langchain_agent.py`)
 
 ```python
 from langchain.agents.middleware import ShellToolMiddleware, HostExecutionPolicy, DockerExecutionPolicy
@@ -88,7 +88,7 @@ def _build_middleware(model, thread_id: str | None = None):
 
     # Shell tool middleware (thread-scoped workspace)
     if settings.MW_SHELL_ENABLED and thread_id:
-        from cassey.storage.file_storage import get_thread_files_path
+        from executive_assistant.storage.file_storage import get_thread_files_path
 
         workspace = get_thread_files_path(thread_id)
 
@@ -152,7 +152,7 @@ MW_SHELL_STARTUP_COMMANDS=[]
 MW_SHELL_ENV={}
 ```
 
-### 4. Update Prompts (`src/cassey/agent/prompts.py`)
+### 4. Update Prompts (`src/executive_assistant/agent/prompts.py`)
 
 Add guidance for shell usage:
 
@@ -208,7 +208,7 @@ def test_shell_middleware_disabled_by_default(monkeypatch):
 
 ```yaml
 services:
-  cassey:
+  executive_assistant:
     build: .
     # Resource limits apply to entire container including shell commands
     deploy:
@@ -236,7 +236,7 @@ services:
 
 ```yaml
 services:
-  cassey:
+  executive_assistant:
     build: .
     # Need Docker-in-Docker for DockerExecutionPolicy
     volumes:
@@ -245,7 +245,7 @@ services:
     environment:
       - MW_SHELL_ENABLED=true
       - MW_SHELL_USE_DOCKER=true
-      - MW_SHELL_DOCKER_IMAGE=cassey-shell:latest
+      - MW_SHELL_DOCKER_IMAGE=executive_assistant-shell:latest
       - MW_SHELL_DOCKER_NETWORK=false
 ```
 
@@ -262,8 +262,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user for running the app
-RUN useradd -m -u 1000 cassey
-USER cassey
+RUN useradd -m -u 1000 executive_assistant
+USER executive_assistant
 WORKDIR /app
 ```
 

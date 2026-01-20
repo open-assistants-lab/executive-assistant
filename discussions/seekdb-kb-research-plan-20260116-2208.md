@@ -6,9 +6,9 @@
 - GitHub search metadata (seekdb/seekdb-doc/pyseekdb/mine-kb)
 
 ## Executive Summary
-SeekDB (OceanBase seekdb) is an Apache 2.0, AI-native search database that supports embedded mode, full-text search, vector search, and hybrid search. The official Python SDK (`pyseekdb`) provides a collection-based API and supports embedded local storage via a filesystem path, plus server/OceanBase modes. For Cassey, SeekDB can replace the DuckDB KB when hybrid search (vector + text) or embedded embeddings are important, but it introduces higher operational complexity and dependency weight compared to DuckDB FTS.
+SeekDB (OceanBase seekdb) is an Apache 2.0, AI-native search database that supports embedded mode, full-text search, vector search, and hybrid search. The official Python SDK (`pyseekdb`) provides a collection-based API and supports embedded local storage via a filesystem path, plus server/OceanBase modes. For Executive Assistant, SeekDB can replace the DuckDB KB when hybrid search (vector + text) or embedded embeddings are important, but it introduces higher operational complexity and dependency weight compared to DuckDB FTS.
 
-## Capability Fit for Cassey
+## Capability Fit for Executive Assistant
 **Strengths**
 - Embedded mode with local persistence (`pyseekdb.Client(path=...)`) fits per-thread KB files.
 - Built-in hybrid search (`hybrid_search`) + full-text via `where_document` + vector kNN.
@@ -38,7 +38,7 @@ Move ahead with SeekDB as the **default KB backend** (full replacement). No data
 - Decide whether SeekDB is a net upgrade.
 
 ### Phase 1: Add KB Backend Abstraction
-- Introduce `KBBackend` interface in `src/cassey/storage/kb_backend.py`:
+- Introduce `KBBackend` interface in `src/executive_assistant/storage/kb_backend.py`:
   - `create_collection(name, documents, metadata)`
   - `add_documents(name, documents)`
   - `search(query, table_name, limit, mode)`
@@ -46,7 +46,7 @@ Move ahead with SeekDB as the **default KB backend** (full replacement). No data
 - Wire `KBStorage` to select backend via `KB_BACKEND=duckdb|seekdb`.
 
 ### Phase 2: SeekDB Backend Implementation
-- New module: `src/cassey/storage/seekdb_storage.py`.
+- New module: `src/executive_assistant/storage/seekdb_storage.py`.
 - Per-thread database path: `data/users/{thread_id}/kb/seekdb/` (directory, not a single file).
 - Initialize `pyseekdb.Client(path=..., database="kb")` per call (or pool per thread).
 - Collection mapping:

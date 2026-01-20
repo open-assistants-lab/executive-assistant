@@ -403,7 +403,7 @@ data/users/{thread_id}/
 Keep `data/users/{thread_id}/` as primary storage. Add workspace mapping:
 
 ```python
-# src/cassey/storage/workspace_registry.py
+# src/executive_assistant/storage/workspace_registry.py
 class WorkspaceRegistry:
     """Maps workspaces to underlying thread/user data."""
 

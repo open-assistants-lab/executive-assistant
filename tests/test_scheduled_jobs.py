@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from cassey.storage.scheduled_jobs import (
+from executive_assistant.storage.scheduled_jobs import (
     ScheduledJob,
     ScheduledJobStorage,
     get_scheduled_job_storage,
@@ -424,6 +424,7 @@ class TestScheduledJobStorageIntegration:
         )
 
         # Mark one as completed
+        await storage.mark_started(job1.id)
         await storage.mark_completed(job1.id, "Done")
 
         # List only pending jobs

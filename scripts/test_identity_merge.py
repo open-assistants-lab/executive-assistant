@@ -15,16 +15,25 @@ import asyncio
 import sys
 from pathlib import Path
 
+import pytest
+
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from cassey.storage.user_registry import UserRegistry
-from cassey.storage.helpers import (
+from executive_assistant.storage.user_registry import UserRegistry
+from executive_assistant.storage.helpers import (
     sanitize_thread_id_to_user_id,
     generate_persistent_user_id,
     merge_user_data,
 )
-from cassey.config import settings
+from executive_assistant.config import settings
+
+
+@pytest.fixture
+async def verification_code():
+    """Fixture that prepares a verification code for merge confirmation."""
+    await test_anonymous_identity_creation()
+    return await test_merge_request()
 
 
 async def test_anonymous_identity_creation():

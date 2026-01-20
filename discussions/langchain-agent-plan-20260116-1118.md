@@ -4,7 +4,7 @@
 Adopt the **native LangChain agent** (and its middleware features) as the primary runtime **without removing** the existing custom LangGraph agent. The custom agent remains available for fallback or future comparison. A/B routing is **disabled** for now.
 
 ## Non-Goals
-- Do not delete or refactor the existing custom graph (`src/cassey/agent/graph.py`).
+- Do not delete or refactor the existing custom graph (`src/executive_assistant/agent/graph.py`).
 - No A/B testing or multi-agent routing in this phase.
 - No change to storage paths or tool semantics.
 
@@ -21,12 +21,12 @@ Adopt the **native LangChain agent** (and its middleware features) as the primar
 ## Implementation Status (2026-01-16)
 
 Completed work mapped to this plan:
-- **Runtime selection**: `AGENT_RUNTIME`/`AGENT_RUNTIME_FALLBACK` wired in `src/cassey/main.py` with per-channel prompts; custom graph retained as fallback.
-- **LangChain agent builder**: `src/cassey/agent/langchain_agent.py` added with middleware support and fail-fast import of `langchain.agents.create_agent`.
-- **Middleware config**: `MW_*` settings added in `src/cassey/config/settings.py` and documented in `.env.example`/`README.md`. (`MW` = middleware.)
-- **Event compatibility**: stream normalization helper added in `src/cassey/channels/base.py` to handle `messages`, `agent.messages`, `output.messages`, and `final.messages`.
+- **Runtime selection**: `AGENT_RUNTIME`/`AGENT_RUNTIME_FALLBACK` wired in `src/executive_assistant/main.py` with per-channel prompts; custom graph retained as fallback.
+- **LangChain agent builder**: `src/executive_assistant/agent/langchain_agent.py` added with middleware support and fail-fast import of `langchain.agents.create_agent`.
+- **Middleware config**: `MW_*` settings added in `src/executive_assistant/config/settings.py` and documented in `.env.example`/`README.md`. (`MW` = middleware.)
+- **Event compatibility**: stream normalization helper added in `src/executive_assistant/channels/base.py` to handle `messages`, `agent.messages`, `output.messages`, and `final.messages`.
 - **Runtime-aware state**: `BaseChannel` only injects custom state fields for `AGENT_RUNTIME=custom`; LangChain runtime sends only `messages`.
-- **Dev server**: `src/cassey/dev_server.py` respects `AGENT_RUNTIME` (LangChain vs custom).
+- **Dev server**: `src/executive_assistant/dev_server.py` respects `AGENT_RUNTIME` (LangChain vs custom).
 - **Docs**: updated `README.md` with runtime + middleware notes and integration test instructions; updated `docs/langgraph-studio-setup.md` with runtime selection.
 - **Dependencies**: added `langgraph-prebuilt` (required for `langchain.agents.create_agent`), bumped `langchain-community` to `>=0.4.1` and `langchain-mcp-adapters` to `>=0.2.1`; updated `uv.lock`.
 - **Testing scaffold (LangChain reference)**:
@@ -38,7 +38,7 @@ Completed work mapped to this plan:
   - Cassette recording helper: `scripts/pytest_record_cassettes.sh`.
 - **Orchestrator/Worker archived**:
   - Tools disabled and removed from registry; scheduled jobs now mark due entries failed (archived).
-  - Cron parsing moved to shared utility (`src/cassey/utils/cron.py`) for reminders.
+  - Cron parsing moved to shared utility (`src/executive_assistant/utils/cron.py`) for reminders.
   - Orchestrator/worker tests skipped; doc annotated as archived.
 
 Test results (local):
@@ -110,7 +110,7 @@ ModuleNotFoundError: No module named 'langgraph.checkpoint.postgres'
 
 **Root Cause**: Version 2.x of `langgraph-checkpoint-postgres` changed the module name from dot-notation to underscore-notation (PEP 8 compliance).
 
-**Fix**: Updated `src/cassey/storage/checkpoint.py` to try the new import first, with fallback:
+**Fix**: Updated `src/executive_assistant/storage/checkpoint.py` to try the new import first, with fallback:
 
 ```python
 # langgraph-checkpoint-postgres 2.x uses underscore naming
@@ -123,13 +123,13 @@ except ImportError:
 
 ### Issue 3: LangChain Agent Event Format Not Recognized
 
-**Error**: Cassey showed "typing..." for a few seconds then returned "I didn't generate a response. Please try again."
+**Error**: Executive Assistant showed "typing..." for a few seconds then returned "I didn't generate a response. Please try again."
 
 **Root Cause**: The LangChain agent (via `create_agent`) emits events in a different format than expected:
 - Expected: `{"messages": [AIMessage(...)]}`
 - Actual: `{"model": {"messages": [AIMessage(...)]}}`
 
-The `_extract_messages_from_event` method in `src/cassey/channels/base.py` was only checking for direct `messages` keys or nested under `agent`, `output`, `final`—but not `model`.
+The `_extract_messages_from_event` method in `src/executive_assistant/channels/base.py` was only checking for direct `messages` keys or nested under `agent`, `output`, `final`—but not `model`.
 
 **Fix**: Extended the event extraction logic to check the `model` key:
 
@@ -167,7 +167,7 @@ async for event in self.agent.astream(state, config):
 ## Detailed Implementation Steps
 
 ### 1) Configuration Switch (Disable A/B)
-**Files:** `src/cassey/config/settings.py`, `.env.example`, `README.md`
+**Files:** `src/executive_assistant/config/settings.py`, `.env.example`, `README.md`
 
 Add settings:
 - `AGENT_RUNTIME` (default: `langchain`, allowed: `langchain`, `custom`)
@@ -175,7 +175,7 @@ Add settings:
 - **Explicitly disable A/B**: set `AB_ENABLED=false` (or ignore AB settings when `AGENT_RUNTIME=langchain`)
 
 ### 2) LangChain Agent Builder
-**New file:** `src/cassey/agent/langchain_agent.py`
+**New file:** `src/executive_assistant/agent/langchain_agent.py`
 
 Implement:
 - `async def create_langchain_agent(model, tools, checkpointer, system_prompt) -> Runnable`
@@ -186,7 +186,7 @@ Implement:
   - Ensure checkpointer is wired for persistence (aligns with LangGraph best practices)
 
 ### 3) Middleware Options (LangChain-native)
-**Files:** `src/cassey/agent/langchain_agent.py`, `src/cassey/config/settings.py`
+**Files:** `src/executive_assistant/agent/langchain_agent.py`, `src/executive_assistant/config/settings.py`
 
 Config toggles:
 - `MW_SUMMARIZATION_ENABLED` + thresholds
@@ -215,7 +215,7 @@ Map toggles to LangChain middleware classes per `docs/middleware.md`.
 
 **mem_db as Complementary Memory Layer**:
 
-The existing `mem_db` (DuckDB-based, `src/cassey/storage/mem_storage.py`) serves a different purpose than summarization:
+The existing `mem_db` (DuckDB-based, `src/executive_assistant/storage/mem_storage.py`) serves a different purpose than summarization:
 
 | Feature | SummarizationMiddleware | mem_db |
 |---------|------------------------|--------|
@@ -234,28 +234,28 @@ The existing `mem_db` (DuckDB-based, `src/cassey/storage/mem_storage.py`) serves
 **Key insight**: SummarizationMiddleware compresses conversation history; mem_db stores persistent facts. They complement, not replace, each other.
 
 ### 4) Runtime Selection
-**File:** `src/cassey/main.py`
+**File:** `src/executive_assistant/main.py`
 
 Change startup:
 - If `AGENT_RUNTIME=langchain`, build LangChain agent.
 - If `AGENT_RUNTIME=custom`, build existing graph.
 - Keep both code paths; do not delete custom graph.
 
-#### 4a) Subagent Scope (Cassey vs Orchestrator/Workers)
+#### 4a) Subagent Scope (Executive Assistant vs Orchestrator/Workers)
 **Doc:** `docs/subagent_architecture.md`
 
 Orchestrator/Workers are archived in this phase to avoid cascading runtime changes.
-Only Cassey uses LangChain runtime for now.
+Only Executive Assistant uses LangChain runtime for now.
 
 ### 5) Event Shape Compatibility
-**File:** `src/cassey/channels/base.py` (or adapter module)
+**File:** `src/executive_assistant/channels/base.py` (or adapter module)
 
 Validate that the LangChain agent emits events compatible with the current streaming logic:
 - Expected event keys: `messages` or `agent.messages` (current logic handles both).
 - If necessary, add a thin adapter that normalizes the stream into the same shape.
 
 ### 6) Studio + Dev Server
-**File:** `src/cassey/dev_server.py`
+**File:** `src/executive_assistant/dev_server.py`
 
 Make the dev server respect `AGENT_RUNTIME` so Studio shows the same agent used in testing.
 
@@ -327,11 +327,11 @@ services:
   postgres_db:
     # ... existing config ...
 
-  cassey_api:
+  executive_assistant_api:
     build: .
-    command: uv run cassey
+    command: uv run executive_assistant
     environment:
-      - CASSEY_CHANNELS=http
+      - EXECUTIVE_ASSISTANT_CHANNELS=http
       - AGENT_RUNTIME=${AGENT_RUNTIME:-langchain}
     ports:
       - "8000:8000"
@@ -341,7 +341,7 @@ services:
 
 ### Postgres Checkpointer Setup
 
-Use the existing implementation in `src/cassey/storage/checkpoint.py` (no new checkpointer module needed).
+Use the existing implementation in `src/executive_assistant/storage/checkpoint.py` (no new checkpointer module needed).
 
 ### Fresh Start: Wiping Volumes
 
@@ -352,7 +352,7 @@ To start with fresh checkpointer data:
 docker-compose down -v
 
 # Or clear specific tables
-docker exec -it cassey-postgres_db-1 psql -U cassey -d cassey_db -c "TRUNCATE checkpoint_blobs, checkpoint_writes, checkpoints CASCADE;"
+docker exec -it executive_assistant-postgres_db-1 psql -U executive_assistant -d executive_assistant_db -c "TRUNCATE checkpoint_blobs, checkpoint_writes, checkpoints CASCADE;"
 
 # Restart
 docker-compose up -d
@@ -430,7 +430,7 @@ cp migrations/001_initial_schema.sql migrations/001_initial_schema.sql.backup
 
 ### Strengths of the Plan
 
-1. **Non-destructive migration**: Keeping `src/cassey/agent/graph.py` intact means we can always revert if issues arise.
+1. **Non-destructive migration**: Keeping `src/executive_assistant/agent/graph.py` intact means we can always revert if issues arise.
 
 2. **Clear separation of concerns**: Recognizing that `SummarizationMiddleware` ≠ structured summary is crucial. Your structured pipeline has:
    - Topic-based context preservation
@@ -440,7 +440,7 @@ cp migrations/001_initial_schema.sql migrations/001_initial_schema.sql.backup
 
 3. **Complementary memory architecture**: SummarizationMiddleware handles token reduction within threads; mem_db handles persistent facts across sessions. They serve different purposes.
 
-4. **Subagent scope decision**: Keeping Orchestrator/Workers on custom graph prevents cascading changes. This is wise—let Cassey be the canary.
+4. **Subagent scope decision**: Keeping Orchestrator/Workers on custom graph prevents cascading changes. This is wise—let Executive Assistant be the canary.
 
 5. **Configuration-driven middleware**: Environment flags (`MW_*`) allow tuning without code changes.
 
@@ -462,7 +462,7 @@ from langchain.agents import create_agent
 
 #### 2. Event Shape Compatibility (Step 5) - Critical
 
-The current streaming logic in `src/cassey/channels/base.py` expects events with keys like `messages` or `agent.messages`.
+The current streaming logic in `src/executive_assistant/channels/base.py` expects events with keys like `messages` or `agent.messages`.
 
 **LangChain's `create_agent` returns a LangGraph `Runnable`, which should emit compatible events** (state updates with `messages` key). However, verify the exact shape:
 
@@ -548,9 +548,9 @@ thread_id = f"request-{uuid.uuid4()}"  # WRONG
 
 ### Missing Considerations
 
-1. **Error handling divergence**: LangChain's `ModelRetryMiddleware` may intercept errors before Cassey's custom error handlers. Ensure error observability isn't lost.
+1. **Error handling divergence**: LangChain's `ModelRetryMiddleware` may intercept errors before Executive Assistant's custom error handlers. Ensure error observability isn't lost.
 
-2. **Metrics/observability**: If Cassey emits custom metrics (LLM calls, tool timings, etc.), ensure LangChain runtime provides equivalent hooks or add custom middleware for this.
+2. **Metrics/observability**: If Executive Assistant emits custom metrics (LLM calls, tool timings, etc.), ensure LangChain runtime provides equivalent hooks or add custom middleware for this.
 
 3. **Store vs checkpointer confusion**: The plan mentions `store` parameter in `create_agent` API. Clarify:
    - **Checkpointer**: Thread-local state (conversation history)

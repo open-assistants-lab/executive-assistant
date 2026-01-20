@@ -1,7 +1,7 @@
-# Cassey Dockerfile Plan (SeekDB-compatible)
+# Executive Assistant Dockerfile Plan (SeekDB-compatible)
 
 ## Goals
-- Run Cassey in a Linux container (required for SeekDB embedded mode).
+- Run Executive Assistant in a Linux container (required for SeekDB embedded mode).
 - Keep dev and prod workflows aligned.
 - Persist per-thread data under `data/users/` via a bind mount/volume.
 - Include OCR system deps by default.
@@ -26,7 +26,7 @@
 - `WORKDIR /app`
 - Copy source + configs after deps.
 - Create `data/` and `logs/` directories with correct permissions.
-- Use `ENV` for standard runtime config (e.g. `CASSEY_ENV=prod`).
+- Use `ENV` for standard runtime config (e.g. `EXECUTIVE_ASSISTANT_ENV=prod`).
 
 ### SeekDB Persistence
 - Mount `./data:/app/data` (host volume) so `data/users/{thread_id}/kb/` persists.
@@ -82,26 +82,26 @@ COPY . .
 RUN mkdir -p /app/data /app/logs
 
 # Create non-root user (recommended for prod)
-RUN useradd -m -u 1000 cassey && \
-    chown -R cassey:cassey /app
-USER cassey
+RUN useradd -m -u 1000 executive_assistant && \
+    chown -R executive_assistant:executive_assistant /app
+USER executive_assistant
 
 EXPOSE 8000
 
 # Use installed Python directly (faster than uv run)
-CMD [".venv/bin/python", "-m", "cassey"]
+CMD [".venv/bin/python", "-m", "executive_assistant"]
 ```
 
 ## docker-compose.yml Updates (Planned)
 ```yaml
 services:
-  cassey:
+  executive_assistant:
     build: .
     volumes:
       - ./data:/app/data
     environment:
-      - CASSEY_CHANNELS=telegram,http
-      - POSTGRES_URL=postgresql://cassey:password@postgres:5432/cassey_db
+      - EXECUTIVE_ASSISTANT_CHANNELS=telegram,http
+      - POSTGRES_URL=postgresql://executive_assistant:password@postgres:5432/executive_assistant_db
       - TZ=UTC
       # SeekDB uses default ONNX embeddings (no extra config needed)
       # Shell tools (optional)
@@ -112,8 +112,8 @@ services:
   postgres:
     image: postgres:16
     environment:
-      - POSTGRES_DB=cassey_db
-      - POSTGRES_USER=cassey
+      - POSTGRES_DB=executive_assistant_db
+      - POSTGRES_USER=executive_assistant
       - POSTGRES_PASSWORD=password
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -122,22 +122,22 @@ volumes:
   postgres_data:
 ```
 
-**Note:** The `./data` bind mount needs to be writable by UID 1000 (cassey user). On Linux, you may need to `sudo chown -R 1000:1000 ./data`.
+**Note:** The `./data` bind mount needs to be writable by UID 1000 (executive_assistant user). On Linux, you may need to `sudo chown -R 1000:1000 ./data`.
 
 ## Dev Workflow
-1. `docker compose up -d` (postgres + cassey).
+1. `docker compose up -d` (postgres + executive_assistant).
 2. Use bind mounts for `data/` to persist KB.
 3. For local dev on macOS/Windows, use Linux container so SeekDB embedded works.
 
 ## Testing Plan
-- Verify `uv run cassey` inside container starts without SeekDB errors.
+- Verify `uv run executive_assistant` inside container starts without SeekDB errors.
 - Confirm KB writes create `data/users/{thread_id}/kb/seekdb.db`.
 - Smoke test a KB write and search via tool calls.
 
 ## Risks + Mitigations
 - **Image size bloat**: accept larger base due to OCR deps (~300MB more).
 - **SeekDB Linux-only**: enforce Linux base; document in README.
-- **File permissions**: `./data` must be writable by UID 1000 (cassey user). On Linux, `sudo chown -R 1000:1000 ./data`.
+- **File permissions**: `./data` must be writable by UID 1000 (executive_assistant user). On Linux, `sudo chown -R 1000:1000 ./data`.
 - **Non-root user**: included for security; may need adjustment for local dev file permissions.
 
 ## Open Decisions
@@ -153,7 +153,7 @@ volumes:
 |-------|-----|
 | Missing `.python-version` copy | Added to COPY layer for uv to use correct Python |
 | `SEEKDB_EMBEDDING_MODE` reference | Removed – SeekDB uses default ONNX only |
-| `uv run` in CMD | Changed to `.venv/bin/python -m cassey` (faster) |
+| `uv run` in CMD | Changed to `.venv/bin/python -m executive_assistant` (faster) |
 | Missing shell tools | Added git, curl, jq, ripgrep, bash for ShellToolMiddleware |
 | Non-root user undecided | Implemented with UID 1000 |
 | Missing ONNX performance env vars | Added `OMP_NUM_THREADS=4`, `MKL_NUM_THREADS=4` |
@@ -170,4 +170,4 @@ volumes:
 
 ## Implementation Notes (Applied)
 - Added root `Dockerfile` matching the plan (python:3.13-slim, uv sync, OCR + shell deps, non-root user).
-- Added `cassey` service to `docker-compose.yml` with bind mount `./data:/app/data`, HTTP port mapping (`8000:8000`), and Postgres env wiring.
+- Added `executive_assistant` service to `docker-compose.yml` with bind mount `./data:/app/data`, HTTP port mapping (`8000:8000`), and Postgres env wiring.

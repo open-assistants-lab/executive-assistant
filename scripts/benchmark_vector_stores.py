@@ -129,7 +129,7 @@ def benchmark_duckdb(
         BenchmarkResult with metrics.
     """
     import duckdb
-    from cassey.storage.chunking import get_embeddings
+    from executive_assistant.storage.chunking import get_embeddings
 
     if storage_dir is None:
         storage_dir = Path("/tmp/vs_benchmark_duckdb")
@@ -180,7 +180,7 @@ def benchmark_duckdb(
     documents = generate_test_documents(num_docs)
 
     # Prepare documents for insertion (chunking)
-    from cassey.storage.chunking import prepare_documents_for_vs
+    from executive_assistant.storage.chunking import prepare_documents_for_vs
     chunks = prepare_documents_for_vs(documents, auto_chunk=True)
 
     # Start memory tracking
@@ -306,7 +306,7 @@ def benchmark_lancedb(
     """
     import lancedb
     import pyarrow as pa
-    from cassey.storage.chunking import get_embeddings
+    from executive_assistant.storage.chunking import get_embeddings
 
     if storage_dir is None:
         storage_dir = Path("/tmp/vs_benchmark_lancedb")
@@ -325,7 +325,7 @@ def benchmark_lancedb(
     documents = generate_test_documents(num_docs)
 
     # Prepare documents for insertion (chunking)
-    from cassey.storage.chunking import prepare_documents_for_vs
+    from executive_assistant.storage.chunking import prepare_documents_for_vs
     chunks = prepare_documents_for_vs(documents, auto_chunk=True)
 
     # Define schema

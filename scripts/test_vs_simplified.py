@@ -16,14 +16,14 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from contextvars import ContextVar
-from cassey.storage.vs_tools import (
+from executive_assistant.storage.vs_tools import (
     create_vs_collection,
     add_vs_documents,
     search_vs,
     vs_list,
     drop_vs_collection,
 )
-from cassey.storage.file_sandbox import set_thread_id
+from executive_assistant.storage.file_sandbox import set_thread_id
 
 
 def test_simplified_vs_interface():
@@ -43,7 +43,7 @@ def test_simplified_vs_interface():
     print("\n[1/5] Creating collection with single content (simple method)...")
     result = create_vs_collection.invoke({
         "collection_name": collection_name,
-        "content": "Cassey is an AI assistant built with LangGraph for task automation."
+        "content": "Executive Assistant is an AI assistant built with LangGraph for task automation."
     })
     print(f"   Result: {result}")
     if "Created VS collection" in result and "chunks from 1 document" in result:

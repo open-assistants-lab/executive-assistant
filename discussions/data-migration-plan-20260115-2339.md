@@ -106,8 +106,8 @@ After migration, verify:
 
 | File | Change |
 |------|--------|
-| `src/cassey/config/settings.py` | Update path defaults |
-| `src/cassey/storage/file_sandbox.py` | Use new path helpers with fallback |
-| `src/cassey/storage/db_storage.py` | Use new path helpers with fallback |
+| `src/executive_assistant/config/settings.py` | Update path defaults |
+| `src/executive_assistant/storage/file_sandbox.py` | Use new path helpers with fallback |
+| `src/executive_assistant/storage/db_storage.py` | Use new path helpers with fallback |
 | `scripts/migrate_data.py` | New migration script |
 | `tests/test_migration.py` | New tests for migration logic |

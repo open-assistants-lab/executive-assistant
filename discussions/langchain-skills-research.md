@@ -1,4 +1,4 @@
-# LangChain Skills - Research for Cassey Implementation
+# LangChain Skills - Research for Executive Assistant Implementation
 
 **Source:** https://docs.langchain.com/oss/python/langchain/multi-agent/skills
 
@@ -197,9 +197,9 @@ Progressive disclosure is fundamentally a **context engineering technique**. You
 3. Agent also loads 2-3 relevant example queries (via semantic search or tag-based lookup)
 4. Agent writes query using both schema knowledge AND example patterns
 
-## Relevant to Cassey
+## Relevant to Executive Assistant
 
-For Cassey's use case (too many tools, not proactive enough):
+For Executive Assistant's use case (too many tools, not proactive enough):
 
 1. **Progressive disclosure** - Instead of exposing all 40+ tools upfront, group them into skills:
    - `timesheet_skill`: Exposes only DB tools needed for timesheet tracking
@@ -247,9 +247,9 @@ After reviewing the official LangChain documentation (saved in `./doc/kb/`), my 
 
 5. **Dynamic Tool Registration is Official Pattern** - The docs explicitly mention loading a skill could "register database-specific tools (backup, restore, migrate)" - confirming this is a valid extension, not just my idea.
 
-6. **Hierarchical Skills are Explicitly Supported** - Skills can define sub-skills in a tree structure. This could be useful for Cassey's complex tool ecosystem.
+6. **Hierarchical Skills are Explicitly Supported** - Skills can define sub-skills in a tree structure. This could be useful for Executive Assistant's complex tool ecosystem.
 
-7. **Progressive Disclosure + Few-Shot Combination** - The docs show a concrete example of loading both schema AND example queries. This suggests Cassey could load both tool instructions AND usage examples together.
+7. **Progressive Disclosure + Few-Shot Combination** - The docs show a concrete example of loading both schema AND example queries. This suggests Executive Assistant could load both tool instructions AND usage examples together.
 
 ### Minor Corrections
 
@@ -257,7 +257,7 @@ After reviewing the official LangChain documentation (saved in `./doc/kb/`), my 
 
 9. **request.override() Pattern** - The docs show using `request.override(system_message=new_system_message)` rather than modifying the request directly. This is the immutability-safe pattern.
 
-### Implementation Recommendations for Cassey
+### Implementation Recommendations for Executive Assistant
 
 Based on the official docs, here's the refined implementation approach:
 
@@ -269,7 +269,7 @@ class Skill(TypedDict):
     description: str
     content: str
 
-CASSEY_SKILLS: list[Skill] = [
+EXECUTIVE_ASSISTANT_SKILLS: list[Skill] = [
     {
         "name": "timesheet_tracking",
         "description": "Track work hours, manage timesheet entries, and generate time reports.",
@@ -314,4 +314,4 @@ User wants to: save information, search knowledge base, retrieve documents.
 ]
 ```
 
-The key difference from my original suggestion: skills are **task-oriented** with explicit workflows, not just tool groupings. This aligns with making Cassey more proactive - the skill content tells the agent **what to do**, not just **what tools are available**.
+The key difference from my original suggestion: skills are **task-oriented** with explicit workflows, not just tool groupings. This aligns with making Executive Assistant more proactive - the skill content tells the agent **what to do**, not just **what tools are available**.

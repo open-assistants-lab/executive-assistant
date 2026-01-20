@@ -15,10 +15,10 @@
 
 ### 2) Route all file operations through thread-aware helpers
 - Replace direct `settings.FILES_ROOT / safe_thread_id` with `settings.get_thread_files_path(thread_id)` in:
-  - `src/cassey/channels/telegram.py` (file uploads)
-  - `src/cassey/channels/management_commands.py` (file ops)
-  - `src/cassey/storage/db_tools.py` (db_import/export)
-  - `src/cassey/tools/python_tool.py` (sandbox root)
+  - `src/executive_assistant/channels/telegram.py` (file uploads)
+  - `src/executive_assistant/channels/management_commands.py` (file ops)
+  - `src/executive_assistant/storage/db_tools.py` (db_import/export)
+  - `src/executive_assistant/tools/python_tool.py` (sandbox root)
 - This ensures only `./data/users/{thread_id}/files/` is created.
 
 ### 3) Deprecate legacy env vars (but keep fallback)
@@ -37,6 +37,6 @@
 4. (Optional) Add `ENABLE_LEGACY_PATHS` flag and guard legacy fallback in `settings.get_thread_*_path()`.
 
 ## Acceptance Criteria
-- Restarting Cassey does **not** create `./data/db` or `./data/kb` unless legacy fallback is actually used.
+- Restarting Executive Assistant does **not** create `./data/db` or `./data/kb` unless legacy fallback is actually used.
 - All user files, db, kb live under `./data/users/{thread_id}/...`.
 - `.env.example` no longer advertises legacy roots.

@@ -73,7 +73,7 @@ MEM_EXTRACT_MODEL: str = "fast"  # Maps to provider's fast model
 ## Current State
 
 ```python
-# src/cassey/config/settings.py
+# src/executive_assistant/config/settings.py
 
 DEFAULT_LLM_PROVIDER: Literal["anthropic", "openai", "zhipu", "ollama"] = "anthropic"
 
@@ -87,7 +87,7 @@ MEM_EXTRACT_MODEL: str = "gpt-4o-mini"
 ```
 
 ```python
-# src/cassey/config/llm_factory.py
+# src/executive_assistant/config/llm_factory.py
 
 MODEL_CONFIGS = {
     "anthropic": {
@@ -116,7 +116,7 @@ MODEL_CONFIGS = {
 
 ### 1. No Default Models - Explicit Configuration Required
 
-**Change philosophy:** `MODEL_CONFIGS` no longer contains default models. Users MUST configure models via `.env`. If not configured, Cassey refuses to start with a clear error message.
+**Change philosophy:** `MODEL_CONFIGS` no longer contains default models. Users MUST configure models via `.env`. If not configured, Executive Assistant refuses to start with a clear error message.
 
 ```python
 # NEW: MODEL_CONFIGS only contains model aliases for validation
@@ -288,7 +288,7 @@ OLLAMA_API_KEY: str | None = None  # Deprecated
 # ============================================================================
 # LLM Configuration - REQUIRED
 # ============================================================================
-# You MUST configure at least one provider's models for Cassey to start.
+# You MUST configure at least one provider's models for Executive Assistant to start.
 
 # Main Agent Provider (choose one)
 DEFAULT_LLM_PROVIDER=anthropic
@@ -382,7 +382,7 @@ OCR_STRUCTURED_MODEL=fast
 
 ## Implementation Changes
 
-### File: `src/cassey/config/settings.py`
+### File: `src/executive_assistant/config/settings.py`
 
 ```python
 from pydantic import BaseModel, FieldValidationInfo, field_validator, model_validator
@@ -469,13 +469,13 @@ class Settings(BaseSettings):
         return v or None
 ```
 
-### File: `src/cassey/config/llm_factory.py`
+### File: `src/executive_assistant/config/llm_factory.py`
 
 ```python
 import re
 import logging
 
-from cassey.config import settings
+from executive_assistant.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -666,10 +666,10 @@ def _create_ollama(model: str = "default", **kwargs) -> BaseChatModel:
 
 ### Startup Integration
 
-Add to application startup (e.g., `src/cassey/channels/management_commands.py` or main entry point):
+Add to application startup (e.g., `src/executive_assistant/channels/management_commands.py` or main entry point):
 
 ```python
-from cassey.config.llm_factory import validate_llm_config
+from executive_assistant.config.llm_factory import validate_llm_config
 
 # Call during application initialization
 try:
@@ -744,7 +744,7 @@ except ValueError as e:
 ## Migration Notes
 
 1. **Breaking change** - Users MUST configure models via `.env`. No fallback defaults.
-2. **Validation on startup** - Cassey will refuse to start with clear error messages if misconfigured.
+2. **Validation on startup** - Executive Assistant will refuse to start with clear error messages if misconfigured.
 3. **Backward compatible** - `OLLAMA_API_KEY` maps to `OLLAMA_CLOUD_API_KEY`.
 4. **Model pattern validation** - Catches provider mismatches (e.g., `gpt-4o` for Anthropic).
 
@@ -754,9 +754,9 @@ except ValueError as e:
 
 | File | Changes |
 |------|---------|
-| `src/cassey/config/settings.py` | Add new env vars, fix validators, change MEM_EXTRACT_MODEL default |
-| `src/cassey/config/llm_factory.py` | Add `validate_llm_config()`, update `_get_model_config()`, add `_get_ollama_config()`, update `_create_ollama()` |
-| `src/cassey/main.py` | Call `validate_llm_config()` on startup |
+| `src/executive_assistant/config/settings.py` | Add new env vars, fix validators, change MEM_EXTRACT_MODEL default |
+| `src/executive_assistant/config/llm_factory.py` | Add `validate_llm_config()`, update `_get_model_config()`, add `_get_ollama_config()`, update `_create_ollama()` |
+| `src/executive_assistant/main.py` | Call `validate_llm_config()` on startup |
 | `.env.example` | Update with all new options, mark required fields |
 | `.env` | Update with new configuration format |
 
@@ -772,16 +772,16 @@ All proposed changes have been implemented and tested for syntax correctness.
 
 | File | Lines Changed | Description |
 |------|---------------|-------------|
-| `src/cassey/config/settings.py` | ~50 | Added LLM env vars, Ollama mode config, fixed validators |
-| `src/cassey/config/llm_factory.py` | ~330 | Complete rewrite: validation, model resolution, Ollama config |
-| `src/cassey/main.py` | ~10 | Added startup validation call |
+| `src/executive_assistant/config/settings.py` | ~50 | Added LLM env vars, Ollama mode config, fixed validators |
+| `src/executive_assistant/config/llm_factory.py` | ~330 | Complete rewrite: validation, model resolution, Ollama config |
+| `src/executive_assistant/main.py` | ~10 | Added startup validation call |
 | `.env.example` | ~50 | Updated LLM configuration section |
 | `.env` | ~50 | Updated with new configuration format |
 | `discussions/llm-config-plan.md` | Updated | This document |
 
 ### Implementation Details
 
-#### 1. Settings (`src/cassey/config/settings.py`)
+#### 1. Settings (`src/executive_assistant/config/settings.py`)
 
 Added environment variables:
 ```python
@@ -814,7 +814,7 @@ Changed defaults:
 - `MEM_EXTRACT_MODEL`: `"gpt-4o-mini"` → `"fast"`
 - `MEM_EXTRACT_PROVIDER`: `"openai"` → `None` (defaults to main provider)
 
-#### 2. LLM Factory (`src/cassey/config/llm_factory.py`)
+#### 2. LLM Factory (`src/executive_assistant/config/llm_factory.py`)
 
 Removed `MODEL_CONFIGS` with hardcoded defaults. Added:
 
@@ -836,10 +836,10 @@ New functions:
 - `get_model_for_extraction()` - Helper for memory extraction
 - `get_model_for_ocr()` - Helper for OCR structured output
 
-#### 3. Startup Validation (`src/cassey/main.py`)
+#### 3. Startup Validation (`src/executive_assistant/main.py`)
 
 ```python
-from cassey.config.llm_factory import validate_llm_config
+from executive_assistant.config.llm_factory import validate_llm_config
 
 async def main() -> None:
     configure_logging()
@@ -858,7 +858,7 @@ async def main() -> None:
 
 ### Validation Behavior
 
-Cassey will refuse to start with helpful error messages:
+Executive Assistant will refuse to start with helpful error messages:
 
 ```
 LLM configuration validation failed:

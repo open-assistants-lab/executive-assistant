@@ -15,7 +15,7 @@ import os
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from cassey.storage.lancedb_storage import (
+from executive_assistant.storage.lancedb_storage import (
     create_lancedb_collection,
     get_lancedb_collection,
     list_lancedb_collections,
@@ -26,7 +26,7 @@ from cassey.storage.lancedb_storage import (
 def test_vs_functionality():
     """Test LanceDB VS storage layer."""
 
-    storage_id = "telegram_6282871705"  # From the running Cassey instance
+    storage_id = "telegram_6282871705"  # From the running Executive Assistant instance
     collection_name = "validation_test"
     embedding_dimension = 384
 
@@ -40,7 +40,7 @@ def test_vs_functionality():
     test_documents = [
         {
             "id": "doc1",
-            "content": "Cassey is an AI assistant built with LangGraph and ReAct agent pattern",
+            "content": "Executive Assistant is an AI assistant built with LangGraph and ReAct agent pattern",
             "metadata": {"topic": "about", "tech": "langgraph"}
         },
         {
@@ -80,7 +80,7 @@ def test_vs_functionality():
     print("\n[2/4] Searching collection...")
     try:
         collection = get_lancedb_collection(storage_id, collection_name)
-        results = collection.search(query="what is cassey?", limit=2, search_type="vector")
+        results = collection.search(query="what is executive_assistant?", limit=2, search_type="vector")
 
         if results and len(results) > 0:
             print(f"   ✅ Search completed, found {len(results)} results")
@@ -98,7 +98,7 @@ def test_vs_functionality():
     print("\n[3/4] Listing all collections...")
     try:
         # Also check raw db table listing
-        from cassey.storage.lancedb_storage import get_lancedb_connection
+        from executive_assistant.storage.lancedb_storage import get_lancedb_connection
         db = get_lancedb_connection(storage_id)
         raw_tables = db.list_tables()
         print(f"   Raw DB tables: {raw_tables}")

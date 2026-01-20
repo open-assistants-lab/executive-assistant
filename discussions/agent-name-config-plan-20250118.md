@@ -14,7 +14,7 @@ Make the agent's name configurable via `config.yaml` so developers can easily cu
 
 ## Problem
 
-Currently "Cassey" is hardcoded in multiple user-facing places:
+Currently "Executive Assistant" is hardcoded in multiple user-facing places:
 - System prompts (4 locations)
 - Telegram welcome/help messages
 - HTTP API documentation
@@ -39,16 +39,16 @@ Add a single `agent.name` configuration that is referenced wherever the bot name
 ```yaml
 agent:
   # Agent display name - customize this for your deployment
-  name: "Cassey"
+  name: "Executive Assistant"
   # Maximum ReAct loop iterations to prevent infinite loops
   max_iterations: 20
 ```
 
-**File:** `src/cassey/config/settings.py`
+**File:** `src/executive_assistant/config/settings.py`
 
 ```python
 # Agent Configuration
-AGENT_NAME: str = _yaml_field("AGENT_NAME", "Cassey")
+AGENT_NAME: str = _yaml_field("AGENT_NAME", "Executive Assistant")
 MAX_ITERATIONS: int = _yaml_field("AGENT_MAX_ITERATIONS", 20)
 ```
 
@@ -58,10 +58,10 @@ MAX_ITERATIONS: int = _yaml_field("AGENT_MAX_ITERATIONS", 20)
 
 | File | Status | Change |
 |------|--------|--------|
-| `src/cassey/config/constants.py` | ✅ | Added `get_default_system_prompt()` function |
-| `src/cassey/agent/prompts.py` | ✅ | Refactored to `_get_telegram_prompt()`, `_get_http_prompt()`, `get_default_prompt()` |
-| `src/cassey/channels/telegram.py` | ✅ | `/start` and `/help` use `settings.AGENT_NAME` |
-| `src/cassey/channels/http.py` | ✅ | API title and root endpoint use `settings.AGENT_NAME` |
+| `src/executive_assistant/config/constants.py` | ✅ | Added `get_default_system_prompt()` function |
+| `src/executive_assistant/agent/prompts.py` | ✅ | Refactored to `_get_telegram_prompt()`, `_get_http_prompt()`, `get_default_prompt()` |
+| `src/executive_assistant/channels/telegram.py` | ✅ | `/start` and `/help` use `settings.AGENT_NAME` |
+| `src/executive_assistant/channels/http.py` | ✅ | API title and root endpoint use `settings.AGENT_NAME` |
 
 ---
 
@@ -70,11 +70,11 @@ MAX_ITERATIONS: int = _yaml_field("AGENT_MAX_ITERATIONS", 20)
 | File | Lines Changed |
 |------|---------------|
 | `config.yaml` | +3 |
-| `src/cassey/config/settings.py` | +3 |
-| `src/cassey/config/constants.py` | +20 (rewritten as function) |
-| `src/cassey/agent/prompts.py` | ~210 (refactored to functions) |
-| `src/cassey/channels/telegram.py` | ~4 |
-| `src/cassey/channels/http.py` | ~3 |
+| `src/executive_assistant/config/settings.py` | +3 |
+| `src/executive_assistant/config/constants.py` | +20 (rewritten as function) |
+| `src/executive_assistant/agent/prompts.py` | ~210 (refactored to functions) |
+| `src/executive_assistant/channels/telegram.py` | ~4 |
+| `src/executive_assistant/channels/http.py` | ~3 |
 | **Total** | **~243 lines** |
 
 ---
@@ -84,7 +84,7 @@ MAX_ITERATIONS: int = _yaml_field("AGENT_MAX_ITERATIONS", 20)
 ### Configuration Test
 ```
 === Agent Name Configuration ===
-AGENT_NAME from settings: Cassey ✓
+AGENT_NAME from settings: Executive Assistant ✓
 
 === Telegram Prompt ===
 Contains AGENT_NAME: True ✓
@@ -120,7 +120,7 @@ AGENT_NAME=Nova
 
 ### Option 3: Runtime Override
 ```bash
-AGENT_NAME=Nova uv run cassey
+AGENT_NAME=Nova uv run executive_assistant
 ```
 
 ---
@@ -130,30 +130,30 @@ AGENT_NAME=Nova uv run cassey
 ```
 1. Environment variable AGENT_NAME (highest priority - for deployment)
 2. config.yaml agent.name (default for the codebase)
-3. Hardcoded "Cassey" fallback (lowest priority)
+3. Hardcoded "Executive Assistant" fallback (lowest priority)
 ```
 
 ---
 
 ## Backward Compatibility
 
-- ✅ Default value is "Cassey" - existing deployments unchanged
+- ✅ Default value is "Executive Assistant" - existing deployments unchanged
 - ✅ No breaking changes to API or behavior
-- ✅ Package name remains `cassey`
+- ✅ Package name remains `executive_assistant`
 - ✅ Legacy `DEFAULT_SYSTEM_PROMPT` constant preserved in constants.py
 
 ---
 
 ## Internal Code (Left Unchanged)
 
-These locations remain as "Cassey" since they're internal:
-- Docstrings (`"""...for Cassey"""`)
-- Internal class names (`CasseyAgentState`)
+These locations remain as "Executive Assistant" since they're internal:
+- Docstrings (`"""...for Executive Assistant"""`)
+- Internal class names (`ExecutiveAssistantAgentState`)
 - Console messages in `main.py` (developer-facing)
 - Test files
 - Documentation (discussions/, docs/)
 
-**Rationale:** The package name is `cassey` and that's fine. We only need to change what *users* see.
+**Rationale:** The package name is `executive_assistant` and that's fine. We only need to change what *users* see.
 
 ---
 
@@ -186,7 +186,7 @@ These locations remain as "Cassey" since they're internal:
 
 2. Restart the bot:
    ```bash
-   uv run cassey
+   uv run executive_assistant
    ```
 
 3. Verify in Telegram:

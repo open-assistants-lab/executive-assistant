@@ -1,9 +1,9 @@
-# Skills Implementation Plan: Tool Usage Patterns for Cassey
+# Skills Implementation Plan: Tool Usage Patterns for Executive Assistant
 
 **Date:** 2025-01-19
 **Author:** Claude (Sonnet 4.5)
 **Status:** ✅ **Phase 2 Implementation Complete** (All 10 Skills Created + Integration Tests Passed)
-**Related Issue:** Cassey not helpful for day-to-day tasks (e.g., timesheet tracking)
+**Related Issue:** Executive Assistant not helpful for day-to-day tasks (e.g., timesheet tracking)
 
 ---
 
@@ -25,20 +25,20 @@
 - ✅ Created template skill: `data_management.md`
 
 **Files Created:**
-- `src/cassey/skills/registry.py` - SkillsRegistry class
-- `src/cassey/skills/loader.py` - Load skills from markdown files
-- `src/cassey/skills/tool.py` - load_skill tool
-- `src/cassey/skills/builder.py` - SkillsBuilder class (formerly SkillsMiddleware)
-- `src/cassey/skills/content/core/data_management.md` - Template skill
+- `src/executive_assistant/skills/registry.py` - SkillsRegistry class
+- `src/executive_assistant/skills/loader.py` - Load skills from markdown files
+- `src/executive_assistant/skills/tool.py` - load_skill tool
+- `src/executive_assistant/skills/builder.py` - SkillsBuilder class (formerly SkillsMiddleware)
+- `src/executive_assistant/skills/content/core/data_management.md` - Template skill
 
 **Files Modified:**
-- `src/cassey/skills/__init__.py` - New exports (SkillsBuilder)
-- `src/cassey/tools/registry.py` - Added get_skills_tools()
-- `src/cassey/main.py` - Load skills and inject into prompts
+- `src/executive_assistant/skills/__init__.py` - New exports (SkillsBuilder)
+- `src/executive_assistant/tools/registry.py` - Added get_skills_tools()
+- `src/executive_assistant/main.py` - Load skills and inject into prompts
 
 **Files Removed:**
-- `src/cassey/agent/middleware/` directory (removed misleading "middleware" terminology)
-- `src/cassey/skills/prompt_builder.py` (renamed to builder.py)
+- `src/executive_assistant/agent/middleware/` directory (removed misleading "middleware" terminology)
+- `src/executive_assistant/skills/prompt_builder.py` (renamed to builder.py)
 
 **Testing Results:**
 - ✅ Skills loading: 1 skill loaded successfully
@@ -70,15 +70,15 @@
 - ✅ Clean naming: Removed "middleware" terminology, using "builder" instead
 
 **Files Created (Phase 2):**
-- `src/cassey/skills/content/core/record_keeping.md` (~350 lines)
-- `src/cassey/skills/content/core/progress_tracking.md` (~300 lines)
-- `src/cassey/skills/content/core/workflow_patterns.md` (~400 lines)
-- `src/cassey/skills/content/core/synthesis.md` (~350 lines)
-- `src/cassey/skills/content/personal/task_tracking.md` (~250 lines)
-- `src/cassey/skills/content/personal/information_retrieval.md` (~280 lines)
-- `src/cassey/skills/content/personal/report_generation.md` (~350 lines)
-- `src/cassey/skills/content/personal/planning.md` (~320 lines)
-- `src/cassey/skills/content/personal/organization.md` (~300 lines)
+- `src/executive_assistant/skills/content/core/record_keeping.md` (~350 lines)
+- `src/executive_assistant/skills/content/core/progress_tracking.md` (~300 lines)
+- `src/executive_assistant/skills/content/core/workflow_patterns.md` (~400 lines)
+- `src/executive_assistant/skills/content/core/synthesis.md` (~350 lines)
+- `src/executive_assistant/skills/content/personal/task_tracking.md` (~250 lines)
+- `src/executive_assistant/skills/content/personal/information_retrieval.md` (~280 lines)
+- `src/executive_assistant/skills/content/personal/report_generation.md` (~350 lines)
+- `src/executive_assistant/skills/content/personal/planning.md` (~320 lines)
+- `src/executive_assistant/skills/content/personal/organization.md` (~300 lines)
 
 ### Next Steps 🔄
 
@@ -119,9 +119,9 @@ agent = create_agent(
 - Skills are **listed in system prompt**
 - Progressive disclosure via **tool calling**
 
-### What Cassey Implemented (Final Version)
+### What Executive Assistant Implemented (Final Version)
 
-**File:** `src/cassey/skills/builder.py`
+**File:** `src/executive_assistant/skills/builder.py`
 
 ```python
 class SkillsBuilder:
@@ -181,13 +181,13 @@ agent = create_langchain_agent(
 - The name was misleading → renamed to `SkillsBuilder`
 
 **What was removed:**
-- ❌ `src/cassey/agent/middleware/` directory (removed entirely)
+- ❌ `src/executive_assistant/agent/middleware/` directory (removed entirely)
 - ❌ `SkillsMiddleware` class alias (removed all backward compatibility)
 - ❌ `inject_into_prompt()` method alias (removed)
-- ❌ `src/cassey/skills/prompt_builder.py` (renamed to `builder.py`)
+- ❌ `src/executive_assistant/skills/prompt_builder.py` (renamed to `builder.py`)
 
 **What replaced it:**
-- ✅ `src/cassey/skills/builder.py` with `SkillsBuilder` class
+- ✅ `src/executive_assistant/skills/builder.py` with `SkillsBuilder` class
 - ✅ `build_prompt()` method (clear, simple name)
 - ✅ Clean, minimal implementation with no backward compatibility
 
@@ -457,7 +457,7 @@ def create_db_table(table_name: str, columns: str) -> str:
 **What was done:**
 - Updated all 8 DB tool descriptions with Minimalist Format (Counter-Proposal 1)
 - Updated 6 file tool descriptions with Minimalist Format
-- Verified Cassey loads successfully (10 skills, 66 tools)
+- Verified Executive Assistant loads successfully (10 skills, 66 tools)
 
 **Key changes:**
 - Tool descriptions now focus on "when to use" (not "how to use")
@@ -467,23 +467,23 @@ def create_db_table(table_name: str, columns: str) -> str:
 - Kept descriptions ultra-compact (5-8 lines each)
 
 **Files modified:**
-- `src/cassey/storage/db_tools.py` - All DB tools
-- `src/cassey/storage/file_sandbox.py` - Key file tools (read, write, list, glob, grep)
+- `src/executive_assistant/storage/db_tools.py` - All DB tools
+- `src/executive_assistant/storage/file_sandbox.py` - Key file tools (read, write, list, glob, grep)
 
 ---
 
 ## Peer Review Summary (2025-01-19)
 
-### What Cassey Already Knows
+### What Executive Assistant Already Knows
 
-Cassey already knows:
+Executive Assistant already knows:
 - ✅ How to be a good personal assistant
 - ✅ General knowledge (from LLM training)
 - ✅ How to use individual tools (read_file, write_file, query_db, etc.)
 
-### What Cassey Doesn't Know
+### What Executive Assistant Doesn't Know
 
-Cassey lacks:
+Executive Assistant lacks:
 - ❌ **Tool selection heuristics** - When to use DB vs VS vs Files
 - ❌ **Workflow patterns** - How to combine tools for complex tasks
 - ❌ **Best practices** - Efficient ways to accomplish common tasks
@@ -612,7 +612,7 @@ A **Skill** is a piece of meta-knowledge that teaches:
 ### Architecture
 
 ```python
-# src/cassey/skills/registry.py
+# src/executive_assistant/skills/registry.py
 
 class Skill:
     """A skill that teaches tool usage patterns."""
@@ -646,7 +646,7 @@ Both are needed - tool descriptions for single-tool decisions, skills for multi-
 
 ### Core Infrastructure (5 skills) ✅ Implement First
 
-**Meta-knowledge about tool usage** - These teach HOW to use Cassey's tools effectively.
+**Meta-knowledge about tool usage** - These teach HOW to use Executive Assistant's tools effectively.
 
 1. **data_management** - DB vs VS vs Files decision framework
    - When to use each storage type
@@ -732,7 +732,7 @@ Both are needed - tool descriptions for single-tool decisions, skills for multi-
 ### Phase 1: Remove Existing Skills & Align Tool Descriptions (Week 1)
 
 **1.1 Remove Old Skills**
-- Delete `src/cassey/skills/sqlite_helper.py` (old skill implementation)
+- Delete `src/executive_assistant/skills/sqlite_helper.py` (old skill implementation)
 - Search codebase for any other legacy skill code
 - Clean up imports and references
 
@@ -768,7 +768,7 @@ def create_db_table(table_name: str, schema: str) -> str:
 
 **2.1 Create Skills Registry with Caching**
 ```python
-# src/cassey/skills/registry.py
+# src/executive_assistant/skills/registry.py
 
 class SkillsRegistry:
     """Manage available skills with caching."""
@@ -808,7 +808,7 @@ class SkillsRegistry:
 
 **2.2 Create load_skill Tool with Error Handling**
 ```python
-# src/cassey/skills/tool.py
+# src/executive_assistant/skills/tool.py
 
 @tool
 def load_skill(skill_name: str) -> str:
@@ -837,7 +837,7 @@ def load_skill(skill_name: str) -> str:
     Returns:
         Full skill content with tool usage patterns and examples
     """
-    from cassey.skills import get_skills_registry
+    from executive_assistant.skills import get_skills_registry
 
     registry = get_skills_registry()
     skill = registry.get(skill_name)
@@ -854,7 +854,7 @@ def load_skill(skill_name: str) -> str:
 
 **2.3 Create Skills Middleware for Progressive Disclosure**
 ```python
-# src/cassey/agent/middleware/skills.py
+# src/executive_assistant/agent/middleware/skills.py
 
 class SkillsMiddleware:
     """Inject skill descriptions into system prompt with progressive disclosure."""
@@ -905,7 +905,7 @@ Use load_skill(skill_name) to access detailed guidance when needed.
 
 **3.1 Create 5 Core Infrastructure Skills**
 
-Create markdown files in `src/cassey/skills/content/core/`:
+Create markdown files in `src/executive_assistant/skills/content/core/`:
 
 - `data_management.md` - DB vs VS vs Files decision framework
 - `record_keeping.md` - Information lifecycle patterns
@@ -915,7 +915,7 @@ Create markdown files in `src/cassey/skills/content/core/`:
 
 **3.2 Create 5 Personal Application Skills**
 
-Create markdown files in `src/cassey/skills/content/personal/`:
+Create markdown files in `src/executive_assistant/skills/content/personal/`:
 
 - `task_tracking.md` - Timesheets, habits, expenses
 - `information_retrieval.md` - Finding past conversations, docs
@@ -978,7 +978,7 @@ Learn to choose the right storage (DB, VS, Files) for your task.
 **4.1 Update Agent Graph**
 
 ```python
-# src/cassey/agent/graph.py
+# src/executive_assistant/agent/graph.py
 
 def create_react_graph(
     model: BaseChatModel,
@@ -987,15 +987,15 @@ def create_react_graph(
     system_prompt: str | None = None,
 ) -> StateGraph:
     # Initialize skills registry
-    from cassey.skills import SkillsRegistry, load_skills_from_directory
+    from executive_assistant.skills import SkillsRegistry, load_skills_from_directory
     registry = SkillsRegistry()
 
     # Load skills from directory
-    for skill in load_skills_from_directory("src/cassey/skills/content"):
+    for skill in load_skills_from_directory("src/executive_assistant/skills/content"):
         registry.register(skill)
 
     # Create skills middleware
-    from cassey.agent.middleware import SkillsMiddleware
+    from executive_assistant.agent.middleware import SkillsMiddleware
     skills_middleware = SkillsMiddleware(registry)
 
     # Inject skills into system prompt
@@ -1005,7 +1005,7 @@ def create_react_graph(
     system_prompt = skills_middleware.inject_into_prompt(system_prompt)
 
     # Add load_skill tool
-    from cassey.skills.tool import load_skill
+    from executive_assistant.skills.tool import load_skill
     tools.append(load_skill)
 
     # ... rest of graph creation ...
@@ -1014,7 +1014,7 @@ def create_react_graph(
 **4.2 Update Tool Registry**
 
 ```python
-# src/cassey/tools/registry.py
+# src/executive_assistant/tools/registry.py
 
 async def get_all_tools() -> list[BaseTool]:
     """Get all available tools for the agent."""
@@ -1023,7 +1023,7 @@ async def get_all_tools() -> list[BaseTool]:
     # ... existing tool loading ...
 
     # Add skills tools
-    from cassey.skills.tool import load_skill
+    from executive_assistant.skills.tool import load_skill
     all_tools.append(load_skill)
 
     return all_tools
@@ -1034,7 +1034,7 @@ async def get_all_tools() -> list[BaseTool]:
 ## File Structure
 
 ```
-src/cassey/
+src/executive_assistant/
 ├── skills/
 │   ├── __init__.py
 │   ├── registry.py              # SkillsRegistry class (with caching)
@@ -1095,7 +1095,7 @@ def test_load_skill():
 ```python
 def test_prompt_injection():
     middleware = SkillsMiddleware(registry)
-    base_prompt = "You are Cassey"
+    base_prompt = "You are Executive Assistant"
     enhanced = middleware.inject_into_prompt(base_prompt)
     assert "Available Skills" in enhanced
     assert "data_management" in enhanced
@@ -1192,7 +1192,7 @@ Uses existing:
 ## Open Questions
 
 1. **Skill Storage Location**
-   - Option A: `src/cassey/skills/content/` (code repository)
+   - Option A: `src/executive_assistant/skills/content/` (code repository)
    - Option B: `data/skills/{group_id}/` (user-customizable)
    - **Recommendation:** Start with A, add B later
 
@@ -1215,8 +1215,8 @@ Uses existing:
 **LangGraph Subgraphs:**
 - Subgraphs: `docs/kb/langgraph-subgraphs.md`
 
-**Existing Cassey Skills:**
-- SQLite Helper: `src/cassey/skills/sqlite_helper.py`
+**Existing Executive Assistant Skills:**
+- SQLite Helper: `src/executive_assistant/skills/sqlite_helper.py`
 
 **Related Research:**
 - OpenCode Research: `discussions/opencode-research-20250119.md`
@@ -1234,7 +1234,7 @@ Uses existing:
 4. ✅ **In-memory caching** (load once at startup, no runtime file I/O)
 5. ✅ **Alignment** (tool descriptions and skills must be consistent)
 6. ✅ Build on OpenCode's approach (tool descriptions, not domain knowledge)
-7. ✅ Cassey already knows how to be helpful - skills provide tool usage guidance
+7. ✅ Executive Assistant already knows how to be helpful - skills provide tool usage guidance
 
 **Phase 1-2 Status (as of 2025-01-19):**
 - ✅ Skills infrastructure implemented and tested
@@ -1319,7 +1319,7 @@ How to combine multiple tools effectively
 
 **Length:** ~350 lines - Comprehensive but focused on tool usage, not business logic
 
-**Location:** `src/cassey/skills/content/core/data_management.md`
+**Location:** `src/executive_assistant/skills/content/core/data_management.md`
 
 This template should be used as a reference when creating the remaining 9 skills.
 
@@ -1374,7 +1374,7 @@ system_prompt=(
 )
 ```
 
-**What Cassey does (correctly):**
+**What Executive Assistant does (correctly):**
 ```python
 system_prompt = skills_middleware.inject_into_prompt(system_prompt)
 # Adds: "Available Skills: data_management, record_keeping, ..."

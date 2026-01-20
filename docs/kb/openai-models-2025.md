@@ -174,7 +174,7 @@ OpenAI offers a range of models optimized for different use cases, from fast/cos
 
 ## Recommended Usage
 
-### For Cassey AI Assistant (Updated):
+### For Executive Assistant AI Assistant (Updated):
 1. **GPT-4o Mini** - Primary model for conversations (fast, cheap, good quality)
 2. **GPT-5.1** - For complex tasks requiring AGI-level performance (faster than GPT-5.2)
 3. **GPT-5.2** - For mathematical reasoning and AGI-benchmark tasks (when needed)

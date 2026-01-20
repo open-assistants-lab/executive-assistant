@@ -13,7 +13,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from cassey.config.llm_factory import LLMFactory
+from executive_assistant.config.llm_factory import LLMFactory
 from benchmark_scenarios import SCENARIOS, get_scenario, get_all_scenarios
 
 
@@ -201,7 +201,7 @@ class LLMBenchmark:
         scenarios_to_test = scenarios or ["simple_qa"]
 
         print("=" * 70)
-        print("🚀 LLM Benchmark - Cassey Performance Testing")
+        print("🚀 LLM Benchmark - Executive Assistant Performance Testing")
         print("=" * 70)
         print(f"Providers: {', '.join(providers)}")
         print(f"Models: {', '.join(models)}")

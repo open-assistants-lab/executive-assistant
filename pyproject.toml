@@ -1,5 +1,5 @@
 [project]
-name = "cassey"
+name = "executive_assistant"
 version = "0.1.0"
 description = "Multi-channel AI agent platform with LangGraph ReAct agent"
 readme = "README.md"
@@ -42,6 +42,15 @@ dependencies = [
     "paddleocr>=3.3.2; sys_platform == 'linux' and platform_machine == 'x86_64'",
     "paddlepaddle>=3.3.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
     "pymupdf>=1.24.0",
+    "python-docx>=1.1.2",
+    "python-pptx>=1.0.2",
+    "openpyxl>=3.1.2",
+    "markdown-it-py>=3.0.0",
+    "beautifulsoup4>=4.12.3",
+    "lxml>=5.3.0",
+    "pillow>=10.4.0",
+    "reportlab>=4.2.5",
+    "html5lib>=1.1",
     "psycopg[binary]>=3.2.0",
     # For local embeddings (KB backend)
     "sentence-transformers>=3.0.0",
@@ -70,11 +79,11 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/cassey"]
+packages = ["src/executive_assistant"]
 
 [project.scripts]
-cassey = "cassey.main:run_main"
-cassey-dev = "cassey.dev_server:main"
+executive_assistant = "executive_assistant.main:run_main"
+executive_assistant-dev = "executive_assistant.dev_server:main"
 
 [tool.pytest.ini_options]
 markers = [

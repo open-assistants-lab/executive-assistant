@@ -305,7 +305,7 @@ Ollama models use quantization to reduce memory and improve speed.
 
 ---
 
-## Top 10 Models for Cassey (2025)
+## Top 10 Models for Executive Assistant (2025)
 
 ### For Conversational AI:
 1. **Llama 3.3 70B** - Best balance, near GPT-4 level
@@ -327,7 +327,7 @@ Ollama models use quantization to reduce memory and improve speed.
 
 ---
 
-## Recommended Usage for Cassey
+## Recommended Usage for Executive Assistant
 
 ### Primary Local Model: **Llama 3.3 70B (Q5_K_M)**
 - Near GPT-4 performance

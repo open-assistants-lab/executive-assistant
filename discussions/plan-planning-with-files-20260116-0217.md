@@ -34,7 +34,7 @@ Use existing templates from:
 - `list_plans()` (current + archived)
 
 ## Agent Behavior (prompt-level only)
-Add to `src/cassey/agent/prompts.py`:
+Add to `src/executive_assistant/agent/prompts.py`:
 - Create plan first for complex tasks (3+ steps, research, multi‑turn work)
 - Write findings to `findings.md` (2‑action rule)
 - Log errors and test results to `progress.md`
@@ -54,10 +54,10 @@ Add to `src/cassey/agent/prompts.py`:
 - Optional `export_plan` tool if user wants a plan copied into their files
 
 ## Implementation Steps
-1. Add `get_thread_plan_path()` in `src/cassey/config/settings.py`.
-2. Create `src/cassey/storage/plan_storage.py` for plan sandbox utilities.
-3. Add plan tools in `src/cassey/tools/plan_tools.py` and register in `src/cassey/tools/registry.py`.
-4. Update system prompt with the planning rules in `src/cassey/agent/prompts.py`.
+1. Add `get_thread_plan_path()` in `src/executive_assistant/config/settings.py`.
+2. Create `src/executive_assistant/storage/plan_storage.py` for plan sandbox utilities.
+3. Add plan tools in `src/executive_assistant/tools/plan_tools.py` and register in `src/executive_assistant/tools/registry.py`.
+4. Update system prompt with the planning rules in `src/executive_assistant/agent/prompts.py`.
 5. Add docs to `README.md` describing `/plan` usage and separation behavior.
 
 ## Risks / Mitigations
@@ -76,13 +76,13 @@ Add to `src/cassey/agent/prompts.py`:
 ## Implementation Status (2026-01-16)
 
 ### Implemented
-- **Custom middleware**: `src/cassey/agent/planning_middleware.py`
+- **Custom middleware**: `src/executive_assistant/agent/planning_middleware.py`
   - Uses `abefore_agent` to auto-init plans on complex tasks.
   - Uses `awrap_tool_call` to log findings/errors after tool calls.
   - Skips plan tools (`init_plan`, `read_plan`, etc.) to avoid recursion.
-- **Wiring**: `src/cassey/agent/langchain_agent.py`
+- **Wiring**: `src/executive_assistant/agent/langchain_agent.py`
   - Middleware is injected before summarization when `MW_PLAN_FILES_ENABLED=true`.
-- **Settings**: `src/cassey/config/settings.py` + `.env.example`
+- **Settings**: `src/executive_assistant/config/settings.py` + `.env.example`
   - `MW_PLAN_FILES_ENABLED`, `MW_PLAN_AUTO_INIT`, thresholds + max chars.
 - **Tool name alignment**:
   - Research tool list updated to actual tool names: `search_web`, `search_kb`, `describe_kb`, `kb_list`, `grep_files`, `glob_files`, `read_file`, `list_files`.

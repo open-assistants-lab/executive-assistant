@@ -6,7 +6,7 @@ Allow all users/threads to read from a shared, organization-wide DB while restri
 ## What Was Implemented
 ### 1) Shared DB Storage
 - Added a shared DB storage wrapper that ignores thread_id and uses a single file path.
-- File: `src/cassey/storage/shared_db_storage.py`
+- File: `src/executive_assistant/storage/shared_db_storage.py`
 
 ### 2) Shared DB Tools (Admin-Guarded Writes)
 - Read tools (available to all):
@@ -20,22 +20,22 @@ Allow all users/threads to read from a shared, organization-wide DB while restri
   - `drop_shared_db_table`
   - `import_shared_db_table`
   - `execute_shared_db`
-- File: `src/cassey/storage/shared_db_tools.py`
+- File: `src/executive_assistant/storage/shared_db_tools.py`
 
 ### 3) Admin Detection (User Context)
 - Added per-request user_id context (ContextVar + thread fallback).
 - Set/clear user_id in channel base for each message.
 - Files:
-  - `src/cassey/storage/file_sandbox.py`
-  - `src/cassey/channels/base.py`
+  - `src/executive_assistant/storage/file_sandbox.py`
+  - `src/executive_assistant/channels/base.py`
 
 ### 4) Registry Wiring
 - Shared DB tools are now registered in `get_all_tools()`.
-- File: `src/cassey/tools/registry.py`
+- File: `src/executive_assistant/tools/registry.py`
 
 ### 5) Public API Exposure
 - Exported shared DB storage in storage package.
-- File: `src/cassey/storage/__init__.py`
+- File: `src/executive_assistant/storage/__init__.py`
 
 ### 6) Configuration
 - Added new settings:
@@ -43,7 +43,7 @@ Allow all users/threads to read from a shared, organization-wide DB while restri
   - `ADMIN_USER_IDS` (comma-separated)
   - `ADMIN_THREAD_IDS` (comma-separated)
 - Files:
-  - `src/cassey/config/settings.py`
+  - `src/executive_assistant/config/settings.py`
   - `.env.example`
   - `README.md`
 
@@ -53,13 +53,13 @@ Allow all users/threads to read from a shared, organization-wide DB while restri
 - If no admins are configured, write tools return a configuration error message.
 
 ## Files Changed / Added
-- Added: `src/cassey/storage/shared_db_storage.py`
-- Added: `src/cassey/storage/shared_db_tools.py`
-- Updated: `src/cassey/storage/file_sandbox.py`
-- Updated: `src/cassey/channels/base.py`
-- Updated: `src/cassey/tools/registry.py`
-- Updated: `src/cassey/storage/__init__.py`
-- Updated: `src/cassey/config/settings.py`
+- Added: `src/executive_assistant/storage/shared_db_storage.py`
+- Added: `src/executive_assistant/storage/shared_db_tools.py`
+- Updated: `src/executive_assistant/storage/file_sandbox.py`
+- Updated: `src/executive_assistant/channels/base.py`
+- Updated: `src/executive_assistant/tools/registry.py`
+- Updated: `src/executive_assistant/storage/__init__.py`
+- Updated: `src/executive_assistant/config/settings.py`
 - Updated: `.env.example`
 - Updated: `README.md`
 

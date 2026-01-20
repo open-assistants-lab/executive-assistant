@@ -9,11 +9,11 @@
 
 ## Executive Summary
 
-This session addressed critical issues with Cassey's message delivery system and startup process:
+This session addressed critical issues with Executive Assistant's message delivery system and startup process:
 
 1. **Messages were being batched** - All responses arrived at once instead of streaming in real-time
 2. **Todo list only showed at end** - Progress updates appeared after completion instead of during execution
-3. **Bot startup was hanging** - Cassey process would start but not respond to messages
+3. **Bot startup was hanging** - Executive Assistant process would start but not respond to messages
 4. **Print output buffering** - Debug output wasn't appearing in logs, making debugging difficult
 5. **Missing `_clean_markdown` method** - AttributeError when sending messages
 6. **Missing imports** - `set_thread_id` and other functions not imported in telegram.py
@@ -34,8 +34,8 @@ This session addressed critical issues with Cassey's message delivery system and
 - Users saw no progress until everything finished
 
 **Files Modified**:
-- `src/cassey/channels/base.py` - Removed `stream_agent_response()` method
-- `src/cassey/channels/telegram.py` - Refactored `handle_message()` to send immediately
+- `src/executive_assistant/channels/base.py` - Removed `stream_agent_response()` method
+- `src/executive_assistant/channels/telegram.py` - Refactored `handle_message()` to send immediately
 
 **Implementation**:
 ```python
@@ -63,7 +63,7 @@ async for event in self.agent.astream(state, config):
 - The hook executed before state was updated
 
 **Files Modified**:
-- `src/cassey/agent/todo_display.py` - Read todos from `tool_call["args"]` directly
+- `src/executive_assistant/agent/todo_display.py` - Read todos from `tool_call["args"]` directly
 
 **Implementation**:
 ```python
@@ -90,7 +90,7 @@ async def aafter_model(self, state, runtime):
 
 ### 3. Bot Startup Hanging
 
-**Problem**: Cassey process started but never responded to messages.
+**Problem**: Executive Assistant process started but never responded to messages.
 
 **Root Cause**:
 - Print statements were buffered and not appearing in logs
@@ -99,9 +99,9 @@ async def aafter_model(self, state, runtime):
 - Missing command handlers caused AttributeError
 
 **Files Modified**:
-- `src/cassey/scheduler.py` - Added `flush=True` to debug prints
-- `src/cassey/main.py` - Added `flush=True` to all debug prints, changed to `await channel.start()`
-- `src/cassey/channels/telegram.py` - Removed handlers for missing commands, added debug prints
+- `src/executive_assistant/scheduler.py` - Added `flush=True` to debug prints
+- `src/executive_assistant/main.py` - Added `flush=True` to all debug prints, changed to `await channel.start()`
+- `src/executive_assistant/channels/telegram.py` - Removed handlers for missing commands, added debug prints
 
 **Implementation**:
 ```python
@@ -160,7 +160,7 @@ self.application.add_handler(CommandHandler("debug", self._debug_command))
 - Stray code line using undefined `update` variable in `finally` block
 
 **Files Modified**:
-- `src/cassey/channels/telegram.py` - Added missing imports, restored management command handlers, removed stray code
+- `src/executive_assistant/channels/telegram.py` - Added missing imports, restored management command handlers, removed stray code
 
 **Implementation**:
 ```python
@@ -173,8 +173,8 @@ group_id = await ensure_thread_group(thread_id, message.user_id)  # NameError!
 set_workspace_context(group_id)  # NameError!
 
 # AFTER: Import inline before use
-from cassey.storage.file_sandbox import set_thread_id
-from cassey.storage.group_storage import (
+from executive_assistant.storage.file_sandbox import set_thread_id
+from executive_assistant.storage.group_storage import (
     ensure_thread_group,
     set_group_id as set_workspace_context,
     set_user_id as set_workspace_user_id,
@@ -204,7 +204,7 @@ self.application.add_handler(CommandHandler("meta", meta_command))
 # ```
 
 **Files Modified**:
-- `src/cassey/channels/telegram.py` - Removed call to non-existent `_clean_markdown()` method
+- `src/executive_assistant/channels/telegram.py` - Removed call to non-existent `_clean_markdown()` method
 
 **Implementation**:
 ```python
@@ -221,11 +221,11 @@ content = self._convert_markdown_to_telegram(content)
 **Resolution**: Removed the custom summarization entirely, keeping only LangChain's `SummarizationMiddleware`.
 
 **Files Deleted**:
-- `src/cassey/agent/summary_extractor.py` - Entire custom summarization system
+- `src/executive_assistant/agent/summary_extractor.py` - Entire custom summarization system
 
 **Files Modified**:
-- `src/cassey/agent/nodes.py` - Removed `summarize_conversation()` and `should_summarize()`
-- `src/cassey/agent/graph.py` - Removed summarization routing logic
+- `src/executive_assistant/agent/nodes.py` - Removed `summarize_conversation()` and `should_summarize()`
+- `src/executive_assistant/agent/graph.py` - Removed summarization routing logic
 - `config.yaml` - Removed `context:` section with custom summarization settings
 
 **Why This Was Correct**:
@@ -238,7 +238,7 @@ content = self._convert_markdown_to_telegram(content)
 
 ## Code Changes Summary
 
-### src/cassey/channels/base.py
+### src/executive_assistant/channels/base.py
 
 **Removed**: `stream_agent_response()` method (355-498)
 
@@ -250,7 +250,7 @@ async for event in self.agent.astream(state, config):
             await self.send_message(message.conversation_id, msg.content)
 ```
 
-### src/cassey/channels/telegram.py
+### src/executive_assistant/channels/telegram.py
 
 **Removed**:
 - Handlers for `_start_command`, `_help_command`
@@ -267,15 +267,15 @@ async for event in self.agent.astream(state, config):
 - Added debug prints with `flush=True`
 - Replaced `asyncio.create_task()` with direct `await` in main.py
 
-### src/cassey/agent/todo_display.py
+### src/executive_assistant/agent/todo_display.py
 
 **Changed**: `aafter_model()` to read todos from `tool_call["args"]` instead of `state`
 
-### src/cassey/scheduler.py
+### src/executive_assistant/scheduler.py
 
 **Added**: Debug prints with `flush=True` to track startup
 
-### src/cassey/main.py
+### src/executive_assistant/main.py
 
 **Added**:
 - Debug prints with `flush=True` throughout startup sequence
@@ -292,7 +292,7 @@ async for event in self.agent.astream(state, config):
 ### Manual Testing Steps
 
 1. **Real-Time Streaming**:
-   - Start Cassey: `uv run cassey`
+   - Start Executive Assistant: `uv run executive_assistant`
    - Send a message that triggers tool use
    - Verify: Messages appear progressively as agent generates them
 
@@ -302,7 +302,7 @@ async for event in self.agent.astream(state, config):
 
 3. **Message Responsiveness**:
    - Send: "hello"
-   - Verify: Cassey responds within reasonable time
+   - Verify: Executive Assistant responds within reasonable time
 
 ### Test Results
 
@@ -349,13 +349,13 @@ async for event in self.agent.astream(state, config):
 ```bash
 DEFAULT_LLM_PROVIDER=ollama
 OLLAMA_API_KEY=your-key
-CASSEY_CHANNELS=telegram,http
+EXECUTIVE_ASSISTANT_CHANNELS=telegram,http
 TELEGRAM_BOT_TOKEN=your-token
 ```
 
 ### Startup Process
 1. Start PostgreSQL: `docker-compose up -d postgres_db`
-2. Start Cassey: `uv run cassey`
+2. Start Executive Assistant: `uv run executive_assistant`
 3. Verify logs show:
    - "Scheduler started"
    - "Telegram channel created"
@@ -364,10 +364,10 @@ TELEGRAM_BOT_TOKEN=your-token
 ### Verification Commands
 ```bash
 # Check process is running
-ps aux | grep cassey | grep -v grep
+ps aux | grep executive_assistant | grep -v grep
 
 # Check logs
-tail -f /tmp/cassey.log
+tail -f /tmp/executive_assistant.log
 
 # Send test message (use Telegram app directly)
 # Or via API for testing
@@ -390,10 +390,10 @@ curl -X POST "https://api.telegram.org/bot<TOKEN>/sendMessage" \
 ## References
 
 - **Related Files**:
-  - `src/cassey/channels/base.py` - Base channel with message handling
-  - `src/cassey/channels/telegram.py` - Telegram-specific implementation
-  - `src/cassey/agent/todo_display.py` - Todo list middleware
-  - `src/cassey/main.py` - Application startup
+  - `src/executive_assistant/channels/base.py` - Base channel with message handling
+  - `src/executive_assistant/channels/telegram.py` - Telegram-specific implementation
+  - `src/executive_assistant/agent/todo_display.py` - Todo list middleware
+  - `src/executive_assistant/main.py` - Application startup
 
 - **Documentation**:
   - `discussions/middleware-debug-logging-peer-review-20250119.md` - Previous middleware work
@@ -404,7 +404,7 @@ curl -X POST "https://api.telegram.org/bot<TOKEN>/sendMessage" \
 ## Appendix: Debug Session Timeline
 
 ### Issue Discovery
-- User reported: "i typed 'hello' but cassey doesn't respond"
+- User reported: "i typed 'hello' but executive_assistant doesn't respond"
 - Logs showed bot running but not processing messages
 
 ### Investigation Process

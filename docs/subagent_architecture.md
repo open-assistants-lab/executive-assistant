@@ -1,12 +1,12 @@
-# Multi-Agent Architecture: Cassey, Orchestrator, Workers
+# Multi-Agent Architecture: Executive Assistant, Orchestrator, Workers
 
 > Archived: Orchestrator/worker agents are disabled in the current runtime. This doc is kept for reference only.
 
 ## Concept
 
-Cassey can delegate to specialized agents. The hierarchy is:
+Executive Assistant can delegate to specialized agents. The hierarchy is:
 
-- **Cassey** = Main agent with full tool access. Handles requirements & goals with users.
+- **Executive Assistant** = Main agent with full tool access. Handles requirements & goals with users.
 - **Orchestrator** = Task & flow specialist. Receives concrete tasks, creates workers, handles scheduling.
 - **Workers** = Task-specific agents that do the actual work.
 
@@ -14,7 +14,7 @@ Cassey can delegate to specialized agents. The hierarchy is:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                   Cassey                                │
+│                   Executive Assistant                                │
 │  - Has all tools                                        │
 │  - Can delegate to Orchestrator                         │
 │  - Aggregates results                                   │
@@ -42,7 +42,7 @@ Workers: Task-specific, cannot spawn anything
 ## Implementation Pattern
 
 ```python
-# Cassey delegates to Orchestrator
+# Executive Assistant delegates to Orchestrator
 @tool
 def delegate_to_orchestrator(task: str, flow: str, schedule: str = None) -> str:
     """Delegate a concrete task and flow to the Orchestrator.
@@ -87,7 +87,7 @@ def spawn_worker(name: str, tools: list[str], prompt: str) -> str:
 
 | Agent | Tools |
 |-------|-------|
-| **Cassey** | All tools + `delegate_to_orchestrator` |
+| **Executive Assistant** | All tools + `delegate_to_orchestrator` |
 | **Orchestrator** | `spawn_worker`, `schedule_job`, `list_jobs`, `cancel_job` |
 | **Workers** | Task-specific subset (e.g., `web_search` + `execute_python` for price checker) |
 
@@ -97,7 +97,7 @@ def spawn_worker(name: str, tools: list[str], prompt: str) -> str:
 
 **Why**: Prevents infinite spawn loops and keeps hierarchy clean.
 
-- Cassey cannot spawn (only delegates to Orchestrator)
+- Executive Assistant cannot spawn (only delegates to Orchestrator)
 - Workers cannot spawn (only do their job)
 - Orchestrator is the only spawner (designed to do so responsibly)
 
@@ -118,11 +118,11 @@ worker = spawn_worker(
 
 | Phase | Who | Responsibility |
 |-------|-----|----------------|
-| **Requirements & Goals** | Cassey + User | "I need daily price alerts under $100" |
-| **Task & Flow** | Cassey → Orchestrator | "Check price, compare, notify if below" |
+| **Requirements & Goals** | Executive Assistant + User | "I need daily price alerts under $100" |
+| **Task & Flow** | Executive Assistant → Orchestrator | "Check price, compare, notify if below" |
 | **Execution** | Orchestrator → Workers | Spawn workers, schedule, run |
 
-Cassey handles the "what do we want?" conversation with the user.
+Executive Assistant handles the "what do we want?" conversation with the user.
 Orchestrator handles the "how do we execute?" implementation.
 
 ## Conditional Flows
@@ -262,12 +262,12 @@ pipeline_worker = spawn_worker(
 ## Agent Lifecycle
 
 ```
-1. Cassey discusses with user
+1. Executive Assistant discusses with user
    User: "I need to know when this product drops below $100"
-   Cassey: "I can set up a daily price check. Should I alert you via Telegram?"
+   Executive Assistant: "I can set up a daily price check. Should I alert you via Telegram?"
    User: "Yes, daily at 9am"
 
-2. Cassey delegates to Orchestrator
+2. Executive Assistant delegates to Orchestrator
    delegate_to_orchestrator(
        task="Check Amazon price for B08X12345",
        flow="""
@@ -316,7 +316,7 @@ Tools available:
 ## No New Dependencies
 
 For the simple approach:
-- `create_react_graph()`: Already implemented in `src/cassey/agent/graph.py`
+- `create_react_graph()`: Already implemented in `src/executive_assistant/agent/graph.py`
 - APScheduler: Already installed for reminders
 - Python exec(): Already used in python_tool
 - File/database tools: Already implemented
@@ -328,7 +328,7 @@ For the simple approach:
    - `scheduled_jobs` table (from scheduled_jobs_design.md)
 
 2. **Phase 2**: Implement Orchestrator
-   - `delegate_to_orchestrator` tool for Cassey
+   - `delegate_to_orchestrator` tool for Executive Assistant
    - Orchestrator agent with specialized prompt
    - `spawn_worker`, `schedule_job`, `list_jobs`, `cancel_job` tools for Orchestrator
 
@@ -340,8 +340,8 @@ For the simple approach:
 ## Status
 
 **Design complete.** Hierarchy established:
-- Cassey → Orchestrator → Workers
+- Executive Assistant → Orchestrator → Workers
 - Only Orchestrator can spawn workers
-- Clear separation: requirements (Cassey+User) vs execution (Orchestrator)
+- Clear separation: requirements (Executive Assistant+User) vs execution (Orchestrator)
 
 Implementation pending after scheduled jobs system foundation is complete.

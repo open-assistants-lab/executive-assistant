@@ -680,7 +680,7 @@ Complete database schema in a single file (formerly 7 separate migrations):
 - Idempotent: uses `CREATE TABLE IF NOT EXISTS` and `DROP CONSTRAINT IF EXISTS`
 - **New CHECK constraints**: `acl_valid_permission`, `valid_system_owner`
 
-#### 2. `src/cassey/storage/workspace_storage.py`
+#### 2. `src/executive_assistant/storage/workspace_storage.py`
 Core workspace abstraction layer with:
 ```python
 # Context management
@@ -718,7 +718,7 @@ ensure_public_workspace(conn) -> str
 
 ### Files Modified
 
-#### 1. `src/cassey/config/settings.py`
+#### 1. `src/executive_assistant/config/settings.py`
 - Added `WORKSPACES_ROOT` setting
 - Added workspace path methods:
   - `get_workspace_root(workspace_id)`
@@ -729,22 +729,22 @@ ensure_public_workspace(conn) -> str
   - `get_workspace_reminders_path(workspace_id)`
   - `get_workspace_workflows_path(workspace_id)`
 
-#### 2. `src/cassey/storage/file_sandbox.py`
-- Added import: `from cassey.storage.workspace_storage import get_workspace_id`
+#### 2. `src/executive_assistant/storage/file_sandbox.py`
+- Added import: `from executive_assistant.storage.workspace_storage import get_workspace_id`
 - Updated `get_sandbox()` priority:
   1. `user_id` (explicit, backward compatibility)
   2. `workspace_id` from context (new workspace routing)
   3. `thread_id` from context (legacy thread routing)
   4. global sandbox fallback
 
-#### 3. `src/cassey/storage/db_storage.py`
-- Added import: `from cassey.storage.workspace_storage import get_workspace_id`
+#### 3. `src/executive_assistant/storage/db_storage.py`
+- Added import: `from executive_assistant.storage.workspace_storage import get_workspace_id`
 - Updated `_get_db_path()` to accept `workspace_id` parameter
 - Priority: `workspace_id` → `thread_id` for path resolution
 
-#### 4. `src/cassey/storage/duckdb_storage.py` (NEW - DuckDB + Hybrid KB)
+#### 4. `src/executive_assistant/storage/duckdb_storage.py` (NEW - DuckDB + Hybrid KB)
 - **Replaced SeekDB with DuckDB + Hybrid (FTS + VSS) for Knowledge Base**
-- Added import: `from cassey.storage.workspace_storage import get_workspace_id, sanitize_thread_id`
+- Added import: `from executive_assistant.storage.workspace_storage import get_workspace_id, sanitize_thread_id`
 - Changed `DuckDBCollection` from `thread_id` to `workspace_id`
 - Added `_get_storage_id()` helper with priority: `workspace_id` → `thread_id` fallback
 - Updated storage path resolution:
@@ -758,8 +758,8 @@ ensure_public_workspace(conn) -> str
   - `drop_duckdb_collection(storage_id, collection_name)`
   - `drop_all_duckdb_collections(storage_id)`
 
-#### 5. `src/cassey/storage/kb_tools.py`
-- Added import: `from cassey.storage.workspace_storage import get_workspace_id`
+#### 5. `src/executive_assistant/storage/kb_tools.py`
+- Added import: `from executive_assistant.storage.workspace_storage import get_workspace_id`
 - Changed `_get_thread_id()` to `_get_storage_id()` with workspace priority
 - Updated all KB tools to use workspace-aware storage:
   - `create_kb_collection()`
@@ -771,10 +771,10 @@ ensure_public_workspace(conn) -> str
   - `delete_kb_documents()`
   - `add_file_to_kb()` - Bridge tool to add uploaded files to KB collections
 
-#### 6. `src/cassey/channels/base.py`
+#### 6. `src/executive_assistant/channels/base.py`
 - Added imports:
   ```python
-  from cassey.storage.workspace_storage import (
+  from executive_assistant.storage.workspace_storage import (
       ensure_thread_workspace,
       set_workspace_id as set_workspace_context,
       clear_workspace_id as clear_workspace_context,
@@ -844,10 +844,10 @@ All migration scripts have been consolidated into a single `migrations/001_initi
 
 2. **Manual migration (alternative):**
    ```bash
-   psql -U cassey -d cassey_db -f migrations/001_initial_schema.sql
+   psql -U executive_assistant -d executive_assistant_db -f migrations/001_initial_schema.sql
    ```
 
-3. **Restart Cassey** to pick up the code changes
+3. **Restart Executive Assistant** to pick up the code changes
 
 4. **Verify workspace creation:**
    - New users will automatically get individual workspaces
@@ -855,7 +855,7 @@ All migration scripts have been consolidated into a single `migrations/001_initi
 
 5. **Optional - Create public workspace:**
    ```python
-   from cassey.storage.workspace_storage import ensure_public_workspace
+   from executive_assistant.storage.workspace_storage import ensure_public_workspace
    await ensure_public_workspace()
    ```
 
@@ -1087,9 +1087,9 @@ Please review the following aspects of the workspace redesign implementation:
 | Component | File | Lines | Rationale |
 |-----------|------|-------|-----------|
 | Schema structure | `migrations/001_initial_schema.sql` | 1-474 | Well-designed with proper normalization |
-| Storage abstraction | `src/cassey/storage/workspace_storage.py` | 1-652 | Clean separation of concerns |
-| Routing priority | `src/cassey/storage/file_sandbox.py` | 240-260 | Logical fallback: workspace → thread → global |
-| Alias resolution | `src/cassey/storage/workspace_storage.py` | 587-617 | Handles circular references correctly |
+| Storage abstraction | `src/executive_assistant/storage/workspace_storage.py` | 1-652 | Clean separation of concerns |
+| Routing priority | `src/executive_assistant/storage/file_sandbox.py` | 240-260 | Logical fallback: workspace → thread → global |
+| Alias resolution | `src/executive_assistant/storage/workspace_storage.py` | 587-617 | Handles circular references correctly |
 
 #### ⚠️ Approved with Conditions (Requires Fix)
 
@@ -1099,7 +1099,7 @@ Please review the following aspects of the workspace redesign implementation:
 
 **Evidence:**
 ```bash
-$ grep -r "can_access" src/cassey/tools/
+$ grep -r "can_access" src/executive_assistant/tools/
 # (No results - function is not imported or called anywhere)
 ```
 
@@ -1107,12 +1107,12 @@ $ grep -r "can_access" src/cassey/tools/
 
 | File | Action Required |
 |------|-----------------|
-| `src/cassey/tools/file_tools.py` | Add `can_access()` check before write |
-| `src/cassey/tools/kb_tools.py` | Add `can_access()` check for read/write |
-| `src/cassey/tools/db_tools.py` | Add `can_access()` check for read/write |
-| `src/cassey/tools/reminder_tools.py` | Add `can_access()` check |
+| `src/executive_assistant/tools/file_tools.py` | Add `can_access()` check before write |
+| `src/executive_assistant/tools/kb_tools.py` | Add `can_access()` check for read/write |
+| `src/executive_assistant/tools/db_tools.py` | Add `can_access()` check for read/write |
+| `src/executive_assistant/tools/reminder_tools.py` | Add `can_access()` check |
 
-**Repair - Create `src/cassey/tools/auth.py`:**
+**Repair - Create `src/executive_assistant/tools/auth.py`:**
 
 ```python
 """Access control wrapper for workspace operations."""
@@ -1120,13 +1120,13 @@ $ grep -r "can_access" src/cassey/tools/
 from functools import wraps
 from typing import Literal
 
-from cassey.storage.workspace_storage import (
+from executive_assistant.storage.workspace_storage import (
     get_workspace_id,
     get_user_id,
     can_access,
     get_db_conn,
 )
-from cassey.logging import get_logger
+from executive_assistant.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -1181,7 +1181,7 @@ def require_permission(action: Literal["read", "write", "admin"]):
 
 ```python
 # Add at top of file
-from cassey.tools.auth import require_permission
+from executive_assistant.tools.auth import require_permission
 
 @tool
 @require_permission("write")  # <-- Add decorator
@@ -1236,7 +1236,7 @@ ALTER TABLE workspaces
 
 ##### 8.3 ACL Query Bug
 
-**Location:** `src/cassey/storage/workspace_storage.py:442-467`
+**Location:** `src/executive_assistant/storage/workspace_storage.py:442-467`
 
 **Current (BUGGY):**
 ```python
@@ -1279,7 +1279,7 @@ if acl_grant:
 
 ##### 8.4 Routing Error Handling
 
-**Location:** `src/cassey/channels/base.py:250-257`
+**Location:** `src/executive_assistant/channels/base.py:250-257`
 
 **Current:**
 ```python
@@ -1306,7 +1306,7 @@ except Exception as e:
 
 ##### 8.5 Group Workspace Functions - NOT IMPLEMENTED
 
-**Required:** Create `src/cassey/storage/group_workspace.py`
+**Required:** Create `src/executive_assistant/storage/group_workspace.py`
 
 ```python
 """Group workspace management functions."""
@@ -1314,7 +1314,7 @@ except Exception as e:
 import uuid
 from typing import Literal
 
-from cassey.storage.workspace_storage import (
+from executive_assistant.storage.workspace_storage import (
     generate_workspace_id,
     generate_group_id,
     get_db_conn,
@@ -1380,7 +1380,7 @@ async def remove_group_member(group_id: str, user_id: str, conn=None) -> None:
 
 ##### 8.6 Workspace Member Management - NOT IMPLEMENTED
 
-**Required:** Add to `src/cassey/storage/workspace_storage.py`
+**Required:** Add to `src/executive_assistant/storage/workspace_storage.py`
 
 ```python
 async def add_workspace_member(
@@ -1442,7 +1442,7 @@ async def grant_acl(
 
 import pytest
 import asyncpg
-from cassey.storage.workspace_storage import (
+from executive_assistant.storage.workspace_storage import (
     create_group,
     create_group_workspace,
     add_group_member,
@@ -1486,14 +1486,14 @@ async async def test_reader_cannot_write():
 
 | # | Action | File | Lines | Status |
 |---|--------|------|-------|--------|
-| 1 | Create auth decorator | `src/cassey/storage/workspace_storage.py` | 675-839 | ✅ Done - Supports both sync/async functions |
-| 2 | Add user_id context | `src/cassey/storage/workspace_storage.py` | 36-79 | ✅ Done - Added `set_user_id()`, `get_user_id()`, `clear_user_id()` |
-| 3 | Fix ACL query bug | `src/cassey/storage/workspace_storage.py` | 462-486 | ✅ Done - Removed 'admin' reference, added proper permission check |
+| 1 | Create auth decorator | `src/executive_assistant/storage/workspace_storage.py` | 675-839 | ✅ Done - Supports both sync/async functions |
+| 2 | Add user_id context | `src/executive_assistant/storage/workspace_storage.py` | 36-79 | ✅ Done - Added `set_user_id()`, `get_user_id()`, `clear_user_id()` |
+| 3 | Fix ACL query bug | `src/executive_assistant/storage/workspace_storage.py` | 462-486 | ✅ Done - Removed 'admin' reference, added proper permission check |
 | 4 | Add schema constraints | `migrations/001_initial_schema.sql` | 214-240 | ✅ Done - Added type validation, FKs for user/group_workspaces |
-| 5 | Fix routing error handling | `src/cassey/channels/base.py` | 252-262 | ✅ Done - Fail fast with RuntimeError on workspace setup failure |
-| 6 | Add permission checks to file tools | `src/cassey/storage/file_sandbox.py` | All tools | ✅ Done - `@require_permission("read"\|"write")` on all tools |
-| 7 | Add permission checks to KB tools | `src/cassey/storage/kb_tools.py` | All tools | ✅ Done - `@require_permission("read"\|"write")` on all tools |
-| 8 | Add permission checks to DB tools | `src/cassey/storage/db_tools.py` | All tools | ✅ Done - `@require_permission("read"\|"write")` on all tools |
+| 5 | Fix routing error handling | `src/executive_assistant/channels/base.py` | 252-262 | ✅ Done - Fail fast with RuntimeError on workspace setup failure |
+| 6 | Add permission checks to file tools | `src/executive_assistant/storage/file_sandbox.py` | All tools | ✅ Done - `@require_permission("read"\|"write")` on all tools |
+| 7 | Add permission checks to KB tools | `src/executive_assistant/storage/kb_tools.py` | All tools | ✅ Done - `@require_permission("read"\|"write")` on all tools |
+| 8 | Add permission checks to DB tools | `src/executive_assistant/storage/db_tools.py` | All tools | ✅ Done - `@require_permission("read"\|"write")` on all tools |
 
 **P0 Complete Summary:**
 - Permission decorator moved to `workspace_storage.py` to avoid circular imports
@@ -1506,9 +1506,9 @@ async async def test_reader_cannot_write():
 
 | # | Action | File | Lines | Status |
 |---|--------|------|-------|--------|
-| 10 | Create group functions | `src/cassey/storage/group_workspace.py` | 1-247 | ✅ Done - All group management functions implemented |
-| 11 | Add member functions | `src/cassey/storage/workspace_storage.py` | 842-991 | ✅ Done - `add_workspace_member()`, `remove_workspace_member()`, `get_workspace_members()` |
-| 12 | Add ACL functions | `src/cassey/storage/workspace_storage.py` | 994-1102 | ✅ Done - `grant_acl()`, `revoke_acl()`, `grant_group_acl()`, `revoke_group_acl()`, `get_resource_acl()` |
+| 10 | Create group functions | `src/executive_assistant/storage/group_workspace.py` | 1-247 | ✅ Done - All group management functions implemented |
+| 11 | Add member functions | `src/executive_assistant/storage/workspace_storage.py` | 842-991 | ✅ Done - `add_workspace_member()`, `remove_workspace_member()`, `get_workspace_members()` |
+| 12 | Add ACL functions | `src/executive_assistant/storage/workspace_storage.py` | 994-1102 | ✅ Done - `grant_acl()`, `revoke_acl()`, `grant_group_acl()`, `revoke_group_acl()`, `get_resource_acl()` |
 
 **P1 Complete Summary:**
 - Created `group_workspace.py` with full group lifecycle management
@@ -1521,8 +1521,8 @@ async async def test_reader_cannot_write():
 | # | Action | File | Lines | Status |
 |---|--------|------|-------|--------|
 | 13 | Create tests | `tests/test_workspace_storage.py` | 1-970 | ✅ Done - 57 tests covering all access control scenarios |
-| 14 | Create management CLI | `src/cassey/cli/workspace.py` | NEW | Pending |
-| 15 | User merge actions | `src/cassey/tools/merge_tools.py` | NEW | Pending |
+| 14 | Create management CLI | `src/executive_assistant/cli/workspace.py` | NEW | Pending |
+| 15 | User merge actions | `src/executive_assistant/tools/merge_tools.py` | NEW | Pending |
 
 **P2 Tests Complete Summary:**
 - 57 tests created covering:
@@ -1854,14 +1854,14 @@ async def test_individual_workspace_owner_has_admin_access(self, mock_get_db_con
 
 | File | Changes | Lines |
 |------|---------|-------|
-| `src/cassey/storage/workspace_storage.py` | Added user_id context, permission decorator, member/ACL functions | +400 |
-| `src/cassey/tools/auth.py` | Created (re-exports from workspace_storage) | 25 |
+| `src/executive_assistant/storage/workspace_storage.py` | Added user_id context, permission decorator, member/ACL functions | +400 |
+| `src/executive_assistant/tools/auth.py` | Created (re-exports from workspace_storage) | 25 |
 | `migrations/001_initial_schema.sql` | Added CHECK constraints, FKs | +30 |
-| `src/cassey/channels/base.py` | Fail-fast workspace setup, user_id context | +15 |
-| `src/cassey/storage/file_sandbox.py` | Added @require_permission decorators | +8 |
-| `src/cassey/storage/kb_tools.py` | Added @require_permission decorators | +8 |
-| `src/cassey/storage/db_tools.py` | Added @require_permission decorators | +8 |
-| `src/cassey/storage/group_workspace.py` | Created group management | 247 |
+| `src/executive_assistant/channels/base.py` | Fail-fast workspace setup, user_id context | +15 |
+| `src/executive_assistant/storage/file_sandbox.py` | Added @require_permission decorators | +8 |
+| `src/executive_assistant/storage/kb_tools.py` | Added @require_permission decorators | +8 |
+| `src/executive_assistant/storage/db_tools.py` | Added @require_permission decorators | +8 |
+| `src/executive_assistant/storage/group_workspace.py` | Created group management | 247 |
 | `tests/test_workspace_storage.py` | Created test suite | 970 |
 
 ### Access Control Flow

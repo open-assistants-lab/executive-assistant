@@ -1,9 +1,9 @@
-# Cassey Frontend Plan (Next.js + shadcn/ui)
+# Executive Assistant Frontend Plan (Next.js + shadcn/ui)
 
 ## Objective
 
-Build a web frontend for Cassey using Next.js and shadcn/ui, allowing users to:
-- Chat with Cassey via browser
+Build a web frontend for Executive Assistant using Next.js and shadcn/ui, allowing users to:
+- Chat with Executive Assistant via browser
 - Access their own user space (conversations, KB, DB, files, reminders)
 - Manage their data and settings
 
@@ -29,7 +29,7 @@ Build a web frontend for Cassey using Next.js and shadcn/ui, allowing users to:
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                      Cassey Backend (FastAPI)                       │
+│                      Executive Assistant Backend (FastAPI)                       │
 │  POST /message              │  Send message, stream response       │
 │  GET /conversations/{id}    │  Get conversation history            │
 │  GET /health                 │  Health check                        │
@@ -80,7 +80,7 @@ Build a web frontend for Cassey using Next.js and shadcn/ui, allowing users to:
 
 ### Web Visitor Thread ID
 - **No authentication required** for MVP
-- Cassey assigns a visitor thread ID: `http:visitor_{uuid}`
+- Executive Assistant assigns a visitor thread ID: `http:visitor_{uuid}`
 - Stored in browser localStorage + session cookie
 - All user data (files, KB, DB, reminders) scoped to this thread_id
 
@@ -93,9 +93,9 @@ Build a web frontend for Cassey using Next.js and shadcn/ui, allowing users to:
 │  A. Telegram Initiate Merge                                         │
 │  ─────────────────────────────────                                  │
 │  User in Telegram: "/merge"                                        │
-│  Cassey: "I'll generate a code. Enter it in your web browser to    │
+│  Executive Assistant: "I'll generate a code. Enter it in your web browser to    │
 │          confirm merging your web data with this Telegram account."│
-│  Cassey generates: 6-digit code (e.g., "ABC123")                   │
+│  Executive Assistant generates: 6-digit code (e.g., "ABC123")                   │
 │  Code valid for: 10 minutes                                        │
 │  Stored in DB with expiry                                          │
 └─────────────────────────────────────────────────────────────────────┘
@@ -144,7 +144,7 @@ CREATE TABLE merge_codes (
 ### How Merge Works
 
 ```python
-# Existing implementation in src/cassey/storage/user_registry.py
+# Existing implementation in src/executive_assistant/storage/user_registry.py
 await registry.merge_threads(
     source_thread_ids=["http:visitor_abc123"],
     target_user_id="user@example.com"  # Or any persistent user_id
@@ -205,7 +205,7 @@ Similar to the merge flow, but for linking browsers:
 ┌─────────────────────────────────────────────────────────────────────┐
 │  User in Safari: Settings → "Link another browser"                │
 │  Frontend generates: code "LINK789"                                │
-│  User opens Chrome, goes to cassey.com → "Enter link code"        │
+│  User opens Chrome, goes to executive_assistant.com → "Enter link code"        │
 │  Backend links both threads to a "user_id" (e.g., "user_xyz")     │
 │  Both browsers now share the same user_id                         │
 └─────────────────────────────────────────────────────────────────────┘
@@ -242,7 +242,7 @@ async def link_browser_thread(code: str, thread_id: str):
 ### Alternative: Email-First (If You Want Unified ID)
 
 ```
-First visit: cassey.com
+First visit: executive_assistant.com
 ├── "Enter your email to continue"
 ├── User: user@example.com
 ├── Backend: Creates thread_id = "http:user@example.com"
@@ -358,7 +358,7 @@ npx shadcn@latest add collapsible
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Cassey                        [KB] [DB] [Files] [⚙️]       │
+│  Executive Assistant                        [KB] [DB] [Files] [⚙️]       │
 ├─────────────────────────────────────────────────────────────┤
 │  ┌───────────┐  ┌──────────────────────────────────────┐  │
 │  │ History   │  │  ┌─────────────────────────────────┐  │  │
@@ -473,9 +473,9 @@ interface UserStore {
 }
 
 export const useUserStore = create<UserStore>((set) => ({
-  userId: localStorage.getItem('cassey_user_id'),
+  userId: localStorage.getItem('executive_assistant_user_id'),
   setUserId: (id) => {
-    localStorage.setItem('cassey_user_id', id)
+    localStorage.setItem('executive_assistant_user_id', id)
     set({ userId: id })
   },
   conversations: [],
@@ -500,32 +500,32 @@ export const useUserStore = create<UserStore>((set) => ({
 
 ```yaml
 services:
-  cassey-backend:
+  executive_assistant-backend:
     build: .
     ports:
       - "8000:8000"
     volumes:
       - ./data:/app/data
     environment:
-      - CASSEY_CHANNELS=http
-      - POSTGRES_URL=postgresql://cassey:password@postgres:5432/cassey_db
+      - EXECUTIVE_ASSISTANT_CHANNELS=http
+      - POSTGRES_URL=postgresql://executive_assistant:password@postgres:5432/executive_assistant_db
     depends_on:
       - postgres
 
-  cassey-frontend:
+  executive_assistant-frontend:
     build: ./frontend
     ports:
       - "3000:3000"
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
     depends_on:
-      - cassey-backend
+      - executive_assistant-backend
 
   postgres:
     image: postgres:16
     environment:
-      - POSTGRES_DB=cassey_db
-      - POSTGRES_USER=cassey
+      - POSTGRES_DB=executive_assistant_db
+      - POSTGRES_USER=executive_assistant
       - POSTGRES_PASSWORD=password
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -537,7 +537,7 @@ volumes:
 ### Directory Structure
 
 ```
-cassey/
+executive_assistant/
 ├── docker-compose.yml
 ├── Dockerfile              # Backend (FastAPI)
 ├── frontend/
@@ -545,7 +545,7 @@ cassey/
 │   ├── package.json
 │   ├── next.config.js
 │   └── src/
-└── src/cassey/             # Backend code
+└── src/executive_assistant/             # Backend code
 ```
 
 ---
@@ -581,7 +581,7 @@ cassey/
 ### New Endpoints to Add
 
 ```python
-# src/cassey/channels/http.py - Add these endpoints
+# src/executive_assistant/channels/http.py - Add these endpoints
 
 @self.app.get("/user/{user_id}/kb")
 async def list_kb_collections(user_id: str):

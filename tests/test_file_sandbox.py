@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from cassey.storage.file_sandbox import (
+from executive_assistant.storage.file_sandbox import (
     FileSandbox,
     SecurityError,
     set_thread_id,
@@ -15,7 +15,7 @@ from cassey.storage.file_sandbox import (
     get_user_id,
     get_sandbox,
 )
-from cassey.storage.group_storage import set_group_id, clear_group_id
+from executive_assistant.storage.group_storage import set_group_id, clear_group_id
 
 
 # =============================================================================
@@ -71,9 +71,9 @@ class TestFileSandbox:
             max_file_size_mb=10
         )
 
-    def test_init_default(self):
+    def test_init_default(self, tmp_path):
         """Test FileSandbox initialization with defaults."""
-        sandbox = FileSandbox()
+        sandbox = FileSandbox(root=tmp_path / "files")
         assert sandbox.root is not None
         assert sandbox.allowed_extensions is not None
         assert sandbox.max_file_size_mb > 0
@@ -169,15 +169,15 @@ class TestGetSandbox:
 
     def test_get_sandbox_with_user_id(self, tmp_path):
         """Test get_sandbox with explicit user_id."""
-        # Use MagicMock to avoid frozen pydantic class issues
+        expected = tmp_path / "files" / "test_user"
         mock_settings = MagicMock()
-        mock_settings.FILES_ROOT = tmp_path / "files"
+        mock_settings.get_user_files_path.return_value = expected
         mock_settings.ALLOWED_FILE_EXTENSIONS = {".txt", ".md"}
         mock_settings.MAX_FILE_SIZE_MB = 10
 
-        with patch("cassey.storage.file_sandbox.settings", mock_settings):
+        with patch("executive_assistant.storage.file_sandbox.settings", mock_settings):
             sandbox = get_sandbox(user_id="test_user")
-            assert sandbox.root == (tmp_path / "files" / "test_user").resolve()
+            assert sandbox.root == expected.resolve()
             assert sandbox.root.exists()
 
     def test_get_sandbox_with_group_id_context(self, tmp_path):
@@ -188,16 +188,15 @@ class TestGetSandbox:
         expected = groups_root / "test_group" / "files"
         expected.mkdir(parents=True, exist_ok=True)
 
-        # Use MagicMock for settings - simpler than pydantic model_construct
         mock_settings = MagicMock()
-        mock_settings.get_workspace_files_path.return_value = expected
+        mock_settings.get_group_files_path.return_value = expected
         mock_settings.ALLOWED_FILE_EXTENSIONS = {".txt", ".md"}
         mock_settings.MAX_FILE_SIZE_MB = 10
-        mock_settings.FILES_ROOT = tmp_path / "files"
+        mock_settings.get_user_files_path.return_value = tmp_path / "files"
 
-        with patch("cassey.storage.file_sandbox.settings", mock_settings):
+        with patch("executive_assistant.storage.file_sandbox.settings", mock_settings):
             # Set group_id context
-            from cassey.storage.group_storage import set_group_id
+            from executive_assistant.storage.group_storage import set_group_id
             set_group_id("test_group")
             try:
                 sandbox = get_sandbox()
@@ -210,17 +209,17 @@ class TestGetSandbox:
         """Test get_sandbox with thread_id from context."""
         users_root = tmp_path / "data" / "users"
         users_root.mkdir(parents=True, exist_ok=True)
-        expected = users_root / "telegram_user123" / "files"
+        expected = users_root / "anon_telegram_user123" / "files"
         expected.mkdir(parents=True, exist_ok=True)
 
         # Use MagicMock for settings
         mock_settings = MagicMock()
-        mock_settings.get_thread_files_path.return_value = expected
+        mock_settings.get_user_files_path.return_value = expected
         mock_settings.ALLOWED_FILE_EXTENSIONS = {".txt", ".md"}
         mock_settings.MAX_FILE_SIZE_MB = 10
-        mock_settings.FILES_ROOT = tmp_path / "files"
+        mock_settings.get_user_files_path.return_value = expected
 
-        with patch("cassey.storage.file_sandbox.settings", mock_settings):
+        with patch("executive_assistant.storage.file_sandbox.settings", mock_settings):
             # Set thread_id context
             set_thread_id("telegram:user123")
             try:
@@ -233,18 +232,15 @@ class TestGetSandbox:
     def test_get_sandbox_fallback_to_global(self):
         """Test get_sandbox falls back to global sandbox when no context is set."""
         # Clear any existing context
-        from cassey.storage.group_storage import clear_group_id
+        from executive_assistant.storage.group_storage import clear_group_id
         clear_group_id()
         clear_thread_id()
 
         # Mock context functions to return empty/None
-        with patch("cassey.storage.file_sandbox.get_workspace_id", return_value=""):
-            with patch("cassey.storage.file_sandbox.get_thread_id", return_value=""):
-                sandbox = get_sandbox()
-                # Should return the global sandbox (a FileSandbox instance)
-                assert isinstance(sandbox, FileSandbox)
-                # Root should be set to something (the actual FILES_ROOT)
-                assert sandbox.root is not None
+        with patch("executive_assistant.storage.file_sandbox.get_workspace_id", return_value=""):
+            with patch("executive_assistant.storage.file_sandbox.get_thread_id", return_value=""):
+                with pytest.raises(ValueError, match="requires user_id"):
+                    get_sandbox()
 
 
 # =============================================================================
@@ -271,12 +267,12 @@ class TestFileTools:
         )
 
         # Set up group context and mock permission check
-        from cassey.storage.group_storage import set_group_id
+        from executive_assistant.storage.group_storage import set_group_id
         set_group_id("test_group")
 
-        with patch("cassey.storage.file_sandbox.get_sandbox", return_value=sandbox):
+        with patch("executive_assistant.storage.file_sandbox.get_sandbox", return_value=sandbox):
             # Mock the permission check to bypass group storage requirements
-            with patch("cassey.storage.group_storage._check_permission_async"):
+            with patch("executive_assistant.storage.group_storage._check_permission_async"):
                 yield sandbox
 
         # Clean up
@@ -284,14 +280,14 @@ class TestFileTools:
 
     def test_read_file_not_found(self, mock_sandbox):
         """Test reading a non-existent file."""
-        from cassey.storage.file_sandbox import read_file
+        from executive_assistant.storage.file_sandbox import read_file
 
         result = read_file.invoke({"file_path": "nonexistent.txt"})
         assert "File not found" in result
 
     def test_read_file_success(self, mock_sandbox):
         """Test reading an existing file."""
-        from cassey.storage.file_sandbox import read_file
+        from executive_assistant.storage.file_sandbox import read_file
 
         # Create test file
         test_file = mock_sandbox.root / "test.txt"
@@ -302,7 +298,7 @@ class TestFileTools:
 
     def test_write_file_success(self, mock_sandbox):
         """Test writing a file."""
-        from cassey.storage.file_sandbox import write_file
+        from executive_assistant.storage.file_sandbox import write_file
 
         result = write_file.invoke({"file_path": "test.txt", "content": "Test content"})
         assert "File written" in result or "success" in result.lower()
@@ -313,7 +309,7 @@ class TestFileTools:
 
     def test_write_file_size_limit(self, mock_sandbox):
         """Test writing a file that exceeds size limit."""
-        from cassey.storage.file_sandbox import write_file
+        from executive_assistant.storage.file_sandbox import write_file
 
         # Create sandbox with very small limit
         small_sandbox = FileSandbox(
@@ -324,22 +320,22 @@ class TestFileTools:
         # Directly set max_bytes to 0 to force size validation failure
         small_sandbox.max_bytes = 0
 
-        with patch("cassey.storage.file_sandbox.get_sandbox", return_value=small_sandbox):
+        with patch("executive_assistant.storage.file_sandbox.get_sandbox", return_value=small_sandbox):
             # Also mock permission check for this inner patch
-            with patch("cassey.storage.group_storage._check_permission_async"):
+            with patch("executive_assistant.storage.group_storage._check_permission_async"):
                 result = write_file.invoke({"file_path": "test.txt", "content": "x" * 1000})
                 assert "Security error" in result or "exceeds limit" in result or "Error" in result
 
     def test_write_file_extension_blocked(self, mock_sandbox):
         """Test writing a file with blocked extension."""
-        from cassey.storage.file_sandbox import write_file
+        from executive_assistant.storage.file_sandbox import write_file
 
         result = write_file.invoke({"file_path": "test.exe", "content": "content"})
         assert "Security error" in result or "not allowed" in result or "Error" in result
 
     def test_list_files(self, mock_sandbox):
         """Test listing files."""
-        from cassey.storage.file_sandbox import list_files
+        from executive_assistant.storage.file_sandbox import list_files
 
         # Create test files and directories
         (mock_sandbox.root / "file1.txt").write_text("content1")
@@ -352,7 +348,7 @@ class TestFileTools:
 
     def test_list_files_recursive(self, mock_sandbox):
         """Test listing files recursively."""
-        from cassey.storage.file_sandbox import list_files
+        from executive_assistant.storage.file_sandbox import list_files
 
         # Create nested structure
         (mock_sandbox.root / "level1").mkdir()

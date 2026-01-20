@@ -12,20 +12,20 @@ Eliminate `FILES_ROOT` and `DB_ROOT` from settings and runtime usage. All file/D
 
 ## Implementation Steps
 1. **Settings cleanup**
-   - Remove `FILES_ROOT` and `DB_ROOT` from `src/cassey/config/settings.py`.
+   - Remove `FILES_ROOT` and `DB_ROOT` from `src/executive_assistant/config/settings.py`.
    - Delete their `@field_validator` handlers.
    - Update `get_thread_files_root` and `get_thread_db_path` to derive paths directly from `USERS_ROOT` without legacy fallback to `FILES_ROOT`/`DB_ROOT`.
 
 2. **File sandbox**
-   - Update `src/cassey/storage/file_sandbox.py` to derive per-thread file roots via `settings.get_thread_files_root(thread_id)` only.
+   - Update `src/executive_assistant/storage/file_sandbox.py` to derive per-thread file roots via `settings.get_thread_files_root(thread_id)` only.
    - Remove any direct usage of `settings.FILES_ROOT`.
 
 3. **DB storage**
-   - Update `src/cassey/storage/db_storage.py` to use `settings.get_thread_db_path(thread_id)` instead of `settings.DB_ROOT`.
+   - Update `src/executive_assistant/storage/db_storage.py` to use `settings.get_thread_db_path(thread_id)` instead of `settings.DB_ROOT`.
    - Remove checks that compare against `DB_ROOT`.
 
 4. **Python tool**
-   - Update `src/cassey/tools/python_tool.py` to rely on `settings.get_thread_files_root(thread_id)` or `settings.get_thread_root(thread_id)` (whichever is intended for DATA_PATH).
+   - Update `src/executive_assistant/tools/python_tool.py` to rely on `settings.get_thread_files_root(thread_id)` or `settings.get_thread_root(thread_id)` (whichever is intended for DATA_PATH).
    - Remove direct reference to `settings.FILES_ROOT`.
 
 5. **Docs + references**

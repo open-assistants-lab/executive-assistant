@@ -10,14 +10,14 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from cassey.storage.file_sandbox import set_thread_id, set_user_id
-from cassey.storage.group_storage import (
+from executive_assistant.storage.file_sandbox import set_thread_id, set_user_id
+from executive_assistant.storage.group_storage import (
     set_group_id,
     set_user_id as set_workspace_user_id,
     get_user_id as get_workspace_user_id,
     get_group_id,
 )
-from cassey.storage.helpers import sanitize_thread_id_to_user_id
+from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
 
 
 async def test_permission_context():
@@ -56,7 +56,7 @@ async def test_permission_context():
     print(f"   group_id from context: {verified_group_id}")
 
     # Test permission check
-    from cassey.storage.group_storage import _check_permission_sync
+    from executive_assistant.storage.group_storage import _check_permission_sync
 
     try:
         print(f"\n🔒 Testing permission check (read, group scope)...")
@@ -69,7 +69,7 @@ async def test_permission_context():
     # Test file sandbox context
     set_user_id(identity_id)
     print(f"\n📁 Testing file sandbox context...")
-    from cassey.storage.file_sandbox import get_user_id as get_sandbox_user_id
+    from executive_assistant.storage.file_sandbox import get_user_id as get_sandbox_user_id
     sandbox_user_id = get_sandbox_user_id()
     print(f"   user_id from sandbox context: {sandbox_user_id}")
 

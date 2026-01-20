@@ -18,9 +18,9 @@ The progress middleware implementation has been completed and **aligns well with
 
 ### ✅ Phase 1: Core Middleware (Plan Section: Lines 46-85)
 
-**Plan:** Create `src/cassey/agent/progress_middleware.py` with `ProgressMiddleware` class
+**Plan:** Create `src/executive_assistant/agent/progress_middleware.py` with `ProgressMiddleware` class
 
-**Implementation:** Created `src/cassey/agent/status_middleware.py` with `StatusUpdateMiddleware`
+**Implementation:** Created `src/executive_assistant/agent/status_middleware.py` with `StatusUpdateMiddleware`
 
 | Feature | Plan | Implementation | Status |
 |---------|------|----------------|--------|
@@ -101,7 +101,7 @@ MW_STATUS_UPDATE_INTERVAL: float = _yaml_field("MIDDLEWARE_STATUS_UPDATES_UPDATE
 
 ## Implementation Quality Assessment
 
-### Code Review: `src/cassey/agent/status_middleware.py`
+### Code Review: `src/executive_assistant/agent/status_middleware.py`
 
 | Aspect | Rating | Notes |
 |--------|--------|-------|
@@ -124,7 +124,7 @@ sensitive_keys = {"api_key", "password", "token", "secret", "key"}
 if time.time() - self.last_status_time >= self.update_interval:
 ```
 
-### Code Review: `src/cassey/channels/telegram.py`
+### Code Review: `src/executive_assistant/channels/telegram.py`
 
 | Aspect | Rating | Notes |
 |--------|--------|-------|
@@ -132,14 +132,14 @@ if time.time() - self.last_status_time >= self.update_interval:
 | **State Tracking** | ⭐⭐⭐⭐⭐ | `_status_messages` dict for edit tracking |
 | **Graceful Degradation** | ⭐⭐⭐⭐⭐ | Falls back to new message on edit failure |
 
-### Code Review: `src/cassey/channels/base.py`
+### Code Review: `src/executive_assistant/channels/base.py`
 
 | Aspect | Rating | Notes |
 |--------|--------|-------|
 | **Default Implementation** | ⭐⭐⭐⭐ | Calls `send_message()` - sensible fallback |
 | **Lazy Agent Initialization** | ⭐⭐⭐⭐⭐ | `initialize_agent_with_channel()` avoids circular deps |
 
-### Code Review: `src/cassey/agent/langchain_agent.py`
+### Code Review: `src/executive_assistant/agent/langchain_agent.py`
 
 | Aspect | Rating | Notes |
 |--------|--------|-------|
@@ -294,11 +294,11 @@ Currently, status is sent BEFORE and AFTER each tool. For very fast tools (< 0.1
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `src/cassey/agent/status_middleware.py` | 209 | Core middleware implementation |
-| `src/cassey/channels/base.py` | 369 | Base channel with `send_status()` |
-| `src/cassey/channels/telegram.py` | ~350 | Telegram channel with message editing |
-| `src/cassey/agent/langchain_agent.py` | 140 | Agent integration |
-| `src/cassey/config/settings.py` | ~5 | Configuration settings |
+| `src/executive_assistant/agent/status_middleware.py` | 209 | Core middleware implementation |
+| `src/executive_assistant/channels/base.py` | 369 | Base channel with `send_status()` |
+| `src/executive_assistant/channels/telegram.py` | ~350 | Telegram channel with message editing |
+| `src/executive_assistant/agent/langchain_agent.py` | 140 | Agent integration |
+| `src/executive_assistant/config/settings.py` | ~5 | Configuration settings |
 | `config.yaml` | ~7 | YAML configuration |
 
 ---

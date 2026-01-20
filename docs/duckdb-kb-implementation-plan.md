@@ -40,7 +40,7 @@ Replace SeekDB with DuckDB + VSS for cross-platform, faster KB functionality.
 ### 1. Create `duckdb_kb.py` Module
 
 ```python
-# src/cassey/storage/duckdb_kb.py
+# src/executive_assistant/storage/duckdb_kb.py
 
 class DuckDBKBCollection:
     """DuckDB-based KB collection with fulltext and vector search."""
@@ -163,7 +163,7 @@ class DuckDBKBCollection:
 ### 2. Embedding Function
 
 ```python
-# src/cassey/storage/embeddings.py
+# src/executive_assistant/storage/embeddings.py
 
 from functools import lru_cache
 from sentence_transformers import SentenceTransformer

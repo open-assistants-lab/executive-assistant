@@ -22,7 +22,7 @@
 - [x] Create `StatusUpdateMiddleware` for real-time progress feedback
 - [x] Add `/debug` command to Telegram (verbose mode toggle)
 - [x] LLM timing tracking with token usage logging
-- [x] Millisecond timestamps in all logs (`src/cassey/logging.py`)
+- [x] Millisecond timestamps in all logs (`src/executive_assistant/logging.py`)
 - [x] Thread-local storage for LLM timing across execution contexts
 - [x] Status messages: "Thinking..." → tool progress → "Done in X.Xs | LLM: Y calls (Z.Zs)"
 - See: `discussions/telegram-debug-command-20250119.md` for full design
@@ -45,14 +45,14 @@
 ### Reminder Feature
 - [x] Install APScheduler dependency
 - [x] Create migrations/004_reminders.sql
-- [x] Create src/cassey/storage/reminder.py
-- [x] Create src/cassey/tools/reminder_tools.py (set, list, cancel, edit)
-- [x] Create src/cassey/scheduler.py (APScheduler integration)
+- [x] Create src/executive_assistant/storage/reminder.py
+- [x] Create src/executive_assistant/tools/reminder_tools.py (set, list, cancel, edit)
+- [x] Create src/executive_assistant/scheduler.py (APScheduler integration)
 - [x] Add /reminders bot command
 - [x] Test reminder creation and sending
 
 ### Python Code Execution
-- [x] Create src/cassey/tools/python_tool.py
+- [x] Create src/executive_assistant/tools/python_tool.py
 - [x] Sandboxed execution with timeout
 - [x] Thread-scoped file I/O
 - [x] Module whitelist (json, csv, math, datetime, urllib, etc.)
@@ -126,10 +126,10 @@ CREATE TABLE reminders (
   - [x] Recommendation: Switch to GPT-4o Mini for production
 - [ ] Context editing middleware (see `discussions/context-editing-middleware-plan-20260116-1655.md`)
 - [ ] **ShellToolMiddleware** (see `discussions/shell-tool-middleware-plan-20260116.md`)
-  - [ ] Add settings to `src/cassey/config/settings.py`
-  - [ ] Wire up middleware in `src/cassey/agent/langchain_agent.py`
+  - [ ] Add settings to `src/executive_assistant/config/settings.py`
+  - [ ] Wire up middleware in `src/executive_assistant/agent/langchain_agent.py`
   - [ ] Update `.env.example` with shell settings
-  - [ ] Update prompts in `src/cassey/agent/prompts.py`
+  - [ ] Update prompts in `src/executive_assistant/agent/prompts.py`
   - [ ] Add unit tests (enabled/disabled states)
 
 ## Ideas / Future Work
@@ -294,7 +294,7 @@ CREATE TABLE user_calendars (
 - Use `google-api-python-client` for Google Calendar
 - Use `msal` for Microsoft Graph authentication
 - Token refresh handled automatically before expiry
-- All operations proxied through Cassey - no direct API exposure
+- All operations proxied through Executive Assistant - no direct API exposure
 
 ---
 
@@ -302,8 +302,8 @@ CREATE TABLE user_calendars (
 
 Two distinct email functionalities:
 
-#### Type 1: Cassey's Email Channel (Communication)
-Cassey's own email address (e.g., `hello@cassey.com.au`) for bi-directional user communication.
+#### Type 1: Executive Assistant's Email Channel (Communication)
+Executive Assistant's own email address (e.g., `hello@executive_assistant.com.au`) for bi-directional user communication.
 
 **Implementation:**
 - IMAP for receiving incoming emails
@@ -322,7 +322,7 @@ CREATE TABLE email_channel_users (
 
 **Channel Handler:**
 ```python
-# src/cassey/channels/email.py
+# src/executive_assistant/channels/email.py
 class EmailChannel(BaseChannel):
     # Poll IMAP for new emails
     # Match sender to user_id via email_channel_users
@@ -332,7 +332,7 @@ class EmailChannel(BaseChannel):
 ---
 
 #### Type 2: User Authenticated Email (Actions)
-Users connect their own email (Gmail, iCloud, Outlook) for Cassey to send/read on their behalf.
+Users connect their own email (Gmail, iCloud, Outlook) for Executive Assistant to send/read on their behalf.
 
 **Authentication:** OAuth 2.0 per user (similar to calendar)
 
@@ -436,7 +436,7 @@ With APScheduler integrated, we could add:
   - Self-serve CRUD (UI/API + optional LLM tool) with manifest validation and SSRF guardrails
   - Tool registry rebuild per `(owner_key, max(config_version))`
   - Merge behavior: set `user_id` for thread-owned servers and dedupe by `(server_url, name)`
-- **Resource Catalog + Topic Router** - Make Cassey aware of per-thread resources
+- **Resource Catalog + Topic Router** - Make Executive Assistant aware of per-thread resources
   - Postgres catalog keyed by `(owner_type, owner_id)` with `resource_type` (file|vs|db|reminder)
   - Tool hooks update catalog on create/update/delete
   - Tools: `list_resources`, `find_resource`, `describe_resource`

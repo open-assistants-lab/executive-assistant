@@ -6,7 +6,7 @@
 
 ## Motivation
 
-Cassey is currently tightly coupled to LangChain/LangGraph for its agent runtime. This creates:
+Executive Assistant is currently tightly coupled to LangChain/LangGraph for its agent runtime. This creates:
 - **Vendor lock-in** - Hard to switch to newer/better frameworks
 - **Dependency bloat** - Full LangChain install even for simple use cases
 - **Framework limitations** - Constrained by LangChain's design decisions
@@ -29,7 +29,7 @@ def search_web(query: str, num_results: int = 5) -> str:
 **Impact:** Medium - need decorator/adapter layer
 
 ### 2. Agent Runtime (~200 lines)
-`src/cassey/agent/langchain_agent.py`:
+`src/executive_assistant/agent/langchain_agent.py`:
 ```python
 from langchain.agents import create_agent
 from langgraph.types import Runnable
@@ -94,7 +94,7 @@ async for event in self.agent.astream(state, config):
 Create an abstraction layer that all frameworks must implement:
 
 ```python
-# src/cassey/agent/base.py
+# src/executive_assistant/agent/base.py
 from abc import ABC, abstractmethod
 from typing import AsyncIterator
 
@@ -124,7 +124,7 @@ class AgentFramework(ABC):
 ### Framework Implementations
 
 ```
-src/cassey/agent/
+src/executive_assistant/agent/
 ├── base.py              # Common interface
 ├── langchain_runtime.py # LangChain implementation (current)
 ├── agno_runtime.py      # Agno implementation (future)
@@ -134,7 +134,7 @@ src/cassey/agent/
 ### Tool Adapter Layer
 
 ```python
-# src/cassey/tools/adapter.py
+# src/executive_assistant/tools/adapter.py
 from typing import Callable, Any
 
 class ToolAdapter:
@@ -154,7 +154,7 @@ class ToolAdapter:
 ### Checkpoint Abstraction
 
 ```python
-# src/cassey/storage/checkpoint.py
+# src/executive_assistant/storage/checkpoint.py
 class CheckpointSaver(ABC):
     @abstractmethod
     async def get(self, thread_id: str) -> dict | None:
@@ -473,7 +473,7 @@ agent.run("Find the latest AI news")
 
 | Criteria | Weight | Notes |
 |----------|--------|-------|
-| **MCP Support** | High | Cassey uses MCP heavily; native support preferred |
+| **MCP Support** | High | Executive Assistant uses MCP heavily; native support preferred |
 | **Summarization** | High | Critical for long conversations |
 | **Type Safety** | Medium | Production robustness |
 | **Community** | Medium | Documentation, examples, troubleshooting |
@@ -505,4 +505,4 @@ agent.run("Find the latest AI news")
 
 - LangChain Agents: https://python.langchain.com/docs/tutorials/agents
 - Agno Framework: https://github.com/emrgnt-cmplxty/agno (if applicable)
-- Current implementation: `src/cassey/agent/langchain_agent.py`
+- Current implementation: `src/executive_assistant/agent/langchain_agent.py`

@@ -5,8 +5,8 @@
 **Status:** ✅ **All Fixes Implemented - Production Ready**
 **Implementation Date:** 2026-01-19
 **Files Modified:**
-- `src/cassey/agent/status_middleware.py` (thread-safety, memory management, configurable retries)
-- `src/cassey/agent/middleware_debug.py` (validation warnings)
+- `src/executive_assistant/agent/status_middleware.py` (thread-safety, memory management, configurable retries)
+- `src/executive_assistant/agent/middleware_debug.py` (validation warnings)
 
 ---
 
@@ -301,7 +301,7 @@ finally:
 
 ### **Codebase-Specific Async Considerations**
 
-**This Codebase (Cassey Agent):**
+**This Codebase (Executive Assistant Agent):**
 
 1. **LangGraph Agents:**
    - Each conversation = separate agent instance
@@ -310,7 +310,7 @@ finally:
 
 2. **Channel Architecture:**
    ```python
-   # src/cassey/channels/telegram.py
+   # src/executive_assistant/channels/telegram.py
    # Each message handled by separate task
    # ContextVar set per task
    ```
@@ -520,7 +520,7 @@ The following sections document the original concerns raised during peer review,
 
 ### 🔴 High Priority Concern #2: Memory Leak Potential
 
-**File:** `src/cassey/agent/status_middleware.py:289-327`
+**File:** `src/executive_assistant/agent/status_middleware.py:289-327`
 
 **Issue:**
 If `clear_middleware_debug()` is never called (exception, crash), entries accumulate forever.
@@ -640,7 +640,7 @@ def clear_middleware_debug() -> None:
 
 **Implementation:**
 ```python
-# src/cassey/agent/status_middleware.py
+# src/executive_assistant/agent/status_middleware.py
 
 import threading
 
@@ -666,7 +666,7 @@ def get_middleware_debug() -> MiddlewareDebug:
 
 ### 2. Memory Leak Potential
 
-**File:** `src/cassey/agent/status_middleware.py:62-68`
+**File:** `src/executive_assistant/agent/status_middleware.py:62-68`
 
 **Issue:**
 ```python
@@ -818,7 +818,7 @@ def get_middleware_debug() -> MiddlewareDebug:
 
 **Implementation:**
 ```python
-# src/cassey/agent/status_middleware.py:281-320
+# src/executive_assistant/agent/status_middleware.py:281-320
 
 async def aafter_agent(
     self, state: dict[str, Any], runtime: Any
@@ -885,7 +885,7 @@ async def _periodic_cleanup():
 
 ### 3. RetryTracker's Fixed LLM Call Assumption
 
-**File:** `src/cassey/agent/status_middleware.py:182`
+**File:** `src/executive_assistant/agent/status_middleware.py:182`
 
 **Issue:**
 ```python
@@ -921,7 +921,7 @@ RetryTracker logs: "LLM_RETRY: Expected 1 call, got 2 (1 retry)"
 #### **Option 1: Make Expected Calls Configurable (Recommended)**
 
 ```python
-# src/cassey/agent/status_middleware.py
+# src/executive_assistant/agent/status_middleware.py
 
 class StatusUpdateMiddleware(AgentMiddleware):
     def __init__(
@@ -1048,7 +1048,7 @@ class RetryTracker:
 
 **Implementation:**
 ```python
-# src/cassey/agent/status_middleware.py:113-120
+# src/executive_assistant/agent/status_middleware.py:113-120
 
 class StatusUpdateMiddleware(AgentMiddleware):
     def __init__(
@@ -1093,7 +1093,7 @@ MW_STATUS_EXPECTED_LLM_CALLS: int = int(os.getenv("MW_STATUS_EXPECTED_LLM_CALLS"
 
 ### 4. No Validation of State Capture Order
 
-**File:** `src/cassey/agent/middleware_debug.py:88-89`
+**File:** `src/executive_assistant/agent/middleware_debug.py:88-89`
 
 **Issue:**
 ```python
@@ -1244,7 +1244,7 @@ class MiddlewareDebug:
 
 **Implementation:**
 ```python
-# src/cassey/agent/middleware_debug.py
+# src/executive_assistant/agent/middleware_debug.py
 
 import logging
 

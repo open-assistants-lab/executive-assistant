@@ -1,4 +1,4 @@
-# Top 10 LLM Models for Cassey AI (2025)
+# Top 10 LLM Models for Executive Assistant AI (2025)
 
 **Date:** 2025-01-19
 **Purpose:** Model selection for performance testing and production deployment
@@ -7,7 +7,7 @@
 
 ## Executive Summary
 
-Based on comprehensive research of OpenAI, Anthropic, Zhipu, and Ollama models, here are my top 10 recommended models for Cassey AI assistant, ranked by suitability for conversational AI workloads.
+Based on comprehensive research of OpenAI, Anthropic, Zhipu, and Ollama models, here are my top 10 recommended models for Executive Assistant AI assistant, ranked by suitability for conversational AI workloads.
 
 **🔄 UPDATED:** Now prioritizing **Ollama Cloud models** for cloud-first deployment strategy (no local GPU required).
 
@@ -16,7 +16,7 @@ Based on comprehensive research of OpenAI, Anthropic, Zhipu, and Ollama models, 
 ## Top 10 Models (Ranked)
 
 ### 🥇 #1: MiniMax M2:cloud (Ollama Cloud) ⭐ NEW!
-**Best Overall for Cassey (Cloud-First)**
+**Best Overall for Executive Assistant (Cloud-First)**
 
 #### Why #1:
 - **Intelligence:** Ranked #1 among open-source models globally (AA Intelligence: 61)
@@ -34,7 +34,7 @@ Based on comprehensive research of OpenAI, Anthropic, Zhipu, and Ollama models, 
 - **AA Intelligence:** 61 (vs Claude Sonnet 4.5: 63, GPT-5: 69)
 
 #### Use Cases:
-- **Primary model for Cassey AI assistant**
+- **Primary model for Executive Assistant AI assistant**
 - Coding and agentic workflows
 - Multi-file editing and terminal tasks
 - Complex tool chains and browser automation
@@ -59,7 +59,7 @@ Based on comprehensive research of OpenAI, Anthropic, Zhipu, and Ollama models, 
 - **No Local GPU:** Runs on Ollama's cloud infrastructure
 
 #### Use Cases:
-- **Primary coding model for Cassey**
+- **Primary coding model for Executive Assistant**
 - Multilingual coding tasks
 - Terminal-based workflows
 - UI generation (vibe coding)
@@ -275,7 +275,7 @@ Based on comprehensive research of OpenAI, Anthropic, Zhipu, and Ollama models, 
 
 ## My Top 3 Recommendations for Performance Testing
 
-Based on Cassey's requirements (conversational AI, speed critical, quality important, **cloud-first deployment**), here are the **top 3 Ollama Cloud models to test**:
+Based on Executive Assistant's requirements (conversational AI, speed critical, quality important, **cloud-first deployment**), here are the **top 3 Ollama Cloud models to test**:
 
 ### 1️⃣ **MiniMax M2:cloud** (Ollama Cloud) ⭐ PRIMARY RECOMMENDATION
 **Why:** Ranked #1 among open-source models globally, specifically built for agentic workflows and coding.
@@ -393,7 +393,7 @@ Test the 3 Ollama Cloud models with simple scenarios to confirm speed improvemen
 - MiniMax M2 and Gemini 3 Flash should be fastest (1-5s TTFT)
 
 ### Phase 2: Quality Assessment
-If speed is acceptable, test quality with complex Cassey-specific scenarios:
+If speed is acceptable, test quality with complex Executive Assistant-specific scenarios:
 - `db_operation` (database interactions)
 - `research_and_store` (tool use workflows)
 - `long_context` (memory retention)
@@ -482,11 +482,11 @@ Assuming **10,000 messages/month**, **500 input tokens** + **500 output tokens**
 
 ## Final Recommendation (Cloud-First Strategy)
 
-**Primary Recommendation:** **Use MiniMax M2:cloud as Cassey's primary model.**
+**Primary Recommendation:** **Use MiniMax M2:cloud as Executive Assistant's primary model.**
 
 **Why MiniMax M2:cloud:**
 1. ✅ **#1 ranked open-source model globally** (AA Intelligence: 61)
-2. ✅ **Built for agentic workflows** (Cassey's primary use case)
+2. ✅ **Built for agentic workflows** (Executive Assistant's primary use case)
 3. ✅ **Excellent coding performance** (SWE-bench: 69.4)
 4. ✅ **Free tier available** (no API costs)
 5. ✅ **No local GPU required** (cloud deployment)
@@ -506,7 +506,7 @@ Assuming **10,000 messages/month**, **500 input tokens** + **500 output tokens**
 2. Test **GLM-4.7:cloud** for coding-specific workflows
 3. Test **Gemini 3 Flash Preview:cloud** for speed comparison
 4. Measure actual performance vs. expectations
-5. Make final decision based on real-world Cassey workflows
+5. Make final decision based on real-world Executive Assistant workflows
 
 ---
 
@@ -535,10 +535,10 @@ Assuming **10,000 messages/month**, **500 input tokens** + **500 output tokens**
 
 4. **Analyze results**:
    - Look for TTFT <5s, total time <8s
-   - Compare quality across Cassey workflows
+   - Compare quality across Executive Assistant workflows
    - Check rate limits on free tier
 
-5. **Quality check** - Test with real Cassey workflows:
+5. **Quality check** - Test with real Executive Assistant workflows:
    - Conversational interactions
    - Tool use (db operations, web search)
    - Memory retention (long context)
@@ -564,7 +564,7 @@ Assuming **10,000 messages/month**, **500 input tokens** + **500 output tokens**
 
 ---
 
-## Summary: Why Ollama Cloud is the Best Choice for Cassey
+## Summary: Why Ollama Cloud is the Best Choice for Executive Assistant
 
 ### Key Advantages:
 1. **Cost:** $0/month (free tier) vs. $3.75-$90/month for API providers

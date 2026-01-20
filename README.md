@@ -1,13 +1,13 @@
-# Cassey
+# Executive Assistant
 
 Your intelligent assistant that manages tasks, tracks work, stores knowledge, and never forgets a reminder.
 
-## What Cassey Can Do For You
+## What Executive Assistant Can Do For You
 
-Cassey is a multi-channel AI agent that helps you stay organized and productive. Whether you're tracking timesheets, managing a knowledge base, or automating data analysis, Cassey intelligently selects the right tools for the job.
+Executive Assistant is a multi-channel AI agent that helps you stay organized and productive. Whether you're tracking timesheets, managing a knowledge base, or automating data analysis, Executive Assistant intelligently selects the right tools for the job.
 
 ### Track Your Work
-- **Timesheet logging**: Simply tell Cassey what you worked on, and it stores structured data in your private database
+- **Timesheet logging**: Simply tell Executive Assistant what you worked on, and it stores structured data in your private database
 - **Time-aware**: Knows the current time in any timezone, perfect for distributed teams
 - **Data analysis**: Query your logged work with SQL, export to CSV/JSON, or visualize trends
 
@@ -27,16 +27,16 @@ Cassey is a multi-channel AI agent that helps you stay organized and productive.
 - **File operations**: Read, write, search, and organize files with natural language commands
 
 ### Intelligent Tool Selection
-Cassey uses a skills system to choose the right approach:
+Executive Assistant uses a skills system to choose the right approach:
 - **Database tools** for structured data and temporary analysis (timesheets, logs, datasets)
 - **Vector Store** for long-term knowledge retrieval (meeting notes, decisions, documentation)
 - **File tools** for browsing and exact-text search (codebases, document archives)
 
-You don't need to remember which tool does what—Cassey figures it out from context.
+You don't need to remember which tool does what—Executive Assistant figures it out from context.
 
-## How Cassey Thinks
+## How Executive Assistant Thinks
 
-Cassey is a **ReAct agent** built on LangGraph. Unlike simple chatbots, it:
+Executive Assistant is a **ReAct agent** built on LangGraph. Unlike simple chatbots, it:
 
 1. **Reasons** about your request using an LLM
 2. **Acts** by calling tools (file operations, database queries, web search, etc.)
@@ -46,29 +46,29 @@ Cassey is a **ReAct agent** built on LangGraph. Unlike simple chatbots, it:
 This cycle continues until your task is complete—with safeguards to prevent infinite loops.
 
 ### Real-Time Progress Updates
-Cassey keeps you informed while working:
+Executive Assistant keeps you informed while working:
 - **Normal mode**: Clean status updates edited in place
 - **Debug mode**: Detailed timing information (toggle with `/debug`)
 - **Per-message limits**: Prevents runaway execution (20 LLM calls, 30 tool calls per message)
 
 ## Multi-Channel Access
 
-Cassey works where you work:
+Executive Assistant works where you work:
 
 ### Telegram
-- Chat with Cassey in any Telegram conversation
+- Chat with Executive Assistant in any Telegram conversation
 - Commands: `/start`, `/help`, `/reminders`, `/groups`, `/debug`, `/id`
 - Perfect for mobile quick-tasks and reminders on-the-go
 
 ### HTTP API
-- Integrate Cassey into your applications
+- Integrate Executive Assistant into your applications
 - REST endpoints for messaging and conversation history
 - SSE streaming for real-time responses
 - Ideal for workflows, webhooks, and custom integrations
 
 ## Storage That Respects Your Privacy
 
-Cassey takes data isolation seriously with a unified `scope` parameter across all storage tools:
+Executive Assistant takes data isolation seriously with a unified `scope` parameter across all storage tools:
 
 ### Context-Scoped Storage (Default)
 All storage tools support `scope="context"` (default):
@@ -133,19 +133,19 @@ docker compose up -d postgres
 # Run migrations (auto-run on first start)
 psql $POSTGRES_URL < migrations/001_initial_schema.sql
 
-# Run Cassey (default: Telegram)
-uv run cassey
+# Run Executive Assistant (default: Telegram)
+uv run executive_assistant
 
 # Run HTTP only
-CASSEY_CHANNELS=http uv run cassey
+EXECUTIVE_ASSISTANT_CHANNELS=http uv run executive_assistant
 
 # Run both Telegram and HTTP
-CASSEY_CHANNELS=telegram,http uv run cassey
+EXECUTIVE_ASSISTANT_CHANNELS=telegram,http uv run executive_assistant
 ```
 
-**For local testing**, always use `uv run cassey` instead of Docker. Only build Docker when everything works (see `CLAUDE.md` for testing workflow).
+**For local testing**, always use `uv run executive_assistant` instead of Docker. Only build Docker when everything works (see `CLAUDE.md` for testing workflow).
 
-## What Makes Cassey Different
+## What Makes Executive Assistant Different
 
 ### Unlike Simple Chatbots
 - **Tool-using**: Can read files, query databases, search the web, execute Python
@@ -170,10 +170,10 @@ CASSEY_CHANNELS=telegram,http uv run cassey
 ### Timesheet Tracking
 ```
 You: Log 4 hours of API development
-Cassey: Created timesheet table and logged entry.
+Executive Assistant: Created timesheet table and logged entry.
 
 You: How many hours did I work this week?
-Cassey: [queries database] You worked 32 hours total:
+Executive Assistant: [queries database] You worked 32 hours total:
      - API development: 16h
      - Bug fixes: 12h
      - Meetings: 4h
@@ -182,16 +182,16 @@ Cassey: [queries database] You worked 32 hours total:
 ### Knowledge Management
 ```
 You: Save this: API rate limit is 1000 req/min for pro accounts
-Cassey: Saved to knowledge base.
+Executive Assistant: Saved to knowledge base.
 
 You: What's the rate limit for pro accounts?
-Cassey: [searches vector store] 1000 requests per minute.
+Executive Assistant: [searches vector store] 1000 requests per minute.
 ```
 
 ### Data Analysis
 ```
 You: Analyze this CSV and find the average
-Cassey: [imports CSV, runs Python] The average is 42.7.
+Executive Assistant: [imports CSV, runs Python] The average is 42.7.
      I've created a chart and saved it to analysis.png.
 ```
 
@@ -206,7 +206,7 @@ ANTHROPIC_API_KEY=sk-...        # Anthropic (Claude)
 ZHIPU_API_KEY=...               # Zhipu (GLM-4)
 
 # Channels
-CASSEY_CHANNELS=telegram,http   # Available channels
+EXECUTIVE_ASSISTANT_CHANNELS=telegram,http   # Available channels
 
 # Telegram (if using telegram channel)
 TELEGRAM_BOT_TOKEN=...
@@ -214,9 +214,9 @@ TELEGRAM_BOT_TOKEN=...
 # PostgreSQL (required for state persistence)
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
-POSTGRES_USER=cassey
+POSTGRES_USER=executive_assistant
 POSTGRES_PASSWORD=your_password
-POSTGRES_DB=cassey_db
+POSTGRES_DB=executive_assistant_db
 ```
 
 See `.env.example` for all available options.
@@ -254,7 +254,7 @@ Example verbose output:
 
 ## HTTP API
 
-When `CASSEY_CHANNELS=http`, a FastAPI server starts on port 8000:
+When `EXECUTIVE_ASSISTANT_CHANNELS=http`, a FastAPI server starts on port 8000:
 
 ```bash
 # Send message
@@ -314,7 +314,7 @@ curl http://localhost:8000/health
 
 ## Architecture Overview
 
-Cassey uses a **ReAct agent pattern** with LangGraph:
+Executive Assistant uses a **ReAct agent pattern** with LangGraph:
 
 1. **User message** → Channel (Telegram/HTTP)
 2. **Channel** → Agent with state (messages, iterations, summary)
@@ -378,8 +378,8 @@ RUN_LIVE_LLM_TESTS=1 uv run pytest -m "langchain_integration and vcr" --record-m
 ## Project Structure
 
 ```
-cassey/
-├── src/cassey/
+executive_assistant/
+├── src/executive_assistant/
 │   ├── channels/       # Telegram, HTTP
 │   ├── storage/        # User registry, file sandbox, DB, VS, reminders
 │   ├── tools/          # LangChain tools (file, DB, time, Python, search, OCR)
@@ -403,4 +403,4 @@ MIT License - see LICENSE file for details.
 
 Contributions welcome! Please read `CLAUDE.md` for development workflow and testing guidelines.
 
-**Remember**: Always test locally with `uv run cassey` before building Docker. See `CLAUDE.md` for details.
+**Remember**: Always test locally with `uv run executive_assistant` before building Docker. See `CLAUDE.md` for details.

@@ -85,11 +85,11 @@
 
 ## Overview
 
-All 6 fixes have been implemented and deployed. Cassey restarted with PID 50281.
+All 6 fixes have been implemented and deployed. Executive Assistant restarted with PID 50281.
 
 ### 1) Source binding - FIXED
 
-**Implementation:** `src/cassey/agent/summary_extractor.py`
+**Implementation:** `src/executive_assistant/agent/summary_extractor.py`
 
 Added `get_stable_message_id()` function using SHA-256 hash:
 ```python
@@ -116,7 +116,7 @@ Respond ONLY with valid JSON in this exact format:
 
 ### 2) Topic deactivation on similarity - FIXED
 
-**Implementation:** `src/cassey/agent/topic_classifier.py`
+**Implementation:** `src/executive_assistant/agent/topic_classifier.py`
 
 Added similarity scoring function:
 ```python
@@ -146,7 +146,7 @@ def should_create_new_topic(..., similarity_threshold: float = 0.4) -> bool:
 
 ### 3) Tasks/constraints in prompt - FIXED
 
-**Implementation:** `src/cassey/agent/topic_classifier.py`
+**Implementation:** `src/executive_assistant/agent/topic_classifier.py`
 
 Updated `render_for_prompt()`:
 ```python
@@ -168,7 +168,7 @@ if constraints:
 
 ### 4) Sources populated - FIXED
 
-**Implementation:** `src/cassey/agent/summary_extractor.py`
+**Implementation:** `src/executive_assistant/agent/summary_extractor.py`
 
 Updated `update_structured_summary()`:
 ```python
@@ -185,7 +185,7 @@ if topic["sources"]:
 
 ### 5) Topic ID specificity - FIXED
 
-**Implementation:** `src/cassey/agent/topic_classifier.py`
+**Implementation:** `src/executive_assistant/agent/topic_classifier.py`
 
 Added skip lists:
 ```python
@@ -212,7 +212,7 @@ specific_words = [
 
 ### 6) Intent wired into routing - FIXED
 
-**Implementation:** `src/cassey/agent/nodes.py`
+**Implementation:** `src/executive_assistant/agent/nodes.py`
 
 Updated `call_model()` for KB-first mode:
 ```python
@@ -237,9 +237,9 @@ else:
 
 | File | Changes |
 |------|---------|
-| `src/cassey/agent/summary_extractor.py` | Stable message IDs, source binding, sources tracking |
-| `src/cassey/agent/topic_classifier.py` | Similarity scoring, skip verbs, tasks/constraints rendering |
-| `src/cassey/agent/nodes.py` | Intent-based KB-first routing |
+| `src/executive_assistant/agent/summary_extractor.py` | Stable message IDs, source binding, sources tracking |
+| `src/executive_assistant/agent/topic_classifier.py` | Similarity scoring, skip verbs, tasks/constraints rendering |
+| `src/executive_assistant/agent/nodes.py` | Intent-based KB-first routing |
 
 ## Testing
 
@@ -262,28 +262,28 @@ Similarity threshold can be adjusted in `should_create_new_topic()`:
 - `update_structured_summary()` always uses a newly generated `topic_id`, even when `should_create_new_topic()` returns `False`. This can create multiple active topics within the same domain because the old topic isn’t inactivated while a new topic is created.  
 - Example: `compliance/search/settlor` → new query `compliance/search/trustee` yields similarity 0.4 (domain match), so no deactivation, but a new topic is created.
 - Suggested fix: when `should_create_new_topic()` is `False`, force `topic_id = current_topic_id` to reuse the active topic, or change the similarity threshold logic so any “different specific” triggers a new topic.
-- References: `src/cassey/agent/summary_extractor.py`, `src/cassey/agent/topic_classifier.py`
+- References: `src/executive_assistant/agent/summary_extractor.py`, `src/executive_assistant/agent/topic_classifier.py`
 
 2) **Similarity threshold is effectively “domain match = same topic”**
 - `topic_similarity_score()` gives 0.4 for domain match and 0.6 for specific match. With default threshold 0.4, any same-domain query stays on the same topic even if the specific term is different.  
 - This reduces topic separation and may keep older topics active longer than intended.
 - Suggested fix: raise the threshold (e.g., 0.5+) or require specific match to keep the same topic.
-- Reference: `src/cassey/agent/topic_classifier.py`
+- Reference: `src/executive_assistant/agent/topic_classifier.py`
 
 3) **Stable message IDs may collide for repeated content**
 - `get_stable_message_id()` hashes `(role + content + timestamp)`; if `timestamp` is missing and the user repeats short messages (“ok”, “yes”), IDs collide.  
 - Suggested fix: prefer a message UUID if present (`msg.id`), or add a stable per-message counter in metadata.
-- Reference: `src/cassey/agent/summary_extractor.py`
+- Reference: `src/executive_assistant/agent/summary_extractor.py`
 
 4) **KB-first mode still sends full recent messages**
 - The summary is minimized for factual intent, but the full recent message history is still sent. That can still carry irrelevant context into a factual lookup.
 - Suggested fix: for `intent == "factual"`, reduce the message window or filter to the last 1–2 user messages.
-- Reference: `src/cassey/agent/nodes.py`
+- Reference: `src/executive_assistant/agent/nodes.py`
 
 5) **Fallback source attribution may be misleading**
 - When LLM returns no sources, the code assigns the last two messages as sources. This can attach incorrect provenance.
 - Suggested fix: leave `message_ids` empty or mark as `uncertain` and only fill via semantic match.
-- Reference: `src/cassey/agent/summary_extractor.py`
+- Reference: `src/executive_assistant/agent/summary_extractor.py`
 
 ---
 

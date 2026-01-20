@@ -9,7 +9,7 @@ Replace DuckDB with SQLite for the per-workspace `db` component, while keeping D
 ## Current State
 
 ```python
-# src/cassey/storage/seekdb_storage.py (being phased out)
+# src/executive_assistant/storage/seekdb_storage.py (being phased out)
 
 # Current DuckDB usage per workspace:
 # data/workspaces/{workspace_id}/db/db.duckdb
@@ -73,11 +73,11 @@ Replace DuckDB with SQLite for the per-workspace `db` component, while keeping D
 
 | File | Status | Notes |
 |------|--------|-------|
-| `src/cassey/storage/sqlite_db_storage.py` | ✅ Created | ~355 lines, includes SQLiteDatabase class with all required methods |
-| `src/cassey/skills/sqlite_helper.py` | ✅ Created | ~105 lines, sqlite_guide tool with topics: arrays, dates, json, examples |
-| `src/cassey/skills/__init__.py` | ✅ Created | Exports `get_sqlite_helper_tools` |
-| `src/cassey/storage/db_tools.py` | ✅ Modified | Switched from DuckDB to SQLite, updated all tool descriptions |
-| `src/cassey/tools/registry.py` | ✅ Modified | Added `get_sqlite_helper_tools()` function and import |
+| `src/executive_assistant/storage/sqlite_db_storage.py` | ✅ Created | ~355 lines, includes SQLiteDatabase class with all required methods |
+| `src/executive_assistant/skills/sqlite_helper.py` | ✅ Created | ~105 lines, sqlite_guide tool with topics: arrays, dates, json, examples |
+| `src/executive_assistant/skills/__init__.py` | ✅ Created | Exports `get_sqlite_helper_tools` |
+| `src/executive_assistant/storage/db_tools.py` | ✅ Modified | Switched from DuckDB to SQLite, updated all tool descriptions |
+| `src/executive_assistant/tools/registry.py` | ✅ Modified | Added `get_sqlite_helper_tools()` function and import |
 | `tests/test_sqlite_db_storage.py` | ✅ Created | ~495 lines, comprehensive test suite |
 
 ### Test Results
@@ -178,7 +178,7 @@ tests/test_sqlite_db_storage.py::TestValidation::test_unsupported_export_format 
 ## Proposed Architecture
 
 ```
-Cassey Storage per workspace:
+Executive Assistant Storage per workspace:
 ├── DB/                     → SQLite (this change)
 │   └── db.sqlite
 ├── KB/                     → DuckDB (unchanged, needs VSS)
@@ -192,7 +192,7 @@ Cassey Storage per workspace:
 
 ## Files to Modify
 
-### 1. Create `src/cassey/storage/sqlite_db_storage.py`
+### 1. Create `src/executive_assistant/storage/sqlite_db_storage.py`
 
 ```python
 """SQLite storage for workspace DB.
@@ -210,7 +210,7 @@ from functools import lru_cache
 from typing import Any
 from dataclasses import dataclass
 
-from cassey.storage.workspace_storage import (
+from executive_assistant.storage.workspace_storage import (
     get_workspace_id,
     sanitize_thread_id,
     validate_identifier,
@@ -472,7 +472,7 @@ def get_db_storage_dir(storage_id: str | None = None) -> Path:
     Returns:
         Path to the DB directory.
     """
-    from cassey.config import settings
+    from executive_assistant.config import settings
 
     if storage_id is None:
         storage_id = get_workspace_id()
@@ -559,7 +559,7 @@ def get_db_connection(storage_id: str | None = None) -> sqlite3.Connection:
 #### 2a. Update Tool Descriptions (Prompt)
 
 ```python
-# src/cassey/tools/db_tools.py
+# src/executive_assistant/tools/db_tools.py
 
 @tool
 def query_db(sql: str) -> str:
@@ -581,7 +581,7 @@ def query_db(sql: str) -> str:
 
     Examples:
     - CREATE TABLE timesheets (id INTEGER PRIMARY KEY, date TEXT, hours REAL, project TEXT, tags TEXT)  -- tags as JSON
-    - INSERT INTO timesheets (date, hours, project, tags) VALUES ('2025-01-17', 4.5, 'Cassey', json_array('billing', 'admin'))
+    - INSERT INTO timesheets (date, hours, project, tags) VALUES ('2025-01-17', 4.5, 'Executive Assistant', json_array('billing', 'admin'))
     - SELECT * FROM timesheets WHERE json_each(tags) = 'billing'
     - SELECT * FROM timesheets WHERE date >= date('now', '-7 days')
 
@@ -596,7 +596,7 @@ def query_db(sql: str) -> str:
 #### 2b. Create SQLite Helper Skill
 
 ```python
-# src/cassey/skills/sqlite_helper.py
+# src/executive_assistant/skills/sqlite_helper.py
 
 from langchain_core.tools import tool
 
@@ -657,7 +657,7 @@ CREATE TABLE timesheets (
 
 -- Insert with tags
 INSERT INTO timesheets (date, hours, project, tags)
-VALUES ('2025-01-17', 4.5, 'Cassey', json_array('billing', 'admin'));
+VALUES ('2025-01-17', 4.5, 'Executive Assistant', json_array('billing', 'admin'));
 
 -- Query by tag
 SELECT * FROM timesheets
@@ -701,16 +701,16 @@ async def get_sqlite_helper_tools() -> list:
     return [sqlite_guide]
 ```
 
-### 3. Update `src/cassey/tools/db_tools.py`
+### 3. Update `src/executive_assistant/tools/db_tools.py`
 
 Replace DuckDB imports with SQLite (with updated descriptions):
 
 ```python
 # Before:
-from cassey.storage.seekdb_storage import get_seekdb_connection
+from executive_assistant.storage.seekdb_storage import get_seekdb_connection
 
 # After:
-from cassey.storage.sqlite_db_storage import get_sqlite_db
+from executive_assistant.storage.sqlite_db_storage import get_sqlite_db
 
 
 @tool
@@ -726,7 +726,7 @@ def query_db(sql: str) -> str:
 
     Examples:
     - CREATE TABLE timesheets (id INTEGER PRIMARY KEY, date TEXT, hours REAL, project)
-    - INSERT INTO timesheets (date, hours, project) VALUES ('2025-01-17', 4.5, 'Cassey')
+    - INSERT INTO timesheets (date, hours, project) VALUES ('2025-01-17', 4.5, 'Executive Assistant')
     - SELECT * FROM timesheets WHERE date >= date('now', '-7 days')
 
     Args:
@@ -780,7 +780,7 @@ def describe_table(table_name: str) -> str:
         Table schema as formatted string.
     """
     try:
-        from cassey.storage.workspace_storage import validate_identifier
+        from executive_assistant.storage.workspace_storage import validate_identifier
 
         validate_identifier(table_name)
         db = get_sqlite_db()
@@ -829,13 +829,13 @@ def format_query_results(columns: list[str], rows: list[tuple]) -> str:
     return "\n".join(output)
 ```
 
-### 4. Update `src/cassey/skills/registry.py`
+### 4. Update `src/executive_assistant/skills/registry.py`
 
 Register the SQLite helper skill:
 
 ```python
 # Add to the skills registry
-from cassey.skills.sqlite_helper import get_sqlite_helper_tools
+from executive_assistant.skills.sqlite_helper import get_sqlite_helper_tools
 
 async def get_all_skills() -> list:
     skills = await get_existing_skills()
@@ -871,13 +871,13 @@ Replace `seekdb_storage` tests with `sqlite_db_storage` tests:
 
 ## Migration: Not Needed
 
-**No migration is required** — Cassey has not launched yet. This is a greenfield change:
+**No migration is required** — Executive Assistant has not launched yet. This is a greenfield change:
 
 - Development workspaces can be deleted and recreated with SQLite
 - No production data exists to migrate
 - The old `seekdb_storage.py` can be removed entirely once `sqlite_db_storage.py` is deployed
 
-**Action**: Simply delete `src/cassey/storage/seekdb_storage.py` after deployment.
+**Action**: Simply delete `src/executive_assistant/storage/seekdb_storage.py` after deployment.
 
 ---
 

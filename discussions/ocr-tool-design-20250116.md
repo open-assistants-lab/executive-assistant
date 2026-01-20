@@ -1,8 +1,8 @@
-# OCR Tool Design for Cassey
+# OCR Tool Design for Executive Assistant
 
 ## Goal
 
-Add OCR (Optical Character Recognition) capability to Cassey for extracting text from images, screenshots, scanned PDFs (rasterized to images), and photos.
+Add OCR (Optical Character Recognition) capability to Executive Assistant for extracting text from images, screenshots, scanned PDFs (rasterized to images), and photos.
 
 ## Key Considerations
 
@@ -132,7 +132,7 @@ def extract_from_image(
 ### Core OCR Engine
 
 ```python
-# src/cassey/tools/ocr_tool.py
+# src/executive_assistant/tools/ocr_tool.py
 
 from paddleocr import PaddleOCR
 import os
@@ -295,7 +295,7 @@ RUN pip install "paddleocr>=3.3.2" "paddlepaddle>=3.3.0" "pymupdf>=1.24.0"
 
 ```yaml
 services:
-  cassey:
+  executive_assistant:
     build: .
     environment:
       - OCR_ENGINE=paddleocr
@@ -397,7 +397,7 @@ def extract_from_image(
    - OCR tools must use `FileSandbox` validation, not raw paths.  
    - Extend allowed extensions to include images (`.png`, `.jpg`, `.jpeg`, `.webp`, `.tiff`) and (optionally) `.pdf`.
 2. **Local OCR tool (PaddleOCR/Tesseract)**  
-   - Lazy-initialize engine in `src/cassey/tools/ocr_tool.py`.  
+   - Lazy-initialize engine in `src/executive_assistant/tools/ocr_tool.py`.  
    - Read files via validated sandbox path (binary read for images).
 3. **Method selection fix**  
    - `choose_ocr_method()` returns `local` or `vision`, aligned with `extract_from_image()`.
@@ -443,18 +443,18 @@ def extract_from_image(
 ## Implementation Status (2026-01-16)
 
 ### Added
-- `src/cassey/tools/ocr_tool.py`
+- `src/executive_assistant/tools/ocr_tool.py`
   - `ocr_extract_text` for local OCR on images/PDFs (scanned pages rasterized via PyMuPDF)
   - `ocr_extract_structured` for OCR + LLM JSON formatting (JSON-only with retry)
   - `extract_from_image` for auto selection (`local` vs `vision`)
   - FileSandbox validation and size limits
   - Lazy engine load for PaddleOCR and optional Tesseract
   - PDF text extraction via `pypdf` (text layer only)
-- `src/cassey/config/settings.py`
+- `src/executive_assistant/config/settings.py`
   - OCR settings (`OCR_ENGINE`, `OCR_LANG`, `OCR_USE_GPU`, `OCR_MAX_FILE_MB`, `OCR_MAX_PAGES`, `OCR_PDF_DPI`, `OCR_PDF_MIN_TEXT_CHARS`, `OCR_TIMEOUT_SECONDS`, `OCR_STRUCTURED_*`)
   - Allowed file extensions expanded to common image formats
 - `.env.example` OCR settings block
-- `src/cassey/tools/registry.py` includes OCR tools
+- `src/executive_assistant/tools/registry.py` includes OCR tools
 - `README.md` documents OCR tools
 - `tests/test_ocr_tool.py` covers method selection logic
 
@@ -511,7 +511,7 @@ def extract_from_image(
 
 **Problem**: Users can't upload images via Telegram for OCR because the channel only handles `filters.TEXT`.
 
-**Solution**: Add file upload handler in `src/cassey/channels/telegram.py`:
+**Solution**: Add file upload handler in `src/executive_assistant/channels/telegram.py`:
 
 ```python
 # Add handler for documents and photos
@@ -528,17 +528,17 @@ async def _file_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE
 ```
 
 **Files to modify**:
-- `src/cassey/channels/telegram.py` - Add `_file_handler`
-- `src/cassey/channels/base.py` - Extend `MessageFormat` with file attachment support
-- `src/cassey/storage/file_sandbox.py` - Ensure image extensions allowed (already done)
+- `src/executive_assistant/channels/telegram.py` - Add `_file_handler`
+- `src/executive_assistant/channels/base.py` - Extend `MessageFormat` with file attachment support
+- `src/executive_assistant/storage/file_sandbox.py` - Ensure image extensions allowed (already done)
 
 ### 2. Test End-to-End
 
 After file handler:
 1. Upload image via Telegram
-2. Cassey acknowledges: "Received `uploads/receipt.jpg`"
+2. Executive Assistant acknowledges: "Received `uploads/receipt.jpg`"
 3. Ask: "Extract text from the receipt"
-4. Cassey calls `ocr_extract_text("uploads/receipt.jpg")`
+4. Executive Assistant calls `ocr_extract_text("uploads/receipt.jpg")`
 5. Returns extracted text
 
 ---
@@ -554,4 +554,4 @@ After file handler:
 | **Deployment** | Include in main Docker image |
 | **Priority** | Medium (after core workflow features) |
 
-**Key takeaway**: PaddleOCR is an excellent choice for Cassey - lightweight, fast, free, and great Chinese/English support. Add it as the default OCR tool, with vision model available for complex structured extraction tasks.
+**Key takeaway**: PaddleOCR is an excellent choice for Executive Assistant - lightweight, fast, free, and great Chinese/English support. Add it as the default OCR tool, with vision model available for complex structured extraction tasks.

@@ -24,21 +24,21 @@ This plan is mostly complete, but the legacy summary removal section is overstat
 **Original Goal:** Use structured_summary only, drop legacy summary column & state.
 
 **Implementation completed:**
-- ✅ Removed `summary` field from `AgentState` in `src/cassey/agent/state.py`
-- ✅ Removed legacy summary fallback in `call_model` function in `src/cassey/agent/nodes.py`
+- ✅ Removed `summary` field from `AgentState` in `src/executive_assistant/agent/state.py`
+- ✅ Removed legacy summary fallback in `call_model` function in `src/executive_assistant/agent/nodes.py`
 - ✅ Removed legacy summary generation in `summarize_conversation` function
-- ✅ Removed `update_summary()` method from `UserRegistry` in `src/cassey/storage/user_registry.py`
+- ✅ Removed `update_summary()` method from `UserRegistry` in `src/executive_assistant/storage/user_registry.py`
 - ✅ Removed `summary` field from `ConversationLog` dataclass
 - ✅ Created migration `006_drop_legacy_summary.sql` to drop database column
 
 **Still remaining (code references):**
-- `src/cassey/tools/orchestrator_tools.py` still builds state with `"summary": ""`
+- `src/executive_assistant/tools/orchestrator_tools.py` still builds state with `"summary": ""`
 - `tests/test_summarization.py` still sets `"summary": ""` in a test state
 
 **Files modified:**
-- `src/cassey/agent/state.py`
-- `src/cassey/agent/nodes.py`
-- `src/cassey/storage/user_registry.py`
+- `src/executive_assistant/agent/state.py`
+- `src/executive_assistant/agent/nodes.py`
+- `src/executive_assistant/storage/user_registry.py`
 - `tests/test_summarization.py`
 - `tests/test_user_registry.py`
 - `tests/test_reviewer_fixes.py`
@@ -52,7 +52,7 @@ This plan is mostly complete, but the legacy summary removal section is overstat
 **Implementation completed:**
 
 ### SanitizingCheckpointSaver Wrapper
-**File:** `src/cassey/storage/checkpoint.py`
+**File:** `src/executive_assistant/storage/checkpoint.py`
 
 The `SanitizingCheckpointSaver` class wraps the base checkpointer and automatically sanitizes checkpoints on load:
 - Detects orphaned `tool_calls` in `AIMessage`
@@ -67,7 +67,7 @@ New: Detect corruption → Sanitize (remove only corrupted messages) → Continu
 ```
 
 ### Telegram Channel Error Handling
-**File:** `src/cassey/channels/telegram.py`
+**File:** `src/executive_assistant/channels/telegram.py`
 
 - **Per-thread locks**: Added `_thread_locks` dict with `_get_thread_lock()` method to serialize concurrent messages per thread
 - **Targeted resets**: Changed from "reset on any error" to "reset only on corruption errors"

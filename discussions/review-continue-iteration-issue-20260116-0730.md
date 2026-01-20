@@ -4,7 +4,7 @@
 The max-iterations guard is intended as a soft stop to prevent runaway tool loops; it emits a brief “summary” and asks the user to say “continue” to resume. However, when the user replies “continue”, the agent resets the counter but never invokes the model, so the conversation stalls. This contradicts the design intent for the max-iteration/summarization flow.
 
 ## Evidence
-- `src/cassey/agent/nodes.py:42` `src/cassey/agent/nodes.py:57` returns only `{"iterations": 0}` when "continue" is detected.
+- `src/executive_assistant/agent/nodes.py:42` `src/executive_assistant/agent/nodes.py:57` returns only `{"iterations": 0}` when "continue" is detected.
 - The node returns no `messages`, so the graph ends without a new model call.
 
 ## Expected vs Actual

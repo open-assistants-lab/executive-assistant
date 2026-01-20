@@ -1,8 +1,8 @@
 # Progress Middleware - Real-Time Agent Visibility
 
-**Problem:** Cassey takes 5+ minutes on complex tasks with no feedback. User sees "radio silence" and can't tell what's happening.
+**Problem:** Executive Assistant takes 5+ minutes on complex tasks with no feedback. User sees "radio silence" and can't tell what's happening.
 
-**Example:** User asks "find what langchain does, then save to vector store" → Cassey works for 5+ minutes with zero progress updates.
+**Example:** User asks "find what langchain does, then save to vector store" → Executive Assistant works for 5+ minutes with zero progress updates.
 
 ---
 
@@ -45,14 +45,14 @@ Channel (Telegram/HTTP) sends update to user
 
 ### Phase 1: Core Middleware (Quick Win)
 
-**File:** `src/cassey/agent/progress_middleware.py`
+**File:** `src/executive_assistant/agent/progress_middleware.py`
 
 ```python
 from langchain.agents.middleware import AgentMiddleware
 from typing import Callable, TYPE_CHECKing
 
 if TYPE_CHECKING:
-    from cassey.channels.base import BaseChannel
+    from executive_assistant.channels.base import BaseChannel
 
 class ProgressMiddleware(AgentMiddleware):
     """Sends progress updates to user during agent execution."""
@@ -86,7 +86,7 @@ class ProgressMiddleware(AgentMiddleware):
 
 ### Phase 2: Channel Integration
 
-**Update `src/cassey/channels/base.py`:**
+**Update `src/executive_assistant/channels/base.py`:**
 
 ```python
 class BaseChannel(ABC):
@@ -102,7 +102,7 @@ class BaseChannel(ABC):
         raise NotImplementedError
 ```
 
-**Implement in `src/cassey/channels/telegram.py`:**
+**Implement in `src/executive_assistant/channels/telegram.py`:**
 
 ```python
 class TelegramChannel(BaseChannel):
@@ -127,10 +127,10 @@ class TelegramChannel(BaseChannel):
 
 ### Phase 3: Integration with Agent
 
-**Update `src/cassey/agent/runtime.py` or wherever agent is created:**
+**Update `src/executive_assistant/agent/runtime.py` or wherever agent is created:**
 
 ```python
-from cassey.agent.progress_middleware import ProgressMiddleware
+from executive_assistant.agent.progress_middleware import ProgressMiddleware
 
 # When creating agent for a request
 async def create_agent_for_request(channel: BaseChannel, user_id: str):
@@ -212,7 +212,7 @@ PROGRESS_SHOW_TOOL_ARGS=false  # Hide sensitive args
 ## Next Steps
 
 1. Review and approve this plan
-2. Create `src/cassey/agent/progress_middleware.py`
+2. Create `src/executive_assistant/agent/progress_middleware.py`
 3. Add `send_status()` to BaseChannel
 4. Implement in TelegramChannel
 5. Wire up in agent creation
@@ -247,28 +247,28 @@ PROGRESS_SHOW_TOOL_ARGS=false  # Hide sensitive args
 
 #### Files Created/Modified:
 
-1. **`src/cassey/agent/status_middleware.py`** (NEW)
+1. **`src/executive_assistant/agent/status_middleware.py`** (NEW)
    - `StatusUpdateMiddleware` class using LangChain's `AgentMiddleware`
    - Hooks: `abefore_agent`, `awrap_tool_call`, `aafter_agent`
    - Features: tool counting, timing, error handling, args sanitization
 
-2. **`src/cassey/channels/base.py`**
+2. **`src/executive_assistant/channels/base.py`**
    - Added `send_status()` method with default implementation
    - Added `initialize_agent_with_channel()` for lazy agent initialization
 
-3. **`src/cassey/channels/telegram.py`**
+3. **`src/executive_assistant/channels/telegram.py`**
    - Implemented `send_status()` with message editing
    - Tracks `_status_messages` dict for edit capability
 
-4. **`src/cassey/channels/http.py`**
+4. **`src/executive_assistant/channels/http.py`**
    - Basic `send_status()` implementation (logs for now; full SSE TODO)
 
-5. **`src/cassey/agent/langchain_agent.py`**
+5. **`src/executive_assistant/agent/langchain_agent.py`**
    - Updated `_build_middleware()` to accept `channel` parameter
    - Updated `create_langchain_agent()` to accept `channel` parameter
    - Status middleware added when channel is provided
 
-6. **`src/cassey/config/settings.py`**
+6. **`src/executive_assistant/config/settings.py`**
    - Added `MW_STATUS_UPDATE_ENABLED` (default: true)
    - Added `MW_STATUS_SHOW_TOOL_ARGS` (default: false)
    - Added `MW_STATUS_UPDATE_INTERVAL` (default: 0.5)
@@ -315,7 +315,7 @@ PROGRESS_SHOW_TOOL_ARGS=false  # Hide sensitive args
 
 ### Channel Runtime Parameter Issue
 
-**Problem:** After initial implementation, Cassey failed to start with:
+**Problem:** After initial implementation, Executive Assistant failed to start with:
 ```
 TypeError: BaseChannel.__init__() got an unexpected keyword argument 'runtime'
 ```
@@ -323,8 +323,8 @@ TypeError: BaseChannel.__init__() got an unexpected keyword argument 'runtime'
 **Root Cause:** Both `TelegramChannel` and `HttpChannel` had a `runtime` parameter that was being passed to `BaseChannel.__init__()` but `BaseChannel` didn't accept it.
 
 **Fix Applied:**
-- **`src/cassey/channels/telegram.py`**: Removed `runtime` parameter from `__init__` and `super().__init__()` call
-- **`src/cassey/channels/http.py`**: Same fix applied
+- **`src/executive_assistant/channels/telegram.py`**: Removed `runtime` parameter from `__init__` and `super().__init__()` call
+- **`src/executive_assistant/channels/http.py`**: Same fix applied
 
 **Code Changes:**
 ```python
@@ -339,7 +339,7 @@ def __init__(self, token: str | None = None, agent: Runnable | None = None):
     super().__init__(agent)
 ```
 
-**Status:** ✅ Cassey now starts successfully
+**Status:** ✅ Executive Assistant now starts successfully
 
 ### Configuration
 

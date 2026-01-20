@@ -1,0 +1,27 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/eddy/Developer/Langgraph/executive_assistant/src/executive_assistant/main.py", line 8, in <module>
+    from executive_assistant.config import create_model, settings
+  File "/Users/eddy/Developer/Langgraph/executive_assistant/src/executive_assistant/config/__init__.py", line 3, in <module>
+    from executive_assistant.config.settings import Settings, settings
+  File "/Users/eddy/Developer/Langgraph/executive_assistant/src/executive_assistant/config/settings.py", line 110, in <module>
+    settings = get_settings()
+  File "/Users/eddy/Developer/Langgraph/executive_assistant/src/executive_assistant/config/settings.py", line 106, in get_settings
+    return Settings()
+  File "/Users/eddy/Developer/Langgraph/executive_assistant/.venv/lib/python3.13/site-packages/pydantic_settings/main.py", line 194, in __init__
+    super().__init__(
+    ~~~~~~~~~~~~~~~~^
+        **__pydantic_self__._settings_build_values(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<27 lines>...
+        )
+        ^
+    )
+    ^
+  File "/Users/eddy/Developer/Langgraph/executive_assistant/.venv/lib/python3.13/site-packages/pydantic/main.py", line 250, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
+TELEGRAM_BOT_TOKEN
+  Field required [type=missing, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing

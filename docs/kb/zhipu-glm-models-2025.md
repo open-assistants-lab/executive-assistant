@@ -215,7 +215,7 @@ Zhipu AI (China) offers the GLM (General Language Model) series, with both open-
 
 ---
 
-## Recommended Usage for Cassey
+## Recommended Usage for Executive Assistant
 
 ### Primary Model: **GLM-4.7** ⭐ (NEW!)
 - **Best performance-to-price ratio** in Zhipu lineup

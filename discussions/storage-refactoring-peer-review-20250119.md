@@ -76,22 +76,22 @@ Individual users had "personal groups" (type='individual') that only they could 
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `src/cassey/channels/base.py` | Modified | Add channel-agnostic user_id formatting |
-| `src/cassey/channels/telegram.py` | Modified | Remove hardcoded prefixes, use dynamic formatting |
-| `src/cassey/storage/file_sandbox.py` | Modified | Prioritize user_id context |
-| `src/cassey/storage/sqlite_db_storage.py` | Modified | Prioritize user_id context |
-| `src/cassey/storage/lancedb_storage.py` | Modified | Prioritize user_id context |
-| `src/cassey/storage/meta_registry.py` | Modified | Use user paths for individual data |
-| `src/cassey/storage/db_tools.py` | Modified | Respect context and use correct paths |
-| `src/cassey/scheduler.py` | Modified | Remove orchestrator_tools dependency |
-| `src/cassey/agent/langchain_state.py` | Modified | Fix import error |
-| `src/cassey/tools/orchestrator_tools.py` | **Deleted** | Remove archived file |
+| `src/executive_assistant/channels/base.py` | Modified | Add channel-agnostic user_id formatting |
+| `src/executive_assistant/channels/telegram.py` | Modified | Remove hardcoded prefixes, use dynamic formatting |
+| `src/executive_assistant/storage/file_sandbox.py` | Modified | Prioritize user_id context |
+| `src/executive_assistant/storage/sqlite_db_storage.py` | Modified | Prioritize user_id context |
+| `src/executive_assistant/storage/lancedb_storage.py` | Modified | Prioritize user_id context |
+| `src/executive_assistant/storage/meta_registry.py` | Modified | Use user paths for individual data |
+| `src/executive_assistant/storage/db_tools.py` | Modified | Respect context and use correct paths |
+| `src/executive_assistant/scheduler.py` | Modified | Remove orchestrator_tools dependency |
+| `src/executive_assistant/agent/langchain_state.py` | Modified | Fix import error |
+| `src/executive_assistant/tools/orchestrator_tools.py` | **Deleted** | Remove archived file |
 
 ---
 
 ### 1. Core Architecture
 
-#### `src/cassey/channels/base.py` (Lines 92-106)
+#### `src/executive_assistant/channels/base.py` (Lines 92-106)
 **Added channel-agnostic user_id formatting:**
 
 ```python
@@ -119,7 +119,7 @@ def format_user_id(self, raw_user_id: str) -> str:
 
 ---
 
-#### `src/cassey/channels/telegram.py` (Multiple locations)
+#### `src/executive_assistant/channels/telegram.py` (Multiple locations)
 
 **Changed from hardcoded to dynamic:**
 
@@ -141,7 +141,7 @@ user_id=self.format_user_id(str(update.effective_user.id))
 
 ### 2. Storage Layers
 
-#### `src/cassey/storage/file_sandbox.py` (Lines 230-280)
+#### `src/executive_assistant/storage/file_sandbox.py` (Lines 230-280)
 
 **Updated to prioritize user_id context:**
 
@@ -161,7 +161,7 @@ def get_sandbox(user_id: str | None = None) -> FileSandbox:
         return FileSandbox(root=user_path)
 
     # 2. user_id from context (individual mode) ← NEW!
-    from cassey.storage.group_storage import get_user_id
+    from executive_assistant.storage.group_storage import get_user_id
     user_id_val = get_user_id()
     if user_id_val:
         user_path = settings.get_user_files_path(user_id_val)
@@ -185,7 +185,7 @@ def get_sandbox(user_id: str | None = None) -> FileSandbox:
 
 ---
 
-#### `src/cassey/storage/sqlite_db_storage.py` (Lines 326-356)
+#### `src/executive_assistant/storage/sqlite_db_storage.py` (Lines 326-356)
 
 **Updated get_sqlite_db() to prioritize user_id:**
 
@@ -193,8 +193,8 @@ def get_sandbox(user_id: str | None = None) -> FileSandbox:
 def get_sqlite_db(storage_id: str | None = None) -> SQLiteDatabase:
     if storage_id is None:
         # Priority: user_id (individual) > group_id (team) > thread_id (fallback)
-        from cassey.storage.group_storage import get_user_id
-        from cassey.storage.file_sandbox import get_thread_id
+        from executive_assistant.storage.group_storage import get_user_id
+        from executive_assistant.storage.file_sandbox import get_thread_id
 
         storage_id = get_user_id()
         if storage_id is None:
@@ -218,13 +218,13 @@ def get_sqlite_db(storage_id: str | None = None) -> SQLiteDatabase:
 
 ---
 
-#### `src/cassey/storage/lancedb_storage.py` (Lines 237-254)
+#### `src/executive_assistant/storage/lancedb_storage.py` (Lines 237-254)
 
 **Updated to prioritize user_id context:**
 
 ```python
 # Priority: user_id (individual) > group_id (team) > thread_id (fallback)
-from cassey.storage.group_storage import get_user_id
+from executive_assistant.storage.group_storage import get_user_id
 user_id = get_user_id()
 if user_id:
     return user_id
@@ -235,7 +235,7 @@ if group_id:
     return group_id
 
 # Fall back to thread_id (legacy routing)
-from cassey.storage.file_sandbox import get_thread_id
+from executive_assistant.storage.file_sandbox import get_thread_id
 thread_id = get_thread_id()
 if thread_id:
     return thread_id
@@ -243,13 +243,13 @@ if thread_id:
 
 ---
 
-#### `src/cassey/storage/meta_registry.py` (Lines 134-153)
+#### `src/executive_assistant/storage/meta_registry.py` (Lines 134-153)
 
 **Updated to prioritize user_id and use correct paths:**
 
 ```python
 # Priority: user_id (individual) > group_id (team) > thread_id (fallback)
-from cassey.storage.group_storage import get_user_id
+from executive_assistant.storage.group_storage import get_user_id
 user_id = get_user_id()
 group_id = get_workspace_id()
 
@@ -272,7 +272,7 @@ else:
 
 ---
 
-#### `src/cassey/storage/db_tools.py` (Lines 41-75)
+#### `src/executive_assistant/storage/db_tools.py` (Lines 41-75)
 
 **Fixed DB tools to respect context and use correct paths:**
 
@@ -285,8 +285,8 @@ def _get_current_context_id() -> str:
     Raises:
         ValueError: If no context is available.
     """
-    from cassey.storage.group_storage import get_workspace_id
-    from cassey.storage.db_storage import get_db_storage
+    from executive_assistant.storage.group_storage import get_workspace_id
+    from executive_assistant.storage.db_storage import get_db_storage
 
     # Try group_id first (team workspaces and "personal groups")
     workspace_id = get_workspace_id()
@@ -320,13 +320,13 @@ def _get_db() -> SQLiteDatabase:
 
 ### 3. Bug Fixes
 
-#### `src/cassey/scheduler.py` (Lines 19-28, 140-169)
+#### `src/executive_assistant/scheduler.py` (Lines 19-28, 140-169)
 
 **Removed archived orchestrator_tools dependency:**
 
 ```python
-# BEFORE: Imported from cassey.tools.orchestrator_tools
-from cassey.tools.orchestrator_tools import (
+# BEFORE: Imported from executive_assistant.tools.orchestrator_tools
+from executive_assistant.tools.orchestrator_tools import (
     ARCHIVED_MESSAGE,
     ORCHESTRATOR_ARCHIVED,
     execute_worker,
@@ -342,20 +342,20 @@ ARCHIVED_MESSAGE = (
 
 **Simplified `_process_pending_jobs()`** to mark scheduled jobs as failed instead of attempting execution.
 
-**Deleted:** `src/cassey/tools/orchestrator_tools.py` - File removed entirely
+**Deleted:** `src/executive_assistant/tools/orchestrator_tools.py` - File removed entirely
 
 ---
 
-#### `src/cassey/agent/langchain_state.py` (Line 8)
+#### `src/executive_assistant/agent/langchain_state.py` (Line 8)
 
 **Fixed import error:**
 
 ```python
 # BEFORE:
-from cassey.agent.state import TaskState
+from executive_assistant.agent.state import TaskState
 
 # AFTER:
-from cassey.agent.state import AgentState as TaskState
+from executive_assistant.agent.state import AgentState as TaskState
 ```
 
 ---
@@ -380,7 +380,7 @@ from cassey.agent.state import AgentState as TaskState
    - ✅ Should be in SAME directory as files/DB
 
 4. **Test Memory:**
-   - Ask Cassey to remember something
+   - Ask Executive Assistant to remember something
    - Verify path: `data/users/telegram_6282871705/mem/mem.db`
    - ✅ Should be in SAME directory as files/DB
 
@@ -424,7 +424,7 @@ ls -la data/users/telegram_6282871705/db/
 ### Check for hardcoded prefixes:
 ```bash
 # Should return empty (no hardcoded prefixes in storage)
-grep -r "telegram:" src/cassey/storage/*.py | grep -v "# " | grep -v "e.g.,"
+grep -r "telegram:" src/executive_assistant/storage/*.py | grep -v "# " | grep -v "e.g.,"
 ```
 
 ---
@@ -470,10 +470,10 @@ If issues arise, rollback via git:
 
 ```bash
 # Check what changed
-git diff HEAD~1 src/cassey/
+git diff HEAD~1 src/executive_assistant/
 
 # Rollback specific file
-git checkout HEAD~1 -- src/cassey/channels/base.py
+git checkout HEAD~1 -- src/executive_assistant/channels/base.py
 
 # Or rollback all
 git reset --hard HEAD~1

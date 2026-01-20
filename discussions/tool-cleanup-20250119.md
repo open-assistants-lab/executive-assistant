@@ -1,41 +1,41 @@
 # Tool Cleanup Plan - 2025-01-19
 
 ## Overview
-Clean up deprecated and redundant tools in Cassey to reduce complexity and tool count from 60+ to ~45 tools.
+Clean up deprecated and redundant tools in Executive Assistant to reduce complexity and tool count from 60+ to ~45 tools.
 
 ---
 
 ## Phase 1: Remove Deprecated/Redundant Tools [✅ COMPLETED]
 
 ### 1.1 Remove calculator tool [✅ DONE]
-**Location**: `src/cassey/tools/registry.py`
+**Location**: `src/executive_assistant/tools/registry.py`
 - [x] Delete calculator tool from `get_standard_tools()` (lines 201-228)
 - [x] Remove "calculator" from docstring (line 250)
 
 **Rationale**: Redundant - Python execution can handle math
 
 ### 1.2 Remove orchestrator tools (already archived) [✅ DONE]
-**Location**: `src/cassey/tools/orchestrator_tools.py`
-- [x] Delete `src/cassey/tools/orchestrator_tools.py`
+**Location**: `src/executive_assistant/tools/orchestrator_tools.py`
+- [x] Delete `src/executive_assistant/tools/orchestrator_tools.py`
 - [x] Remove `get_orchestrator_tools()` from registry.py (lines 115-117)
 
 **Rationale**: Already disabled/archived (`ORCHESTRATOR_ARCHIVED = True`)
 
 ### 1.3 Remove sqlite_helper tool (deprecated) [✅ DONE]
-**Location**: `src/cassey/skills/sqlite_helper.py`
-- [x] Delete `src/cassey/skills/sqlite_helper.py`
+**Location**: `src/executive_assistant/skills/sqlite_helper.py`
+- [x] Delete `src/executive_assistant/skills/sqlite_helper.py`
 - [x] Remove `get_sqlite_helper_tools()` from registry.py (lines 120-123, 267)
 
 **Rationale**: Deprecated - skills system replaces it
 
 ### 1.4 Remove task_state_tools (redundant with TodoListMiddleware) [✅ DONE]
 **Locations**:
-- `src/cassey/tools/task_state_tools.py`
-- `src/cassey/agent/nodes.py`
-- `src/cassey/agent/state.py`
+- `src/executive_assistant/tools/task_state_tools.py`
+- `src/executive_assistant/agent/nodes.py`
+- `src/executive_assistant/agent/state.py`
 
 Tasks:
-- [x] Delete `src/cassey/tools/task_state_tools.py`
+- [x] Delete `src/executive_assistant/tools/task_state_tools.py`
 - [x] Remove `get_task_state_tools()` from registry.py (lines 92-95, 291)
 - [x] Remove task_state handling from `nodes.py` (lines 247-255)
 - [x] Remove `task_state` from `AgentState` in `state.py` (line 37)
@@ -55,8 +55,8 @@ Tasks:
 - Update tool descriptions
 
 ### 2.2 Deprecate shared_db_tools.py
-- Delete `src/cassey/storage/shared_db_tools.py`
-- Delete `src/cassey/storage/shared_db_storage.py`
+- Delete `src/executive_assistant/storage/shared_db_tools.py`
+- Delete `src/executive_assistant/storage/shared_db_storage.py`
 - Remove `get_shared_db_tools()` from registry.py
 
 ---
@@ -71,14 +71,14 @@ Tasks:
 ---
 
 ## Files Deleted (3 files) [✅ DONE]
-1. [x] `src/cassey/tools/orchestrator_tools.py`
-2. [x] `src/cassey/tools/task_state_tools.py`
-3. [x] `src/cassey/skills/sqlite_helper.py`
+1. [x] `src/executive_assistant/tools/orchestrator_tools.py`
+2. [x] `src/executive_assistant/tools/task_state_tools.py`
+3. [x] `src/executive_assistant/skills/sqlite_helper.py`
 
 ## Files Modified (3 files) [✅ DONE]
-1. [x] `src/cassey/tools/registry.py` - Removed tool registrations (calculator, orchestrator, sqlite_helper, task_state)
-2. [x] `src/cassey/agent/nodes.py` - Removed task_state handling
-3. [x] `src/cassey/agent/state.py` - Removed task_state from AgentState and TaskState TypedDict
+1. [x] `src/executive_assistant/tools/registry.py` - Removed tool registrations (calculator, orchestrator, sqlite_helper, task_state)
+2. [x] `src/executive_assistant/agent/nodes.py` - Removed task_state handling
+3. [x] `src/executive_assistant/agent/state.py` - Removed task_state from AgentState and TaskState TypedDict
 
 ## Tool Count Reduction
 - **Before**: 60+ tools

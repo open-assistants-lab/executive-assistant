@@ -243,9 +243,9 @@ DATABASE_URL = "postgresql://user:pass@localhost:5432/dbname"
 # Or individual components
 POSTGRES_HOST = "localhost"
 POSTGRES_PORT = 5432
-POSTGRES_USER = "cassey"
+POSTGRES_USER = "executive_assistant"
 POSTGRES_PASSWORD = "password"
-POSTGRES_DB = "cassey_db"
+POSTGRES_DB = "executive_assistant_db"
 ```
 
 ### Async Pattern

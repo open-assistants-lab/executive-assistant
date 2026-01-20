@@ -1,6 +1,6 @@
-"""Realistic test scenarios based on actual Cassey usage."""
+"""Realistic test scenarios based on actual Executive Assistant usage."""
 
-from cassey.agent.prompts import get_system_prompt
+from executive_assistant.agent.prompts import get_system_prompt
 
 
 TELEGRAM_SYSTEM_PROMPT = get_system_prompt("telegram")
@@ -53,7 +53,7 @@ SCENARIOS = [
         "description": "Create table and insert data",
         "complexity": "medium",
         "system_prompt": TELEGRAM_SYSTEM_PROMPT,
-        "user_message": "Create a timesheet table with columns: date, activity, duration. Then add an entry for today: 2025-01-18, Cassey development, 2.5 hours.",
+        "user_message": "Create a timesheet table with columns: date, activity, duration. Then add an entry for today: 2025-01-18, Executive Assistant development, 2.5 hours.",
         "expected_tools": ["create_db_table", "insert_db_table"],
         "estimated_input_tokens": TELEGRAM_SYSTEM_TOKENS + 50,
     },
@@ -77,7 +77,7 @@ SCENARIOS = [
         "description": "Real user message: Track time",
         "complexity": "medium",
         "system_prompt": TELEGRAM_SYSTEM_PROMPT,
-        "user_message": "Track my time spent on Cassey development today. Create a timesheet table with columns: date, activity, duration_hours. Log these entries: 2h coding, 30min documentation, 1h testing, 45min benchmarking.",
+        "user_message": "Track my time spent on Executive Assistant development today. Create a timesheet table with columns: date, activity, duration_hours. Log these entries: 2h coding, 30min documentation, 1h testing, 45min benchmarking.",
         "expected_tools": ["create_db_table", "insert_db_table"],
         "estimated_input_tokens": TELEGRAM_SYSTEM_TOKENS + 65,
     },

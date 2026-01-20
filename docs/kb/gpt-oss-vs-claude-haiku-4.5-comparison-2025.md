@@ -310,7 +310,7 @@ Claude Haiku:  ███████████░ 0.980s - 8.706s (avg: 2.941s
 
 ---
 
-## Recommendations for Cassey
+## Recommendations for Executive Assistant
 
 ### 🥇 **Primary Recommendation: GPT-OSS 20B (Ollama Cloud)**
 
@@ -407,7 +407,7 @@ def choose_model(task_type: str) -> str:
 ### 1. **Implement Post-Processing**
 Add response cleaning to strip "Thinking..." prefix:
 ```python
-# src/cassey/agent/nodes.py
+# src/executive_assistant/agent/nodes.py
 def clean_llm_response(response: str) -> str:
     """Remove thinking artifacts from LLM responses."""
     if "Thinking..." in response:
@@ -420,7 +420,7 @@ def clean_llm_response(response: str) -> str:
 ### 2. **Consider Hybrid Routing (Optional)**
 If you use Haiku for math/creative:
 ```python
-# src/cassey/config/llm_factory.py
+# src/executive_assistant/config/llm_factory.py
 MODEL_ROUTING = {
     "math": "claude-haiku-4-5",  # Fastest for math
     "creative": "claude-haiku-4-5",  # Fast for creative
@@ -461,7 +461,7 @@ if result.get("usage"):
 
 ## Conclusion
 
-**GPT-OSS 20B via Ollama Cloud is the clear winner for Cassey:**
+**GPT-OSS 20B via Ollama Cloud is the clear winner for Executive Assistant:**
 
 ✅ **50% faster on average** (1.962s vs 2.941s)
 ✅ **4× more consistent** (0.823s vs 3.279s std dev)
@@ -477,7 +477,7 @@ if result.get("usage"):
 
 **However:** Haiku 4.5 is **19% slower** than Haiku 3.5 in our tests, likely due to more verbose output and extended thinking overhead.
 
-**Recommendation:** Use **GPT-OSS 20B as the default model** for Cassey. Consider hybrid routing to Haiku 4.5 only if you need:
+**Recommendation:** Use **GPT-OSS 20B as the default model** for Executive Assistant. Consider hybrid routing to Haiku 4.5 only if you need:
 - 200k token context
 - Extended thinking for complex reasoning
 - Fast math/creative responses (and willing to pay for it)

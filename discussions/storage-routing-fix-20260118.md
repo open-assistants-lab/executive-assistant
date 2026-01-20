@@ -34,12 +34,12 @@ Several tools were using `get_thread_files_path()` and `get_thread_db_path()` di
 ### Files with Incorrect Routing
 | File | Function | Issue |
 |------|----------|-------|
-| `src/cassey/tools/python_tool.py` | `_get_thread_root()` | Only checked `get_thread_id()` |
-| `src/cassey/storage/shared_db_tools.py` | `export_shared_db_table()` | Used `get_thread_files_path(thread_id)` |
-| `src/cassey/storage/shared_db_tools.py` | `import_shared_db_table()` | Used `get_thread_files_path(thread_id)` |
-| `src/cassey/storage/db_tools.py` | `export_db_table()` | Used `get_thread_files_path(thread_id)` |
-| `src/cassey/storage/db_tools.py` | `import_db_table()` | Used `get_thread_files_path(thread_id)` |
-| `src/cassey/storage/meta_registry.py` | `refresh_meta()` | Used `get_thread_files_path()` and `get_thread_db_path()` |
+| `src/executive_assistant/tools/python_tool.py` | `_get_thread_root()` | Only checked `get_thread_id()` |
+| `src/executive_assistant/storage/shared_db_tools.py` | `export_shared_db_table()` | Used `get_thread_files_path(thread_id)` |
+| `src/executive_assistant/storage/shared_db_tools.py` | `import_shared_db_table()` | Used `get_thread_files_path(thread_id)` |
+| `src/executive_assistant/storage/db_tools.py` | `export_db_table()` | Used `get_thread_files_path(thread_id)` |
+| `src/executive_assistant/storage/db_tools.py` | `import_db_table()` | Used `get_thread_files_path(thread_id)` |
+| `src/executive_assistant/storage/meta_registry.py` | `refresh_meta()` | Used `get_thread_files_path()` and `get_thread_db_path()` |
 
 ---
 
@@ -47,7 +47,7 @@ Several tools were using `get_thread_files_path()` and `get_thread_db_path()` di
 
 ### Centralized Context-Aware Routing
 
-Added two new methods to `Settings` class in `src/cassey/config/settings.py`:
+Added two new methods to `Settings` class in `src/executive_assistant/config/settings.py`:
 
 ```python
 def get_context_files_path(self) -> Path:
@@ -61,8 +61,8 @@ def get_context_files_path(self) -> Path:
     Raises:
         ValueError: If no group_id or thread_id context is available.
     """
-    from cassey.storage.group_storage import get_workspace_id
-    from cassey.storage.file_sandbox import get_thread_id
+    from executive_assistant.storage.group_storage import get_workspace_id
+    from executive_assistant.storage.file_sandbox import get_thread_id
 
     # Check group_id first (new group-based routing)
     group_id = get_workspace_id()
@@ -108,18 +108,18 @@ data/
 
 | File | Changes |
 |------|---------|
-| `src/cassey/config/settings.py` | Added `get_context_files_path()` and `get_context_db_path()` methods |
-| `src/cassey/tools/python_tool.py` | `_get_thread_root()` now uses `get_context_files_path()` |
-| `src/cassey/storage/shared_db_tools.py` | `export_shared_db_table()` and `import_shared_db_table()` use `get_context_files_path()` |
-| `src/cassey/storage/db_tools.py` | `export_db_table()` and `import_db_table()` use `get_context_files_path()` |
-| `src/cassey/storage/meta_registry.py` | `refresh_meta()` checks `group_id` first, routes to correct paths |
+| `src/executive_assistant/config/settings.py` | Added `get_context_files_path()` and `get_context_db_path()` methods |
+| `src/executive_assistant/tools/python_tool.py` | `_get_thread_root()` now uses `get_context_files_path()` |
+| `src/executive_assistant/storage/shared_db_tools.py` | `export_shared_db_table()` and `import_shared_db_table()` use `get_context_files_path()` |
+| `src/executive_assistant/storage/db_tools.py` | `export_db_table()` and `import_db_table()` use `get_context_files_path()` |
+| `src/executive_assistant/storage/meta_registry.py` | `refresh_meta()` checks `group_id` first, routes to correct paths |
 
 ### Files Not Changed (Intentionally)
 
 | File | Reason |
 |------|--------|
-| `src/cassey/channels/telegram.py` | File upload handler runs before group_id context is set; using thread_id path is correct |
-| `src/cassey/channels/base.py` | Already sets both contexts correctly via `ensure_thread_group()` |
+| `src/executive_assistant/channels/telegram.py` | File upload handler runs before group_id context is set; using thread_id path is correct |
+| `src/executive_assistant/channels/base.py` | Already sets both contexts correctly via `ensure_thread_group()` |
 
 ---
 
@@ -128,9 +128,9 @@ data/
 ### Test Output
 ```bash
 $ uv run python -c "
-from cassey.config import settings
-from cassey.storage.group_storage import set_group_id
-from cassey.storage.file_sandbox import set_thread_id
+from executive_assistant.config import settings
+from executive_assistant.storage.group_storage import set_group_id
+from executive_assistant.storage.file_sandbox import set_thread_id
 
 # Test 1: group_id context -> groups/
 set_group_id('group:test123')
@@ -193,4 +193,4 @@ mv data/users/group_f47eda77-1b8a-4ab2-b247-30881fad68aa data/groups/
 
 - Configuration refactoring: `discussions/config-refactor-20260118.md`
 - Storage paths: `config.yaml` (storage.paths section)
-- Group storage: `src/cassey/storage/group_storage.py`
+- Group storage: `src/executive_assistant/storage/group_storage.py`

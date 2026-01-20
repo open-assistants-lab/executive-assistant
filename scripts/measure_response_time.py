@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Realistic Cassey response time measurement.
+Realistic Executive Assistant response time measurement.
 
 Measures the full stack timing, breaking down where time is spent:
 - Channel processing
@@ -27,13 +27,13 @@ from typing import Any
 import httpx
 from langchain_core.messages import HumanMessage
 
-from cassey.config.llm_factory import LLMFactory
-from cassey.config.settings import settings
-from cassey.agent.langchain_agent import create_langchain_agent
-from cassey.agent.prompts import get_system_prompt
-from cassey.tools.registry import get_all_tools
-from cassey.storage.checkpoint import get_async_checkpointer
-from cassey.storage.file_sandbox import set_thread_id
+from executive_assistant.config.llm_factory import LLMFactory
+from executive_assistant.config.settings import settings
+from executive_assistant.agent.langchain_agent import create_langchain_agent
+from executive_assistant.agent.prompts import get_system_prompt
+from executive_assistant.tools.registry import get_all_tools
+from executive_assistant.storage.checkpoint import get_async_checkpointer
+from executive_assistant.storage.file_sandbox import set_thread_id
 
 
 @dataclass
@@ -117,8 +117,8 @@ class TimingBreakdown:
         }
 
 
-class CasseyResponseTimeTester:
-    """Test Cassey response time with full stack instrumentation."""
+class ExecutiveAssistantResponseTimeTester:
+    """Test Executive Assistant response time with full stack instrumentation."""
 
     def __init__(self, provider: str = "openai", model: str | None = None):
         self.provider = provider
@@ -239,7 +239,7 @@ class CasseyResponseTimeTester:
                 set_thread_id(conversation_id)
 
                 try:
-                    from cassey.storage.mem_storage import get_mem_storage
+                    from executive_assistant.storage.mem_storage import get_mem_storage
 
                     storage = get_mem_storage()
                     memories = storage.search_memories(
@@ -469,7 +469,7 @@ class CasseyResponseTimeTester:
     def generate_report(self) -> str:
         """Generate markdown report."""
         lines = [
-            "# Cassey Response Time Test Report\n",
+            "# Executive Assistant Response Time Test Report\n",
             f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n",
             f"**Provider:** {self.provider}\n",
             f"**Model:** {self.model}\n",
@@ -562,7 +562,7 @@ class CasseyResponseTimeTester:
 async def main():
     """Run response time tests."""
     parser = argparse.ArgumentParser(
-        description="Test Cassey response time with full stack measurement",
+        description="Test Executive Assistant response time with full stack measurement",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -585,7 +585,7 @@ Examples:
 
     args = parser.parse_args()
 
-    tester = CasseyResponseTimeTester(provider=args.provider, model=args.model)
+    tester = ExecutiveAssistantResponseTimeTester(provider=args.provider, model=args.model)
 
     if "hello" in args.scenarios:
         results = await tester.test_simple_hello(iterations=args.iterations)

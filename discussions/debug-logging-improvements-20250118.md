@@ -22,7 +22,7 @@
 
 ### 2025-01-19: Millisecond Timestamps
 
-**File:** `src/cassey/logging.py`
+**File:** `src/executive_assistant/logging.py`
 **Change:** Added milliseconds to timestamp format for precise timing measurements
 
 ```python
@@ -44,7 +44,7 @@ This allows measuring task duration with millisecond precision from logs.
 Currently, even with `LOG_LEVEL=DEBUG`, the logs don't provide sufficient visibility into:
 
 1. **User's messages** - What did the user send?
-2. **Cassey's responses** - What did the agent say?
+2. **Executive Assistant's responses** - What did the agent say?
 3. **Status progress** - "Thinking...", "Tool 1: search_web", etc.
 4. **Tool calls** - Which tool, what args, what result?
 5. **Database operations** - Which tables were read/written/created/deleted?
@@ -60,7 +60,7 @@ This makes debugging difficult when things go wrong.
 
 ### Logging Setup
 
-**File:** `src/cassey/logging.py`
+**File:** `src/executive_assistant/logging.py`
 - Uses Loguru for structured logging
 - Configurable via `config.yaml` → `logging.level`
 - Default: `INFO`
@@ -87,7 +87,7 @@ logging:
 | Category | Current Behavior | Desired Behavior |
 |----------|-----------------|------------------|
 | User messages | ❌ Not logged | ✅ Log content, user_id, conversation_id at DEBUG |
-| Cassey responses | ❌ Not logged | ✅ Log full AI responses at DEBUG |
+| Executive Assistant responses | ❌ Not logged | ✅ Log full AI responses at DEBUG |
 | Status updates | ⚠️ Only in Telegram (HTTP logs to stdlib) | ✅ All status updates at DEBUG |
 | Tool calls | ❌ Not logged | ✅ Log tool name, args, result, timing at DEBUG |
 | Database operations | ❌ Not logged | ✅ Log DB read/write/create/delete at DEBUG |
@@ -154,7 +154,7 @@ Unbind context
 
 ### Phase 1: Message Logging (Base Channel)
 
-**File:** `src/cassey/channels/base.py`
+**File:** `src/executive_assistant/channels/base.py`
 
 #### Add Debug Logging to `stream_agent_response()`
 
@@ -185,7 +185,7 @@ for msg in messages:
 
 ### Phase 2: Tool Call Logging (Middleware)
 
-**File:** `src/cassey/agent/status_middleware.py`
+**File:** `src/executive_assistant/agent/status_middleware.py`
 
 #### Add Debug Logging for Tool Calls
 
@@ -225,7 +225,7 @@ async def awrap_tool_call(self, request, handler):
 
 ### Phase 3: Storage Operation Logging
 
-**File:** `src/cassey/storage/db_tools.py`
+**File:** `src/executive_assistant/storage/db_tools.py`
 
 #### Add Debug Logging for Database Operations
 
@@ -247,7 +247,7 @@ def query_db(table: str, sql: str) -> str:
 
 ### Phase 4: Error Context Enhancement
 
-**File:** `src/cassey/channels/base.py`
+**File:** `src/executive_assistant/channels/base.py`
 
 #### Add Error Context Logging
 
@@ -309,14 +309,14 @@ YYYY-MM-DD HH:mm:ss.SSS | LEVEL | module:function:line | message
 # config.yaml
 logging:
   level: DEBUG  # Set to DEBUG for verbose logging
-  file: "cassey.log"  # Optional: log to file
+  file: "executive_assistant.log"  # Optional: log to file
 ```
 
 ### Environment Variable
 
 ```bash
 export LOG_LEVEL=DEBUG
-uv run cassey
+uv run executive_assistant
 ```
 
 ---

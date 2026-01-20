@@ -29,7 +29,7 @@ Implement group-level storage and Temporal-based scheduling for:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                        VM 1: Cassey Application                         │
+│                        VM 1: Executive Assistant Application                         │
 │                                                                         │
 │  ┌───────────────────────────────────────────────────────────────────┐ │
 │  │  Temporal Worker                                                   │ │
@@ -38,7 +38,7 @@ Implement group-level storage and Temporal-based scheduling for:
 │  │  - Executes reminder workflows (single activity)                   │ │
 │  │  - Executes automation workflows (executor chains)                │ │
 │  │  - Runs activities (agent calls, tool invocations)                │ │
-│  │  - Connects to Cassey tools, SQLite, PostgreSQL, DuckDB           │ │
+│  │  - Connects to Executive Assistant tools, SQLite, PostgreSQL, DuckDB           │ │
 │  └───────────────────────────────────────────────────────────────────┘ │
 │                            ↕ gRPC (port 7233)                          │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -59,11 +59,11 @@ Implement group-level storage and Temporal-based scheduling for:
 │  └───────────────────────────────────────────────────────────────────┘ │
 │                                                                         │
 │  Frontend: 7233 (gRPC) │ UI: 8088 (web dashboard)                      │
-│  PostgreSQL: Temporal's state store (can share Cassey's DB)            │
+│  PostgreSQL: Temporal's state store (can share Executive Assistant's DB)            │
 │                                                                         │
 │  Task Queues:                                                          │
-│  - cassey-reminders  → Single-step reminder workflows                 │
-│  - cassey-workflows  → Multi-step automation chains                  │
+│  - executive_assistant-reminders  → Single-step reminder workflows                 │
+│  - executive_assistant-workflows  → Multi-step automation chains                  │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 
@@ -110,7 +110,7 @@ Reminders are **single-executor workflows** with Temporal managing durable timer
 ### Workflow Definition
 
 ```python
-"""src/cassey/temporal_workflows.py"""
+"""src/executive_assistant/temporal_workflows.py"""
 
 from datetime import timedelta
 from temporalio import workflow, activity
@@ -142,7 +142,7 @@ class ReminderWorkflow:
 @activity.defn
 def send_reminder_notification(group_id: str, reminder_id: int) -> bool:
     """Fetch reminder from PostgreSQL and send notification."""
-    from cassey.storage.reminder import get_reminder_storage
+    from executive_assistant.storage.reminder import get_reminder_storage
 
     storage = await get_reminder_storage()
     reminder = await storage.get_by_id(reminder_id)
@@ -159,7 +159,7 @@ def send_reminder_notification(group_id: str, reminder_id: int) -> bool:
 
     # Handle recurring reminders
     if reminder.is_recurring:
-        from cassey.utils.cron import parse_cron_next
+        from executive_assistant.utils.cron import parse_cron_next
         next_due = parse_cron_next(reminder.recurrence, datetime.now())
         await storage.create(
             user_id=reminder.user_id,
@@ -175,7 +175,7 @@ def send_reminder_notification(group_id: str, reminder_id: int) -> bool:
 ### Updated Reminder Tools (Temporal)
 
 ```python
-"""src/cassey/tools/reminder_tools.py (updated)"""
+"""src/executive_assistant/tools/reminder_tools.py (updated)"""
 
 from temporalio.client import Client
 
@@ -216,7 +216,7 @@ async def reminder_set(
             ReminderWorkflow.run,
             args=[thread_id, reminder.id, "$$NOW"],
             id=workflow_id,
-            task_queue="cassey-reminders",
+            task_queue="executive_assistant-reminders",
             cron_expression=cron_expr
         )
     else:
@@ -225,7 +225,7 @@ async def reminder_set(
             ReminderWorkflow.run,
             args=[thread_id, reminder.id, due_time.isoformat()],
             id=workflow_id,
-            task_queue="cassey-reminders"
+            task_queue="executive_assistant-reminders"
         )
 
     return f"Reminder set for {due_time.strftime('%Y-%m-%d %H:%M')}. ID: {reminder.id}"
@@ -298,11 +298,11 @@ CREATE INDEX idx_todos_due_date ON todos(due_date);
 ### Tools
 
 ```python
-"""src/cassey/tools/todo_tools.py"""
+"""src/executive_assistant/tools/todo_tools.py"""
 
 from langchain_core.tools import tool
-from cassey.storage.sqlite_db_storage import get_sqlite_db
-from cassey.storage.group_storage import get_workspace_id
+from executive_assistant.storage.sqlite_db_storage import get_sqlite_db
+from executive_assistant.storage.group_storage import get_workspace_id
 
 @tool
 async def todo_add(
@@ -324,7 +324,7 @@ async def todo_add(
     Returns:
         Confirmation message.
     """
-    from cassey.utils.time_parser import parse_natural_time
+    from executive_assistant.utils.time_parser import parse_natural_time
 
     db = get_sqlite_db()
     ensure_todo_schema()
@@ -435,9 +435,9 @@ async def add_todo_field(field_name: str, field_type: str = "TEXT") -> str:
 ### Storage Helper
 
 ```python
-"""src/cassey/storage/todo_storage.py"""
+"""src/executive_assistant/storage/todo_storage.py"""
 
-from cassey.storage.sqlite_db_storage import get_sqlite_db
+from executive_assistant.storage.sqlite_db_storage import get_sqlite_db
 
 def ensure_todo_schema() -> None:
     """Create todos table if not exists."""
@@ -502,11 +502,11 @@ Notes use **existing KB infrastructure**:
 ### Tools
 
 ```python
-"""src/cassey/tools/note_tools.py"""
+"""src/executive_assistant/tools/note_tools.py"""
 
 from langchain_core.tools import tool
-from cassey.storage.duckdb_storage import create_duckdb_collection, get_duckdb_collection, list_duckdb_collections
-from cassey.storage.group_storage import get_workspace_id
+from executive_assistant.storage.duckdb_storage import create_duckdb_collection, get_duckdb_collection, list_duckdb_collections
+from executive_assistant.storage.group_storage import get_workspace_id
 
 @tool
 async def note_save(
@@ -577,7 +577,7 @@ async def note_search(query: str, limit: int = 5) -> str:
     Returns:
         Formatted search results.
     """
-    from cassey.storage.duckdb_storage import list_duckdb_collections, get_duckdb_collection
+    from executive_assistant.storage.duckdb_storage import list_duckdb_collections, get_duckdb_collection
 
     storage_id = get_workspace_id()
     collections = list_duckdb_collections(storage_id=storage_id)
@@ -614,7 +614,7 @@ async def note_list(limit: int = 10) -> str:
     Returns:
         Formatted list of recent notes.
     """
-    from cassey.storage.duckdb_storage import list_duckdb_collections, get_duckdb_collection
+    from executive_assistant.storage.duckdb_storage import list_duckdb_collections, get_duckdb_collection
 
     storage_id = get_workspace_id()
     collections = list_duckdb_collections(storage_id=storage_id)
@@ -673,7 +673,7 @@ class ExecutorSpec(BaseModel):
 
     # Agent configuration
     model: str  # e.g., "gpt-4o", "gpt-4o-mini"
-    tools: list[str]  # Tool names from Cassey's registry
+    tools: list[str]  # Tool names from Executive Assistant's registry
     system_prompt: str
 
     # Structured output schema
@@ -708,10 +708,10 @@ class WorkflowSpec(BaseModel):
 ### Temporal Workflow (Multi-Step)
 
 ```python
-"""src/cassey/temporal_workflows.py"""
+"""src/executive_assistant/temporal_workflows.py"""
 
 @workflow.defn
-class CasseyWorkflow:
+class Executive AssistantWorkflow:
     """Multi-step workflow that executes a chain of executors."""
 
     @workflow.run
@@ -784,7 +784,7 @@ class CasseyWorkflow:
 @activity.defn
 def run_executor_activity(executor_spec: ExecutorSpec, previous_outputs: dict) -> dict:
     """Execute a single executor (agent with tools)."""
-    from cassey.tools.registry import get_tools_by_name
+    from executive_assistant.tools.registry import get_tools_by_name
 
     # Build prompt with previous outputs
     prompt = executor_spec.system_prompt
@@ -905,7 +905,7 @@ Send message with summary. Return:
 ### Workflow Tools
 
 ```python
-"""src/cassey/tools/workflow_tools.py"""
+"""src/executive_assistant/tools/workflow_tools.py"""
 
 from temporalio.client import Client
 
@@ -987,26 +987,26 @@ async def create_workflow(
     # Start Temporal workflow
     if spec.schedule_type == "immediate":
         handle = await client.start_workflow(
-            CasseyWorkflow.run,
+            Executive AssistantWorkflow.run,
             args=[spec],
             id=f"workflow-{spec.workflow_id}",
-            task_queue="cassey-workflows"
+            task_queue="executive_assistant-workflows"
         )
     elif spec.schedule_type == "scheduled":
         delay_seconds = (spec.schedule_time - datetime.now()).total_seconds()
         handle = await client.start_workflow(
-            CasseyWorkflow.run,
+            Executive AssistantWorkflow.run,
             args=[spec],
             id=f"workflow-{spec.workflow_id}",
-            task_queue="cassey-workflows",
+            task_queue="executive_assistant-workflows",
             start_delay=timedelta(seconds=delay_seconds)
         )
     elif spec.schedule_type == "recurring":
         handle = await client.start_workflow(
-            CasseyRecurringWorkflow.run,
+            Executive AssistantRecurringWorkflow.run,
             args=[spec],
             id=f"workflow-{spec.workflow_id}-cron",
-            task_queue="cassey-workflows",
+            task_queue="executive_assistant-workflows",
             cron_expression=spec.cron_expression
         )
 
@@ -1079,7 +1079,7 @@ services:
       - POSTGRES_USER=temporal
       - POSTGRES_PWD=temporal
       - POSTGRES_SEEDS=postgres
-      - NAMESPACES=default,cassey
+      - NAMESPACES=default,executive_assistant
     ports:
       - "7233:7233"
     depends_on:
@@ -1162,7 +1162,7 @@ CREATE TABLE workflows (
 
     -- Temporal references
     temporal_workflow_id TEXT,
-    task_queue          TEXT DEFAULT 'cassey-workflows',
+    task_queue          TEXT DEFAULT 'executive_assistant-workflows',
 
     -- Scheduling
     schedule_type       VARCHAR(20) NOT NULL,
@@ -1202,22 +1202,22 @@ CREATE INDEX idx_todos_due_date ON todos(due_date);
 
 ---
 
-## Temporal Worker (Runs in Cassey App)
+## Temporal Worker (Runs in Executive Assistant App)
 
 ```python
-"""src/cassey/temporal_worker.py"""
+"""src/executive_assistant/temporal_worker.py"""
 
 import asyncio
 from temporalio.worker import Worker
 from temporalio.client import Client
 
 async def run_temporal_worker():
-    """Run the Temporal worker for Cassey reminders and workflows."""
+    """Run the Temporal worker for Executive Assistant reminders and workflows."""
     client = await Client.connect("temporal.vm2.internal:7233")
 
     worker = Worker(
         client,
-        task_queue="cassey-reminders",
+        task_queue="executive_assistant-reminders",
         workflows=[ReminderWorkflow],
         activities=[send_reminder_notification],
     )

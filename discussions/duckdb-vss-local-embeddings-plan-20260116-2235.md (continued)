@@ -77,6 +77,6 @@ If it grows larger, move embeddings or search to a dedicated service or external
 
 ## Next Steps
 - Pick embedding backend (ONNX vs sentence-transformers).
-- Implement a small embedding service module in Cassey.
+- Implement a small embedding service module in Executive Assistant.
 - Add batching + caching for query embeddings.
 - Add VSS index creation step in KB tool setup.

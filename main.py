@@ -1,15 +1,15 @@
-"""Main entry point for the Cassey Telegram bot."""
+"""Main entry point for the Executive Assistant Telegram bot."""
 
 import asyncio
 import signal
 import sys
 
-from cassey.config import create_model, settings
-from cassey.logging import configure_logging
-from cassey.agent import create_graph
-from cassey.channels import TelegramChannel
-from cassey.storage import get_async_checkpointer, close_checkpointer
-from cassey.tools import get_all_tools
+from executive_assistant.config import create_model, settings
+from executive_assistant.logging import configure_logging
+from executive_assistant.agent import create_graph
+from executive_assistant.channels import TelegramChannel
+from executive_assistant.storage import get_async_checkpointer, close_checkpointer
+from executive_assistant.tools import get_all_tools
 
 
 def main_init() -> None:
@@ -27,7 +27,7 @@ def main_init() -> None:
 
 async def main() -> None:
     """
-    Start the Cassey Telegram bot.
+    Start the Executive Assistant Telegram bot.
 
     This function:
     1. Loads configuration from environment
@@ -36,7 +36,7 @@ async def main() -> None:
     4. Creates the ReAct agent graph
     5. Starts the Telegram channel
     """
-    print("🤖 Cassey - Multi-channel AI Agent")
+    print("🤖 Executive Assistant - Multi-channel AI Agent")
     print("=" * 40)
 
     # Validate configuration

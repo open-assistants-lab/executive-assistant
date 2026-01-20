@@ -103,7 +103,7 @@ data/
 
 ### Phase 1: Settings & Paths (Foundation)
 
-**File:** `src/cassey/config/settings.py`
+**File:** `src/executive_assistant/config/settings.py`
 
 Changes:
 1. Add `USERS_ROOT = Path("./data/users")`
@@ -120,7 +120,7 @@ Changes:
 
 ### Phase 2: Create User Storage Module
 
-**New file:** `src/cassey/storage/user_storage.py`
+**New file:** `src/executive_assistant/storage/user_storage.py`
 
 Create parallel to `group_storage.py` with:
 - `get_user_id()`
@@ -130,7 +130,7 @@ Create parallel to `group_storage.py` with:
 
 ### Phase 3: Rename Workspace → Group Storage
 
-**File:** `src/cassey/storage/workspace_storage.py` → `group_storage.py`
+**File:** `src/executive_assistant/storage/workspace_storage.py` → `group_storage.py`
 
 Changes:
 1. Rename file to `group_storage.py`
@@ -148,18 +148,18 @@ Changes:
 
 | File | Changes |
 |------|---------|
-| `src/cassey/storage/sqlite_db_storage.py` | `workspace_storage` → `group_storage` |
-| `src/cassey/storage/db_tools.py` | Update imports, references |
-| `src/cassey/storage/kb_tools.py` | Update imports |
-| `src/cassey/storage/file_sandbox.py` | Update imports |
-| `src/cassey/storage/meta_registry.py` | Update imports |
-| `src/cassey/channels/base.py` | `workspace_id` → `group_id` |
-| `src/cassey/tools/auth.py` | Update workspace auth checks |
+| `src/executive_assistant/storage/sqlite_db_storage.py` | `workspace_storage` → `group_storage` |
+| `src/executive_assistant/storage/db_tools.py` | Update imports, references |
+| `src/executive_assistant/storage/kb_tools.py` | Update imports |
+| `src/executive_assistant/storage/file_sandbox.py` | Update imports |
+| `src/executive_assistant/storage/meta_registry.py` | Update imports |
+| `src/executive_assistant/channels/base.py` | `workspace_id` → `group_id` |
+| `src/executive_assistant/tools/auth.py` | Update workspace auth checks |
 | All test files | Update imports and mocks |
 
 ### Phase 5: Update Prompts
 
-**File:** `src/cassey/agent/prompts.py`
+**File:** `src/executive_assistant/agent/prompts.py`
 
 Search and replace:
 - "workspace" → "group" (in system prompts)
@@ -267,15 +267,15 @@ Creates migration from:
 
 ### Phase 4: Update Imports ✅ COMPLETED
 - [x] Update `workspace_storage` → `group_storage` imports in:
-  - src/cassey/channels/base.py
-  - src/cassey/storage/kb_tools.py
-  - src/cassey/storage/meta_registry.py
-  - src/cassey/storage/db_storage.py
-  - src/cassey/storage/db_tools.py
-  - src/cassey/storage/group_workspace.py
-  - src/cassey/storage/duckdb_storage.py
-  - src/cassey/storage/file_sandbox.py
-  - src/cassey/storage/sqlite_db_storage.py
+  - src/executive_assistant/channels/base.py
+  - src/executive_assistant/storage/kb_tools.py
+  - src/executive_assistant/storage/meta_registry.py
+  - src/executive_assistant/storage/db_storage.py
+  - src/executive_assistant/storage/db_tools.py
+  - src/executive_assistant/storage/group_workspace.py
+  - src/executive_assistant/storage/duckdb_storage.py
+  - src/executive_assistant/storage/file_sandbox.py
+  - src/executive_assistant/storage/sqlite_db_storage.py
   - tests/test_duckdb_kb.py
 
 ### Phase 5: Prompts & Docs ✅ COMPLETED
@@ -301,11 +301,11 @@ Creates migration from:
 ### Files Modified/Created:
 | File | Change |
 |------|--------|
-| src/cassey/config/settings.py | Added USERS_ROOT, GROUPS_ROOT, user/group path methods |
-| src/cassey/storage/group_storage.py | NEW - renamed from workspace_storage.py |
-| src/cassey/channels/base.py | Updated imports (ensure_thread_workspace → ensure_thread_group) |
-| src/cassey/storage/*.py | Updated imports from workspace_storage → group_storage |
-| src/cassey/agent/prompts.py | Updated workspace → group terminology |
+| src/executive_assistant/config/settings.py | Added USERS_ROOT, GROUPS_ROOT, user/group path methods |
+| src/executive_assistant/storage/group_storage.py | NEW - renamed from workspace_storage.py |
+| src/executive_assistant/channels/base.py | Updated imports (ensure_thread_workspace → ensure_thread_group) |
+| src/executive_assistant/storage/*.py | Updated imports from workspace_storage → group_storage |
+| src/executive_assistant/agent/prompts.py | Updated workspace → group terminology |
 | tests/test_duckdb_kb.py | Updated imports and fixtures |
 
 ### New Directory Structure:
@@ -402,18 +402,18 @@ uv run pytest tests/ -v --tb=short
 
 | File | Change |
 |------|--------|
-| `src/cassey/config/settings.py` | Added USERS_ROOT, GROUPS_ROOT, user/group path methods |
-| `src/cassey/storage/group_storage.py` | NEW - renamed from workspace_storage.py |
-| `src/cassey/storage/duckdb_storage.py` | Updated to use settings.GROUPS_ROOT |
-| `src/cassey/channels/base.py` | Updated imports (ensure_thread_workspace → ensure_thread_group) |
-| `src/cassey/storage/kb_tools.py` | Updated imports from workspace_storage → group_storage |
-| `src/cassey/storage/meta_registry.py` | Updated imports |
-| `src/cassey/storage/db_storage.py` | Updated imports |
-| `src/cassey/storage/db_tools.py` | Updated imports |
-| `src/cassey/storage/group_workspace.py` | Updated imports |
-| `src/cassey/storage/file_sandbox.py` | Updated imports |
-| `src/cassey/storage/sqlite_db_storage.py` | Updated imports |
-| `src/cassey/agent/prompts.py` | Updated workspace → group terminology |
+| `src/executive_assistant/config/settings.py` | Added USERS_ROOT, GROUPS_ROOT, user/group path methods |
+| `src/executive_assistant/storage/group_storage.py` | NEW - renamed from workspace_storage.py |
+| `src/executive_assistant/storage/duckdb_storage.py` | Updated to use settings.GROUPS_ROOT |
+| `src/executive_assistant/channels/base.py` | Updated imports (ensure_thread_workspace → ensure_thread_group) |
+| `src/executive_assistant/storage/kb_tools.py` | Updated imports from workspace_storage → group_storage |
+| `src/executive_assistant/storage/meta_registry.py` | Updated imports |
+| `src/executive_assistant/storage/db_storage.py` | Updated imports |
+| `src/executive_assistant/storage/db_tools.py` | Updated imports |
+| `src/executive_assistant/storage/group_workspace.py` | Updated imports |
+| `src/executive_assistant/storage/file_sandbox.py` | Updated imports |
+| `src/executive_assistant/storage/sqlite_db_storage.py` | Updated imports |
+| `src/executive_assistant/agent/prompts.py` | Updated workspace → group terminology |
 | `tests/test_duckdb_kb.py` | Updated imports, fixtures, GROUPS_ROOT monkeypatch |
 | `tests/test_file_sandbox.py` | Added permission context setup |
 | `tests/test_db.py` | Fixed temp_db_root fixture |

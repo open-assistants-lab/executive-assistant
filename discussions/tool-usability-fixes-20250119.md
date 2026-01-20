@@ -8,14 +8,14 @@
 
 ## Executive Summary
 
-Comprehensive improvements to Cassey's tool usability and system prompts after observing significant user experience issues:
+Comprehensive improvements to Executive Assistant's tool usability and system prompts after observing significant user experience issues:
 - VS list tool showed wrong results (showed internal metadata instead of actual tables)
-- System prompt was too technical, causing Cassey to expose implementation details
-- DB tools failed repeatedly, causing Cassey to struggle for 5+ minutes on simple tasks
+- System prompt was too technical, causing Executive Assistant to expose implementation details
+- DB tools failed repeatedly, causing Executive Assistant to struggle for 5+ minutes on simple tasks
 
 **Impact:**
 - VS tools now work correctly
-- Cassey behaves like a personal assistant (not a technical tool)
+- Executive Assistant behaves like a personal assistant (not a technical tool)
 - DB tools are simplified and more reliable
 
 ---
@@ -39,7 +39,7 @@ Actual: Showed internal LanceDB metadata keys instead of table names
 
 ### Root Cause
 
-**Location:** `src/cassey/storage/lancedb_storage.py:496-498`
+**Location:** `src/executive_assistant/storage/lancedb_storage.py:496-498`
 
 **Buggy Code:**
 ```python
@@ -57,7 +57,7 @@ The code was iterating over the Table object attributes (`tables`, `page_token`)
 
 ### Implementation
 
-**File:** `src/cassey/storage/lancedb_storage.py:495-504`
+**File:** `src/executive_assistant/storage/lancedb_storage.py:495-504`
 
 **Fixed Code:**
 ```python
@@ -92,7 +92,7 @@ LanceDB VS Validation Test
 
 [2/4] Searching collection...
    ✅ Search completed, found 2 results
-      [1] (score: 0.000) Cassey is an AI assistant built with LangGraph...
+      [1] (score: 0.000) Executive Assistant is an AI assistant built with LangGraph...
       [2] (score: 0.000) LanceDB is an embedded vector database...
 
 [3/4] Listing all collections...
@@ -120,7 +120,7 @@ LanceDB VS Validation Test
 
 ### Problem Description
 
-Cassey's system prompt was tool-focused and exposed implementation details, causing her to:
+Executive Assistant's system prompt was tool-focused and exposed implementation details, causing her to:
 - Mention "SQLite", "Python", "LanceDB" to users
 - Generate code instead of practical solutions
 - Fail to clarify requirements before acting
@@ -131,12 +131,12 @@ Cassey's system prompt was tool-focused and exposed implementation details, caus
 **Example Bad Behavior:**
 ```
 User: "help me track my timesheets"
-Cassey: "I'll create a SQLite database with these columns..."
+Executive Assistant: "I'll create a SQLite database with these columns..."
 ```
 
 ### Root Cause
 
-**Location:** `src/cassey/agent/prompts.py:6-136`
+**Location:** `src/executive_assistant/agent/prompts.py:6-136`
 
 The prompt focused on technical implementation:
 - Listed tool names and technical details
@@ -145,7 +145,7 @@ The prompt focused on technical implementation:
 
 ### Implementation
 
-**File:** `src/cassey/agent/prompts.py`
+**File:** `src/executive_assistant/agent/prompts.py`
 
 **Old Approach (Too Technical):**
 ```python
@@ -196,7 +196,7 @@ providing practical solutions.
 ```
 User: "help me track my timesheets"
 
-Expected Cassey behavior:
+Expected Executive Assistant behavior:
 - Asks: "What format? Daily/weekly? What to track?"
 - Says: "I'll create a working data table..."
 
@@ -223,7 +223,7 @@ Not expected:
 ```
 
 **Validation:**
-- ✅ Cassey asks clarifying questions for ambiguous requests
+- ✅ Executive Assistant asks clarifying questions for ambiguous requests
 - ✅ No mention of "SQLite", "Python", "LanceDB", etc.
 - ✅ Focuses on practical solutions, not implementation
 - ✅ Examples show workflows, not tool chains
@@ -234,7 +234,7 @@ Not expected:
 
 ### Problem Description
 
-Cassey struggled for 5+ minutes trying to use db tools, encountering multiple errors:
+Executive Assistant struggled for 5+ minutes trying to use db tools, encountering multiple errors:
 - Threading errors: "SQLite objects created in a thread can only be used in that same thread"
 - Missing method: `SQLiteDatabase` has no attribute 'create_table'
 - JSON format confusion: Tools required complex JSON strings
@@ -246,7 +246,7 @@ Cassey struggled for 5+ minutes trying to use db tools, encountering multiple er
 ```bash
 User: "help me track my customers"
 
-Cassey (5+ minutes later):
+Executive Assistant (5+ minutes later):
 - "We have multiple errors. The environment may restrict SQLite operations concurrency."
 - "The error says object has no attribute 'createtable'"
 - Tried complex workarounds using query_db with multi-statement SQL
@@ -257,7 +257,7 @@ Cassey (5+ minutes later):
 
 #### Root Cause 1: Missing `create_table()` Method
 
-**Location:** `src/cassey/storage/sqlite_db_storage.py`
+**Location:** `src/executive_assistant/storage/sqlite_db_storage.py`
 
 **Problem:** Code called `db.create_table()` but it didn't exist. Only `create_table_from_data()` existed.
 
@@ -269,7 +269,7 @@ db.create_table(table_name, column_list)  # ❌ Method doesn't exist!
 
 #### Root Cause 2: Threading Issue
 
-**Location:** `src/cassey/storage/sqlite_db_storage.py:300`
+**Location:** `src/executive_assistant/storage/sqlite_db_storage.py:300`
 
 **Problem:** SQLite connections can't be shared across threads without explicit permission.
 
@@ -301,7 +301,7 @@ create_db_table("customers", columns="name,email,phone")
 
 #### Fix 1: Add `create_table()` Method
 
-**File:** `src/cassey/storage/sqlite_db_storage.py:84-94`
+**File:** `src/executive_assistant/storage/sqlite_db_storage.py:84-94`
 
 **Added Code:**
 ```python
@@ -320,7 +320,7 @@ def create_table(self, table_name: str, columns: list[str]) -> None:
 
 #### Fix 2: Threading Fix
 
-**File:** `src/cassey/storage/sqlite_db_storage.py:313`
+**File:** `src/executive_assistant/storage/sqlite_db_storage.py:313`
 
 **Changed Code:**
 ```python
@@ -335,7 +335,7 @@ conn = sqlite3.connect(str(db_path), check_same_thread=False)
 
 #### Fix 3: Simplify Tool Interface
 
-**File:** `src/cassey/storage/db_tools.py:49-87`
+**File:** `src/executive_assistant/storage/db_tools.py:49-87`
 
 **Made `data` Optional:**
 ```python
@@ -411,7 +411,7 @@ Actual: ✅ Works
 - ✅ No threading errors
 - ✅ Columns auto-get TEXT type
 - ✅ Clear examples guide LLM to correct usage
-- ⏳ Full end-to-end test with Cassey in progress
+- ⏳ Full end-to-end test with Executive Assistant in progress
 
 ---
 
@@ -419,19 +419,19 @@ Actual: ✅ Works
 
 ### Files Modified
 
-1. **src/cassey/storage/lancedb_storage.py** (1 line)
+1. **src/executive_assistant/storage/lancedb_storage.py** (1 line)
    - Fixed `list_lancedb_collections()` to parse LanceDB response correctly
 
-2. **src/cassey/storage/sqlite_db_storage.py** (2 changes)
+2. **src/executive_assistant/storage/sqlite_db_storage.py** (2 changes)
    - Added `create_table()` method (11 lines)
    - Added `check_same_thread=False` to sqlite3.connect()
 
-3. **src/cassey/storage/db_tools.py** (3 changes)
+3. **src/executive_assistant/storage/db_tools.py** (3 changes)
    - Made `data` parameter optional (default "")
    - Auto-add TEXT type to columns without explicit types
    - Improved docstrings with clear examples
 
-4. **src/cassey/agent/prompts.py** (complete rewrite)
+4. **src/executive_assistant/agent/prompts.py** (complete rewrite)
    - Changed from tool-focused to user-focused
    - Added requirement clarification sections
    - Removed technical implementation details
@@ -467,7 +467,7 @@ Actual: ✅ Works
 
 4. **DB Tools:** Should we simplify further, or is the current balance right?
 
-5. **Testing:** Should we add automated tests for system prompt behavior (e.g., verify Cassey doesn't mention "SQLite")?
+5. **Testing:** Should we add automated tests for system prompt behavior (e.g., verify Executive Assistant doesn't mention "SQLite")?
 
 ---
 
@@ -485,7 +485,7 @@ Actual: ✅ Works
 Monitor these metrics over the next week:
 - Average task completion time
 - Error rates for VS, DB, and other tools
-- User feedback on Cassey's helpfulness
+- User feedback on Executive Assistant's helpfulness
 - Frequency of technical jargon in responses
 
 ---

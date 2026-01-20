@@ -184,9 +184,9 @@ else:
 
 | File | Changes |
 |------|---------|
-| `src/cassey/agent/summary_extractor.py` | Added `get_stable_message_id()`, updated extraction to bind sources, updated `update_structured_summary()` to track sources |
-| `src/cassey/agent/topic_classifier.py` | Added `SKIP_VERBS`, `STOPWORDS`, `topic_similarity_score()`, updated `generate_topic_id()`, updated `should_create_new_topic()`, updated `render_for_prompt()` to include tasks/constraints |
-| `src/cassey/agent/nodes.py` | Updated `call_model()` to use intent for KB-first routing |
+| `src/executive_assistant/agent/summary_extractor.py` | Added `get_stable_message_id()`, updated extraction to bind sources, updated `update_structured_summary()` to track sources |
+| `src/executive_assistant/agent/topic_classifier.py` | Added `SKIP_VERBS`, `STOPWORDS`, `topic_similarity_score()`, updated `generate_topic_id()`, updated `should_create_new_topic()`, updated `render_for_prompt()` to include tasks/constraints |
+| `src/executive_assistant/agent/nodes.py` | Updated `call_model()` to use intent for KB-first routing |
 
 ## Testing
 

@@ -8,7 +8,7 @@
 
 ## Overview
 
-Cassey now displays her internal todo list to users in real-time, showing planned tasks and progress as she works. This uses **two complementary middlewares**:
+Executive Assistant now displays her internal todo list to users in real-time, showing planned tasks and progress as she works. This uses **two complementary middlewares**:
 
 1. **TodoListMiddleware** (LangChain native) - Adds `write_todos` tool and manages state
 2. **TodoDisplayMiddleware** (custom) - Displays todos via status updates
@@ -126,7 +126,7 @@ class AgentState(TypedDict):
 
 ## Middleware 2: TodoDisplayMiddleware (Custom)
 
-**Source:** `src/cassey/agent/todo_display.py`
+**Source:** `src/executive_assistant/agent/todo_display.py`
 
 **Purpose:** Displays the agent's todo list to users via status updates
 
@@ -287,15 +287,15 @@ MIDDLEWARE_TODO_LIST_SHOW_PROGRESS_BAR=false
 
 | File | Purpose |
 |------|---------|
-| `src/cassey/agent/todo_display.py` | TodoDisplayMiddleware implementation |
+| `src/executive_assistant/agent/todo_display.py` | TodoDisplayMiddleware implementation |
 
 ### Modified Files
 
 | File | Changes |
 |------|---------|
-| `src/cassey/agent/state.py` | Added `todos: NotRequired[list[Todo]]` field |
-| `src/cassey/config/settings.py` | Added MW_TODO_LIST_* settings |
-| `src/cassey/agent/langchain_agent.py` | Integrated TodoDisplayMiddleware |
+| `src/executive_assistant/agent/state.py` | Added `todos: NotRequired[list[Todo]]` field |
+| `src/executive_assistant/config/settings.py` | Added MW_TODO_LIST_* settings |
+| `src/executive_assistant/agent/langchain_agent.py` | Integrated TodoDisplayMiddleware |
 | `config.yaml` | Added todo_list_display configuration |
 
 ---
@@ -388,7 +388,7 @@ User: Help me plan my week, check my calendar, identify deadlines, and create a 
 ```
 ✅ Done in 8.2s
 
-Cassey: Here's your weekly plan...
+Executive Assistant: Here's your weekly plan...
 
 📋 Tasks (4/4 complete):
   ✅ Query calendar for this week
@@ -462,14 +462,14 @@ class Todo(TypedDict):
 ### Verification Commands
 
 ```bash
-# Check Cassey is running
-ps aux | grep cassey
+# Check Executive Assistant is running
+ps aux | grep executive_assistant
 
 # Check logs for middleware loading
-tail -100 /tmp/cassey.log | grep -i "todo\|middleware"
+tail -100 /tmp/executive_assistant.log | grep -i "todo\|middleware"
 
 # Check tool count (should be 55 now, was 51)
-grep "Loaded.*tools" /tmp/cassey.log
+grep "Loaded.*tools" /tmp/executive_assistant.log
 ```
 
 ---
@@ -478,14 +478,14 @@ grep "Loaded.*tools" /tmp/cassey.log
 
 ### For Users
 
-1. **Transparency**: See what Cassey is planning to do
+1. **Transparency**: See what Executive Assistant is planning to do
 2. **Progress tracking**: Know how much is left
-3. **Trust building**: Understand Cassey's thought process
+3. **Trust building**: Understand Executive Assistant's thought process
 4. **Expectation setting**: Know what's coming next
 
 ### For Developers
 
-1. **Debugging**: See Cassey's internal planning
+1. **Debugging**: See Executive Assistant's internal planning
 2. **Testing**: Verify task execution flow
 3. **Optimization**: Identify slow steps
 4. **Monitoring**: Track agent behavior patterns
@@ -513,7 +513,7 @@ grep "Loaded.*tools" /tmp/cassey.log
 1. Is `MW_TODO_LIST_ENABLED=true`?
 2. Is `MW_STATUS_UPDATE_ENABLED=true`?
 3. Is task complex enough (3+ steps)?
-4. Check logs: `grep todo /tmp/cassey.log`
+4. Check logs: `grep todo /tmp/executive_assistant.log`
 
 ---
 
@@ -542,12 +542,12 @@ grep "Loaded.*tools" /tmp/cassey.log
 - ✅ Works with Telegram status updates
 
 **How it works:**
-1. TodoListMiddleware gives Cassey the ability to create/manage todos
+1. TodoListMiddleware gives Executive Assistant the ability to create/manage todos
 2. TodoDisplayMiddleware shows those todos to users in real-time
 3. Status update mechanism provides the delivery channel
 4. Rate limiting prevents spam
 
-**Result:** Users can now see Cassey's planned tasks and track progress as she works, building trust through transparency.
+**Result:** Users can now see Executive Assistant's planned tasks and track progress as she works, building trust through transparency.
 
 ---
 

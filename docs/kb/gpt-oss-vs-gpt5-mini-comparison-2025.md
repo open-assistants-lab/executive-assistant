@@ -284,7 +284,7 @@ GPT-5 Mini:   ███████████░ 2.066s - 6.180s (avg: 3.652s)
 
 ---
 
-## Recommendations for Cassey
+## Recommendations for Executive Assistant
 
 ### 🥇 **Primary Recommendation: GPT-OSS 20B (Ollama Cloud)**
 
@@ -341,7 +341,7 @@ def choose_model(task_type: str) -> str:
 ### 1. **Implement Post-Processing**
 Add response cleaning to strip "Thinking..." prefix:
 ```python
-# src/cassey/agent/nodes.py
+# src/executive_assistant/agent/nodes.py
 def clean_llm_response(response: str) -> str:
     """Remove thinking artifacts from LLM responses."""
     # Remove "Thinking..." section
@@ -355,7 +355,7 @@ def clean_llm_response(response: str) -> str:
 ### 2. **Add Model Routing**
 Implement task-based model selection:
 ```python
-# src/cassey/config/llm_factory.py
+# src/executive_assistant/config/llm_factory.py
 MODEL_ROUTING = {
     "math": "gpt-5-mini",
     "coding": "gpt-oss:20b-cloud",
@@ -391,7 +391,7 @@ Calculate total cost per 1K requests:
 
 ## Conclusion
 
-**GPT-OSS 20B via Ollama Cloud is the superior choice for Cassey:**
+**GPT-OSS 20B via Ollama Cloud is the superior choice for Executive Assistant:**
 
 ✅ **36% faster** response times (2.344s vs 3.652s)
 ✅ **100% free** vs paid API
@@ -401,7 +401,7 @@ Calculate total cost per 1K requests:
 
 The only area where GPT-5 Mini excels is **math tasks** (23% faster on arithmetic), but this can be addressed with a hybrid routing approach.
 
-**Recommendation:** Use GPT-OSS 20B as the default model for Cassey, with optional routing to GPT-5 Mini for math-heavy tasks.
+**Recommendation:** Use GPT-OSS 20B as the default model for Executive Assistant, with optional routing to GPT-5 Mini for math-heavy tasks.
 
 ---
 

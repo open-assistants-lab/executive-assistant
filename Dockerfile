@@ -16,21 +16,21 @@ RUN apt-get update && apt-get install -y \
   && rm -rf /var/lib/apt/lists/*
 
 # Create user first
-RUN useradd -m -u 1000 cassey
+RUN useradd -m -u 1000 executive_assistant
 
-# Copy dependency files and install as the cassey user
+# Copy dependency files and install as the executive_assistant user
 COPY README.md .python-version pyproject.toml uv.lock ./
-RUN chown -R cassey:cassey /app
-USER cassey
+RUN chown -R executive_assistant:executive_assistant /app
+USER executive_assistant
 RUN uv sync --frozen
 
-# Switch back to root to copy application files, then back to cassey
+# Switch back to root to copy application files, then back to executive_assistant
 USER root
 COPY . .
-RUN chown -R cassey:cassey /app
-RUN mkdir -p /app/data /app/logs && chown -R cassey:cassey /app/data /app/logs
-USER cassey
+RUN chown -R executive_assistant:executive_assistant /app
+RUN mkdir -p /app/data /app/logs && chown -R executive_assistant:executive_assistant /app/data /app/logs
+USER executive_assistant
 
 EXPOSE 8000
 
-CMD ["uv", "run", "cassey"]
+CMD ["uv", "run", "executive_assistant"]

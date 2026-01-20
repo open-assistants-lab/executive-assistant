@@ -10,17 +10,17 @@ Use LangChain's `TodoListMiddleware` for multi-step task tracking and retire the
 
 ## Implementation Steps
 1. **Middleware swap**
-   - Replace `PlanningFilesMiddleware` with `TodoListMiddleware` in `src/cassey/agent/langchain_agent.py`.
+   - Replace `PlanningFilesMiddleware` with `TodoListMiddleware` in `src/executive_assistant/agent/langchain_agent.py`.
    - Add `MW_TODO_LIST_ENABLED` setting (default true); remove `MW_PLAN_*` settings.
 
 2. **Remove file-based planning**
-   - Delete `src/cassey/agent/planning_middleware.py`.
-   - Delete `src/cassey/tools/plan_tools.py` and `src/cassey/storage/plan_storage.py`.
-   - Remove `get_plan_tools()` and related wiring from `src/cassey/tools/registry.py`.
-   - Remove `get_thread_plan_path()` from `src/cassey/config/settings.py`.
+   - Delete `src/executive_assistant/agent/planning_middleware.py`.
+   - Delete `src/executive_assistant/tools/plan_tools.py` and `src/executive_assistant/storage/plan_storage.py`.
+   - Remove `get_plan_tools()` and related wiring from `src/executive_assistant/tools/registry.py`.
+   - Remove `get_thread_plan_path()` from `src/executive_assistant/config/settings.py`.
 
 3. **Prompt + docs updates**
-   - Update `src/cassey/agent/prompts.py` to replace plan tooling text with todo list guidance (`write_todos`).
+   - Update `src/executive_assistant/agent/prompts.py` to replace plan tooling text with todo list guidance (`write_todos`).
    - Update `.env.example` to remove `MW_PLAN_*` and add `MW_TODO_LIST_ENABLED`.
    - Update `README.md` thread storage layout (drop `plan/`).
 
@@ -33,13 +33,13 @@ Use LangChain's `TodoListMiddleware` for multi-step task tracking and retire the
 - Existing plan files remain as legacy artifacts; no migration required.
 
 ## Implementation (Completed)
-- `src/cassey/agent/langchain_agent.py`: replaced `PlanningFilesMiddleware` with `TodoListMiddleware` gated by `MW_TODO_LIST_ENABLED`.
-- `src/cassey/config/settings.py`: removed `MW_PLAN_*` settings and `get_thread_plan_path()`, added `MW_TODO_LIST_ENABLED`.
+- `src/executive_assistant/agent/langchain_agent.py`: replaced `PlanningFilesMiddleware` with `TodoListMiddleware` gated by `MW_TODO_LIST_ENABLED`.
+- `src/executive_assistant/config/settings.py`: removed `MW_PLAN_*` settings and `get_thread_plan_path()`, added `MW_TODO_LIST_ENABLED`.
 - `.env.example`: removed `MW_PLAN_*`, added `MW_TODO_LIST_ENABLED`.
-- `src/cassey/tools/registry.py`: removed plan tool wiring.
-- `src/cassey/agent/prompts.py`: replaced plan-file instructions with `write_todos` guidance.
+- `src/executive_assistant/tools/registry.py`: removed plan tool wiring.
+- `src/executive_assistant/agent/prompts.py`: replaced plan-file instructions with `write_todos` guidance.
 - `README.md`: removed `plan/` from thread storage layout.
-- Deleted file-based planning modules: `src/cassey/agent/planning_middleware.py`, `src/cassey/tools/plan_tools.py`, `src/cassey/storage/plan_storage.py`.
+- Deleted file-based planning modules: `src/executive_assistant/agent/planning_middleware.py`, `src/executive_assistant/tools/plan_tools.py`, `src/executive_assistant/storage/plan_storage.py`.
 - Removed obsolete test: `tests/test_plan_task_state.py`.
 
 ## Test Results

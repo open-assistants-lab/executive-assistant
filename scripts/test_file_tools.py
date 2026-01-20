@@ -10,16 +10,16 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from cassey.storage.file_sandbox import (
+from executive_assistant.storage.file_sandbox import (
     set_thread_id,
     set_user_id,
     list_files,
 )
-from cassey.storage.group_storage import (
+from executive_assistant.storage.group_storage import (
     set_group_id,
     set_user_id as set_workspace_user_id,
 )
-from cassey.storage.helpers import sanitize_thread_id_to_user_id
+from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
 
 
 async def test_file_list_tool():

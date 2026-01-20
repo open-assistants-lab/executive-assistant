@@ -8,19 +8,19 @@ This document summarizes the renaming of **KB (Knowledge Base)** to **VS (Vector
 
 | Old Path | New Path |
 |----------|----------|
-| `src/cassey/storage/kb_tools.py` | `src/cassey/storage/vs_tools.py` |
+| `src/executive_assistant/storage/kb_tools.py` | `src/executive_assistant/storage/vs_tools.py` |
 | `tests/test_duckdb_kb.py` | `tests/test_duckdb_vs.py` |
 
 ## Source Code Changes
 
-### 1. `src/cassey/storage/duckdb_storage.py`
+### 1. `src/executive_assistant/storage/duckdb_storage.py`
 - Module docstring: "DuckDB + Hybrid storage for Vector Store"
 - Function renamed: `get_kb_storage_dir()` → `get_vs_storage_dir()`
 - Storage directory: `data/groups/{group_id}/kb/` → `data/groups/{group_id}/vs/`
 - Database file: `kb.db` → `vs.db`
 - All comments updated from "Knowledge Base" to "Vector Store"
 
-### 2. `src/cassey/storage/vs_tools.py` (renamed from kb_tools.py)
+### 2. `src/executive_assistant/storage/vs_tools.py` (renamed from kb_tools.py)
 All tool functions renamed:
 - `create_kb_collection` → `create_vs_collection`
 - `search_kb` → `search_vs`
@@ -32,23 +32,23 @@ All tool functions renamed:
 - `add_file_to_kb` → `add_file_to_vs`
 - `get_kb_tools()` → `get_vs_tools()`
 
-### 3. `src/cassey/storage/chunking.py`
+### 3. `src/executive_assistant/storage/chunking.py`
 - Module docstring updated: "VS ingestion"
 - Section header: "Document Processing for VS"
 - Function renamed: `prepare_documents_for_kb()` → `prepare_documents_for_vs()`
 
-### 4. `src/cassey/storage/meta_registry.py`
+### 4. `src/executive_assistant/storage/meta_registry.py`
 - Meta dict key: `"kb"` → `"vs"`
 - Functions renamed:
   - `record_kb_table_added()` → `record_vs_table_added()`
   - `record_kb_table_removed()` → `record_vs_table_removed()`
 
-### 5. `src/cassey/tools/registry.py`
-- Import updated: `from cassey.storage.vs_tools import get_vs_tools`
+### 5. `src/executive_assistant/tools/registry.py`
+- Import updated: `from executive_assistant.storage.vs_tools import get_vs_tools`
 - Function call: `get_kb_tools()` → `get_vs_tools()`
 - Docstrings updated to mention "Vector Store"
 
-### 6. `src/cassey/config/settings.py`
+### 6. `src/executive_assistant/config/settings.py`
 Settings renamed:
 - `KB_EMBEDDING_MODEL` → `VS_EMBEDDING_MODEL`
 - `KB_EMBEDDING_DIMENSION` → `VS_EMBEDDING_DIMENSION`
@@ -58,22 +58,22 @@ Methods renamed:
 - `get_group_kb_path()` → `get_group_vs_path()`
 - `get_workspace_kb_path()` → `get_workspace_vs_path()`
 
-### 7. `src/cassey/agent/prompts.py`
+### 7. `src/executive_assistant/agent/prompts.py`
 System prompt updated:
 - Section: "Knowledge Base (DuckDB + Hybrid)" → "Vector Store (DuckDB + Hybrid)"
 - Tool names updated (all `*_kb_*` → `*_vs_*`)
 - References: "KB" → "VS", "Use KB for persistence" → "Use VS for persistence"
 
-### 8. `src/cassey/channels/management_commands.py`
+### 8. `src/executive_assistant/channels/management_commands.py`
 - Module docstring updated: `/mem, /vs, /db, /file, /meta`
 - Command renamed: `/kb` → `/vs`
 - All handler functions renamed:
   - `kb_command()` → `vs_command()`
   - `_kb_*()` → `_vs_*()`
-- Imports updated: `from cassey.storage.vs_tools import ...`
+- Imports updated: `from executive_assistant.storage.vs_tools import ...`
 - Help messages updated: "Knowledge Base Management" → "Vector Store Management"
 
-### 9. `src/cassey/channels/telegram.py`
+### 9. `src/executive_assistant/channels/telegram.py`
 - Import updated: `kb_command` → `vs_command`
 - Handler registration: `CommandHandler("kb", ...)` → `CommandHandler("vs", ...)`
 - Help command messages updated:
@@ -210,7 +210,7 @@ uv run pytest tests/test_duckdb_vs.py -v
 
 ### Issues Found
 
-**Inconsistency in `src/cassey/agent/prompts.py`** (lines 15, 26):
+**Inconsistency in `src/executive_assistant/agent/prompts.py`** (lines 15, 26):
 
 ```python
 # Line 15 - User-facing capability list
@@ -228,9 +228,9 @@ The rename is thorough and well-executed. All core functionality works correctly
 
 **Recommended Fix:**
 ```python
-# src/cassey/agent/prompts.py:15
+# src/executive_assistant/agent/prompts.py:15
 - *Store & search* documents in the Vector Store
 
-# src/cassey/agent/prompts.py:26
+# src/executive_assistant/agent/prompts.py:26
 - *Vector Store* → persistent facts across conversations
 ```

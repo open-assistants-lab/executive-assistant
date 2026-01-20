@@ -2,14 +2,14 @@
 
 ## Concept
 
-Cassey writes Python scripts that execute at scheduled times. Jobs chain via file I/O - like a simple workflow system.
+Executive Assistant writes Python scripts that execute at scheduled times. Jobs chain via file I/O - like a simple workflow system.
 
 ## Architecture
 
 ```
 User: "Schedule daily Amazon price check, notify me if < $100"
 
-Cassey creates:
+Executive Assistant creates:
   1. Script: data/files/telegram_user123/jobs/check_price.py
   2. DB record: { due_time: "tomorrow 9am", script_path: "jobs/check_price.py" }
 
@@ -25,7 +25,7 @@ Scheduler (every 60s):
 
 **Why Option A:**
 - ✅ Much simpler - scheduler just runs Python script when due
-- ✅ Cassey writes Python she already knows
+- ✅ Executive Assistant writes Python she already knows
 - ✅ All logic visible in one .py file
 - ✅ Conditions/loops are native Python (`if/else`, `for/while`)
 - ✅ Less DB complexity
@@ -144,9 +144,9 @@ CREATE INDEX idx_scheduled_jobs_due ON scheduled_jobs(due_time, status);
 ## Files to Create
 
 1. `migrations/005_scheduled_jobs.sql` - DB schema
-2. `src/cassey/storage/scheduled_jobs.py` - CRUD operations
-3. `src/cassey/tools/scheduled_job_tools.py` - User tools (schedule, list, cancel)
-4. `src/cassey/scheduler.py` - Modify to add job execution logic
+2. `src/executive_assistant/storage/scheduled_jobs.py` - CRUD operations
+3. `src/executive_assistant/tools/scheduled_job_tools.py` - User tools (schedule, list, cancel)
+4. `src/executive_assistant/scheduler.py` - Modify to add job execution logic
 
 ## No New Dependencies
 

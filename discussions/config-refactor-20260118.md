@@ -8,7 +8,7 @@
 
 ## Overview
 
-Refactored Cassey's configuration system to use:
+Refactored Executive Assistant's configuration system to use:
 1. **`config.yaml`** - Application defaults (versioned, at project root)
 2. **`.env`** - Secrets and environment-specific overrides (unversioned)
 
@@ -40,23 +40,23 @@ This separation makes it easier to manage defaults across environments while kee
 | File | Purpose | Lines |
 |------|---------|-------|
 | `config.yaml` | Application defaults (project root) | ~200 |
-| `src/cassey/config/loader.py` | YAML + .env merger | ~200 |
+| `src/executive_assistant/config/loader.py` | YAML + .env merger | ~200 |
 
 ### Files Modified
 
 | File | Changes |
 |------|---------|
-| `src/cassey/config/settings.py` | Uses ConfigLoader, removed AGENT_RUNTIME, FILES_ROOT, DB_ROOT |
+| `src/executive_assistant/config/settings.py` | Uses ConfigLoader, removed AGENT_RUNTIME, FILES_ROOT, DB_ROOT |
 | `.env.example` | Now only secrets + env overrides (174→92 lines) |
-| `src/cassey/channels/base.py` | Removed runtime parameter |
-| `src/cassey/main.py` | Simplified, always uses langchain |
-| `src/cassey/dev_server.py` | Simplified, always uses langchain |
-| `src/cassey/agent/langchain_agent.py` | Updated error message |
-| `src/cassey/storage/chunking.py` | Embedding model now uses config setting |
-| `src/cassey/storage/file_sandbox.py` | Requires root parameter, no global fallback |
-| `src/cassey/storage/db_storage.py` | Requires root parameter, no global fallback |
-| `src/cassey/tools/python_tool.py` | Removed FILES_ROOT references |
-| `src/cassey/storage/meta_registry.py` | Updated DBStorage usage |
+| `src/executive_assistant/channels/base.py` | Removed runtime parameter |
+| `src/executive_assistant/main.py` | Simplified, always uses langchain |
+| `src/executive_assistant/dev_server.py` | Simplified, always uses langchain |
+| `src/executive_assistant/agent/langchain_agent.py` | Updated error message |
+| `src/executive_assistant/storage/chunking.py` | Embedding model now uses config setting |
+| `src/executive_assistant/storage/file_sandbox.py` | Requires root parameter, no global fallback |
+| `src/executive_assistant/storage/db_storage.py` | Requires root parameter, no global fallback |
+| `src/executive_assistant/tools/python_tool.py` | Removed FILES_ROOT references |
+| `src/executive_assistant/storage/meta_registry.py` | Updated DBStorage usage |
 | `pyproject.toml` | Added pyyaml>=6.0.0 dependency |
 
 ### Files Removed
@@ -120,7 +120,7 @@ OLLAMA_CLOUD_API_KEY=your-ollama-cloud-api-key
 # ============================================================================
 # Channel Configuration
 # ============================================================================
-CASSEY_CHANNELS=telegram,http
+EXECUTIVE_ASSISTANT_CHANNELS=telegram,http
 TELEGRAM_BOT_TOKEN=your-bot-token
 TELEGRAM_WEBHOOK_URL=https://your-domain.com/webhook
 TELEGRAM_WEBHOOK_SECRET=your-secret
@@ -130,7 +130,7 @@ HTTP_PORT=8000
 # ============================================================================
 # Database Configuration
 # ============================================================================
-POSTGRES_PASSWORD=cassey_password
+POSTGRES_PASSWORD=executive_assistant_password
 # POSTGRES_HOST=localhost  # For remote DB
 
 # ============================================================================
@@ -142,14 +142,14 @@ FIRECRAWL_API_URL=https://api.firecrawl.dev
 TEMPORAL_HOST=temporal.example.com
 TEMPORAL_PORT=7233
 TEMPORAL_NAMESPACE=default
-TEMPORAL_TASK_QUEUE=cassey-workflows
+TEMPORAL_TASK_QUEUE=executive_assistant-workflows
 TEMPORAL_WEB_UI_URL=http://localhost:8080
 
 # ============================================================================
 # Optional Overrides
 # ============================================================================
-USERS_ROOT=/var/lib/cassey/users
-GROUPS_ROOT=/var/lib/cassey/groups
+USERS_ROOT=/var/lib/executive_assistant/users
+GROUPS_ROOT=/var/lib/executive_assistant/groups
 CHECKPOINT_STORAGE=memory
 LOG_LEVEL=DEBUG
 ```
@@ -158,7 +158,7 @@ LOG_LEVEL=DEBUG
 
 ## Implementation Details
 
-### ConfigLoader (`src/cassey/config/loader.py`)
+### ConfigLoader (`src/executive_assistant/config/loader.py`)
 
 **Purpose:** Merge YAML defaults with .env overrides
 
@@ -306,7 +306,7 @@ channels:
 
 ```bash
 uv run python -c "
-from cassey.config import settings
+from executive_assistant.config import settings
 print(f'LLM Provider: {settings.DEFAULT_LLM_PROVIDER}')
 print(f'Max Iterations: {settings.MAX_ITERATIONS}')
 print(f'USERS_ROOT: {settings.USERS_ROOT}')
@@ -317,14 +317,14 @@ Expected output:
 ```
 LLM Provider: <your .env value or 'openai'>
 Max Iterations: 20
-USERS_ROOT: /path/to/cassey/data/users
+USERS_ROOT: /path/to/executive_assistant/data/users
 ```
 
 ### Verify YAML Keys Loaded
 
 ```bash
 uv run python -c "
-from cassey.config.loader import get_yaml_defaults
+from executive_assistant.config.loader import get_yaml_defaults
 defaults = get_yaml_defaults()
 print(f'YAML keys loaded: {len(defaults)}')
 print(f'Has FILES_ROOT: {\"STORAGE_PATHS_FILES_ROOT\" in defaults}')
@@ -343,8 +343,8 @@ Has DB_ROOT: False
 
 ```bash
 uv run python -c "
-from cassey.config import settings
-from cassey.storage.chunking import _get_embedding_model
+from executive_assistant.config import settings
+from executive_assistant.storage.chunking import _get_embedding_model
 print(f'Model from config: {settings.VS_EMBEDDING_MODEL}')
 model = _get_embedding_model()
 print(f'Model loaded: {model}')
@@ -379,19 +379,19 @@ print(f'Model loaded: {model}')
 
 ### Before
 ```
-cassey/
+executive_assistant/
 ├── config/
 │   └── default.yaml
 ├── .env.example
-└── src/cassey/config/
+└── src/executive_assistant/config/
 ```
 
 ### After
 ```
-cassey/
+executive_assistant/
 ├── config.yaml          ← Moved from config/default.yaml
 ├── .env.example
-└── src/cassey/config/
+└── src/executive_assistant/config/
     ├── loader.py
     └── settings.py
 ```
@@ -428,7 +428,7 @@ cassey/
 ## Completed Improvements (Peer Review Feedback)
 
 ### ✅ 1. Update Docstring Reference (Completed 2025-01-18)
-**Location:** `src/cassey/config/loader.py:88`
+**Location:** `src/executive_assistant/config/loader.py:88`
 
 Updated the `ConfigLoader` docstring to reference `config.yaml` instead of `config/default.yaml`.
 
@@ -438,12 +438,12 @@ Updated the `ConfigLoader` docstring to reference `config.yaml` instead of `conf
 A CLI command for configuration validation has been added:
 
 ```bash
-uv run cassey config verify
+uv run executive_assistant config verify
 ```
 
 Output:
 ```
-Cassey Configuration Verification
+Executive Assistant Configuration Verification
 ========================================
 ✓ config.yaml loaded (70 keys)
 ✓ SHARED_ROOT: /path/to/data/shared
@@ -451,7 +451,7 @@ Cassey Configuration Verification
 ✓ USERS_ROOT: /path/to/data/users
 ✓ LLM provider: openai
 ✓ LLM API key configured
-✓ PostgreSQL: localhost:5432/cassey_db
+✓ PostgreSQL: localhost:5432/executive_assistant_db
 ✓ Checkpoint storage: postgres
 ========================================
 
@@ -459,13 +459,13 @@ Cassey Configuration Verification
 ```
 
 **Files Modified:**
-- `src/cassey/main.py` - Added `config_verify()` function and CLI command handling
+- `src/executive_assistant/main.py` - Added `config_verify()` function and CLI command handling
 
 ---
 
 ## References
 
 - YAML config: `config.yaml` (project root)
-- Loader implementation: `src/cassey/config/loader.py`
-- Settings class: `src/cassey/config/settings.py`
+- Loader implementation: `src/executive_assistant/config/loader.py`
+- Settings class: `src/executive_assistant/config/settings.py`
 - Environment template: `.env.example`

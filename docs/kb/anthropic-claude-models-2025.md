@@ -159,7 +159,7 @@ Anthropic offers three main Claude models, each optimized for different use case
 
 ---
 
-## Recommended Usage for Cassey
+## Recommended Usage for Executive Assistant
 
 ### Primary Model: **Claude Sonnet 4.5**
 - Best balance for conversational AI

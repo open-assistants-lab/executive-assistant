@@ -1,5 +1,5 @@
 -- ============================================================================
--- Cassey AI Agent Platform - Complete Initial Schema
+-- Executive Assistant AI Agent Platform - Complete Initial Schema
 -- Version: 2026-01-17 (Workspace-based redesign)
 -- ============================================================================
 -- Run this on a fresh PostgreSQL database

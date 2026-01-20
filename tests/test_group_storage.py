@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from cassey.storage.group_storage import (
+from executive_assistant.storage.group_storage import (
     # Context management
     set_group_id,
     get_group_id,
@@ -137,13 +137,13 @@ class TestPathResolution:
 
     def test_get_groups_root(self, temp_groups_root):
         """Test getting groups root directory."""
-        with patch("cassey.storage.group_storage.settings.GROUPS_ROOT", temp_groups_root):
+        with patch("executive_assistant.storage.group_storage.settings.GROUPS_ROOT", temp_groups_root):
             root = get_groups_root()
             assert root == temp_groups_root
 
     def test_get_group_path(self, temp_groups_root):
         """Test getting path for a specific group."""
-        with patch("cassey.storage.group_storage.settings.GROUPS_ROOT", temp_groups_root):
+        with patch("executive_assistant.storage.group_storage.settings.GROUPS_ROOT", temp_groups_root):
             group_path = get_group_path("test_group")
             expected = temp_groups_root / "test_group"
             assert group_path == expected
@@ -151,28 +151,28 @@ class TestPathResolution:
 
     def test_get_group_path_sanitizes(self, temp_groups_root):
         """Test that group path sanitizes special characters."""
-        with patch("cassey.storage.group_storage.settings.GROUPS_ROOT", temp_groups_root):
+        with patch("executive_assistant.storage.group_storage.settings.GROUPS_ROOT", temp_groups_root):
             group_path = get_group_path("group:with:special/chars")
             expected = temp_groups_root / "group_with_special_chars"
             assert group_path == expected
 
     def test_get_group_files_path(self, temp_groups_root):
         """Test getting files directory for a group."""
-        with patch("cassey.storage.group_storage.settings.GROUPS_ROOT", temp_groups_root):
+        with patch("executive_assistant.storage.group_storage.settings.GROUPS_ROOT", temp_groups_root):
             files_path = get_group_files_path("test_group")
             expected = temp_groups_root / "test_group" / "files"
             assert files_path == expected
 
     def test_get_group_kb_path(self, temp_groups_root):
         """Test getting KB directory for a group."""
-        with patch("cassey.storage.group_storage.settings.GROUPS_ROOT", temp_groups_root):
+        with patch("executive_assistant.storage.group_storage.settings.GROUPS_ROOT", temp_groups_root):
             kb_path = get_group_kb_path("test_group")
             expected = temp_groups_root / "test_group" / "kb"
             assert kb_path == expected
 
     def test_get_group_db_path(self, temp_groups_root):
         """Test getting DB file path for a group."""
-        with patch("cassey.storage.group_storage.settings.GROUPS_ROOT", temp_groups_root):
+        with patch("executive_assistant.storage.group_storage.settings.GROUPS_ROOT", temp_groups_root):
             db_path = get_group_db_path("test_group")
             expected = temp_groups_root / "test_group" / "db" / "db.db"
             assert db_path == expected
@@ -180,7 +180,7 @@ class TestPathResolution:
 
     def test_get_group_mem_path(self, temp_groups_root):
         """Test getting memory file path for a group."""
-        with patch("cassey.storage.group_storage.settings.GROUPS_ROOT", temp_groups_root):
+        with patch("executive_assistant.storage.group_storage.settings.GROUPS_ROOT", temp_groups_root):
             mem_path = get_group_mem_path("test_group")
             expected = temp_groups_root / "test_group" / "mem" / "mem.db"
             assert mem_path == expected
@@ -248,7 +248,7 @@ class TestAccessControl:
             "created_at": None,
         }
 
-        with patch("cassey.storage.group_storage.get_db_conn", return_value=mock_conn):
+        with patch("executive_assistant.storage.group_storage.get_db_conn", return_value=mock_conn):
             result = await can_access("test_user", "test_group", "read")
             assert result is True
 
@@ -277,7 +277,7 @@ class TestAccessControl:
             None,  # No ACL
         ]
 
-        with patch("cassey.storage.group_storage.get_db_conn", return_value=mock_conn):
+        with patch("executive_assistant.storage.group_storage.get_db_conn", return_value=mock_conn):
             result = await can_access("test_user", "test_group", "read")
             assert result is True
 
@@ -303,7 +303,7 @@ class TestAccessControl:
             None,  # No ACL
         ]
 
-        with patch("cassey.storage.group_storage.get_db_conn", return_value=mock_conn):
+        with patch("executive_assistant.storage.group_storage.get_db_conn", return_value=mock_conn):
             result = await can_access("test_user", "test_group", "read")
             assert result is False
 
@@ -324,7 +324,7 @@ class TestGroupStoragePostgreSQL:
         """Test that ensure_user creates a user record."""
         user_id = f"test_user_{uuid.uuid4().hex[:8]}"
 
-        from cassey.storage.group_storage import ensure_user
+        from executive_assistant.storage.group_storage import ensure_user
 
         group_id = await ensure_user(user_id, db_conn)
 
@@ -340,7 +340,7 @@ class TestGroupStoragePostgreSQL:
         """Test that ensure_user_group creates individual group."""
         user_id = f"test_user_{uuid.uuid4().hex[:8]}"
 
-        from cassey.storage.group_storage import ensure_user_group
+        from executive_assistant.storage.group_storage import ensure_user_group
 
         group_id = await ensure_user_group(user_id, db_conn)
 
@@ -365,7 +365,7 @@ class TestGroupStoragePostgreSQL:
         """Test that ensure_user_group returns same group on second call."""
         user_id = f"test_user_{uuid.uuid4().hex[:8]}"
 
-        from cassey.storage.group_storage import ensure_user_group
+        from executive_assistant.storage.group_storage import ensure_user_group
 
         group_id_1 = await ensure_user_group(user_id, db_conn)
         group_id_2 = await ensure_user_group(user_id, db_conn)
@@ -385,7 +385,7 @@ class TestGroupStoragePostgreSQL:
         thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
         user_id = f"test_user_{uuid.uuid4().hex[:8]}"
 
-        from cassey.storage.group_storage import ensure_thread_group
+        from executive_assistant.storage.group_storage import ensure_thread_group
 
         group_id = await ensure_thread_group(thread_id, user_id, db_conn)
 
@@ -409,7 +409,7 @@ class TestGroupStoragePostgreSQL:
         user_id = f"test_user_{uuid.uuid4().hex[:8]}"
         alias_id = f"alias_{uuid.uuid4().hex[:8]}"
 
-        from cassey.storage.group_storage import ensure_user, add_alias, resolve_user_id
+        from executive_assistant.storage.group_storage import ensure_user, add_alias, resolve_user_id
 
         # Create user and alias
         await ensure_user(user_id, db_conn)
@@ -431,7 +431,7 @@ class TestGroupStoragePostgreSQL:
         """Test getting accessible groups for a user."""
         user_id = f"test_user_{uuid.uuid4().hex[:8]}"
 
-        from cassey.storage.group_storage import (
+        from executive_assistant.storage.group_storage import (
             ensure_user_group, accessible_groups
         )
 
@@ -450,7 +450,7 @@ class TestGroupStoragePostgreSQL:
         """Test getting group information."""
         user_id = f"test_user_{uuid.uuid4().hex[:8]}"
 
-        from cassey.storage.group_storage import ensure_user_group, get_group_info
+        from executive_assistant.storage.group_storage import ensure_user_group, get_group_info
 
         group_id = await ensure_user_group(user_id, db_conn)
         info = await get_group_info(group_id, db_conn)

@@ -2,7 +2,7 @@
 
 **Date:** 2026-01-19
 **Status:** Implemented
-**Files:** `src/cassey/agent/middleware_debug.py`, `src/cassey/agent/status_middleware.py`
+**Files:** `src/executive_assistant/agent/middleware_debug.py`, `src/executive_assistant/agent/status_middleware.py`
 
 ## Overview
 
@@ -47,7 +47,7 @@ When status updates are enabled, users also see:
 ### Files Created
 
 ```
-src/cassey/agent/middleware_debug.py  # Detection utilities
+src/executive_assistant/agent/middleware_debug.py  # Detection utilities
 ├── MiddlewareDebug                    # State comparison class
 │   ├── capture_before_model()
 │   ├── capture_after_model()
@@ -65,7 +65,7 @@ src/cassey/agent/middleware_debug.py  # Detection utilities
 ### Files Modified
 
 ```
-src/cassey/agent/status_middleware.py
+src/executive_assistant/agent/status_middleware.py
 ├── Uses MiddlewareDebug for detection
 ├── Uses RetryTracker for retry counting
 └── Logs results via print() and status messages
@@ -85,7 +85,7 @@ Logs go to console automatically:
 ### For Testing
 
 ```python
-from cassey.agent.middleware_debug import MiddlewareDebug, RetryTracker
+from executive_assistant.agent.middleware_debug import MiddlewareDebug, RetryTracker
 
 # Test summarization detection
 debug = MiddlewareDebug()

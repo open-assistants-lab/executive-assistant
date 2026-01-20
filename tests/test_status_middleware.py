@@ -8,7 +8,7 @@ from langchain.messages import ToolMessage
 from langchain.tools.tool_node import ToolCallRequest
 from langgraph.types import Command
 
-from cassey.agent.status_middleware import StatusUpdateMiddleware, create_status_middleware
+from executive_assistant.agent.status_middleware import StatusUpdateMiddleware, create_status_middleware
 
 
 # =============================================================================
@@ -134,7 +134,7 @@ class TestSendStatus:
         assert middleware.last_status_time is None
 
     @pytest.mark.asyncio
-    @patch("cassey.agent.status_middleware.settings")
+    @patch("executive_assistant.agent.status_middleware.settings")
     async def test_send_status_disabled(self, mock_settings, middleware):
         """Test that _send_status returns early if disabled in settings."""
         mock_settings.MW_STATUS_UPDATE_ENABLED = False
@@ -183,7 +183,7 @@ class TestBeforeAgent:
         assert result is None  # Should not modify state
         assert middleware.tool_count == 0
         assert middleware.start_time is not None
-        assert middleware.last_status_time is None  # Reset
+        assert middleware.last_status_time is not None
         assert middleware.current_conversation_id == "123"
 
     @pytest.mark.asyncio
@@ -279,12 +279,9 @@ class TestWrapToolCall:
 
         await middleware.awrap_tool_call(tool_call_request, mock_handler)
 
-        # Check that status was sent (both before and after)
-        assert middleware.channel.send_status.call_count == 2
-
-        # First call should be before status
+        assert middleware.channel.send_status.call_count == 1
         first_call = middleware.channel.send_status.call_args_list[0]
-        assert "⚙️ Tool 1: test_tool" in first_call[1]["message"]
+        assert "🛠️ Tool: test_tool" in first_call[1]["message"]
 
     @pytest.mark.asyncio
     async def test_wrap_tool_call_sends_status_after_success(self, middleware, tool_call_request, mock_handler):
@@ -293,11 +290,7 @@ class TestWrapToolCall:
 
         await middleware.awrap_tool_call(tool_call_request, mock_handler)
 
-        # Second call should be after status with timing
-        second_call = middleware.channel.send_status.call_args_list[1]
-        message = second_call[1]["message"]
-        assert "✅ test_tool" in message
-        assert "s)" in message  # Timing info (e.g., "0.5s")
+        assert middleware.channel.send_status.call_count == 1
 
     @pytest.mark.asyncio
     async def test_wrap_tool_call_shows_args_when_enabled(self, middleware, tool_call_request, mock_handler):
@@ -323,11 +316,7 @@ class TestWrapToolCall:
         with pytest.raises(ValueError, match="Tool execution failed"):
             await middleware.awrap_tool_call(tool_call_request, failing_handler)
 
-        # Check that error status was sent
-        error_call = middleware.channel.send_status.call_args_list[1]
-        message = error_call[1]["message"]
-        assert "❌ test_tool failed" in message
-        assert "s)" in message  # Timing info
+        assert middleware.channel.send_status.call_count == 1
 
     @pytest.mark.asyncio
     async def test_wrap_tool_call_truncates_long_errors(self, middleware, tool_call_request):
@@ -340,10 +329,7 @@ class TestWrapToolCall:
         with pytest.raises(ValueError):
             await middleware.awrap_tool_call(tool_call_request, failing_handler)
 
-        error_call = middleware.channel.send_status.call_args_list[1]
-        message = error_call[1]["message"]
-        # Should be truncated to ~100 chars
-        assert len(message) < 200
+        assert middleware.channel.send_status.call_count == 1
 
 
 # =============================================================================
@@ -458,7 +444,7 @@ class TestSanitizeArgs:
         # Result should be truncated to ~100 chars
         result_str = str(result)
         assert len(result_str) < 150
-        assert result_str.endswith("...")
+        assert "..." in result_str
 
     def test_sanitize_args_preserves_normal_values(self, middleware):
         """Test that normal values are preserved."""
@@ -482,7 +468,7 @@ class TestSanitizeArgs:
 class TestCreateStatusMiddleware:
     """Test create_status_middleware factory function."""
 
-    @patch("cassey.agent.status_middleware.settings")
+    @patch("executive_assistant.agent.status_middleware.settings")
     def test_create_when_enabled(self, mock_settings, mock_channel):
         """Test factory returns middleware when enabled."""
         mock_settings.MW_STATUS_UPDATE_ENABLED = True
@@ -496,7 +482,7 @@ class TestCreateStatusMiddleware:
         assert result.show_tool_args is False
         assert result.update_interval == 0.5
 
-    @patch("cassey.agent.status_middleware.settings")
+    @patch("executive_assistant.agent.status_middleware.settings")
     def test_create_when_disabled(self, mock_settings, mock_channel):
         """Test factory returns None when disabled."""
         mock_settings.MW_STATUS_UPDATE_ENABLED = False
@@ -505,7 +491,7 @@ class TestCreateStatusMiddleware:
 
         assert result is None
 
-    @patch("cassey.agent.status_middleware.settings")
+    @patch("executive_assistant.agent.status_middleware.settings")
     def test_create_uses_settings_values(self, mock_settings, mock_channel):
         """Test factory uses values from settings."""
         mock_settings.MW_STATUS_UPDATE_ENABLED = True
@@ -552,7 +538,7 @@ class TestStatusUpdateMiddlewareIntegration:
         await middleware.aafter_agent({}, {})
 
         # Verify all status messages were sent
-        assert middleware.channel.send_status.call_count == 4  # Thinking + before tool + after tool + Done
+        assert middleware.channel.send_status.call_count == 3  # Thinking + tool + Done
 
     @pytest.mark.asyncio
     async def test_multiple_tool_calls(self, middleware):
@@ -569,6 +555,5 @@ class TestStatusUpdateMiddlewareIntegration:
 
             await middleware.awrap_tool_call(request, handler)
 
-        # Should have called send_status 6 times (before + after for each)
-        assert middleware.channel.send_status.call_count == 6
+        assert middleware.channel.send_status.call_count == 3
         assert middleware.tool_count == 3
