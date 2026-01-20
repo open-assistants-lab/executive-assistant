@@ -11,6 +11,16 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-executive_assistant}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-executive_assistant_password}
       TZ: ${TZ:-UTC}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ZHIPUAI_API_KEY: ${ZHIPUAI_API_KEY}
+      OLLAMA_CLOUD_API_KEY: ${OLLAMA_CLOUD_API_KEY}
+      AGENT_NAME: ${AGENT_NAME}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      SEARXNG_HOST: ${SEARXNG_HOST}
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY}
+      FIRECRAWL_API_URL: ${FIRECRAWL_API_URL}
+      TEMPORAL_HOST: ${TEMPORAL_HOST}
     volumes:
       - executive_assistant_data:/app/data
     ports:
