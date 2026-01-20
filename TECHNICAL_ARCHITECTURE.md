@@ -610,7 +610,6 @@ data/
     │
     ├─→ [Route: Tools or End?]
     │      • If tool_calls: go to tools
-    │      • If no tool_calls or max_iterations: go to END
     │
     ├─→ [call_tools Node]
     │      • Execute tool functions
@@ -621,7 +620,6 @@ data/
     │
     ├─→ [increment_iterations Node]
     │      • iterations += 1
-    │      • Check max_iterations limit
     │
     └─→ [Loop back to call_model] or [END]
          │

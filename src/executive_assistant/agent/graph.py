@@ -10,8 +10,7 @@ from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
 from executive_assistant.agent.state import AgentState
-from executive_assistant.agent.nodes import call_model, call_tools, increment_iterations
-from executive_assistant.config import settings
+from executive_assistant.agent.nodes import call_model, call_tools
 
 
 def route_to_tools_or_end(state: AgentState) -> str:
@@ -24,13 +23,9 @@ def route_to_tools_or_end(state: AgentState) -> str:
     from langchain_core.messages import AIMessage
 
     messages = state["messages"]
-    iterations = state.get("iterations", 0)
-
-    # Check iteration limit and tool calls
-    if iterations < settings.MAX_ITERATIONS:
-        last_message = messages[-1]
-        if isinstance(last_message, AIMessage) and hasattr(last_message, "tool_calls") and last_message.tool_calls:
-            return "tools"
+    last_message = messages[-1]
+    if isinstance(last_message, AIMessage) and hasattr(last_message, "tool_calls") and last_message.tool_calls:
+        return "tools"
 
     return END
 
@@ -89,7 +84,6 @@ def create_react_graph(
     # Add nodes to the graph
     workflow.add_node("agent", call_model_node)
     workflow.add_node("tools", call_tools_node)
-    workflow.add_node("increment", increment_iterations)
 
     # Set entry point
     workflow.set_entry_point("agent")
@@ -105,10 +99,8 @@ def create_react_graph(
         },
     )
 
-    # Add edge from tools to increment iterations, then back to agent
-    # After executing tools, increment iteration count, then go back to agent
-    workflow.add_edge("tools", "increment")
-    workflow.add_edge("increment", "agent")
+    # Add edge from tools back to agent
+    workflow.add_edge("tools", "agent")
 
     return workflow
 

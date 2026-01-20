@@ -6,7 +6,6 @@ from langchain_core.messages import AIMessage
 from langgraph.graph import END
 
 from executive_assistant.agent.state import AgentState
-from executive_assistant.config import settings
 
 
 def should_continue(state: AgentState) -> Literal["tools", "continue", "end"]:
@@ -20,12 +19,6 @@ def should_continue(state: AgentState) -> Literal["tools", "continue", "end"]:
         "tools" if more tool calls needed, "continue" to check for summarization.
     """
     messages = state["messages"]
-    iterations = state.get("iterations", 0)
-
-    # Check iteration limit first
-    if iterations >= settings.MAX_ITERATIONS:
-        return "continue"
-
     # Check last message for tool calls
     last_message = messages[-1]
 

@@ -175,7 +175,6 @@ class Settings(BaseSettings):
 
     # Agent Configuration
     AGENT_NAME: str = _yaml_field("AGENT_NAME", "Executive Assistant")
-    MAX_ITERATIONS: int = _yaml_field("AGENT_MAX_ITERATIONS", 20)
 
     # Memory (Embedded User Memories)
     MEM_AUTO_EXTRACT: bool = _yaml_field("MEMORY_AUTO_EXTRACT", False)

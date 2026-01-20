@@ -41,7 +41,6 @@ agent:
   # Agent display name - customize this for your deployment
   name: "Executive Assistant"
   # Maximum ReAct loop iterations to prevent infinite loops
-  max_iterations: 20
 ```
 
 **File:** `src/executive_assistant/config/settings.py`

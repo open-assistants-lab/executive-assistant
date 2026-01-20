@@ -13,7 +13,7 @@ from langchain_core.tools import BaseTool
 
 from executive_assistant.agent.state import AgentState
 from executive_assistant.agent.router import should_continue
-from executive_assistant.agent.nodes import call_model, call_tools, increment_iterations
+from executive_assistant.agent.nodes import call_model, call_tools
 
 
 # =============================================================================
@@ -28,7 +28,6 @@ class TestAgentState:
         state = AgentState(
             messages=[HumanMessage(content="Hello")],
             structured_summary=None,
-            iterations=0,
             user_id="test_user",
             channel="test",
         )
@@ -36,7 +35,6 @@ class TestAgentState:
         assert len(state["messages"]) == 1
         assert state["messages"][0].content == "Hello"
         assert state["structured_summary"] is None
-        assert state["iterations"] == 0
         assert state["user_id"] == "test_user"
         assert state["channel"] == "test"
 
@@ -50,7 +48,6 @@ class TestAgentState:
         state = AgentState(
             messages=[],
             structured_summary=summary,
-            iterations=1,
             user_id="test_user",
             channel="test",
         )
@@ -76,27 +73,12 @@ class TestShouldContinue:
         state = AgentState(
             messages=[ai_msg],
             structured_summary=None,
-            iterations=1,
             user_id="test_user",
             channel="test",
         )
 
         result = should_continue(state)
         assert result == "tools"
-
-    def test_continue_with_iteration_limit(self):
-        """Test that iteration limit is respected."""
-        with patch("executive_assistant.agent.router.settings.MAX_ITERATIONS", 5):
-            state = AgentState(
-                messages=[AIMessage(content="Done")],
-                structured_summary=None,
-                iterations=10,  # Over limit
-                user_id="test_user",
-                channel="test",
-            )
-
-            result = should_continue(state)
-            assert result == "continue"
 
     def test_continue_without_tool_calls(self):
         """Test continuing to next step when no tool calls."""
@@ -105,7 +87,6 @@ class TestShouldContinue:
         state = AgentState(
             messages=[ai_msg],
             structured_summary=None,
-            iterations=1,
             user_id="test_user",
             channel="test",
         )
@@ -120,7 +101,6 @@ class TestShouldContinue:
         state = AgentState(
             messages=[human_msg],
             structured_summary=None,
-            iterations=0,
             user_id="test_user",
             channel="test",
         )
@@ -157,7 +137,6 @@ class TestCallModel:
         state = AgentState(
             messages=[HumanMessage(content="Hello")],
             structured_summary=None,
-            iterations=0,
             user_id="test_user",
             channel="test",
         )
@@ -167,51 +146,6 @@ class TestCallModel:
         assert "messages" in result
         assert len(result["messages"]) == 1
         assert result["messages"][0].content == "Test response"
-
-    @pytest.mark.asyncio
-    async def test_call_model_with_iteration_limit(self, mock_model, mock_tools):
-        """Test model behavior at iteration limit."""
-        from langchain_core.messages.tool import ToolCall
-
-        tool_call = ToolCall(name="test_tool", args={}, id="1", type="tool_call")
-
-        with patch("executive_assistant.agent.nodes.settings.MAX_ITERATIONS", 2):
-            state = AgentState(
-                messages=[
-                    HumanMessage(content="Hello"),
-                    AIMessage(content="", tool_calls=[tool_call]),
-                ],
-                structured_summary=None,
-                iterations=2,  # At limit
-                user_id="test_user",
-                channel="test",
-            )
-
-            result = await call_model(state, {}, mock_model, mock_tools)
-
-            # Should return helpful message about iteration limit
-            assert "messages" in result
-            assert "maximum" in result["messages"][0].content.lower() or "reasoning" in result["messages"][0].content.lower()
-
-    @pytest.mark.asyncio
-    async def test_call_model_with_continue_phrase(self, mock_model, mock_tools):
-        """Test iteration reset when user says continue."""
-        with patch("executive_assistant.agent.nodes.settings.MAX_ITERATIONS", 2):
-            state = AgentState(
-                messages=[
-                    HumanMessage(content="Please continue"),
-                    AIMessage(content="Done"),
-                ],
-                structured_summary=None,
-                iterations=2,  # At limit but user wants to continue
-                user_id="test_user",
-                channel="test",
-            )
-
-            result = await call_model(state, {}, mock_model, mock_tools)
-
-            # Should reset iterations
-            assert result.get("iterations") == 0
 
     @pytest.mark.asyncio
     async def test_call_model_with_summary(self, mock_model, mock_tools):
@@ -224,7 +158,6 @@ class TestCallModel:
         state = AgentState(
             messages=[HumanMessage(content="Hello")],
             structured_summary=summary,
-            iterations=0,
             user_id="test_user",
             channel="test",
         )
@@ -267,7 +200,6 @@ class TestCallTools:
         state = AgentState(
             messages=[ai_msg],
             structured_summary=None,
-            iterations=0,
             user_id="test_user",
             channel="test",
         )
@@ -292,7 +224,6 @@ class TestCallTools:
         state = AgentState(
             messages=[ai_msg],
             structured_summary=None,
-            iterations=0,
             user_id="test_user",
             channel="test",
         )
@@ -312,7 +243,6 @@ class TestCallTools:
         state = AgentState(
             messages=[ai_msg],
             structured_summary=None,
-            iterations=0,
             user_id="test_user",
             channel="test",
         )
@@ -330,7 +260,6 @@ class TestCallTools:
         state = AgentState(
             messages=[ai_msg],
             structured_summary=None,
-            iterations=0,
             user_id="test_user",
             channel="test",
         )
@@ -356,7 +285,6 @@ class TestCallTools:
         state = AgentState(
             messages=[ai_msg],
             structured_summary=None,
-            iterations=0,
             user_id="test_user",
             channel="test",
         )
@@ -366,50 +294,6 @@ class TestCallTools:
         assert len(result["messages"]) == 1
         assert "error" in result["messages"][0].content.lower()
 
-
-class TestIncrementIterations:
-    """Test increment_iterations function."""
-
-    def test_increment_from_zero(self):
-        """Test incrementing from zero."""
-        state = AgentState(
-            messages=[],
-            structured_summary=None,
-            iterations=0,
-            user_id="test_user",
-            channel="test",
-        )
-
-        result = increment_iterations(state)
-        assert result["iterations"] == 1
-
-    def test_increment_from_value(self):
-        """Test incrementing from a non-zero value."""
-        state = AgentState(
-            messages=[],
-            structured_summary=None,
-            iterations=5,
-            user_id="test_user",
-            channel="test",
-        )
-
-        result = increment_iterations(state)
-        assert result["iterations"] == 6
-
-    def test_increment_with_missing_key(self):
-        """Test incrementing when iterations key is missing."""
-        state = AgentState(
-            messages=[],
-            structured_summary=None,
-            iterations=0,  # Required field
-            user_id="test_user",
-            channel="test",
-        )
-
-        # Use get to simulate missing
-        state_with_missing = {**state, "iterations": 0}
-        result = increment_iterations(state_with_missing)  # type: ignore
-        assert result["iterations"] == 1
 
 
 # =============================================================================

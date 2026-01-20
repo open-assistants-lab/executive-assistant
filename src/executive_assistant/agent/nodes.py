@@ -41,56 +41,6 @@ async def call_model(
         Dict with messages key containing the model response.
     """
     messages = state["messages"]
-    iterations = state.get("iterations", 0)
-    reset_iterations = False
-
-    # Check for user saying "continue" after hitting limit - reset counter
-    if iterations >= settings.MAX_ITERATIONS:
-        # Check if the last user message is asking to continue
-        last_human = None
-        for m in reversed(messages):
-            if isinstance(m, HumanMessage):
-                last_human = m.content.lower()
-                break
-
-        # If user explicitly says "continue", "go on", "proceed", "keep going", reset counter
-        continue_phrases = ["continue", "go on", "proceed", "keep going", "carry on", "resume"]
-        if last_human and any(phrase in last_human for phrase in continue_phrases):
-            # Reset iterations and continue processing
-            iterations = 0
-            reset_iterations = True
-
-    # Check iteration limit
-    if iterations >= settings.MAX_ITERATIONS:
-        # Provide helpful context about what was accomplished
-        tool_calls = [m for m in messages if hasattr(m, 'tool_calls') and m.tool_calls]
-        # Extract tool names, handling both object and dict forms
-        tool_names = []
-        for m in tool_calls:
-            for tc in getattr(m, 'tool_calls', []):
-                # Handle both object (tc.name) and dict (tc['name']) forms
-                name = tc.name if hasattr(tc, 'name') else tc.get('name') if isinstance(tc, dict) else str(tc)
-                tool_names.append(name)
-
-        # Count tool calls by type
-        from collections import Counter
-        tool_summary = Counter(tool_names)
-
-        summary_parts = [f"I've reached the maximum number of reasoning steps ({settings.MAX_ITERATIONS})."]
-
-        if tool_summary:
-            summary_parts.append("\n\nWhat I attempted:")
-            for tool, count in tool_summary.most_common():
-                summary_parts.append(f"- {tool}: {count} call(s)")
-
-        summary_parts.append("\n\nSay 'continue' to resume, or ask me to try a different approach.")
-        summary_parts.append("\n\n💡 Tip: For complex tasks, break them into smaller steps.")
-
-        return {
-            "messages": [
-                AIMessage(content="".join(summary_parts))
-            ]
-        }
 
     # Bind tools to model
     model_with_tools = model.bind_tools(tools)
@@ -185,8 +135,6 @@ async def call_model(
         logger.info(f"🤖 LLM_CALL: {llm_elapsed:.2f}s{token_info}")
 
     result = {"messages": [response]}
-    if reset_iterations:
-        result["iterations"] = 0
     return result
 
 
@@ -262,8 +210,4 @@ async def call_tools(
 
     return {"messages": outputs, **state_updates}
 
-
-def increment_iterations(state: AgentState) -> dict[str, Any]:
-    """Increment the iteration counter."""
-    return {"iterations": state.get("iterations", 0) + 1}
 

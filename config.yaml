@@ -68,8 +68,6 @@ storage:
 agent:
   # Agent display name - customize this for your deployment
   name: "Executive Assistant"
-  # Maximum ReAct loop iterations to prevent infinite loops
-  max_iterations: 20
 
 # ============================================================================
 # LangChain Middleware Configuration
