@@ -267,12 +267,16 @@ def get_sandbox(user_id: str | None = None) -> FileSandbox:
         group_path.mkdir(parents=True, exist_ok=True)
         return FileSandbox(root=group_path)
 
-    # 4. thread_id from context (legacy fallback)
+    # 4. thread_id from context (convert to user_id)
+    # This ensures all storage is user-based, not thread-based
     thread_id_val = get_thread_id()
     if thread_id_val:
-        thread_path = settings.get_thread_files_path(thread_id_val)
-        thread_path.mkdir(parents=True, exist_ok=True)
-        return FileSandbox(root=thread_path)
+        # Convert thread_id to user_id (anon_* format)
+        from cassey.storage.helpers import sanitize_thread_id_to_user_id
+        user_id_from_thread = sanitize_thread_id_to_user_id(thread_id_val)
+        user_path = settings.get_user_files_path(user_id_from_thread)
+        user_path.mkdir(parents=True, exist_ok=True)
+        return FileSandbox(root=user_path)
 
     raise ValueError(
         "FileSandbox requires user_id, group_id, or thread_id context. "

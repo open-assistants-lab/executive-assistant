@@ -1,6 +1,7 @@
-"""Thread-local system metadata registry.
+"""User-scoped system metadata registry.
 
-Stores lightweight inventory info in data/users/{thread_id}/meta.json.
+Stores lightweight inventory info in data/users/{user_id}/meta.json.
+User_id is automatically derived from thread_id (anon_* format or user_* after merge).
 """
 
 from __future__ import annotations
@@ -22,9 +23,23 @@ def _now_iso() -> str:
 
 
 def _meta_path(thread_id: str) -> Path:
-    thread_root = settings.get_thread_root(thread_id)
-    thread_root.mkdir(parents=True, exist_ok=True)
-    return thread_root / "meta.json"
+    """
+    Get the path to meta.json for a user (converted from thread_id).
+
+    Args:
+        thread_id: Thread identifier (will be converted to user_id for path)
+
+    Returns:
+        Path to meta.json file in user-based directory.
+    """
+    # Convert thread_id to user_id for user-based storage
+    from cassey.storage.helpers import sanitize_thread_id_to_user_id
+    user_id = sanitize_thread_id_to_user_id(thread_id)
+
+    # Use user-based path
+    user_root = settings.get_user_root(user_id)
+    user_root.mkdir(parents=True, exist_ok=True)
+    return user_root / "meta.json"
 
 
 def _normalize_rel_path(path: str) -> str:

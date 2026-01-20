@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.messages import BaseMessage, HumanMessage
 from langgraph.types import Runnable
 
 from cassey.config import settings
@@ -185,20 +185,6 @@ class BaseChannel(ABC):
         """
         await self.send_message(conversation_id, message)
 
-    async def send_todo(
-        self,
-        conversation_id: str,
-        message: str,
-        update: bool = True,
-    ) -> None:
-        """
-        Send a todo update message.
-
-        Default implementation sends a normal message; channels can override to edit
-        a dedicated todo message separate from status updates.
-        """
-        await self.send_message(conversation_id, message)
-
     @abstractmethod
     async def handle_message(self, message: MessageFormat) -> None:
         """
@@ -221,13 +207,13 @@ class BaseChannel(ABC):
             # Set thread_id context for file sandbox operations
             set_thread_id(thread_id)
 
+            # Ensure group exists and set group_id context
+            group_id = await ensure_thread_group(thread_id, message.user_id)
+            set_workspace_context(group_id)
+
             # Convert thread_id to user_id (identity_id) for storage and permission checks
             from cassey.storage.helpers import sanitize_thread_id_to_user_id
             user_id_for_storage = sanitize_thread_id_to_user_id(thread_id)
-
-            # Ensure group exists and set group_id context
-            group_id = await ensure_thread_group(thread_id, user_id_for_storage)
-            set_workspace_context(group_id)
 
             logger.info(f"Setting user_id context: {user_id_for_storage} (from thread_id: {thread_id})")
             set_workspace_user_id(user_id_for_storage)
@@ -242,19 +228,7 @@ class BaseChannel(ABC):
             enhanced_content = self._inject_memories(message.content, memories)
 
             # Build state with only the new message
-            state = {
-                "messages": [
-                    HumanMessage(
-                        content=enhanced_content,
-                        additional_kwargs={"cassey_message_id": message.message_id},
-                    )
-                ],
-                "run_model_call_count": 0,
-                "run_tool_call_count": {},
-                "thread_model_call_count": 0,
-                "thread_tool_call_count": {},
-                "todos": [],
-            }
+            state = {"messages": [HumanMessage(content=enhanced_content)]}
 
             # Log incoming message if audit is enabled
             if self.registry:
@@ -281,11 +255,9 @@ class BaseChannel(ABC):
                     )
 
                 # Extract and send messages immediately as they arrive
-                messages = self._extract_messages_from_event(event)
-                new_messages = self._get_new_ai_messages(messages, message.message_id)
-                for msg in new_messages:
+                for msg in self._extract_messages_from_event(event):
                     # Send immediately, don't accumulate!
-                    if isinstance(msg, AIMessage) and hasattr(msg, "content") and msg.content:
+                    if hasattr(msg, "content") and msg.content:
                         await self.send_message(message.conversation_id, msg.content)
 
                     # Log message if audit is enabled
@@ -380,38 +352,154 @@ class BaseChannel(ABC):
             return event["messages"]
 
         # LangChain agent middleware events: {'model': {'messages': [...]}}
-        if "model" in event and isinstance(event["model"], dict):
-            if isinstance(event["model"].get("messages"), list):
-                return event["model"]["messages"]
-
-        # Also check nested structures
-        for value in event.values():
+        for key in ("model", "agent", "output", "final"):
+            value = event.get(key)
             if isinstance(value, dict) and isinstance(value.get("messages"), list):
                 return value["messages"]
 
         return []
 
-    def _get_new_ai_messages(
+    async def stream_agent_response(
         self,
-        messages: list[BaseMessage],
-        message_id: str,
-    ) -> list[AIMessage]:
-        """Return only AI messages produced after the current user message."""
-        if not messages:
-            return []
+        message: MessageFormat,
+    ) -> list[BaseMessage]:
+        """
+        Stream agent response and return final messages.
 
-        last_human_index = -1
-        for idx, msg in enumerate(messages):
-            if isinstance(msg, HumanMessage):
-                msg_id = msg.additional_kwargs.get("cassey_message_id")
-                if msg_id == message_id:
-                    last_human_index = idx
+        Args:
+            message: Incoming message with user query.
 
-        if last_human_index == -1:
-            return [msg for msg in messages if isinstance(msg, AIMessage)]
+        Returns:
+            List of messages from the agent.
+        """
+        thread_id = self.get_thread_id(message)
+        channel = self.__class__.__name__.lower().replace("channel", "")
+        config = {"configurable": {"thread_id": thread_id}}
 
-        return [
-            msg
-            for msg in messages[last_human_index + 1 :]
-            if isinstance(msg, AIMessage)
-        ]
+        # Set thread_id context for file sandbox operations
+        set_thread_id(thread_id)
+
+        # Ensure group exists and set group_id context
+        # This is critical for access control - fail fast if setup fails
+        try:
+            group_id = await ensure_thread_group(thread_id, message.user_id)
+            set_workspace_context(group_id)
+        except Exception as e:
+            logger.error("Failed to setup group for thread {thread}: {error}", thread=thread_id, error=e)
+            raise RuntimeError(f"Group setup failed for thread {thread_id}. Cannot proceed without group context.") from e
+
+        # Convert thread_id to user_id (identity_id) for storage and permission checks
+        # thread_id is "telegram:123456" -> user_id should be "anon_telegram_123456"
+        from cassey.storage.helpers import sanitize_thread_id_to_user_id
+        user_id_for_storage = sanitize_thread_id_to_user_id(thread_id)
+
+        logger.info(f"Setting user_id context: {user_id_for_storage} (from thread_id: {thread_id})")
+
+        # Set user_id in group context for access control checks
+        set_workspace_user_id(user_id_for_storage)
+
+        # Verify it was set
+        from cassey.storage.group_storage import get_user_id as check_user_id
+        verified_id = check_user_id()
+        logger.info(f"Verified user_id in context: {verified_id}")
+
+        try:
+            import time
+            pre_agent_start = time.time()
+
+            set_user_id(user_id_for_storage)
+            # Log incoming message if audit is enabled
+            if self.registry:
+                await self.registry.log_message(
+                    conversation_id=thread_id,
+                    user_id=message.user_id,
+                    channel=channel,
+                    message=HumanMessage(content=message.content),
+                    message_id=message.message_id,
+                    metadata=message.metadata,
+                )
+
+            # Retrieve relevant memories and inject into message
+            memories = self._get_relevant_memories(thread_id, message.content)
+            enhanced_content = self._inject_memories(message.content, memories)
+
+            # Build state with only the new message
+            # LangGraph's checkpointer will automatically restore previous state
+            # (messages, structured_summary, iterations) when we provide the thread_id in config
+            state = {"messages": [HumanMessage(content=enhanced_content)]}
+
+            pre_agent_elapsed = time.time() - pre_agent_start
+            logger.info(f"Pre-agent overhead: {pre_agent_elapsed:.2f}s")
+
+            # Stream agent responses
+            messages = []
+            event_count = 0
+            event_types = []
+            limit_info = {}  # Store limit information from events
+            agent_start = time.time()
+            async for event in self.agent.astream(state, config):
+                event_count += 1
+                event_type = type(event).__name__
+                event_types.append(event_type)
+                if event_count <= 10:
+                    logger.opt(lazy=True).debug(
+                        "Stream event {idx}: {event_type} = {event}",
+                        idx=event_count,
+                        event_type=lambda: event_type,
+                        event=lambda: event,
+                    )
+                print(f"[DEBUG] Event {event_count}: type={event_type}, keys={list(event.keys()) if isinstance(event, dict) else 'N/A'}")
+                # Log full event details for first 10 events
+                if event_count <= 10:
+                    print(f"[DEBUG]   Full event: {event}")
+
+                # Extract limit information from middleware events
+                if isinstance(event, dict):
+                    for key, value in event.items():
+                        if "LimitMiddleware" in key and "before_model" in key:
+                            if isinstance(value, dict) and "messages" in value:
+                                # Extract limit info from middleware message
+                                for msg in value.get("messages", []):
+                                    if hasattr(msg, "content") and "limit" in msg.content.lower():
+                                        limit_info[key] = {
+                                            "message": msg.content,
+                                            "jump_to": value.get("jump_to", "unknown")
+                                        }
+                                        print(f"[DEBUG]   Limit detected: {key} -> {msg.content}")
+
+                for msg in self._extract_messages_from_event(event):
+                    messages.append(msg)
+                    print(f"[DEBUG]   Extracted message: type={type(msg).__name__}, has_content={hasattr(msg, 'content') and bool(msg.content)}, has_tool_calls={hasattr(msg, 'tool_calls') and bool(msg.tool_calls)}")
+                    # Log each response message if audit is enabled AND message has content or tool_calls
+                    # BUGFIX: Don't log empty messages - they corrupt conversation history
+                    if self.registry and (hasattr(msg, 'content') and msg.content or (hasattr(msg, 'tool_calls') and msg.tool_calls)):
+                        await self.registry.log_message(
+                            conversation_id=thread_id,
+                            user_id=message.user_id,
+                            channel=channel,
+                            message=msg,
+                        )
+
+            agent_elapsed = time.time() - agent_start
+            logger.info(f"Agent processing: {agent_elapsed:.2f}s")
+            print(f"[DEBUG] Stream summary: {event_count} events, types={event_types}, {len(messages)} messages extracted")
+
+            # Log limit information if detected
+            if limit_info:
+                print(f"[DEBUG] Limit information detected:")
+                for key, info in limit_info.items():
+                    print(f"[DEBUG]   {key}: {info['message']}, jump_to={info['jump_to']}")
+
+            # Return messages with metadata for better error handling
+            metadata = {
+                "event_count": event_count,
+                "event_types": event_types,
+                "limit_info": limit_info
+            }
+            return messages, metadata
+        finally:
+            # Clear context to prevent leaking between conversations
+            clear_thread_id()
+            clear_user_id()
+            clear_workspace_context()
+            clear_workspace_user_id()

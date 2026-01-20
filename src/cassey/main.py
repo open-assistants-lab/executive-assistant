@@ -178,17 +178,24 @@ async def main() -> None:
     registry = UserRegistry(conn_string=settings.POSTGRES_URL)
 
     # Start the reminder scheduler
+    print(" DEBUG: About to call start_scheduler()...", flush=True)
     await start_scheduler()
-    print(" Reminder scheduler started")
+    print(" DEBUG: start_scheduler() returned", flush=True)
+    print(" Reminder scheduler started", flush=True)
 
     # Determine which channels to run
     enabled_channels = get_channels()
+    print(f"DEBUG: Enabled channels: {enabled_channels}", flush=True)
     active_channels = []
 
     for channel_name in enabled_channels:
+        print(f"DEBUG: Creating channel: {channel_name}", flush=True)
         if channel_name == "telegram":
+            print(f"DEBUG: Building telegram agent...", flush=True)
             agent = build_agent("telegram")
+            print(f"DEBUG: Creating TelegramChannel...", flush=True)
             channel = TelegramChannel(agent=agent)
+            print(f"DEBUG: Setting registry...", flush=True)
             channel.registry = registry
 
             # Register notification handler for reminders
@@ -203,8 +210,9 @@ async def main() -> None:
             register_notification_handler("telegram", telegram_notification_handler)
 
             active_channels.append(channel)
-            print(" Telegram channel created")
+            print(" Telegram channel created", flush=True)
         elif channel_name == "http":
+            print(f"DEBUG: Creating HTTP channel...", flush=True)
             agent = build_agent("http")
             channel = HttpChannel(
                 agent=agent,
@@ -226,12 +234,14 @@ async def main() -> None:
         else:
             print(f" Unknown channel: {channel_name}")
 
+    print(f"DEBUG: Channel loop completed, active_channels={len(active_channels)}", flush=True)
     if not active_channels:
         print(" Error: No valid channels configured")
         await stop_scheduler()
         sys.exit(1)
 
     # Setup graceful shutdown
+    print("DEBUG: Setting up graceful shutdown...", flush=True)
     shutdown_event = asyncio.Event()
 
     def signal_handler(sig, frame):
@@ -242,13 +252,15 @@ async def main() -> None:
     signal.signal(signal.SIGTERM, signal_handler)
 
     # Start all channels
-    print("\nCassey is starting...")
-    tasks = []
-    for channel in active_channels:
-        tasks.append(asyncio.create_task(channel.start()))
+    print("\nCassey is starting...", flush=True)
+    for i, channel in enumerate(active_channels):
+        print(f"DEBUG: Starting channel {i+1}/{len(active_channels)}...", flush=True)
+        await channel.start()
+        print(f"DEBUG: Channel {i+1} started", flush=True)
 
+    print(f"DEBUG: All channels started, about to print 'Bot is running'...", flush=True)
     try:
-        print(f" Bot is running. Channels: {', '.join(enabled_channels)}. Press Ctrl+C to stop.")
+        print(f" Bot is running. Channels: {', '.join(enabled_channels)}. Press Ctrl+C to stop.", flush=True)
         await shutdown_event.wait()
     finally:
         for channel in active_channels:

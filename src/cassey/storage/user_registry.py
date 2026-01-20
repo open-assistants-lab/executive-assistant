@@ -404,6 +404,142 @@ class UserRegistry:
         finally:
             await conn.close()
 
+    # ==================== Identity Management ====================
+
+    async def create_identity_if_not_exists(
+        self,
+        thread_id: str,
+        identity_id: str,
+        channel: str,
+    ) -> bool:
+        """
+        Create identity record if it doesn't exist.
+
+        Args:
+            thread_id: Thread identifier
+            identity_id: Auto-generated identity ID (anon_*)
+            channel: Channel type ('telegram', 'email', 'http')
+
+        Returns:
+            True if created, False if already existed
+        """
+        conn = await asyncpg.connect(self._conn_string)
+        try:
+            await conn.execute(
+                """INSERT INTO identities (identity_id, thread_id, channel)
+                   VALUES ($1, $2, $3)
+                   ON CONFLICT (thread_id) DO NOTHING""",
+                identity_id, thread_id, channel
+            )
+            return True
+        except Exception:
+            return False
+        finally:
+            await conn.close()
+
+    async def get_identity_by_thread_id(
+        self,
+        thread_id: str,
+    ) -> dict | None:
+        """
+        Get identity by thread_id.
+
+        Args:
+            thread_id: Thread identifier
+
+        Returns:
+            Identity dict or None if not found
+        """
+        conn = await asyncpg.connect(self._conn_string)
+        try:
+            row = await conn.fetchrow(
+                """SELECT * FROM identities WHERE thread_id = $1""",
+                thread_id
+            )
+
+            if not row:
+                return None
+
+            return dict(row)
+        finally:
+            await conn.close()
+
+    async def get_persistent_user_id(
+        self,
+        thread_id: str,
+    ) -> str | None:
+        """
+        Get persistent user_id for a thread_id.
+
+        Returns persistent_user_id if verified, otherwise returns identity_id.
+
+        Args:
+            thread_id: Thread identifier
+
+        Returns:
+            user_id string or None if not found
+        """
+        identity = await self.get_identity_by_thread_id(thread_id)
+        if not identity:
+            return None
+
+        # Return persistent_user_id if verified, else identity_id (anon_*)
+        return identity.get("persistent_user_id") or identity.get("identity_id")
+
+    async def update_identity_merge(
+        self,
+        identity_id: str,
+        persistent_user_id: str,
+        verification_status: str = "verified",
+    ) -> None:
+        """
+        Update identity after merge.
+
+        Args:
+            identity_id: Identity ID to update
+            persistent_user_id: New persistent user ID
+            verification_status: New verification status
+        """
+        conn = await asyncpg.connect(self._conn_string)
+        try:
+            await conn.execute(
+                """UPDATE identities
+                   SET persistent_user_id = $1,
+                       verification_status = $2,
+                       merged_at = NOW()
+                   WHERE identity_id = $3""",
+                persistent_user_id, verification_status, identity_id
+            )
+        finally:
+            await conn.close()
+
+    async def update_identity_pending(
+        self,
+        thread_id: str,
+        verification_method: str,
+        verification_contact: str,
+    ) -> None:
+        """
+        Update identity to pending verification status.
+
+        Args:
+            thread_id: Thread identifier
+            verification_method: Method ('email', 'phone', etc.)
+            verification_contact: Contact info (email, phone)
+        """
+        conn = await asyncpg.connect(self._conn_string)
+        try:
+            await conn.execute(
+                """UPDATE identities
+                   SET verification_status = 'pending',
+                       verification_method = $1,
+                       verification_contact = $2
+                   WHERE thread_id = $3""",
+                verification_method, verification_contact, thread_id
+            )
+        finally:
+            await conn.close()
+
     # ==================== File Path Tracking ====================
 
     async def register_file_path(

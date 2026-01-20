@@ -128,7 +128,7 @@ cp .env.example .env
 # Edit .env with your API keys
 
 # Start PostgreSQL
-docker-compose up -d postgres_db
+docker compose up -d postgres
 
 # Run migrations (auto-run on first start)
 psql $POSTGRES_URL < migrations/001_initial_schema.sql

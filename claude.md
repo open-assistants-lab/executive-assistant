@@ -5,11 +5,11 @@
 **ALWAYS test locally with `uv run cassey` before building Docker.**
 
 ### Steps:
-1. Keep postgres running in Docker: `docker-compose up -d postgres_db`
-2. Stop cassey container: `docker-compose stop cassey`
+1. Keep postgres running in Docker: `docker compose up -d postgres`
+2. Stop cassey container: `docker compose stop cassey`
 3. Run cassey locally: `uv run cassey`
 4. Test your changes
-5. Only build Docker when everything works: `docker-compose build --no-cache cassey`
+5. Only build Docker when everything works: `docker compose build --no-cache cassey`
 
 ### Environment Variables for Local Testing
 ```bash

@@ -198,7 +198,22 @@ async def start_scheduler():
     )
 
     _scheduler.start()
-    logger.info("Scheduler started (reminders; scheduled jobs archived)")
+    import sys
+    print("DEBUG: Scheduler start() called, about to log...", flush=True)
+    try:
+        logger.info("Scheduler started (reminders; scheduled jobs archived)")
+    except Exception as e:
+        print(f"DEBUG: Exception during logger.info: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    print("DEBUG: Logged, now returning...", flush=True)
+    try:
+        logger.debug("start_scheduler() function returning...")
+    except Exception as e:
+        print(f"DEBUG: Exception during logger.debug: {e}", flush=True)
+    print("DEBUG: Almost returned...", flush=True)
 
 
 async def stop_scheduler():

@@ -102,7 +102,7 @@ def _get_db_with_scope(scope: Literal["context", "shared"] = "context") -> SQLit
 @require_permission("write")
 def create_db_table(
     table_name: str,
-    data: str = "",
+    data: str | list[dict] = "",
     columns: str = "",
     scope: Literal["context", "shared"] = "context",
 ) -> str:
@@ -114,7 +114,8 @@ def create_db_table(
 
     Args:
         table_name: Name for the new table (letters, numbers, underscore).
-        data: JSON array of objects to create table with data.
+        data: List of dictionaries (e.g., [{"name": "Alice", "age": 30}])
+               OR JSON string (e.g., '[{"name": "Alice", "age": 30}]')
                Leave empty to create empty table structure.
         columns: Comma-separated column names (e.g., "name,email,phone").
                Required when creating empty table; optional with data.
@@ -127,7 +128,7 @@ def create_db_table(
     import json
 
     # Handle empty data (create table structure only)
-    if not data or not data.strip():
+    if not data or (isinstance(data, str) and not data.strip()):
         if not columns:
             return "Error: Either data or columns must be provided"
 
@@ -153,11 +154,16 @@ def create_db_table(
         except Exception as e:
             return f"Error creating table: {str(e)}"
 
-    # Parse data
-    try:
-        parsed_data = json.loads(data)
-    except json.JSONDecodeError as e:
-        return f'Error: Invalid JSON data - {str(e)}. Expected format: \'[{{"name": "Alice", "age": 30}}]\''
+    # Parse data - convert list if needed
+    if isinstance(data, list):
+        parsed_data = data
+    elif isinstance(data, str):
+        try:
+            parsed_data = json.loads(data)
+        except json.JSONDecodeError as e:
+            return f'Error: Invalid JSON data - {str(e)}. Expected format: \'[{{"name": "Alice", "age": 30}}]\''
+    else:
+        return "Error: data must be a list or JSON string"
 
     # Determine column names
     column_list = None
@@ -185,7 +191,7 @@ def create_db_table(
 @require_permission("write")
 def insert_db_table(
     table_name: str,
-    data: str,
+    data: str | list[dict],
     scope: Literal["context", "shared"] = "context",
 ) -> str:
     """Add rows to an existing table. [DB]
@@ -194,7 +200,8 @@ def insert_db_table(
 
     Args:
         table_name: Name of the table to insert into.
-        data: JSON array of objects with keys matching table columns.
+        data: List of dictionaries (e.g., [{"name": "Alice", "age": 30}])
+               OR JSON string (e.g., '[{"name": "Alice", "age": 30}]')
         scope: "context" (default) for group/thread-scoped storage,
                "shared" for organization-wide shared storage (admin-only writes).
 
@@ -203,10 +210,16 @@ def insert_db_table(
     """
     import json
 
-    try:
-        parsed_data = json.loads(data)
-    except json.JSONDecodeError as e:
-        return f"Error: Invalid JSON data - {str(e)}"
+    # Convert list to JSON string if needed
+    if isinstance(data, list):
+        parsed_data = data
+    elif isinstance(data, str):
+        try:
+            parsed_data = json.loads(data)
+        except json.JSONDecodeError as e:
+            return f"Error: Invalid JSON data - {str(e)}"
+    else:
+        return "Error: data must be a list or JSON string"
 
     if not isinstance(parsed_data, list):
         return "Error: data must be a JSON array"
@@ -247,31 +260,111 @@ def query_db(
     """
     try:
         db = _get_db_with_scope(scope)
-        cursor = db.execute(sql)
+        statements = _split_sql_statements(sql)
+        if not statements:
+            return "Error executing SQL: no statements provided"
 
-        # Handle different query types
-        sql_upper = sql.strip().upper()
+        if len(statements) == 1:
+            cursor = db.execute(statements[0])
 
-        if sql_upper.startswith(("SELECT", "PRAGMA", "EXPLAIN")):
-            # Return results
-            rows = cursor.fetchall()
-            if not rows:
-                return "Query returned 0 rows"
+            # Handle different query types
+            sql_upper = statements[0].strip().upper()
 
-            # Get column names
-            columns = [desc[0] for desc in cursor.description] if cursor.description else []
+            if sql_upper.startswith(("SELECT", "PRAGMA", "EXPLAIN")):
+                # Return results
+                rows = cursor.fetchall()
+                if not rows:
+                    return "Query returned 0 rows"
 
-            # Format as text table
-            return _format_query_results(columns, rows)
-        else:
+                # Get column names
+                columns = [desc[0] for desc in cursor.description] if cursor.description else []
+
+                # Format as text table
+                return _format_query_results(columns, rows)
+
             # Write operation
             db.conn.commit()
             rows_affected = cursor.rowcount
             return f"Query executed successfully. Rows affected: {rows_affected}"
 
+        # Multiple statements: execute sequentially, return results from last statement
+        last_cursor = None
+        last_statement = ""
+        did_write = False
+        for statement in statements:
+            last_statement = statement
+            sql_upper = statement.strip().upper()
+            if not sql_upper:
+                continue
+            if not sql_upper.startswith(("SELECT", "PRAGMA", "EXPLAIN")):
+                did_write = True
+            last_cursor = db.execute(statement)
+
+        if did_write:
+            db.conn.commit()
+
+        if last_cursor is None:
+            return "Query executed successfully. Rows affected: 0"
+
+        last_sql_upper = last_statement.strip().upper()
+        if last_sql_upper.startswith(("SELECT", "PRAGMA", "EXPLAIN")):
+            rows = last_cursor.fetchall()
+            if not rows:
+                return "Query returned 0 rows"
+
+            columns = [desc[0] for desc in last_cursor.description] if last_cursor.description else []
+            return _format_query_results(columns, rows)
+
+        rows_affected = last_cursor.rowcount
+        return f"Query executed successfully. Rows affected: {rows_affected}"
+
     except Exception as e:
         return f"Error executing SQL: {str(e)}"
 
+
+def _split_sql_statements(sql: str) -> list[str]:
+    """Split SQL into statements, ignoring semicolons inside quotes."""
+    statements: list[str] = []
+    current: list[str] = []
+    in_single_quote = False
+    in_double_quote = False
+    escape_next = False
+
+    for ch in sql:
+        if escape_next:
+            current.append(ch)
+            escape_next = False
+            continue
+
+        if ch == "\\" and (in_single_quote or in_double_quote):
+            escape_next = True
+            current.append(ch)
+            continue
+
+        if ch == "'" and not in_double_quote:
+            in_single_quote = not in_single_quote
+            current.append(ch)
+            continue
+
+        if ch == '"' and not in_single_quote:
+            in_double_quote = not in_double_quote
+            current.append(ch)
+            continue
+
+        if ch == ";" and not in_single_quote and not in_double_quote:
+            statement = "".join(current).strip()
+            if statement:
+                statements.append(statement)
+            current = []
+            continue
+
+        current.append(ch)
+
+    tail = "".join(current).strip()
+    if tail:
+        statements.append(tail)
+
+    return statements
 
 def _format_query_results(columns: list[str], rows: list[tuple]) -> str:
     """Format query results as readable string."""

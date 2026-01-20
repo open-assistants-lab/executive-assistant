@@ -59,6 +59,12 @@ def _build_middleware(model: BaseChatModel, channel: Any = None) -> list[Any]:
     if settings.MW_TODO_LIST_ENABLED:
         middleware.append(TodoListMiddleware())
 
+        # Add todo display middleware to show todos via status updates
+        if settings.MW_STATUS_UPDATE_ENABLED and channel is not None:
+            from cassey.agent.todo_display import TodoDisplayMiddleware
+
+            middleware.append(TodoDisplayMiddleware(channel=channel))
+
     if settings.MW_SUMMARIZATION_ENABLED:
         middleware.append(
             SummarizationMiddleware(

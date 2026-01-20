@@ -13,7 +13,6 @@ from telegram.ext import (
     filters,
     ContextTypes,
 )
-from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.types import Runnable
 
 from cassey.channels.base import BaseChannel, MessageFormat
@@ -60,7 +59,6 @@ class TelegramChannel(BaseChannel):
         self.application: Application | None = None
         self._thread_locks: dict[str, asyncio.Lock] = {}
         self._status_messages: dict[str, int] = {}  # conversation_id -> message_id for editing
-        self._todo_messages: dict[str, int] = {}  # conversation_id -> message_id for todo edits
         self._debug_chats: set[int] = set()  # chat IDs with verbose debug mode enabled
 
     def _get_thread_lock(self, thread_id: str) -> asyncio.Lock:
@@ -89,6 +87,8 @@ class TelegramChannel(BaseChannel):
         self.application = Application.builder().token(self.token).build()
 
         # Register handlers
+        self.application.add_handler(CommandHandler("start", self._start_command))
+        self.application.add_handler(CommandHandler("help", self._help_command))
         self.application.add_handler(CommandHandler("reset", self._reset_command))
         self.application.add_handler(CommandHandler("remember", self._remember_command))
         self.application.add_handler(CommandHandler("debug", self._debug_command))
@@ -110,13 +110,9 @@ class TelegramChannel(BaseChannel):
         # No need for startup cleanup - corrupted messages are sanitized on load
 
         # Start polling
-        print("DEBUG: TelegramChannel: About to initialize...", flush=True)
         await self.application.initialize()
-        print("DEBUG: TelegramChannel: Initialized", flush=True)
         await self.application.start()
-        print("DEBUG: TelegramChannel: Application started", flush=True)
         await self.application.updater.start_polling(drop_pending_updates=True)
-        print("DEBUG: TelegramChannel: Polling started", flush=True)
 
     async def stop(self) -> None:
         """Stop the Telegram bot gracefully."""
@@ -192,6 +188,8 @@ class TelegramChannel(BaseChannel):
 
         # Convert markdown to Telegram format
         content = self._convert_markdown_to_telegram(content)
+        # Clean any problematic characters that could cause parse errors
+        content = self._clean_markdown(content)
 
         # Handle long messages by splitting them
         if len(content) > self.MAX_MESSAGE_LENGTH:
@@ -357,53 +355,6 @@ class TelegramChannel(BaseChannel):
         except Exception as e:
             logger.error(f"Failed to send status message to {conversation_id}: {e}")
 
-    async def send_todo(
-        self,
-        conversation_id: str,
-        message: str,
-        update: bool = True,
-    ) -> None:
-        """
-        Send a todo update with message editing for cleaner UX.
-
-        Todo updates are separate from status messages.
-        """
-        import logging
-        logger = logging.getLogger(__name__)
-
-        if not self.application:
-            logger.warning("send_todo: no application")
-            return
-
-        chat_id = int(conversation_id) if isinstance(conversation_id, str) else conversation_id
-
-        if update and conversation_id in self._todo_messages:
-            message_id = self._todo_messages[conversation_id]
-            try:
-                await self.application.bot.edit_message_text(
-                    chat_id=chat_id,
-                    message_id=message_id,
-                    text=message,
-                )
-                logger.info(f"Edited todo message {message_id} for {conversation_id}")
-                return
-            except BadRequest as e:
-                logger.warning(f"BadRequest editing todo message {message_id}: {e}, sending new")
-                del self._todo_messages[conversation_id]
-            except Exception as e:
-                logger.warning(f"Error editing todo message {message_id}: {e}, sending new")
-                del self._todo_messages[conversation_id]
-
-        try:
-            msg = await self.application.bot.send_message(
-                chat_id=chat_id,
-                text=message,
-            )
-            self._todo_messages[conversation_id] = msg.message_id
-            logger.info(f"Sent new todo message {msg.message_id} to {conversation_id}")
-        except Exception as e:
-            logger.error(f"Failed to send todo message to {conversation_id}: {e}")
-
     async def handle_message(self, message: MessageFormat) -> None:
         """Handle incoming message through the agent with real-time streaming."""
         import time
@@ -438,25 +389,19 @@ class TelegramChannel(BaseChannel):
                 )
 
                 # Set up context (copied from base.py's new handle_message)
-                from cassey.storage.file_sandbox import set_thread_id
-                from cassey.storage.group_storage import (
-                    ensure_thread_group,
-                    set_group_id as set_workspace_context,
-                    set_user_id as set_workspace_user_id,
-                )
                 channel = self.__class__.__name__.lower().replace("channel", "")
                 config = {"configurable": {"thread_id": thread_id}}
 
                 # Set thread_id context for file sandbox operations
                 set_thread_id(thread_id)
 
+                # Ensure group exists and set group_id context
+                group_id = await ensure_thread_group(thread_id, message.user_id)
+                set_workspace_context(group_id)
+
                 # Convert thread_id to user_id (identity_id) for storage and permission checks
                 from cassey.storage.helpers import sanitize_thread_id_to_user_id
                 user_id_for_storage = sanitize_thread_id_to_user_id(thread_id)
-
-                # Ensure group exists and set group_id context
-                group_id = await ensure_thread_group(thread_id, user_id_for_storage)
-                set_workspace_context(group_id)
                 set_workspace_user_id(user_id_for_storage)
 
                 # Retrieve relevant memories and inject into message
@@ -464,19 +409,7 @@ class TelegramChannel(BaseChannel):
                 enhanced_content = self._inject_memories(message.content, memories)
 
                 # Build state with only the new message
-                state = {
-                    "messages": [
-                        HumanMessage(
-                            content=enhanced_content,
-                            additional_kwargs={"cassey_message_id": message.message_id},
-                        )
-                    ],
-                    "run_model_call_count": 0,
-                    "run_tool_call_count": {},
-                    "thread_model_call_count": 0,
-                    "thread_tool_call_count": {},
-                    "todos": [],
-                }
+                state = {"messages": [HumanMessage(content=enhanced_content)]}
 
                 # Log incoming message if audit is enabled
                 if self.registry:
@@ -497,12 +430,10 @@ class TelegramChannel(BaseChannel):
                     event_count += 1
 
                     # Extract and send messages immediately as they arrive
-                    messages = self._extract_messages_from_event(event)
-                    new_messages = self._get_new_ai_messages(messages, message.message_id)
-                    for msg in new_messages:
+                    for msg in self._extract_messages_from_event(event):
+                        message_count += 1
                         # Send immediately, don't accumulate!
-                        if isinstance(msg, AIMessage) and hasattr(msg, "content") and msg.content:
-                            message_count += 1
+                        if hasattr(msg, "content") and msg.content:
                             await self.send_message(message.conversation_id, msg.content)
 
                         # Log message if audit is enabled
@@ -553,6 +484,32 @@ class TelegramChannel(BaseChannel):
                 # Log total request latency
                 total_elapsed = time.time() - request_start
                 logger.info(f"Total request latency for {message.conversation_id}: {total_elapsed:.1f}s")
+
+            "/reset - Clear conversation history\n"
+            "/remember <content> - Quick store a memory\n"
+            "/debug - Toggle verbose status (see LLM calls & tools)\n\n"
+            "*Memory* (/mem):\n"
+            "• `/mem` - List all memories\n"
+            "• `/mem search <query>` - Search memories\n"
+            "• `/mem forget <id|key>` - Forget a memory\n\n"
+            "*Vector Store* (/vs):\n"
+            "• `/vs` - List tables\n"
+            "• `/vs store <table> <json>` - Store docs\n"
+            "• `/vs search <query>` - Search VS\n\n"
+            "*Database* (/db):\n"
+            "• `/db` - List tables\n"
+            "• `/db create <table> <json>` - Create table\n"
+            "• `/db query <sql>` - Run SQL query\n\n"
+            "*Files* (/file):\n"
+            "• `/file` - List files\n"
+            "• `/file read <path>` - Read file\n"
+            "• `/file write <path> <text>` - Write file\n\n"
+            "*What I can do:*\n"
+            "• Search the web • Read/write files • Calculations\n"
+            "• Remember facts • Use tools to help you\n\n"
+            "*Tip:* Try /mem, /vs, /db, /file, or /debug alone to see all options"
+        )
+        await update.message.reply_text(help_message, parse_mode="Markdown")
 
     async def _reset_command(
         self,
@@ -748,7 +705,6 @@ class TelegramChannel(BaseChannel):
         context: ContextTypes.DEFAULT_TYPE,
     ) -> None:
         """Handle incoming text messages."""
-        print(f"DEBUG: _message_handler called: update={update.update_id}, text={update.message.text if update.message else 'None'}", flush=True)
         if not update.message or not update.message.text:
             return
 

@@ -119,6 +119,22 @@ async def get_memory_tools() -> list[BaseTool]:
     return _get()
 
 
+async def get_identity_tools() -> list[BaseTool]:
+    """Get identity merge tools for user identity consolidation."""
+    from cassey.tools.identity_tools import (
+        request_identity_merge,
+        confirm_identity_merge,
+        merge_additional_identity,
+        get_my_identity,
+    )
+    return [
+        request_identity_merge,
+        confirm_identity_merge,
+        merge_additional_identity,
+        get_my_identity,
+    ]
+
+
 async def get_mcp_tools() -> list[BaseTool]:
     """
     Get tools from MCP servers configured in .mcp.json.
@@ -188,6 +204,7 @@ async def get_all_tools() -> list[BaseTool]:
     - Database operations (create_db_table, query_db, etc. with scope="context"|"shared")
     - Vector Store (create_vs_collection, search_vs, vs_list, etc.)
     - Memory (create_memory, update_memory, delete_memory, list_memories, search_memories, etc.)
+    - Identity (request_identity_merge, confirm_identity_merge, merge_additional_identity, get_my_identity)
     - Time tools (get_current_time, get_current_date, list_timezones)
     - Reminder tools (reminder_set with dateparser, reminder_list, reminder_cancel, reminder_edit)
     - Python execution (execute_python for calculations and data processing)
@@ -219,6 +236,9 @@ async def get_all_tools() -> list[BaseTool]:
 
     # Add memory tools
     all_tools.extend(await get_memory_tools())
+
+    # Add identity tools
+    all_tools.extend(await get_identity_tools())
 
     # Add time tools
     all_tools.extend(await get_time_tools())

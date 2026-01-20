@@ -234,6 +234,10 @@ class StatusUpdateMiddleware(AgentMiddleware):
                     f"{summary_result['tokens_before']}→{summary_result['tokens_after']} tokens "
                     f"({summary_result['reduction_pct']:.0f}% smaller)"
                 )
+            print(
+                f"[SUMMARIZATION_CONFIG] trigger={settings.MW_SUMMARIZATION_MAX_TOKENS} "
+                f"target={settings.MW_SUMMARIZATION_TARGET_TOKENS}"
+            )
 
         # Check for context editing
         context_result = self.middleware_debug.detect_context_editing()

@@ -30,22 +30,53 @@ class MemoryStorage:
 
     def _get_db_path(self, thread_id: str | None = None) -> Path:
         """
-        Get the memory database path for a thread.
+        Get the memory database path for a user/thread.
+
+        Priority:
+        1. user_id from context (individual mode)
+        2. group_id from context (team mode)
+        3. thread_id parameter or from context (converted to user_id)
 
         Args:
-            thread_id: Thread identifier. If None, uses current context thread_id.
+            thread_id: Thread identifier. If None, uses current context.
 
         Returns:
             Path to the memory database file.
         """
-        if thread_id is None:
-            thread_id = get_thread_id()
+        # Try to get storage ID from context (user_id or group_id)
+        storage_id = None
 
-        if thread_id is None:
-            raise ValueError("No thread_id provided and no thread_id in context")
+        # 1. user_id from context (individual mode)
+        from cassey.storage.group_storage import get_user_id as get_user_id_from_context
+        user_id_val = get_user_id_from_context()
+        if user_id_val:
+            storage_id = user_id_val
+        else:
+            # 2. group_id from context (team mode)
+            from cassey.storage.group_storage import get_workspace_id
+            group_id = get_workspace_id()
+            if group_id:
+                storage_id = group_id
 
-        # Use settings path helper
-        mem_path = settings.get_thread_mem_path(thread_id)
+        # 3. Fall back to thread_id if no user_id or group_id
+        if storage_id is None:
+            if thread_id is None:
+                thread_id = get_thread_id()
+
+            if thread_id is None:
+                raise ValueError("No user_id, group_id, or thread_id provided/context")
+
+            # Convert thread_id to user_id
+            from cassey.storage.helpers import sanitize_thread_id_to_user_id
+            storage_id = sanitize_thread_id_to_user_id(thread_id)
+
+        # Use settings path helper with storage_id (user_id or group_id)
+        # Check if it's a user_id or group_id
+        if storage_id.startswith("group_"):
+            mem_path = settings.get_group_mem_path(storage_id)
+        else:
+            mem_path = settings.get_user_mem_path(storage_id)
+
         mem_path.parent.mkdir(parents=True, exist_ok=True)
         return mem_path
 

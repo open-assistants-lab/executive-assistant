@@ -11,6 +11,7 @@ from langchain_core.tools import tool
 from cassey.config import settings
 from cassey.storage.db_storage import validate_identifier
 from cassey.storage.file_sandbox import SecurityError, get_thread_id
+from cassey.storage.group_storage import get_workspace_id
 from cassey.storage.meta_registry import (
     record_vs_table_added,
     record_vs_table_removed,
@@ -27,19 +28,36 @@ def _get_storage_id() -> str:
     """
     Get the storage ID for VS operations.
 
-    Uses thread_id for thread-scoped storage (consistent with /mem, /db, /file).
+    Priority:
+    1. user_id from context (individual mode)
+    2. group_id from context (team mode)
+    3. thread_id from context (converted to user_id)
 
     Returns:
         The storage identifier.
 
     Raises:
-        ValueError: If no thread_id in context.
+        ValueError: If no user_id, group_id, or thread_id context is available.
     """
+    # 1. user_id from context (individual mode)
+    from cassey.storage.group_storage import get_user_id as get_user_id_from_context
+    user_id_val = get_user_id_from_context()
+    if user_id_val:
+        return user_id_val
+
+    # 2. group_id from context (team mode)
+    group_id = get_workspace_id()
+    if group_id:
+        return group_id
+
+    # 3. thread_id from context (convert to user_id)
+    # This ensures all storage is user-based, not thread-based
     thread_id = get_thread_id()
     if thread_id:
-        return thread_id
+        from cassey.storage.helpers import sanitize_thread_id_to_user_id
+        return sanitize_thread_id_to_user_id(thread_id)
 
-    raise ValueError("No thread_id in context")
+    raise ValueError("No user_id, group_id, or thread_id in context")
 
 
 def _get_storage_id_with_scope(scope: Literal["context", "shared"] = "context") -> str:

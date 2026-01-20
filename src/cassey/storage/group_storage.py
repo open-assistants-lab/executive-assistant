@@ -879,9 +879,11 @@ def _check_permission_sync(
 
     elif scope == "group":
         group_id = get_group_id()
+        logger.debug(f"Permission check: group_id={group_id}")
         if group_id:
             # Has group context
             user_id = get_user_id()
+            logger.debug(f"Permission check: user_id={user_id}")
             if not user_id:
                 raise ValueError("No user context - permission check failed")
             # Would need to check permissions, but for now allow if group_id exists

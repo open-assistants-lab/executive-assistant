@@ -10,48 +10,27 @@ from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
 from cassey.agent.state import AgentState
-from cassey.agent.nodes import call_model, call_tools, summarize_conversation, increment_iterations
+from cassey.agent.nodes import call_model, call_tools, increment_iterations
 from cassey.config import settings
 
 
-def route_agent(state: AgentState) -> str:
+def route_to_tools_or_end(state: AgentState) -> str:
     """
-    Route after agent node: tools, summarize, or end.
+    Route after agent node: tools or end.
 
-    Priority:
-    1. If message count is 2x threshold (urgent) -> summarize immediately
-    2. If tool calls needed AND not at urgent threshold -> tools
-    3. If summarization enabled and threshold exceeded -> summarize
-    4. Otherwise -> END
+    Simplified routing - no custom summarization.
+    LangChain's SummarizationMiddleware handles token-based summarization.
     """
-    from langchain_core.messages import AIMessage, HumanMessage
+    from langchain_core.messages import AIMessage
 
     messages = state["messages"]
     iterations = state.get("iterations", 0)
-
-    # Count human/AI messages for threshold checking
-    message_count = len([m for m in messages if isinstance(m, (HumanMessage, AIMessage))])
-
-    # Urgent summarization: if we're at 2x threshold, force summarize
-    # But NOT if there are pending tool calls (must respond to tool_calls first)
-    has_pending_tool_calls = (
-        isinstance(messages[-1], AIMessage) and
-        hasattr(messages[-1], "tool_calls") and
-        messages[-1].tool_calls
-    )
-    if settings.ENABLE_SUMMARIZATION and message_count >= settings.SUMMARY_THRESHOLD * 2 and not has_pending_tool_calls:
-        return "summarize"
 
     # Check iteration limit and tool calls
     if iterations < settings.MAX_ITERATIONS:
         last_message = messages[-1]
         if isinstance(last_message, AIMessage) and hasattr(last_message, "tool_calls") and last_message.tool_calls:
             return "tools"
-
-    # Normal summarization check
-    if settings.ENABLE_SUMMARIZATION:
-        if message_count >= settings.SUMMARY_THRESHOLD:
-            return "summarize"
 
     return END
 
@@ -106,25 +85,22 @@ def create_react_graph(
         system_prompt=system_prompt,
     )
     call_tools_node = partial(call_tools, tools_by_name=tools_by_name)
-    summarize_node = partial(summarize_conversation, model=model)
 
     # Add nodes to the graph
     workflow.add_node("agent", call_model_node)
     workflow.add_node("tools", call_tools_node)
-    workflow.add_node("summarize", summarize_node)
     workflow.add_node("increment", increment_iterations)
 
     # Set entry point
     workflow.set_entry_point("agent")
 
     # Add conditional edge from agent node
-    # After agent calls model, decide: tools, summarize, or end?
+    # After agent calls model, decide: tools or end?
     workflow.add_conditional_edges(
         "agent",
-        route_agent,
+        route_to_tools_or_end,
         {
             "tools": "tools",
-            "summarize": "summarize",
             END: END,
         },
     )
@@ -133,9 +109,6 @@ def create_react_graph(
     # After executing tools, increment iteration count, then go back to agent
     workflow.add_edge("tools", "increment")
     workflow.add_edge("increment", "agent")
-
-    # After summarizing, go to END
-    workflow.add_edge("summarize", END)
 
     return workflow
 

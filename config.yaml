@@ -79,8 +79,8 @@ middleware:
   # Summarization Middleware - reduces context size when it gets too large
   summarization:
     enabled: true
-    max_tokens: 10000 # Trigger summarization at this token count
-    target_tokens: 2000 # Target size after summarization
+    max_tokens: 20000 # Trigger summarization at this token count (lowered from 10k)
+    target_tokens: 2000 # Target size after summarization (lowered from 2k)
 
   # Call Limits - prevent runaway agent execution (per-message limits)
   model_call_limit: 30 # Max 10 LLM calls per message (prevents infinite loops)
@@ -106,7 +106,13 @@ middleware:
   status_updates:
     enabled: true
     show_tool_args: false # Show tool arguments (security risk if true)
-    update_interval: 0.5 # Minimum seconds between status updates
+    update_interval: 1 # Minimum seconds between status updates
+
+  # Todo List Display Middleware - shows planned tasks to users
+  todo_list_display:
+    max_display: 10 # Maximum number of todos to show in status
+    update_interval: 0.5 # Minimum seconds between todo list updates
+    show_progress_bar: false # Use progress bar format instead of list
 
 # ============================================================================
 # Vector Store Configuration
@@ -117,15 +123,6 @@ vector_store:
   embedding_model: "all-MiniLM-L6-v2"
   embedding_dimension: 384
   chunk_size: 3000 # Default chunk size in characters
-
-# ============================================================================
-# Context Management
-# ============================================================================
-
-context:
-  max_tokens: 100000 # Max tokens before summarization
-  enable_summarization: true
-  summary_threshold: 20 # Summarize after N messages
 
 # ============================================================================
 # Memory (Embedded User Memories)

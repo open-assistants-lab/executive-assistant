@@ -410,27 +410,43 @@ def get_db_storage() -> DBStorage:
     """
     Get a database storage instance scoped to the current context.
 
-    Uses group_id from context if available, otherwise falls back to thread_id.
+    Priority:
+    1. user_id from context (individual mode)
+    2. group_id from context (team mode)
+    3. thread_id from context (converted to user_id)
 
     Returns:
-        A DBStorage instance scoped to the current group or thread.
+        A DBStorage instance scoped to the current user/group.
 
     Raises:
-        ValueError: If no group_id or thread_id context is available.
+        ValueError: If no user_id, group_id, or thread_id context is available.
     """
+    # 1. user_id from context (individual mode)
+    from cassey.storage.group_storage import get_user_id as get_user_id_from_context
+    user_id_val = get_user_id_from_context()
+    if user_id_val:
+        db_path = settings.get_user_db_path(user_id_val)
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        return DBStorage(root=db_path.parent)
+
+    # 2. group_id from context (team mode)
     group_id = get_workspace_id()
     if group_id:
         db_path = settings.get_group_db_path(group_id)
         db_path.parent.mkdir(parents=True, exist_ok=True)
         return DBStorage(root=db_path.parent)
 
+    # 3. thread_id from context (convert to user_id)
+    # This ensures all storage is user-based, not thread-based
     thread_id = get_thread_id()
     if thread_id:
-        db_path = settings.get_thread_db_path(thread_id)
+        from cassey.storage.helpers import sanitize_thread_id_to_user_id
+        user_id_from_thread = sanitize_thread_id_to_user_id(thread_id)
+        db_path = settings.get_user_db_path(user_id_from_thread)
         db_path.parent.mkdir(parents=True, exist_ok=True)
         return DBStorage(root=db_path.parent)
 
     raise ValueError(
-        "DBStorage requires group_id or thread_id context. "
+        "DBStorage requires user_id, group_id, or thread_id context. "
         "Ensure context is set before calling get_db_storage()."
     )

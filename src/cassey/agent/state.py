@@ -1,7 +1,8 @@
 """Agent state definition for ReAct graph."""
 
-from typing import Annotated, Sequence, TypedDict, Any
+from typing import Annotated, NotRequired, Sequence, TypedDict, Any
 
+from langchain.agents.middleware.todo import Todo
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 
@@ -16,6 +17,7 @@ class AgentState(TypedDict):
         iterations: Number of reasoning cycles completed (prevents infinite loops).
         user_id: Identifier for the user (for multi-tenancy).
         channel: Source channel (telegram, slack, whatsapp, etc.).
+        todos: List of todo items for tracking task progress (from TodoListMiddleware).
     """
 
     messages: Annotated[Sequence[BaseMessage], add_messages]
@@ -23,3 +25,4 @@ class AgentState(TypedDict):
     iterations: int
     user_id: str
     channel: str
+    todos: NotRequired[list[Todo]]

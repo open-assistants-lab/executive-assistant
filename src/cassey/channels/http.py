@@ -1,6 +1,8 @@
 """Web/HTTP channel with streaming support."""
 
+import asyncio
 import json
+import time
 from typing import Any, AsyncIterator
 
 from fastapi import FastAPI, HTTPException
@@ -10,6 +12,15 @@ from langchain_core.messages import HumanMessage, AIMessage
 
 from cassey.channels.base import BaseChannel, MessageFormat
 from cassey.config import settings
+from cassey.storage.file_sandbox import set_thread_id
+from cassey.storage.group_storage import (
+    ensure_thread_group,
+    set_group_id as set_workspace_context,
+    set_user_id as set_workspace_user_id,
+)
+from cassey.storage.helpers import sanitize_thread_id_to_user_id
+from cassey.storage.user_registry import UserRegistry
+from loguru import logger
 
 
 class MessageRequest(BaseModel):
@@ -81,6 +92,7 @@ class HttpChannel(BaseChannel):
         )
         self._setup_routes()
         self._server: Any = None
+        self._stream_queues: dict[str, asyncio.Queue[dict[str, Any]]] = {}
 
     def _setup_routes(self) -> None:
         """Setup API routes."""
@@ -95,6 +107,22 @@ class HttpChannel(BaseChannel):
             """
             # Generate conversation_id if not provided
             conversation_id = req.conversation_id or f"http_{req.user_id}"
+
+            # Auto-create identity for anonymous users
+            thread_id = f"http:{conversation_id}"
+            identity_id = sanitize_thread_id_to_user_id(thread_id)
+
+            # Create identity record if it doesn't exist
+            try:
+                registry = UserRegistry()
+                await registry.create_identity_if_not_exists(
+                    thread_id=thread_id,
+                    identity_id=identity_id,
+                    channel="http"
+                )
+            except Exception as e:
+                # Log but don't fail - user can still interact
+                logger.warning(f"Failed to create identity for {thread_id}: {e}")
 
             message = MessageFormat(
                 content=req.content,
@@ -170,16 +198,60 @@ class HttpChannel(BaseChannel):
         Yields:
             SSE-formatted chunks
         """
-        messages = await self.stream_agent_response(message)
+        thread_id = self.get_thread_id(message)
+        config = {"configurable": {"thread_id": thread_id}}
 
-        for msg in messages:
-            if hasattr(msg, "content") and msg.content:
-                chunk = MessageChunk(
-                    content=msg.content,
-                    role="assistant" if isinstance(msg, AIMessage) else "user",
-                    done=False,
+        set_thread_id(thread_id)
+        user_id_for_storage = sanitize_thread_id_to_user_id(thread_id)
+
+        group_id = await ensure_thread_group(thread_id, user_id_for_storage)
+        set_workspace_context(group_id)
+        set_workspace_user_id(user_id_for_storage)
+
+        memories = self._get_relevant_memories(thread_id, message.content)
+        enhanced_content = self._inject_memories(message.content, memories)
+
+        message_id = message.message_id or f"http_{int(time.time() * 1000)}"
+        state = {
+            "messages": [
+                HumanMessage(
+                    content=enhanced_content,
+                    additional_kwargs={"cassey_message_id": message_id},
                 )
-                yield f"data: {chunk.model_dump_json()}\n\n"
+            ],
+            "run_model_call_count": 0,
+            "run_tool_call_count": {},
+            "thread_model_call_count": 0,
+            "thread_tool_call_count": {},
+            "todos": [],
+        }
+
+        self._stream_queues[message.conversation_id] = asyncio.Queue()
+        try:
+            async for event in self.agent.astream(state, config):
+                messages = self._extract_messages_from_event(event)
+                new_messages = self._get_new_ai_messages(messages, message_id)
+                for msg in new_messages:
+                    if hasattr(msg, "content") and msg.content:
+                        chunk = MessageChunk(
+                            content=msg.content,
+                            role="assistant",
+                            done=False,
+                        )
+                        yield f"data: {chunk.model_dump_json()}\n\n"
+
+                queue = self._stream_queues.get(message.conversation_id)
+                if queue:
+                    while not queue.empty():
+                        event_payload = queue.get_nowait()
+                        chunk = MessageChunk(
+                            content=event_payload["content"],
+                            role=event_payload["role"],
+                            done=False,
+                        )
+                        yield f"data: {chunk.model_dump_json()}\n\n"
+        finally:
+            self._stream_queues.pop(message.conversation_id, None)
 
         # Send final done signal
         yield "data: {\"done\": true}\n\n"
@@ -233,11 +305,31 @@ class HttpChannel(BaseChannel):
         passing status messages through the response stream.
         For now, this logs for debugging.
         """
-        # TODO: Integrate with SSE stream for real-time status updates
-        # For now, log the status for debugging
+        if self._enqueue_stream_event(conversation_id, role="status", content=message):
+            return
         import logging
         logger = logging.getLogger(__name__)
         logger.debug(f"[{conversation_id}] Status: {message}")
+
+    async def send_todo(
+        self,
+        conversation_id: str,
+        message: str,
+        update: bool = True,
+    ) -> None:
+        """Send todo update (SSE stream if active, else log)."""
+        if self._enqueue_stream_event(conversation_id, role="todo", content=message):
+            return
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug(f"[{conversation_id}] Todo: {message}")
+
+    def _enqueue_stream_event(self, conversation_id: str, role: str, content: str) -> bool:
+        queue = self._stream_queues.get(conversation_id)
+        if not queue:
+            return False
+        queue.put_nowait({"role": role, "content": content})
+        return True
 
     @staticmethod
     def get_thread_id(message: MessageFormat) -> str:
