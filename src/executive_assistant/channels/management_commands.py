@@ -5,11 +5,15 @@ to go through the agent's tool calling mechanism.
 """
 
 import json
+import logging
+import html
 from pathlib import Path
 from telegram import Update
 from telegram.ext import ContextTypes
 
 from executive_assistant.config import settings
+
+logger = logging.getLogger(__name__)
 from executive_assistant.storage.file_sandbox import set_thread_id, clear_thread_id
 from executive_assistant.storage.group_storage import (
     ensure_thread_group,
@@ -52,6 +56,8 @@ COMMON_MEMORY_KEYS = {
     "phone",
     "pronouns",
 }
+
+_LAST_MEM_LIST: dict[str, list[dict]] = {}
 
 def _get_thread_id(update: Update) -> str:
     """Get thread_id from Telegram update."""
@@ -97,6 +103,7 @@ async def mem_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         return
 
     thread_id = _get_thread_id(update)
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={sanitize_thread_id_to_user_id(thread_id)} | command recv /mem {update.message.text or ""}")
     if not await _ensure_authorized(update, thread_id):
         return
     chat_type = _get_chat_type(update)
@@ -107,6 +114,8 @@ async def mem_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         return
 
     action = args[0].lower()
+
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={sanitize_thread_id_to_user_id(thread_id)} | command /mem action={action} args={args[1:]}" )
 
     if action == "list":
         # /mem list [type]
@@ -153,6 +162,7 @@ async def user_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     thread_id = _get_thread_id(update)
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={sanitize_thread_id_to_user_id(thread_id)} | command recv /mem {update.message.text or ""}")
     user_id = sanitize_thread_id_to_user_id(thread_id)
     if not is_admin(thread_id, user_id):
         await update.message.reply_text("Only admins can manage users.")
@@ -300,6 +310,7 @@ async def reminder_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return
 
     thread_id = _get_thread_id(update)
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={sanitize_thread_id_to_user_id(thread_id)} | command recv /mem {update.message.text or ""}")
     if not await _ensure_authorized(update, thread_id):
         return
     chat_type = _get_chat_type(update)
@@ -310,6 +321,8 @@ async def reminder_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return
 
     action = args[0].lower()
+
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={sanitize_thread_id_to_user_id(thread_id)} | command /mem action={action} args={args[1:]}" )
 
     await _set_context(thread_id, chat_type)
     try:
@@ -397,7 +410,7 @@ async def _mem_help(update: Update) -> None:
         "• `/mem forget abc123`\n"
         "• `/mem update abc123 New content here`"
     )
-    await update.message.reply_text(help_text, parse_mode="Markdown")
+    await update.message.reply_text(help_text, parse_mode="HTML")
 
 async def _mem_overview(update: Update, thread_id: str, chat_type: str | None) -> None:
     """Show memory counts and commands."""
@@ -428,7 +441,7 @@ async def _mem_overview(update: Update, thread_id: str, chat_type: str | None) -
             "Example:\n"
             "`/mem add I prefer tea over coffee type=preference`"
         )
-        await update.message.reply_text(help_text, parse_mode="Markdown")
+        await update.message.reply_text(help_text, parse_mode="HTML")
     except Exception as e:
         await update.message.reply_text(f"Error reading memories: {e}")
     finally:
@@ -521,11 +534,11 @@ async def _mem_list(update: Update, thread_id: str, mem_type: str | None = None,
         memories = storage.list_memories(memory_type=mem_type, status="active")
 
         if not memories:
-            msg = "💾 *No memories found*\n\nUse `/remember <content>` to save memories."
-            await update.message.reply_text(msg, parse_mode="Markdown")
+            msg = "💾 <b>No memories found</b>\n\nUse <code>/remember &lt;content&gt;</code> to save memories."
+            await update.message.reply_text(msg, parse_mode="HTML")
             return
 
-        lines = [f"💾 *Your Memories* ({len(memories)} total)\n"]
+        lines = [f"💾 <b>Your Memories</b> ({len(memories)} total)\n"]
 
         # Group by type
         by_type: dict[str, list[dict]] = {}
@@ -535,17 +548,21 @@ async def _mem_list(update: Update, thread_id: str, mem_type: str | None = None,
         index = 1
         ordered: list[dict] = []
         for mtype, items in by_type.items():
-            lines.append(f"\n*{mtype.capitalize()}* ({len(items)}):")
+            lines.append(f"\n<b>{html.escape(mtype.capitalize())}</b> ({len(items)}):")
             for m in items[:5]:  # Max 5 per type
-                content = m["content"][:60]
+                content = html.escape(m["content"][:60])
                 suffix = "..." if len(m["content"]) > 60 else ""
-                key_val = m.get("key") or "-"
+                key_val = html.escape(m.get("key") or "-")
                 lines.append(f"  • [{index}] {content}{suffix} (key: {key_val})")
                 ordered.append(m)
                 index += 1
 
         _LAST_MEM_LIST[thread_id] = ordered
-        await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+        try:
+            await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+        except Exception as e:
+            logger.exception(f"/mem list send failed: {e}")
+            raise
     except Exception as e:
         await update.message.reply_text(f"Error listing memories: {e}")
     finally:
@@ -562,12 +579,15 @@ async def _mem_search(update: Update, thread_id: str, query: str, chat_type: str
             await update.message.reply_text(f"💾 No memories found matching: {query}")
             return
 
-        lines = [f"💾 *Memories matching '{query}'* ({len(memories)} found)\n"]
+        safe_query = html.escape(query)
+        lines = [f"💾 <b>Memories matching '{safe_query}'</b> ({len(memories)} found)\n"]
         for m in memories:
-            key_note = f" [{m['key']}]" if m.get("key") else ""
-            lines.append(f"  • {m['content'][:80]}{'...' if len(m['content']) > 80 else ''}{key_note}")
+            key_note = f" (key: {html.escape(m.get('key') or "-")})" if m.get("key") else " (key: -)"
+            content = html.escape(m['content'][:80])
+            suffix = "..." if len(m['content']) > 80 else ""
+            lines.append(f"  • {content}{suffix}{key_note}")
 
-        await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+        await update.message.reply_text("\n".join(lines), parse_mode="HTML")
     except Exception as e:
         await update.message.reply_text(f"Error searching memories: {e}")
     finally:
@@ -646,6 +666,7 @@ async def vs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         return
 
     thread_id = _get_thread_id(update)
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={sanitize_thread_id_to_user_id(thread_id)} | command recv /mem {update.message.text or ""}")
     if not await _ensure_authorized(update, thread_id):
         return
     chat_type = _get_chat_type(update)
@@ -657,6 +678,8 @@ async def vs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         return
 
     action = args[0].lower()
+
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={sanitize_thread_id_to_user_id(thread_id)} | command /mem action={action} args={args[1:]}" )
 
     if action == "list":
         await _vs_list(update, thread_id, scope)
@@ -705,7 +728,7 @@ async def _vs_help(update: Update) -> None:
         "Example:\n"
         "`/vs store notes [{\"content\": \"Meeting notes\"}]`"
     )
-    await update.message.reply_text(help_text, parse_mode="Markdown")
+    await update.message.reply_text(help_text, parse_mode="HTML")
 
 async def _vs_overview(update: Update, thread_id: str, scope: str) -> None:
     """Show VS counts and commands."""
@@ -729,7 +752,7 @@ async def _vs_overview(update: Update, thread_id: str, scope: str) -> None:
             "Example:\n"
             "`/vs store notes [{\"content\": \"Meeting notes\"}]`"
         )
-        await update.message.reply_text(help_text, parse_mode="Markdown")
+        await update.message.reply_text(help_text, parse_mode="HTML")
     except Exception as e:
         await update.message.reply_text(f"Error listing VS: {e}")
     finally:
@@ -858,6 +881,7 @@ async def db_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         return
 
     thread_id = _get_thread_id(update)
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={sanitize_thread_id_to_user_id(thread_id)} | command recv /mem {update.message.text or ""}")
     if not await _ensure_authorized(update, thread_id):
         return
     args = context.args if context.args else []
@@ -868,6 +892,8 @@ async def db_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         return
 
     action = args[0].lower()
+
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={sanitize_thread_id_to_user_id(thread_id)} | command /mem action={action} args={args[1:]}" )
 
     if action == "list":
         await _db_list(update, thread_id, scope)
@@ -931,7 +957,7 @@ async def _db_help(update: Update) -> None:
         "Example:\n"
         "`/db create users [{\"name\": \"Alice\", \"age\": 30}]`"
     )
-    await update.message.reply_text(help_text, parse_mode="Markdown")
+    await update.message.reply_text(help_text, parse_mode="HTML")
 
 async def _db_overview(update: Update, thread_id: str, scope: str) -> None:
     """Show DB counts and commands."""
@@ -956,7 +982,7 @@ async def _db_overview(update: Update, thread_id: str, scope: str) -> None:
             "Example:\n"
             "`/db create users [{\"name\": \"Alice\", \"age\": 30}]`"
         )
-        await update.message.reply_text(help_text, parse_mode="Markdown")
+        await update.message.reply_text(help_text, parse_mode="HTML")
     except Exception as e:
         await update.message.reply_text(f"Error listing tables: {e}")
     finally:
@@ -1037,7 +1063,7 @@ async def _db_query(update: Update, thread_id: str, sql: str, scope: str) -> Non
         if len(results) > 20:
             lines.append(f"\n... ({len(results) - 20} more rows)")
 
-        await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+        await update.message.reply_text("\n".join(lines), parse_mode="HTML")
     except Exception as e:
         await update.message.reply_text(f"Error running query: {e}")
     finally:
@@ -1056,7 +1082,7 @@ async def _db_describe(update: Update, thread_id: str, table_name: str, scope: s
             pk = " PK" if col["pk"] > 0 else ""
             lines.append(f"  • {col['name']}: {col['type']} {nullable}{pk}")
 
-        await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+        await update.message.reply_text("\n".join(lines), parse_mode="HTML")
     except Exception as e:
         await update.message.reply_text(f"Error describing table: {e}")
     finally:
@@ -1112,6 +1138,7 @@ async def file_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     thread_id = _get_thread_id(update)
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={sanitize_thread_id_to_user_id(thread_id)} | command recv /mem {update.message.text or ""}")
     if not await _ensure_authorized(update, thread_id):
         return
     args = context.args if context.args else []
@@ -1122,6 +1149,8 @@ async def file_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     action = args[0].lower()
+
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={sanitize_thread_id_to_user_id(thread_id)} | command /mem action={action} args={args[1:]}" )
 
     if action == "list":
         pattern = args[1] if len(args) > 1 else None
@@ -1167,7 +1196,7 @@ async def _file_help(update: Update) -> None:
         "• `/file list *.txt`\n"
         "• `/file read notes.txt`"
     )
-    await update.message.reply_text(help_text, parse_mode="Markdown")
+    await update.message.reply_text(help_text, parse_mode="HTML")
 
 async def _file_overview(update: Update, thread_id: str, scope: str) -> None:
     """Show file counts and commands."""
@@ -1195,7 +1224,7 @@ async def _file_overview(update: Update, thread_id: str, scope: str) -> None:
             "• `/file list *.txt`\n"
             "• `/file read notes.txt`"
         )
-        await update.message.reply_text(help_text, parse_mode="Markdown")
+        await update.message.reply_text(help_text, parse_mode="HTML")
     except Exception as e:
         await update.message.reply_text(f"Error listing files: {e}")
     finally:
@@ -1235,7 +1264,7 @@ async def _file_read(update: Update, thread_id: str, filepath: str, scope: str) 
         if len(result) > 3000:
             result = result[:3000] + "\n\n... (truncated, file too large)"
 
-        await update.message.reply_text(f"📄 *{filepath}*\n\n```\n{result}\n```", parse_mode="Markdown")
+        await update.message.reply_text(f"📄 *{filepath}*\n\n```\n{result}\n```", parse_mode="HTML")
     except Exception as e:
         await update.message.reply_text(f"Error reading file: {e}")
     finally:
@@ -1295,6 +1324,7 @@ async def meta_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     thread_id = _get_thread_id(update)
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={sanitize_thread_id_to_user_id(thread_id)} | command recv /mem {update.message.text or ""}")
     if not await _ensure_authorized(update, thread_id):
         return
     args = context.args if context.args else []
@@ -1316,10 +1346,10 @@ async def meta_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         meta = await refresh_meta(thread_id) if refresh else load_meta(thread_id)
         if as_json:
             text = json.dumps(meta, indent=2)
-            await update.message.reply_text(f"```json\n{text}\n```", parse_mode="Markdown")
+            await update.message.reply_text(f"```json\n{text}\n```", parse_mode="HTML")
         else:
             text = format_meta(meta, markdown=True)
-            await update.message.reply_text(text, parse_mode="Markdown")
+            await update.message.reply_text(text, parse_mode="HTML")
     except Exception as e:
         await update.message.reply_text(f"Error reading meta: {e}")
     finally:

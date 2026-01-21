@@ -87,6 +87,8 @@ All storage (DB, VS, Files) is persisted - not temporary.
 
 **Telegram Formatting:**
 - Bold: *text* | Italic: _text_ | Code: `text`
+- Avoid markdown tables and pipe/dash table syntax
+- Prefer short bullet lists with clear labels instead of tables
 - Keep it readable and well-structured
 
 **Important:**
