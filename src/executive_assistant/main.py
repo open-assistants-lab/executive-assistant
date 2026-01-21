@@ -15,6 +15,7 @@ from executive_assistant.logging import configure_logging, format_log_context
 from executive_assistant.tools.registry import get_all_tools
 from executive_assistant.storage.checkpoint import get_async_checkpointer
 from executive_assistant.storage.user_registry import UserRegistry
+from executive_assistant.storage.user_allowlist import allowlist_writable
 from executive_assistant.channels.telegram import TelegramChannel
 from executive_assistant.channels.http import HttpChannel
 from executive_assistant.agent.langchain_agent import create_langchain_agent
@@ -127,6 +128,9 @@ def get_channels():
 async def main() -> None:
     """Start the Executive Assistant bot."""
     configure_logging()
+
+    if not allowlist_writable():
+        logger.warning(f'{format_log_context("system", component="startup")} allowlist_not_writable path="./data/admins/user_allowlist.json"')
 
     # Validate LLM configuration on startup
     try:

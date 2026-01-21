@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -92,6 +93,16 @@ def save_allowlist(users: set[str]) -> None:
         "updated_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
     }
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+
+
+def allowlist_writable() -> bool:
+    path = _allowlist_path()
+    parent = path.parent
+    if path.exists():
+        return path.is_file() and os.access(path, os.W_OK)
+    return parent.is_dir() and os.access(parent, os.W_OK)
 
 
 def is_allowed(entry: str) -> bool:

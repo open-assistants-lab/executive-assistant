@@ -188,13 +188,25 @@ async def user_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             await update.message.reply_text(str(exc))
             return
         if action == "add":
-            added = add_user(entry)
+            try:
+                added = add_user(entry)
+            except PermissionError:
+                await update.message.reply_text(
+                    "Allowlist is not writable. Check permissions for ./data/admins (host) or /app/data/admins (container)."
+                )
+                return
             await update.message.reply_text("Added." if added else "Already present.")
             return
         if is_admin_entry(entry):
             await update.message.reply_text("Admins must be managed in config.yaml.")
             return
-        removed = remove_user(entry)
+        try:
+            removed = remove_user(entry)
+        except PermissionError:
+            await update.message.reply_text(
+                "Allowlist is not writable. Check permissions for ./data/admins (host) or /app/data/admins (container)."
+            )
+            return
         await update.message.reply_text("Removed." if removed else "Not found.")
         return
 
@@ -523,8 +535,12 @@ async def _mem_list(update: Update, thread_id: str, mem_type: str | None = None,
         for mtype, items in by_type.items():
             lines.append(f"\n*{mtype.capitalize()}* ({len(items)}):")
             for m in items[:5]:  # Max 5 per type
-                key_note = f" [{m['key']}]" if m.get("key") else ""
-                lines.append(f"  • {m['content'][:60]}{'...' if len(m['content']) > 60 else ''}{key_note}")
+                mem_id = m.get("id")
+                id_note = f"`{mem_id}`" if mem_id else "`unknown-id`"
+                key_note = f" key=`{m['key']}`" if m.get("key") else ""
+                content = m["content"][:60]
+                suffix = "..." if len(m["content"]) > 60 else ""
+                lines.append(f"  • id={id_note}{key_note} — {content}{suffix}")
 
         await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
     except Exception as e:
