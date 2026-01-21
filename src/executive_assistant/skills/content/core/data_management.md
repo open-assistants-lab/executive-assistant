@@ -32,6 +32,7 @@ This skill teaches you how to choose between Database (DB), Vector Store (VS), a
 - ✅ Efficient for: "Find all X where Y > Z"
 - ✅ Best for structured, tabular data
 - ❌ Not good for semantic search or fuzzy matching
+- ⚠️ Ignore SQLite system tables like `sqlite_sequence` in user-facing lists
 
 **Tool Pattern:**
 ```

@@ -7,6 +7,7 @@ These tools allow users to:
 3. Merge additional identities (add more threads to existing user)
 """
 
+import logging
 import random
 import string
 from datetime import datetime, timedelta, timezone
@@ -16,6 +17,8 @@ from langchain_core.tools import tool
 
 from executive_assistant.storage.file_sandbox import get_thread_id
 from executive_assistant.storage.user_registry import UserRegistry
+logger = logging.getLogger(__name__)
+
 from executive_assistant.storage.helpers import (
     generate_persistent_user_id,
     merge_user_data,
@@ -120,8 +123,7 @@ def request_identity_merge(
         )
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.exception("Identity tool error")
         return f"❌ Error initiating merge: {e}"
 
 
@@ -252,8 +254,7 @@ def confirm_identity_merge(code: str) -> str:
         )
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.exception("Identity tool error")
         return f"❌ Error completing merge: {e}"
 
 
@@ -359,8 +360,7 @@ def merge_additional_identity(thread_id_to_merge: str) -> str:
         )
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.exception("Identity tool error")
         return f"❌ Error merging identity: {e}"
 
 
@@ -416,6 +416,5 @@ def get_my_identity() -> str:
         return "\n".join(lines)
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.exception("Identity tool error")
         return f"❌ Error getting identity info: {e}"

@@ -24,6 +24,8 @@ from langgraph.types import Command
 from executive_assistant.config import settings
 from executive_assistant.storage.file_sandbox import get_thread_id
 from executive_assistant.agent.middleware_debug import MiddlewareDebug, RetryTracker
+from executive_assistant.logging import format_log_context, truncate_log_text
+from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
 
 if TYPE_CHECKING:
     from executive_assistant.channels.base import BaseChannel
@@ -150,22 +152,26 @@ class StatusUpdateMiddleware(AgentMiddleware):
             return
 
         conv_id = conversation_id or self.current_conversation_id
+        thread_id = get_thread_id()
+        channel = thread_id.split(":")[0] if thread_id and ":" in thread_id else None
+        user_id = sanitize_thread_id_to_user_id(thread_id) if thread_id else None
+        ctx = format_log_context("message", channel=channel, user=user_id, conversation=conv_id, type="status")
         if not conv_id:
-            logger.warning(f"No conversation_id for status update: {message}")
+            logger.warning(f"{ctx} send status skipped: no conversation_id")
             return
 
         try:
-            logger.info(f"Sending status to {conv_id}: {message}")
+            logger.info(f'{ctx} send status text="{truncate_log_text(message)}"')
             await self.channel.send_status(
                 conversation_id=conv_id,
                 message=message,
                 update=True,  # Edit previous message if available
             )
             self.last_status_time = time.time()
-            logger.info(f"Status sent to {conv_id}")
+            logger.info(f"{ctx} sent status")
         except Exception as e:
             # Don't let status updates break the agent
-            logger.error(f"Failed to send status update to {conv_id}: {e}")
+            logger.error(f'{ctx} send status failed error="{e}"')
             self.last_status_time = time.time()
 
     def _log_debug(self, event: str, **fields: Any) -> None:
@@ -298,7 +304,7 @@ class StatusUpdateMiddleware(AgentMiddleware):
         self._log_debug("tool_start", tool_name=tool_name)
 
         # Build status message
-        status_msg = f"🛠️ Tool: {tool_name}"
+        status_msg = f"🛠️ Tool[{self.tool_count}]: {tool_name}"
         if self.show_tool_args and tool_args:
             status_msg = f"{status_msg} {self._sanitize_args(tool_args)}"
         await self._send_status(status_msg)
