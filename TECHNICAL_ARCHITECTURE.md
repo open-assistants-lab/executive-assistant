@@ -58,7 +58,7 @@ Executive Assistant is a **multi-channel AI agent platform** built on LangGraph 
 |------|-----------|---------|
 | **State/Checkpoint** | PostgreSQL (via asyncpg) | Conversation persistence |
 | **Vector Store** | LanceDB | Semantic search/knowledge base |
-| **Tabular Data** | SQLite (db_storage.py) | Transactional, permanent data (timesheets, CRM, tasks) |
+| **Tabular Data** | SQLite (sqlite_db_storage.py, db_tools.py) | Transactional, permanent data (timesheets, CRM, tasks) |
 | **Memories** | DuckDB + FTS (mem_storage.py) | Embedded memories with full-text search |
 | **File Storage** | Local filesystem | Document/file storage |
 | **Metadata Registry** | PostgreSQL | File/DB ownership tracking |
@@ -66,8 +66,7 @@ Executive Assistant is a **multi-channel AI agent platform** built on LangGraph 
 ### MCP Configuration Storage
 | Type | Location | Purpose |
 |------|----------|---------|
-| **Per-user MCP** | `data/users/{user_id}/mcp.json` | User-specific MCP servers |
-| **Shared MCP** | `data/shared/mcp.json` | Organization-wide MCP servers |
+| **Admin MCP** | `data/admins/mcp.json` | Admin-supplied MCP servers (applies globally) |
 
 ### Supporting Libraries
 - **Job Scheduling**: APScheduler v3.10.0+
@@ -132,7 +131,7 @@ Executive Assistant is a **multi-channel AI agent platform** built on LangGraph 
                 ┌───────────▼─────────────┐
                 │   Storage Backends     │
                 │ • File System         │
-                │ • DuckDB              │
+                │ • SQLite             │
                 │ • LanceDB             │
                 │ • PostgreSQL          │
                 └───────────────────────┘
@@ -187,9 +186,9 @@ executive_assistant/
 │   ├── storage/                   # Data persistence layer
 │   │   ├── checkpoint.py        # LangGraph PostgreSQL checkpointer
 │   │   ├── file_sandbox.py      # Secure file operations (thread-scoped)
-│   │   ├── db_storage.py        # DuckDB thread-scoped database
-│   │   ├── db_tools.py          # DuckDB tool implementations
-│   │   ├── sqlite_db_storage.py # SQLite alternative backend
+│   │   ├── db_storage.py        # Legacy DuckDB DB storage (deprecated)
+│   │   ├── db_tools.py          # SQLite DB tool implementations
+│   │   ├── sqlite_db_storage.py # SQLite backend (context + shared)
 │   │   ├── vs_tools.py          # Vector store tool implementations
 │   │   ├── lancedb_storage.py   # LanceDB vector store backend
 │   │   ├── group_storage.py     # Group workspace management
@@ -243,7 +242,7 @@ executive_assistant/
 ├── tests/                        # Test suite
 │   ├── test_agent.py            # Agent integration tests
 │   ├── test_file_sandbox.py     # File sandbox tests
-│   ├── test_db_storage.py       # DuckDB storage tests
+│   ├── test_db_storage.py       # DuckDB storage tests (legacy)
 │   ├── test_group_storage.py    # Group storage tests
 │   ├── test_lancedb_vs.py       # Vector store tests
 │   ├── test_python_tool.py      # Python execution tests
@@ -365,6 +364,12 @@ Abstract base class defining channel interface:
 
 ```
 data/
+├── admins/           # admin-managed configuration and allowlist
+│   ├── prompts/
+│   │   └── prompt.md
+│   ├── skills/
+│   ├── mcp.json
+│   └── user_allowlist.json
 ├── shared/           # scope="shared" (organization-wide)
 │   ├── files/
 │   ├── db/
@@ -399,16 +404,16 @@ data/
   - `glob_files`: Pattern matching (`*.py`, `**/*.json`)
   - `grep_files`: Regex content search
 
-**DBStorage (`db_storage.py`, `db_tools.py`)**
-- **Backend**: DuckDB (embedded, thread-scoped)
-- **Purpose**: Temporary structured data storage
+**DBStorage (`sqlite_db_storage.py`, `db_tools.py`)**
+- **Backend**: SQLite (context + shared)
+- **Purpose**: Structured/tabular data storage
 - **Use Cases**: Timesheets, logs, analysis datasets
 - **Tools**:
   - `create_db_table`: Create from JSON/CSV with auto schema inference
   - `insert_db_table`, `query_db`: SQL operations
   - `list_db_tables`, `describe_db_table`: Schema inspection
   - `export_db_table`, `import_db_table`: Data portability (CSV, JSON, Parquet)
-- **Alternative**: `sqlite_db_storage.py` for SQLite backend
+- **Legacy**: `db_storage.py` retains DuckDB utilities (deprecated)
 
 **VectorStore (`lancedb_storage.py`, `vs_tools.py`)**
 - **Backend**: LanceDB with sentence-transformers embeddings
@@ -665,7 +670,7 @@ data/
     │
     ├─→ Access storage backend:
     │      • File: Local filesystem
-    │      • DB: DuckDB (thread-scoped)
+    │      • DB: SQLite (context + shared)
     │      • VS: LanceDB (collection-scoped)
     │
     ├─→ Record operation:
@@ -885,6 +890,12 @@ from pydantic_settings import BaseSettings
 - Database credentials
 - External service URLs
 
+**Admin Customization (`data/admins/`)**
+- `prompts/prompt.md`: Added to the base system prompt (admin-only).
+- `skills/`: Loaded as additional skills at startup (admin-only).
+- `mcp.json`: Loaded when MCP adapters are available (admin-only).
+- `user_allowlist.json`: Access control list managed by admins.
+
 **`pyproject.toml`** - Project Metadata
 - Dependencies
 - Build configuration
@@ -1015,7 +1026,7 @@ docker compose build --no-cache executive_assistant
 
 **Unit Tests**
 - `test_file_sandbox.py`: File operations
-- `test_db_storage.py`: DuckDB operations
+- `test_db_storage.py`: DuckDB operations (legacy)
 - `test_group_storage.py`: Group management
 - `test_lancedb_vs.py`: Vector store operations
 - `test_python_tool.py`: Python execution
