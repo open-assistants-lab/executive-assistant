@@ -23,6 +23,7 @@ services:
       TEMPORAL_HOST: ${TEMPORAL_HOST}
     volumes:
       - executive_assistant_data:/app/data
+      - ./data/admins:/app/data/admins
     ports:
       - "${EXECUTIVE_ASSISTANT_PORT:-8000}:8000"
     depends_on:

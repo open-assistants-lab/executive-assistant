@@ -146,7 +146,7 @@ async def get_identity_tools() -> list[BaseTool]:
 
 async def get_mcp_tools() -> list[BaseTool]:
     """
-    Get tools from MCP servers configured in .mcp.json.
+    Get tools from MCP servers configured in admin mcp.json.
 
     This connects to the configured MCP servers (Firecrawl, Chrome DevTools,
     Meilisearch) and converts their tools to LangChain-compatible format.
@@ -161,7 +161,8 @@ async def get_mcp_tools() -> list[BaseTool]:
         from pathlib import Path
         import json
 
-        mcp_config_path = Path(".mcp.json")
+        from executive_assistant.storage.mcp_storage import get_admin_mcp_config_path
+        mcp_config_path = get_admin_mcp_config_path()
         if not mcp_config_path.exists():
             return tools
 
@@ -286,64 +287,27 @@ async def get_all_tools() -> list[BaseTool]:
 
 async def load_mcp_tools_if_enabled() -> list[BaseTool]:
     """
-    Load MCP tools from configured servers if enabled.
-
-    Loads from both per-user and shared MCP configs (independent, no priority).
-    Respects mcpEnabled and loadMcpTools settings.
+    Load MCP tools from admin config if enabled.
 
     Returns:
         List of LangChain tools from MCP servers.
     """
     tools = []
 
-    # Load MCP config (both per-user and shared) ✅ UPDATED
     try:
         from langchain_mcp_adapters import MCPClient
-        from executive_assistant.storage.file_sandbox import get_thread_id
-        from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
-        from executive_assistant.storage.mcp_storage import (
-            load_mcp_config,  # Loads both per-user + shared ✅ UPDATED
-        )
+        from executive_assistant.storage.mcp_storage import load_mcp_config
 
-        user_id = sanitize_thread_id_to_user_id(get_thread_id())
-
-        # Load both configs independently
-        user_config = load_mcp_config(user_id=user_id)
-        shared_config = load_mcp_config(user_id=None)  # user_id=None = shared
-
-        # Merge configs (both are independent, no override - they coexist) ✅ UPDATED
-        mcp_servers = {}
-        mcp_enabled = False
-
-        # User config takes precedence (adds servers, overrides enabled mode)
-        if user_config:
-            mcp_servers.update(user_config.get("mcpServers", {}))
-            mcp_enabled = user_config.get("mcpEnabled", shared_config.get("mcpEnabled", False))
-            load_mcp_tools_mode = user_config.get("loadMcpTools", shared_config.get("loadMcpTools", "default"))
-
-        # Shared config is loaded independently (independent from user config) ✅ UPDATED
-        if shared_config:
-            mcp_servers.update(shared_config.get("mcpServers", {}))
-            mcp_enabled = shared_config.get("mcpEnabled", mcp_enabled)
-            load_mcp_tools_mode = shared_config.get("loadMcpTools", user_config.get("loadMcpTools", "default"))
-
-        # Check if MCP is enabled globally
-        if not mcp_enabled:
+        config = load_mcp_config()
+        mcp_servers = config.get("mcpServers", {})
+        if not config.get("mcpEnabled", False):
+            return []
+        if config.get("loadMcpTools", "default") == "disabled":
             return []
 
-        # Check load mode
-        load_mode = user_config.get("loadMcpTools", shared_config.get("loadMcpTools", "default"))
-
-        if load_mode == "disabled":
-            return []
-
-        # Connect to each MCP server and get tools
-        # Use cache to avoid reconnecting
         global _mcp_client_cache
-
         for server_name, server_config in mcp_servers.items():
-            cache_key = f"{user_id}:{server_name}"  # Include user_id in cache key
-
+            cache_key = server_name
             if cache_key not in _mcp_client_cache:
                 try:
                     client = MCPClient(server_config)

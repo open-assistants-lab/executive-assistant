@@ -19,7 +19,7 @@ from executive_assistant.channels.telegram import TelegramChannel
 from executive_assistant.channels.http import HttpChannel
 from executive_assistant.agent.langchain_agent import create_langchain_agent
 from executive_assistant.skills import SkillsBuilder
-from executive_assistant.agent.prompts import get_system_prompt
+from executive_assistant.agent.prompts import get_system_prompt, load_admin_prompt
 from executive_assistant.scheduler import start_scheduler, stop_scheduler, register_notification_handler
 from executive_assistant.skills import load_and_register_skills, get_skills_registry
 
@@ -144,6 +144,10 @@ async def main() -> None:
     skills_dir = Path(__file__).parent / "skills" / "content"
     skills_count = load_and_register_skills(skills_dir)
     print(f" Loaded {skills_count} skills")
+    admin_skills_dir = settings.SHARED_ROOT.parent / "admins" / "skills"
+    admin_skills_count = load_and_register_skills(admin_skills_dir)
+    if admin_skills_count:
+        print(f" Loaded {admin_skills_count} admin skills")
 
     # Load tools (includes load_skill tool)
     tools = await get_all_tools()
@@ -166,6 +170,9 @@ async def main() -> None:
         if cache_key not in agent_cache:
             # Get base system prompt
             system_prompt = get_system_prompt(channel_name)
+            admin_prompt = load_admin_prompt()
+            if admin_prompt:
+                system_prompt = f"{system_prompt}\n\n{admin_prompt}"
             # Add skill descriptions to system prompt
             system_prompt = skills_builder.build_prompt(system_prompt)
             # Create agent with enhanced prompt

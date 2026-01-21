@@ -268,3 +268,15 @@ def get_system_prompt(channel: str | None = None) -> str:
     elif channel == "http":
         return _get_http_prompt()
     return get_default_prompt()
+
+
+
+def load_admin_prompt() -> str:
+    """Load admin prompt content (global, optional)."""
+    prompt_path = settings.SHARED_ROOT.parent / "admins" / "prompts" / "prompt.md"
+    if not prompt_path.exists():
+        return ""
+    try:
+        return prompt_path.read_text(encoding="utf-8").strip()
+    except Exception:
+        return ""
