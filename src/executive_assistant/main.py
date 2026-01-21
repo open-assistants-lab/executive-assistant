@@ -214,16 +214,16 @@ async def main() -> None:
 
             # Register notification handler for reminders
             bot_name_cache = {"name": None}
-            async def telegram_notification_handler(thread_ids, message):
+            async def telegram_notification_handler(thread_ids, message, channel_ref=channel):
                 """Send reminder notification via Telegram."""
                 for thread_id in thread_ids:
                     # Extract chat_id from thread_id (format: telegram:chat_id)
                     if thread_id.startswith("telegram:"):
                         chat_id = thread_id.split(":", 1)[1]
                         bot_name = bot_name_cache["name"]
-                        if not bot_name and channel.application:
+                        if not bot_name and channel_ref.application:
                             try:
-                                me = await channel.application.bot.get_me()
+                                me = await channel_ref.application.bot.get_me()
                                 bot_name = me.username or me.first_name or "unknown"
                                 bot_name_cache["name"] = bot_name
                             except Exception as e:
@@ -234,7 +234,7 @@ async def main() -> None:
                         logger.info(
                             f'{format_log_context("system", component="telegram", channel="telegram")} reminder_send bot="{bot_name}" chat_id={chat_id}'
                         )
-                        await channel.send_message(chat_id, f"🔔 Reminder: {message}")
+                        await channel_ref.send_message(chat_id, f"🔔 Reminder: {message}")
 
             register_notification_handler("telegram", telegram_notification_handler)
 
