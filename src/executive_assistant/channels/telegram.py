@@ -27,11 +27,13 @@ from executive_assistant.channels.management_commands import (
     db_command,
     file_command,
     meta_command,
+    user_command,
 )
 from executive_assistant.config.settings import settings
 from executive_assistant.logging import format_log_context, truncate_log_text
 from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
 from executive_assistant.storage.user_registry import UserRegistry
+from executive_assistant.storage.user_allowlist import is_authorized, is_admin
 from loguru import logger
 
 
@@ -103,6 +105,7 @@ class TelegramChannel(BaseChannel):
         self.application = Application.builder().token(self.token).build()
 
         # Register handlers
+        self.application.add_handler(CommandHandler("start", self._start_command))
         self.application.add_handler(CommandHandler("reset", self._reset_command))
         self.application.add_handler(CommandHandler("remember", self._remember_command))
         self.application.add_handler(CommandHandler("debug", self._debug_command))
@@ -113,6 +116,7 @@ class TelegramChannel(BaseChannel):
         self.application.add_handler(CommandHandler("db", db_command))
         self.application.add_handler(CommandHandler("file", file_command))
         self.application.add_handler(CommandHandler("meta", meta_command))
+        self.application.add_handler(CommandHandler("user", user_command))
         self.application.add_handler(
             MessageHandler(filters.TEXT & ~filters.COMMAND, self._message_handler)
         )
@@ -855,12 +859,41 @@ class TelegramChannel(BaseChannel):
             total_elapsed = time.time() - request_start
             logger.info(f"Total request latency for {batch[-1].conversation_id}: {total_elapsed:.1f}s")
 
+    async def _start_command(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+    ) -> None:
+        """Handle /start command."""
+        if not update.message:
+            return
+        thread_id = f"telegram:{update.effective_chat.id}"
+        user_id = sanitize_thread_id_to_user_id(thread_id)
+        admin_flag = is_admin(thread_id, user_id)
+        message = (
+            f"Your ID: {thread_id}\n"
+            "Share this with an admin to request access."
+        )
+        if admin_flag:
+            message += "\nAdmin access enabled."
+        await update.message.reply_text(message)
+
     async def _reset_command(
         self,
         update: Update,
         context: ContextTypes.DEFAULT_TYPE,
     ) -> None:
         """Handle /reset command to clear conversation."""
+        if not update.message or not update.effective_chat:
+            return
+        thread_id = f"telegram:{update.effective_chat.id}"
+        user_id = sanitize_thread_id_to_user_id(thread_id)
+        if not is_authorized(thread_id, user_id):
+            await update.message.reply_text(
+                "Access restricted. Ask an admin to add you using /user add <channel:id>. "
+                "Use /start to get your ID."
+            )
+            return
         try:
             # Actually clear the checkpoint from database
             thread_id = f"telegram:{update.effective_chat.id}"
@@ -891,13 +924,26 @@ class TelegramChannel(BaseChannel):
         context: ContextTypes.DEFAULT_TYPE,
     ) -> None:
         """Handle /remember command to store a memory."""
-        if not update.message:
+        if not update.message or not update.effective_chat:
             return
+        thread_id = f"telegram:{update.effective_chat.id}"
+        user_id = sanitize_thread_id_to_user_id(thread_id)
+        if not is_authorized(thread_id, user_id):
+            await update.message.reply_text(
+                "Access restricted. Ask an admin to add you using /user add <channel:id>. "
+                "Use /start to get your ID."
+            )
+            return
+        ctx = format_log_context(
+            "message",
+            channel="telegram",
+            user=user_id,
+            conversation=str(update.effective_chat.id),
+            type="command",
+            update_id=update.update_id,
+        )
+        logger.info(f"{ctx} recv command=/remember")
 
-        thread_id = f"telegram:{update.effective_chat.id}" if update.effective_chat else None
-        user_id = sanitize_thread_id_to_user_id(thread_id) if thread_id else None
-        ctx = format_log_context("message", channel="telegram", user=user_id, conversation=str(update.effective_chat.id) if update.effective_chat else None, type="command", update_id=update.update_id)
-        logger.info(f'{ctx} recv command=/remember')
 
         try:
             # Get the text after /remember command
@@ -956,6 +1002,14 @@ class TelegramChannel(BaseChannel):
     ) -> None:
         """Handle /debug command to toggle verbose status mode."""
         if not update.message or not update.effective_chat:
+            return
+        thread_id = f"telegram:{update.effective_chat.id}"
+        user_id = sanitize_thread_id_to_user_id(thread_id)
+        if not is_authorized(thread_id, user_id):
+            await update.message.reply_text(
+                "Access restricted. Ask an admin to add you using /user add <channel:id>. "
+                "Use /start to get your ID."
+            )
             return
 
         chat_id = update.effective_chat.id
@@ -1059,6 +1113,15 @@ class TelegramChannel(BaseChannel):
         if not update.message or not update.message.text:
             return
 
+        thread_id = f"telegram:{update.effective_chat.id}" if update.effective_chat else None
+        user_id = sanitize_thread_id_to_user_id(thread_id) if thread_id else None
+        if not thread_id or not is_authorized(thread_id, user_id):
+            await update.message.reply_text(
+                "Access restricted. Ask an admin to add you using /user add <channel:id>. "
+                "Use /start to get your ID."
+            )
+            return
+
         try:
             # Auto-create identity for anonymous users
             thread_id = f"telegram:{update.effective_chat.id}"
@@ -1111,8 +1174,23 @@ class TelegramChannel(BaseChannel):
         """Handle incoming file uploads (documents and photos)."""
         if not update.message:
             return
+        thread_id = f"telegram:{update.effective_chat.id}"
+        user_id = sanitize_thread_id_to_user_id(thread_id)
+        if not is_authorized(thread_id, user_id):
+            await update.message.reply_text(
+                "Access restricted. Ask an admin to add you using /user add <channel:id>. "
+                "Use /start to get your ID."
+            )
+            return
 
         thread_id = f"telegram:{update.effective_chat.id}" if update.effective_chat else None
+        user_id = sanitize_thread_id_to_user_id(thread_id) if thread_id else None
+        if not thread_id or not is_authorized(thread_id, user_id):
+            await update.message.reply_text(
+                "Access restricted. Ask an admin to add you using /user add <channel:id>. "
+                "Use /start to get your ID."
+            )
+            return
         user_id = sanitize_thread_id_to_user_id(thread_id) if thread_id else None
         ctx = format_log_context("message", channel="telegram", user=user_id, conversation=str(update.effective_chat.id) if update.effective_chat else None, type="file", update_id=update.update_id)
         logger.info(f'{ctx} recv file')
