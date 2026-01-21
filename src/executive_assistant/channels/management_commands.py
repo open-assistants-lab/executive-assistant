@@ -23,6 +23,15 @@ from executive_assistant.storage.mem_storage import get_mem_storage
 from executive_assistant.storage.sqlite_db_storage import get_sqlite_db
 from executive_assistant.storage.shared_db_storage import get_shared_db_storage
 from executive_assistant.storage.meta_registry import load_meta, refresh_meta, format_meta
+from executive_assistant.storage.user_allowlist import (
+    add_user,
+    remove_user,
+    list_users,
+    is_admin,
+    is_admin_entry,
+    is_authorized,
+    normalize_entry,
+)
 from executive_assistant.tools.reminder_tools import (
     reminder_set,
     reminder_list,
@@ -44,17 +53,14 @@ COMMON_MEMORY_KEYS = {
     "pronouns",
 }
 
-
 def _get_thread_id(update: Update) -> str:
     """Get thread_id from Telegram update."""
     return f"telegram:{update.effective_chat.id}"
-
 
 def _get_chat_type(update: Update) -> str | None:
     if update.effective_chat:
         return update.effective_chat.type
     return None
-
 
 async def _set_context(thread_id: str, chat_type: str | None = None) -> None:
     """Set thread, group, and user context for storage operations."""
@@ -68,13 +74,11 @@ async def _set_context(thread_id: str, chat_type: str | None = None) -> None:
         clear_workspace_context()
     set_workspace_user_id(user_id_for_storage)
 
-
 def _clear_context() -> None:
     """Clear thread_id context."""
     clear_thread_id()
     clear_workspace_context()
     clear_workspace_user_id()
-
 
 # ==================== /mem COMMAND ====================
 
@@ -93,6 +97,8 @@ async def mem_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         return
 
     thread_id = _get_thread_id(update)
+    if not await _ensure_authorized(update, thread_id):
+        return
     chat_type = _get_chat_type(update)
     args = context.args if context.args else []
 
@@ -141,8 +147,71 @@ async def mem_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     else:
         await _mem_help(update)
 
+async def user_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /user admin commands."""
+    if not update.message:
+        return
+
+    thread_id = _get_thread_id(update)
+    user_id = sanitize_thread_id_to_user_id(thread_id)
+    if not is_admin(thread_id, user_id):
+        await update.message.reply_text("Only admins can manage users.")
+        return
+
+    args = context.args if context.args else []
+    if not args or args[0].lower() in {"help", "?"}:
+        await update.message.reply_text(
+            "Usage:\n"
+            "/user list\n"
+            "/user add <channel:id>\n"
+            "/user remove <channel:id>"
+        )
+        return
+
+    action = args[0].lower()
+    if action == "list":
+        users = list_users()
+        if not users:
+            await update.message.reply_text("No users in allowlist.")
+        else:
+            await update.message.reply_text("Allowlist:\n" + "\n".join(users))
+        return
+
+    if action in {"add", "remove"}:
+        if len(args) < 2:
+            await update.message.reply_text(f"Usage: /user {action} <channel:id>")
+            return
+        entry_raw = " ".join(args[1:]).strip()
+        try:
+            entry = normalize_entry(entry_raw)
+        except ValueError as exc:
+            await update.message.reply_text(str(exc))
+            return
+        if action == "add":
+            added = add_user(entry)
+            await update.message.reply_text("Added." if added else "Already present.")
+            return
+        if is_admin_entry(entry):
+            await update.message.reply_text("Admins must be managed in config.yaml.")
+            return
+        removed = remove_user(entry)
+        await update.message.reply_text("Removed." if removed else "Not found.")
+        return
+
+    await update.message.reply_text("Unknown action. Use /user help")
 
 # ==================== /reminder COMMAND ====================
+
+async def _ensure_authorized(update: Update, thread_id: str) -> bool:
+    user_id = sanitize_thread_id_to_user_id(thread_id)
+    if is_authorized(thread_id, user_id):
+        return True
+    await update.message.reply_text(
+        "Access restricted. Ask an admin to add you using /user add <channel:id>. "
+        "Use /start to get your ID."
+    )
+    return False
+
 
 def _parse_reminder_set_args(args: list[str]) -> tuple[str | None, str | None, str]:
     """Parse reminder set args into time, message, recurrence."""
@@ -172,7 +241,6 @@ def _parse_reminder_set_args(args: list[str]) -> tuple[str | None, str | None, s
     time_str = parts[0]
     message = " ".join(parts[1:])
     return time_str, message, recurrence
-
 
 def _parse_reminder_edit_args(args: list[str]) -> tuple[int | None, str | None, str | None, str]:
     """Parse reminder edit args into id, time, message, recurrence."""
@@ -214,13 +282,14 @@ def _parse_reminder_edit_args(args: list[str]) -> tuple[int | None, str | None, 
 
     return reminder_id, time_str, message, recurrence
 
-
 async def reminder_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /reminder command for reminders."""
     if not update.message:
         return
 
     thread_id = _get_thread_id(update)
+    if not await _ensure_authorized(update, thread_id):
+        return
     chat_type = _get_chat_type(update)
     args = context.args if context.args else []
 
@@ -278,7 +347,6 @@ async def reminder_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     finally:
         _clear_context()
 
-
 async def _reminder_help(update: Update) -> None:
     """Show /reminder help."""
     help_text = (
@@ -297,7 +365,6 @@ async def _reminder_help(update: Update) -> None:
         "/reminder cancel 12"
     )
     await update.message.reply_text(help_text)
-
 
 async def _mem_help(update: Update) -> None:
     """Show /mem help."""
@@ -319,7 +386,6 @@ async def _mem_help(update: Update) -> None:
         "• `/mem update abc123 New content here`"
     )
     await update.message.reply_text(help_text, parse_mode="Markdown")
-
 
 async def _mem_overview(update: Update, thread_id: str, chat_type: str | None) -> None:
     """Show memory counts and commands."""
@@ -355,7 +421,6 @@ async def _mem_overview(update: Update, thread_id: str, chat_type: str | None) -
         await update.message.reply_text(f"Error reading memories: {e}")
     finally:
         _clear_context()
-
 
 def _parse_mem_add_args(args: list[str]) -> tuple[str, str | None, str | None]:
     """Parse /mem add arguments into content, memory_type, and key."""
@@ -405,7 +470,6 @@ def _parse_mem_add_args(args: list[str]) -> tuple[str, str | None, str | None]:
     content = " ".join(content_tokens).strip()
     return content, mem_type, key
 
-
 async def _mem_add(update: Update, thread_id: str, content: str, mem_type: str | None = None, key: str | None = None, chat_type: str | None = None) -> None:
     """Add a memory."""
     await _set_context(thread_id, chat_type)
@@ -436,7 +500,6 @@ async def _mem_add(update: Update, thread_id: str, content: str, mem_type: str |
         await update.message.reply_text(f"Error adding memory: {e}")
     finally:
         _clear_context()
-
 
 async def _mem_list(update: Update, thread_id: str, mem_type: str | None = None, chat_type: str | None = None) -> None:
     """List memories."""
@@ -469,7 +532,6 @@ async def _mem_list(update: Update, thread_id: str, mem_type: str | None = None,
     finally:
         _clear_context()
 
-
 async def _mem_search(update: Update, thread_id: str, query: str, chat_type: str | None) -> None:
     """Search memories."""
     await _set_context(thread_id, chat_type)
@@ -491,7 +553,6 @@ async def _mem_search(update: Update, thread_id: str, query: str, chat_type: str
         await update.message.reply_text(f"Error searching memories: {e}")
     finally:
         _clear_context()
-
 
 async def _mem_forget(update: Update, thread_id: str, target: str, chat_type: str | None) -> None:
     """Forget a memory by ID or key."""
@@ -518,7 +579,6 @@ async def _mem_forget(update: Update, thread_id: str, target: str, chat_type: st
     finally:
         _clear_context()
 
-
 async def _mem_update(update: Update, thread_id: str, memory_id: str, content: str, chat_type: str | None) -> None:
     """Update a memory."""
     await _set_context(thread_id, chat_type)
@@ -533,7 +593,6 @@ async def _mem_update(update: Update, thread_id: str, memory_id: str, content: s
         await update.message.reply_text(f"Error updating memory: {e}")
     finally:
         _clear_context()
-
 
 # ==================== /vs COMMAND ====================
 
@@ -551,6 +610,8 @@ async def vs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         return
 
     thread_id = _get_thread_id(update)
+    if not await _ensure_authorized(update, thread_id):
+        return
     chat_type = _get_chat_type(update)
     args = context.args if context.args else []
     scope, args = _parse_scope(args)
@@ -594,7 +655,6 @@ async def vs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     else:
         await _vs_help(update)
 
-
 async def _vs_help(update: Update) -> None:
     """Show /vs help."""
     help_text = (
@@ -610,7 +670,6 @@ async def _vs_help(update: Update) -> None:
         "`/vs store notes [{\"content\": \"Meeting notes\"}]`"
     )
     await update.message.reply_text(help_text, parse_mode="Markdown")
-
 
 async def _vs_overview(update: Update, thread_id: str, scope: str) -> None:
     """Show VS counts and commands."""
@@ -640,7 +699,6 @@ async def _vs_overview(update: Update, thread_id: str, scope: str) -> None:
     finally:
         _clear_context()
 
-
 async def _vs_list(update: Update, thread_id: str, scope: str) -> None:
     """List VS tables."""
     await _set_context(thread_id, _get_chat_type(update))
@@ -653,7 +711,6 @@ async def _vs_list(update: Update, thread_id: str, scope: str) -> None:
         await update.message.reply_text(f"Error listing VS: {e}")
     finally:
         _clear_context()
-
 
 async def _vs_store(update: Update, thread_id: str, table_name: str, documents: str, scope: str) -> None:
     """Store documents in VS."""
@@ -668,7 +725,6 @@ async def _vs_store(update: Update, thread_id: str, table_name: str, documents: 
     finally:
         _clear_context()
 
-
 async def _vs_search(update: Update, thread_id: str, query: str, table_name: str, scope: str) -> None:
     """Search VS."""
     await _set_context(thread_id, _get_chat_type(update))
@@ -681,7 +737,6 @@ async def _vs_search(update: Update, thread_id: str, query: str, table_name: str
         await update.message.reply_text(f"Error searching VS: {e}")
     finally:
         _clear_context()
-
 
 async def _vs_describe(update: Update, thread_id: str, table_name: str, scope: str) -> None:
     """Describe VS table."""
@@ -696,7 +751,6 @@ async def _vs_describe(update: Update, thread_id: str, table_name: str, scope: s
     finally:
         _clear_context()
 
-
 async def _vs_delete(update: Update, thread_id: str, table_name: str, scope: str) -> None:
     """Delete VS table."""
     await _set_context(thread_id, _get_chat_type(update))
@@ -710,7 +764,6 @@ async def _vs_delete(update: Update, thread_id: str, table_name: str, scope: str
     finally:
         _clear_context()
 
-
 # ==================== /db COMMAND ====================
 
 def _db_execute(storage, sql: str) -> list[tuple]:
@@ -719,7 +772,6 @@ def _db_execute(storage, sql: str) -> list[tuple]:
         storage.commit()
         return []
     return cursor.fetchall()
-
 
 def _parse_scope(args: list[str]) -> tuple[str, list[str]]:
     scope = "context"
@@ -734,12 +786,10 @@ def _parse_scope(args: list[str]) -> tuple[str, list[str]]:
         cleaned.append(arg)
     return scope, cleaned
 
-
 def _get_db_storage_for_scope(scope: str):
     if scope == "shared":
         return get_shared_db_storage()
     return get_sqlite_db()
-
 
 def _get_user_files_path(thread_id: str) -> Path:
     from executive_assistant.storage.group_storage import get_user_id
@@ -751,12 +801,10 @@ def _get_user_files_path(thread_id: str) -> Path:
     user_id = sanitize_thread_id_to_user_id(thread_id)
     return settings.get_user_files_path(user_id)
 
-
 def _get_files_path_for_scope(thread_id: str, scope: str) -> Path:
     if scope == "shared":
         return settings.get_shared_files_path()
     return _get_user_files_path(thread_id)
-
 
 async def db_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /db command for database management.
@@ -774,6 +822,8 @@ async def db_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         return
 
     thread_id = _get_thread_id(update)
+    if not await _ensure_authorized(update, thread_id):
+        return
     args = context.args if context.args else []
     scope, args = _parse_scope(args)
 
@@ -829,7 +879,6 @@ async def db_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     else:
         await _db_help(update)
 
-
 async def _db_help(update: Update) -> None:
     """Show /db help."""
     help_text = (
@@ -847,7 +896,6 @@ async def _db_help(update: Update) -> None:
         "`/db create users [{\"name\": \"Alice\", \"age\": 30}]`"
     )
     await update.message.reply_text(help_text, parse_mode="Markdown")
-
 
 async def _db_overview(update: Update, thread_id: str, scope: str) -> None:
     """Show DB counts and commands."""
@@ -878,7 +926,6 @@ async def _db_overview(update: Update, thread_id: str, scope: str) -> None:
     finally:
         _clear_context()
 
-
 async def _db_list(update: Update, thread_id: str, scope: str) -> None:
     """List DB tables."""
     await _set_context(thread_id, _get_chat_type(update))
@@ -900,7 +947,6 @@ async def _db_list(update: Update, thread_id: str, scope: str) -> None:
     finally:
         _clear_context()
 
-
 async def _db_create(update: Update, thread_id: str, table_name: str, data: str, scope: str) -> None:
     """Create DB table."""
     await _set_context(thread_id, _get_chat_type(update))
@@ -919,7 +965,6 @@ async def _db_create(update: Update, thread_id: str, table_name: str, data: str,
     finally:
         _clear_context()
 
-
 async def _db_insert(update: Update, thread_id: str, table_name: str, data: str, scope: str) -> None:
     """Insert into DB table."""
     await _set_context(thread_id, _get_chat_type(update))
@@ -937,7 +982,6 @@ async def _db_insert(update: Update, thread_id: str, table_name: str, data: str,
         await update.message.reply_text(f"Error inserting data: {e}")
     finally:
         _clear_context()
-
 
 async def _db_query(update: Update, thread_id: str, sql: str, scope: str) -> None:
     """Run SQL query."""
@@ -963,7 +1007,6 @@ async def _db_query(update: Update, thread_id: str, sql: str, scope: str) -> Non
     finally:
         _clear_context()
 
-
 async def _db_describe(update: Update, thread_id: str, table_name: str, scope: str) -> None:
     """Describe DB table."""
     await _set_context(thread_id, _get_chat_type(update))
@@ -983,7 +1026,6 @@ async def _db_describe(update: Update, thread_id: str, table_name: str, scope: s
     finally:
         _clear_context()
 
-
 async def _db_drop(update: Update, thread_id: str, table_name: str, scope: str) -> None:
     """Drop DB table."""
     await _set_context(thread_id, _get_chat_type(update))
@@ -995,7 +1037,6 @@ async def _db_drop(update: Update, thread_id: str, table_name: str, scope: str) 
         await update.message.reply_text(f"Error dropping table: {e}")
     finally:
         _clear_context()
-
 
 async def _db_export(update: Update, thread_id: str, table_name: str, filename: str, scope: str) -> None:
     """Export DB table."""
@@ -1018,7 +1059,6 @@ async def _db_export(update: Update, thread_id: str, table_name: str, filename: 
     finally:
         _clear_context()
 
-
 # ==================== /file COMMAND ====================
 
 async def file_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1036,6 +1076,8 @@ async def file_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     thread_id = _get_thread_id(update)
+    if not await _ensure_authorized(update, thread_id):
+        return
     args = context.args if context.args else []
     scope, args = _parse_scope(args)
 
@@ -1073,7 +1115,6 @@ async def file_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     else:
         await _file_help(update)
 
-
 async def _file_help(update: Update) -> None:
     """Show /file help."""
     help_text = (
@@ -1091,7 +1132,6 @@ async def _file_help(update: Update) -> None:
         "• `/file read notes.txt`"
     )
     await update.message.reply_text(help_text, parse_mode="Markdown")
-
 
 async def _file_overview(update: Update, thread_id: str, scope: str) -> None:
     """Show file counts and commands."""
@@ -1125,7 +1165,6 @@ async def _file_overview(update: Update, thread_id: str, scope: str) -> None:
     finally:
         _clear_context()
 
-
 async def _file_list(update: Update, thread_id: str, pattern: str | None = None, scope: str = "context") -> None:
     """List files."""
     await _set_context(thread_id, _get_chat_type(update))
@@ -1148,7 +1187,6 @@ async def _file_list(update: Update, thread_id: str, pattern: str | None = None,
     finally:
         _clear_context()
 
-
 async def _file_read(update: Update, thread_id: str, filepath: str, scope: str) -> None:
     """Read file."""
     await _set_context(thread_id, _get_chat_type(update))
@@ -1167,7 +1205,6 @@ async def _file_read(update: Update, thread_id: str, filepath: str, scope: str) 
     finally:
         _clear_context()
 
-
 async def _file_write(update: Update, thread_id: str, filepath: str, content: str, scope: str) -> None:
     """Write file."""
     await _set_context(thread_id, _get_chat_type(update))
@@ -1180,7 +1217,6 @@ async def _file_write(update: Update, thread_id: str, filepath: str, content: st
         await update.message.reply_text(f"Error writing file: {e}")
     finally:
         _clear_context()
-
 
 async def _file_create_folder(update: Update, thread_id: str, folder_name: str, scope: str) -> None:
     """Create folder."""
@@ -1195,7 +1231,6 @@ async def _file_create_folder(update: Update, thread_id: str, folder_name: str, 
     finally:
         _clear_context()
 
-
 async def _file_delete(update: Update, thread_id: str, path: str, scope: str) -> None:
     """Delete file or folder."""
     await _set_context(thread_id, _get_chat_type(update))
@@ -1208,7 +1243,6 @@ async def _file_delete(update: Update, thread_id: str, path: str, scope: str) ->
         await update.message.reply_text(f"Error deleting: {e}")
     finally:
         _clear_context()
-
 
 # ==================== /meta COMMAND ====================
 
@@ -1225,6 +1259,8 @@ async def meta_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     thread_id = _get_thread_id(update)
+    if not await _ensure_authorized(update, thread_id):
+        return
     args = context.args if context.args else []
     refresh = False
     as_json = False

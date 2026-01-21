@@ -6,6 +6,7 @@ and file operations within a sandboxed environment.
 
 import builtins
 import io
+import os
 import signal
 import sys
 from pathlib import Path
@@ -410,9 +411,19 @@ def execute_python(code: str) -> str:
             pass
 
         # Execute code
+        cwd = None
         try:
+            try:
+                from executive_assistant.storage.file_sandbox import get_sandbox
+                sandbox = get_sandbox()
+                cwd = Path.cwd()
+                os.chdir(sandbox.root)
+            except Exception:
+                cwd = None
             exec(code, safe_globals)
         finally:
+            if cwd is not None:
+                os.chdir(cwd)
             # Clear timeout
             if timeout_enabled:
                 signal.alarm(0)

@@ -329,6 +329,16 @@ def _ocr_extract_text_impl(image_path: str, output_format: str = "text") -> str:
         return f"Error: {e}"
 
 
+def _maybe_save_ocr_text(validated: Path, text: str) -> None:
+    if not text or text.startswith("Error:") or text.startswith("No text"):
+        return
+    try:
+        output_path = validated.with_suffix(".txt")
+        output_path.write_text(text, encoding="utf-8")
+    except Exception:
+        return
+
+
 @tool
 def ocr_extract_text(image_path: str, output_format: str = "text") -> str:
     """
@@ -341,7 +351,14 @@ def ocr_extract_text(image_path: str, output_format: str = "text") -> str:
     Returns:
         Extracted text or JSON with bounding boxes (if supported).
     """
-    return _ocr_extract_text_impl(image_path, output_format)
+    result = _ocr_extract_text_impl(image_path, output_format)
+    if output_format == "text":
+        try:
+            validated = _validate_ocr_path(image_path)
+            _maybe_save_ocr_text(validated, result)
+        except Exception:
+            pass
+    return result
 
 
 async def _ocr_extract_structured_impl(image_path: str, instruction: str = "Extract structured data") -> str:
@@ -442,7 +459,9 @@ async def extract_from_image(
         method = choose_ocr_method(instruction, image_size_kb)
 
     if method == "local":
-        return _ocr_extract_text_impl(image_path)
+        result = _ocr_extract_text_impl(image_path)
+        _maybe_save_ocr_text(validated, result)
+        return result
     if method == "vision":
         return await _ocr_extract_structured_impl(image_path, instruction)
 

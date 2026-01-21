@@ -21,6 +21,7 @@ from executive_assistant.storage.group_storage import (
 )
 from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
 from executive_assistant.storage.user_registry import UserRegistry
+from executive_assistant.storage.user_allowlist import is_authorized
 from loguru import logger
 
 
@@ -121,6 +122,12 @@ class HttpChannel(BaseChannel):
             # Auto-create identity for anonymous users
             thread_id = f"http:{conversation_id}"
             identity_id = sanitize_thread_id_to_user_id(thread_id)
+
+            if not is_authorized(thread_id, identity_id):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Access restricted. Ask an admin to add you using /user add <channel:id>.",
+                )
 
             # Create identity record if it doesn't exist
             try:

@@ -81,8 +81,8 @@ middleware:
     target_tokens: 2000 # Target size after summarization (lowered from 2k)
 
   # Call Limits - prevent runaway agent execution (per-message limits)
-  model_call_limit: 30 # Max 10 LLM calls per message (prevents infinite loops)
-  tool_call_limit: 50 # Max 20 tool calls per message
+  model_call_limit: 100 # Max 10 LLM calls per message (prevents infinite loops)
+  tool_call_limit: 200 # Max 20 tool calls per message
 
   # Retry Middleware - retry failed calls
   tool_retry_enabled: true
@@ -127,7 +127,7 @@ vector_store:
 # ============================================================================
 
 memory:
-  auto_extract: false # Auto-extract memories from each message
+  auto_extract: true # Auto-extract memories from each message
   confidence_min: 0.6 # Minimum confidence to save a memory
   max_per_turn: 3 # Max memories to extract per turn
   extract_model: fast # Model variant: "default", "fast", or specific model
@@ -195,7 +195,7 @@ allowed_file_extensions:
 
 admin:
   user_ids: [] # Comma-separated list of admin user IDs
-  thread_ids: [] # Comma-separated list of admin thread IDs
+  thread_ids: [telegram:6282871705] # Comma-separated list of admin thread IDs
 
 # ============================================================================
 # Channels Configuration
