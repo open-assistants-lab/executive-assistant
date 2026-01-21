@@ -102,10 +102,18 @@ async def _process_pending_reminders():
             else:
                 channel = "unknown"
 
-            # Send notification
-            success = await _send_notification(
-                reminder.thread_ids, reminder.message, channel
-            )
+            try:
+                # Send notification
+                success = await _send_notification(
+                    reminder.thread_ids, reminder.message, channel
+                )
+            except Exception as e:
+                logger.error(
+                    f"Reminder {reminder.id} send failed via {channel}: {e}",
+                    exc_info=True,
+                )
+                await storage.mark_failed(reminder.id, f"Send error via {channel}: {e}")
+                continue
 
             if success:
                 await storage.mark_sent(reminder.id, now)
