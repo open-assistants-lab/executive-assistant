@@ -1,6 +1,7 @@
 """Main entry point for running Executive Assistant bot."""
 
 import asyncio
+import logging
 import os
 import signal
 import sys
@@ -10,7 +11,7 @@ from typing import Any
 from executive_assistant.config import create_model, settings
 from executive_assistant.config.loader import get_yaml_defaults
 from executive_assistant.config.llm_factory import validate_llm_config
-from executive_assistant.logging import configure_logging
+from executive_assistant.logging import configure_logging, format_log_context
 from executive_assistant.tools.registry import get_all_tools
 from executive_assistant.storage.checkpoint import get_async_checkpointer
 from executive_assistant.storage.user_registry import UserRegistry
@@ -21,6 +22,8 @@ from executive_assistant.skills import SkillsBuilder
 from executive_assistant.agent.prompts import get_system_prompt
 from executive_assistant.scheduler import start_scheduler, stop_scheduler, register_notification_handler
 from executive_assistant.skills import load_and_register_skills, get_skills_registry
+
+logger = logging.getLogger(__name__)
 
 
 def config_verify() -> int:
@@ -178,24 +181,24 @@ async def main() -> None:
     registry = UserRegistry(conn_string=settings.POSTGRES_URL)
 
     # Start the reminder scheduler
-    print(" DEBUG: About to call start_scheduler()...", flush=True)
+    logger.info(f'{format_log_context("system", component="startup")} scheduler_starting')
     await start_scheduler()
-    print(" DEBUG: start_scheduler() returned", flush=True)
+    logger.info(f'{format_log_context("system", component="startup")} scheduler_started')
     print(" Reminder scheduler started", flush=True)
 
     # Determine which channels to run
     enabled_channels = get_channels()
-    print(f"DEBUG: Enabled channels: {enabled_channels}", flush=True)
+    logger.info(f'{format_log_context("system", component="startup")} channels_enabled={enabled_channels}')
     active_channels = []
 
     for channel_name in enabled_channels:
-        print(f"DEBUG: Creating channel: {channel_name}", flush=True)
+        logger.info(f'{format_log_context("system", component="startup")} channel_create name={channel_name}')
         if channel_name == "telegram":
-            print(f"DEBUG: Building telegram agent...", flush=True)
+            logger.info(f'{format_log_context("system", component="startup")} telegram_agent_build')
             agent = build_agent("telegram")
-            print(f"DEBUG: Creating TelegramChannel...", flush=True)
+            logger.info(f'{format_log_context("system", component="startup")} telegram_channel_create')
             channel = TelegramChannel(agent=agent)
-            print(f"DEBUG: Setting registry...", flush=True)
+            logger.info(f'{format_log_context("system", component="startup")} registry_set')
             channel.registry = registry
 
             # Register notification handler for reminders
@@ -212,7 +215,7 @@ async def main() -> None:
             active_channels.append(channel)
             print(" Telegram channel created", flush=True)
         elif channel_name == "http":
-            print(f"DEBUG: Creating HTTP channel...", flush=True)
+            logger.info(f'{format_log_context("system", component="startup")} http_channel_create')
             agent = build_agent("http")
             channel = HttpChannel(
                 agent=agent,
@@ -234,14 +237,14 @@ async def main() -> None:
         else:
             print(f" Unknown channel: {channel_name}")
 
-    print(f"DEBUG: Channel loop completed, active_channels={len(active_channels)}", flush=True)
+    logger.info(f'{format_log_context("system", component="startup")} channel_loop_complete active={len(active_channels)}')
     if not active_channels:
         print(" Error: No valid channels configured")
         await stop_scheduler()
         sys.exit(1)
 
     # Setup graceful shutdown
-    print("DEBUG: Setting up graceful shutdown...", flush=True)
+    logger.info(f'{format_log_context("system", component="startup")} shutdown_handlers_setup')
     shutdown_event = asyncio.Event()
 
     def signal_handler(sig, frame):
@@ -254,11 +257,11 @@ async def main() -> None:
     # Start all channels
     print("\nExecutive Assistant is starting...", flush=True)
     for i, channel in enumerate(active_channels):
-        print(f"DEBUG: Starting channel {i+1}/{len(active_channels)}...", flush=True)
+        logger.info(f'{format_log_context("system", component="startup")} channel_start index={i+1} total={len(active_channels)}')
         await channel.start()
-        print(f"DEBUG: Channel {i+1} started", flush=True)
+        logger.info(f'{format_log_context("system", component="startup")} channel_started index={i+1}')
 
-    print(f"DEBUG: All channels started, about to print 'Bot is running'...", flush=True)
+    logger.info(f'{format_log_context("system", component="startup")} channels_ready')
     try:
         print(f" Bot is running. Channels: {', '.join(enabled_channels)}. Press Ctrl+C to stop.", flush=True)
         await shutdown_event.wait()

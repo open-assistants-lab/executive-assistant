@@ -1,7 +1,10 @@
 """Telegram channel implementation using python-telegram-bot."""
 
 import asyncio
+import html
+import io
 import re
+from pathlib import Path
 from typing import Any
 
 from telegram import Update
@@ -26,6 +29,7 @@ from executive_assistant.channels.management_commands import (
     meta_command,
 )
 from executive_assistant.config.settings import settings
+from executive_assistant.logging import format_log_context, truncate_log_text
 from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
 from executive_assistant.storage.user_registry import UserRegistry
 from loguru import logger
@@ -116,18 +120,42 @@ class TelegramChannel(BaseChannel):
         self.application.add_handler(
             MessageHandler(filters.Document.ALL | filters.PHOTO, self._file_handler)
         )
+        self.application.add_error_handler(self._error_handler)
 
         # Note: Checkpoint sanitization now happens automatically via SanitizingCheckpointSaver
         # No need for startup cleanup - corrupted messages are sanitized on load
 
         # Start polling
-        print("DEBUG: TelegramChannel: About to initialize...", flush=True)
+        logger.info(f'{format_log_context("system", component="telegram")} initializing')
         await self.application.initialize()
-        print("DEBUG: TelegramChannel: Initialized", flush=True)
+        logger.info(f'{format_log_context("system", component="telegram")} initialized')
         await self.application.start()
-        print("DEBUG: TelegramChannel: Application started", flush=True)
+        logger.info(f'{format_log_context("system", component="telegram")} application_started')
         await self.application.updater.start_polling(drop_pending_updates=True)
-        print("DEBUG: TelegramChannel: Polling started", flush=True)
+        logger.info(f'{format_log_context("system", component="telegram")} polling_started')
+
+    async def _error_handler(
+        self,
+        update: object,
+        context: ContextTypes.DEFAULT_TYPE,
+    ) -> None:
+        """Log Telegram errors with context."""
+        update_id = getattr(update, "update_id", None)
+        chat_id = None
+        user_id = None
+        if isinstance(update, Update):
+            if update.effective_chat:
+                chat_id = update.effective_chat.id
+                thread_id = f"telegram:{chat_id}"
+                user_id = sanitize_thread_id_to_user_id(thread_id)
+        ctx = format_log_context(
+            "system",
+            component="telegram",
+            conversation=str(chat_id) if chat_id else None,
+            user=user_id,
+            update_id=update_id,
+        )
+        logger.exception(f"{ctx} unhandled exception")
 
     async def stop(self) -> None:
         """Stop the Telegram bot gracefully."""
@@ -137,52 +165,220 @@ class TelegramChannel(BaseChannel):
             await self.application.shutdown()
 
     @staticmethod
-    def _convert_markdown_to_telegram(text: str) -> str:
-        """Convert standard markdown to Telegram markdown format.
+    def _format_markdown_for_telegram_html(text: str) -> str:
+        """Convert markdown-ish text to Telegram HTML.
 
-        Telegram markdown uses:
-        - *bold* (not **bold**)
-        - _italic_ (not *italic*)
-        - `code` (same)
-        - ```pre``` (same)
-
-        Also handles HTML-style bold/italic that LLMs sometimes use.
+        Telegram HTML supports <b>, <i>, <code>, <pre>, and links.
+        Tables and headings are not supported in Telegram Markdown, so we
+        normalize them here.
         """
-        # Use placeholder approach to handle the **bold** -> *bold* -> shouldn't become _italic_
-        # problem. We process bold patterns first, protect the result, then do italic.
-        # Use Unicode \x00 delimiters that won't appear in normal text.
+        if not text:
+            return ""
 
-        placeholder_count = [0]  # Use list to allow modification in nested function
+        # Extract markdown tables into placeholders.
+        table_placeholders: list[str] = []
 
-        def protect_bold(content):
-            placeholder_count[0] += 1
-            return f'\x00BOLD{placeholder_count[0]}\x00{content}\x00END{placeholder_count[0]}\x00'
+        def split_row(line: str) -> list[str]:
+            line = line.strip()
+            if line.startswith("|"):
+                line = line[1:]
+            if line.endswith("|"):
+                line = line[:-1]
+            return [cell.strip() for cell in line.split("|")]
 
-        # Step 1: Convert **bold** to protected placeholder
-        text = re.sub(r'\*\*(.+?)\*\*', lambda m: protect_bold(m.group(1)), text)
+        def render_table(lines: list[str]) -> str:
+            header = split_row(lines[0])
+            rows = [split_row(l) for l in lines[2:]]
+            col_count = max(len(header), *(len(r) for r in rows)) if rows else len(header)
+            max_width = 28
 
-        # Step 2: Convert __bold__ to protected placeholder (skip if already a placeholder)
-        # Only match __text__ that doesn't contain \x00
-        text = re.sub(r'__([^\x00]+?)__', lambda m: protect_bold(m.group(1)), text)
+            def sanitize_cell(cell: str) -> str:
+                cell = cell.replace("<br>", " ").replace("<br/>", " ").replace("<br />", " ")
+                cell = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r"\1 (\2)", cell)
+                cell = re.sub(r"\*\*([^*]+)\*\*", r"\1", cell)
+                cell = re.sub(r"__([^_]+)__", r"\1", cell)
+                cell = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"\1", cell)
+                cell = re.sub(r"(?<!_)_([^_]+)_(?!_)", r"\1", cell)
+                cell = re.sub(r"`([^`]+)`", r"\1", cell)
+                return cell
 
-        # Step 3: NOW convert *italic* to _italic_
-        # This won't match our placeholders because they use \x00 not *
-        text = re.sub(r'(?<!\*)\*([^*]+)\*(?!\*)', r'_\1_', text)
 
-        # Step 4: Restore protected bold (convert placeholder to *bold*)
-        text = re.sub(r'\x00BOLD\d+\x00(.+?)\x00END\d+\x00', r'*\1*', text)
+            def normalize(cells: list[str]) -> list[str]:
+                cells = cells + [""] * (col_count - len(cells))
+                trimmed = []
+                for cell in cells:
+                    cell = sanitize_cell(cell).replace("\n", " ")
+                    if len(cell) > max_width:
+                        cell = cell[: max_width - 1] + "…"
+                    trimmed.append(cell)
+                return trimmed
 
-        # Step 5: HTML tags to markdown
-        text = re.sub(r'<b>(.+?)</b>', r'*\1*', text, flags=re.IGNORECASE)
-        text = re.sub(r'<strong>(.+?)</strong>', r'*\1*', text, flags=re.IGNORECASE)
-        text = re.sub(r'<i>(.+?)</i>', r'_\1_', text, flags=re.IGNORECASE)
-        text = re.sub(r'<em>(.+?)</em>', r'_\1_', text, flags=re.IGNORECASE)
-        text = re.sub(r'<code>(.+?)</code>', r'`\1`', text, flags=re.IGNORECASE)
-        text = re.sub(r'<pre>(.+?)</pre>', r'```\1```', text, flags=re.IGNORECASE | re.DOTALL)
+            header_cells = normalize(header)
+            row_cells = [normalize(r) for r in rows]
+            widths = [len(c) for c in header_cells]
+            for row in row_cells:
+                widths = [max(widths[i], len(row[i])) for i in range(col_count)]
+
+            def fmt_row(cells: list[str]) -> str:
+                return " | ".join(cells[i].ljust(widths[i]) for i in range(col_count))
+
+            divider = "-+-".join("-" * w for w in widths)
+            rendered = [fmt_row(header_cells), divider]
+            rendered.extend(fmt_row(row) for row in row_cells)
+            return "<pre>" + html.escape("\n".join(rendered)) + "</pre>"
+
+        lines = text.splitlines()
+        out_lines: list[str] = []
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            if line.strip().startswith("|") and i + 1 < len(lines):
+                sep = lines[i + 1]
+                if re.match(r"^\s*\|?[-:|\s]+\|?\s*$", sep):
+                    table_lines = [line, sep]
+                    i += 2
+                    while i < len(lines) and lines[i].strip().startswith("|") and lines[i].strip() != "":
+                        table_lines.append(lines[i])
+                        i += 1
+                    placeholder = f"\x00TABLE{len(table_placeholders)}\x00"
+                    table_placeholders.append(render_table(table_lines))
+                    out_lines.append(placeholder)
+                    continue
+            out_lines.append(line)
+            i += 1
+
+        text = "\n".join(out_lines)
+
+        # Extract fenced code blocks
+        code_blocks: list[str] = []
+
+        def take_code_block(match: re.Match) -> str:
+            content = match.group(1)
+            # Drop leading language line if present
+            if "\n" in content:
+                first, rest = content.split("\n", 1)
+                if re.fullmatch(r"[A-Za-z0-9_+-]{1,20}", first.strip()):
+                    content = rest
+            placeholder = f"\x00CODEBLOCK{len(code_blocks)}\x00"
+            code_blocks.append(content)
+            return placeholder
+
+        text = re.sub(r"```(.*?)```", take_code_block, text, flags=re.DOTALL)
+
+        # Extract inline code
+        inline_codes: list[str] = []
+
+        def take_inline_code(match: re.Match) -> str:
+            placeholder = f"\x00INLINE{len(inline_codes)}\x00"
+            inline_codes.append(match.group(1))
+            return placeholder
+
+        text = re.sub(r"`([^`]+)`", take_inline_code, text)
+
+        # Escape everything else
+        text = html.escape(text)
+
+        # Headings -> bold
+        text = re.sub(r"(?m)^\s{0,3}#{1,6}\s+(.+?)\s*$", r"<b>\1</b>", text)
+
+        # Bold/italic
+        text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
+        text = re.sub(r"__(.+?)__", r"<b>\1</b>", text)
+        text = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"<i>\1</i>", text)
+        text = re.sub(r"(?<!_)_([^_]+)_(?!_)", r"<i>\1</i>", text)
+
+        # Blockquotes -> prefixed lines
+        text = re.sub(r"(?m)^&gt;\s?(.+)$", r"\1", text)
+
+        # Restore tables
+        for idx, rendered in enumerate(table_placeholders):
+            text = text.replace(f"\x00TABLE{idx}\x00", rendered)
+
+        # Restore code blocks and inline code
+        for idx, code in enumerate(code_blocks):
+            text = text.replace(
+                f"\x00CODEBLOCK{idx}\x00",
+                f"<pre><code>{html.escape(code)}</code></pre>",
+            )
+        for idx, code in enumerate(inline_codes):
+            text = text.replace(
+                f"\x00INLINE{idx}\x00",
+                f"<code>{html.escape(code)}</code>",
+            )
 
         return text
 
+    def _strip_assistant_file_links(self, content: str) -> str:
+        if not content:
+            return content
+        # Replace markdown download links for assistant.files with filename text.
+        content = re.sub(
+            r"\[Download\s+([^\]]+)\]\(https?://assistant\.files/[^)]+\)",
+            r"Attached: \1",
+            content,
+            flags=re.IGNORECASE,
+        )
+        # Remove any remaining assistant.files URLs.
+        content = re.sub(r"https?://assistant\.files/\S+", "", content, flags=re.IGNORECASE)
+        return content
+
+
+    def _extract_filenames(self, content: str) -> list[str]:
+        exts = (
+            "csv", "tsv", "txt", "md", "json", "yaml", "yml",
+            "pdf", "png", "jpg", "jpeg", "webp", "tiff", "bmp",
+            "xlsx", "docx", "pptx",
+        )
+        pattern = r"(?<![\w/.-])([\w./-]+\.({}))".format('|'.join(exts))
+        matches = [m.group(1) for m in re.finditer(pattern, content or "", flags=re.IGNORECASE)]
+        results = []
+        for m in matches:
+            cleaned = m.strip("\"'()[]{}<>.,;:!?")
+            if '://' in cleaned or cleaned.startswith('www.'):
+                continue
+            results.append(cleaned)
+        return list(dict.fromkeys(results))
+
+    async def _send_files_if_mentioned(self, conversation_id: str, content: str) -> None:
+        if not self.application:
+            return
+
+        filenames = self._extract_filenames(content or "")
+        if not filenames:
+            return
+
+        from executive_assistant.storage.file_sandbox import set_thread_id, clear_thread_id, get_sandbox
+
+        thread_id = f"telegram:{conversation_id}"
+        set_thread_id(thread_id)
+        try:
+            sandbox = get_sandbox()
+            root = Path(sandbox.root)
+            for name in filenames:
+                candidate = root / name
+                if not candidate.exists() and not ('/' in name or '\\' in name):
+                    # Search by basename
+                    hits = list(root.rglob(name))
+                    candidate = hits[0] if hits else candidate
+                if not candidate.exists() and not ('/' in name or '\\' in name):
+                    lower_name = name.lower()
+                    for p in root.rglob("*"):
+                        if p.is_file() and p.name.lower() == lower_name:
+                            candidate = p
+                            break
+                if not candidate.exists():
+                    continue
+                with candidate.open('rb') as f:
+                    await self.application.bot.send_document(
+                        chat_id=conversation_id,
+                        document=f,
+                        filename=candidate.name,
+                    )
+        finally:
+            clear_thread_id()
+
     # Telegram message length limit
+
     MAX_MESSAGE_LENGTH = 4096
 
     async def send_message(
@@ -195,22 +391,31 @@ class TelegramChannel(BaseChannel):
         """Send a message to a Telegram chat.
 
         Splits messages longer than MAX_MESSAGE_LENGTH into multiple messages.
-        Converts standard markdown to Telegram markdown format.
+        Converts markdown-like text to Telegram HTML format.
         Falls back to plain text if markdown parsing fails.
         """
         if not self.application:
             return
 
-        # Convert markdown to Telegram format
-        content = self._convert_markdown_to_telegram(content)
+        if content is None:
+            return
+
+        content = self._strip_assistant_file_links(content)
+        raw_content = content
+        ctx = format_log_context("message", channel="telegram", conversation=conversation_id, type="text")
+        logger.info(f"{ctx} send text=\"{truncate_log_text(raw_content)}\"")
+
+        # Convert markdown-like text to Telegram HTML
+        content = self._format_markdown_for_telegram_html(content)
 
         # Handle long messages by splitting them
         if len(content) > self.MAX_MESSAGE_LENGTH:
             await self._send_long_message(conversation_id, content, **kwargs)
         else:
             await self._send_with_fallback(
-                conversation_id, content, parse_mode or 'Markdown', **kwargs
+                conversation_id, content, 'HTML', **kwargs
             )
+        await self._send_files_if_mentioned(conversation_id, raw_content)
 
     async def _send_with_fallback(
         self,
@@ -219,7 +424,7 @@ class TelegramChannel(BaseChannel):
         parse_mode: str,
         **kwargs: Any,
     ) -> None:
-        """Send message with markdown, falling back to plain text on parse error."""
+        """Send message with HTML formatting, falling back to plain text on parse error."""
         try:
             await self.application.bot.send_message(
                 chat_id=conversation_id,
@@ -251,6 +456,7 @@ class TelegramChannel(BaseChannel):
         # Remove code blocks
         text = re.sub(r'`([^`]+)`', r'\1', text)  # `code`
         text = re.sub(r'```(.+?)```', r'\1', text, flags=re.DOTALL)  # ```pre```
+        text = re.sub(r'<[^>]+>', '', text)  # strip HTML tags
         return text
 
     async def _send_long_message(
@@ -290,7 +496,7 @@ class TelegramChannel(BaseChannel):
         for i, chunk in enumerate(chunks, 1):
             if chunk:  # Only send non-empty chunks
                 await self._send_with_fallback(
-                    conversation_id, chunk, 'Markdown', **kwargs
+                    conversation_id, chunk, 'HTML', **kwargs
                 )
 
     async def send_status(
@@ -312,9 +518,15 @@ class TelegramChannel(BaseChannel):
         """
         import logging
         logger = logging.getLogger(__name__)
+        ctx = format_log_context(
+            "message",
+            channel="telegram",
+            conversation=conversation_id,
+            type="status",
+        )
 
         if not self.application:
-            logger.warning(f"send_status: no application")
+            logger.warning(f"{ctx} send_status skipped: no application")
             return
 
         # Convert conversation_id to int for Telegram API
@@ -326,13 +538,15 @@ class TelegramChannel(BaseChannel):
         if verbose_mode:
             # Verbose mode: always send new messages (don't edit)
             try:
-                msg = await self.application.bot.send_message(
+                await self.application.bot.send_message(
                     chat_id=chat_id,
                     text=message,
                 )
-                logger.info(f"[VERBOSE] Sent status to {chat_id}: {message}")
+                logger.info(
+                    f'{ctx} send status (verbose) text="{truncate_log_text(message)}"'
+                )
             except Exception as e:
-                logger.error(f"Failed to send status message to {chat_id}: {e}")
+                logger.error(f'{ctx} send status failed error="{e}"')
             return
 
         # Normal mode: try to edit existing message
@@ -340,25 +554,29 @@ class TelegramChannel(BaseChannel):
             # Try to edit existing status message
             message_id = self._status_messages[conversation_id]
             try:
-                result = await self.application.bot.edit_message_text(
+                await self.application.bot.edit_message_text(
                     chat_id=chat_id,
                     message_id=message_id,
                     text=message,
                 )
-                logger.info(f"Edited status message {message_id} for {conversation_id}: {message}")
+                logger.info(
+                    f'{ctx} edit status message_id={message_id} text="{truncate_log_text(message)}"'
+                )
                 return
             except BadRequest as e:
                 if "message is not modified" in str(e).lower():
-                    logger.info(
-                        f"Status message {message_id} for {conversation_id} unchanged; skipping update"
-                    )
+                    logger.info(f"{ctx} edit status message_id={message_id} unchanged")
                     return
                 # Message might be too old or deleted - remove and send new
-                logger.warning(f"BadRequest editing status message {message_id}: {e}, sending new")
+                logger.warning(
+                    f'{ctx} edit status message_id={message_id} failed error="{e}"; sending new'
+                )
                 del self._status_messages[conversation_id]
             except Exception as e:
                 # Other errors - fall through to sending new message
-                logger.warning(f"Error editing status message {message_id}: {e}, sending new")
+                logger.warning(
+                    f'{ctx} edit status message_id={message_id} failed error="{e}"; sending new'
+                )
                 del self._status_messages[conversation_id]
 
         # Send new status message (normal mode)
@@ -369,9 +587,11 @@ class TelegramChannel(BaseChannel):
             )
             # Track for future edits
             self._status_messages[conversation_id] = msg.message_id
-            logger.info(f"Sent new status message {msg.message_id} to {conversation_id}: {message}")
+            logger.info(
+                f'{ctx} send status message_id={msg.message_id} text="{truncate_log_text(message)}"'
+            )
         except Exception as e:
-            logger.error(f"Failed to send status message to {conversation_id}: {e}")
+            logger.error(f'{ctx} send status failed error="{e}"')
 
     async def send_todo(
         self,
@@ -386,9 +606,15 @@ class TelegramChannel(BaseChannel):
         """
         import logging
         logger = logging.getLogger(__name__)
+        ctx = format_log_context(
+            "message",
+            channel="telegram",
+            conversation=conversation_id,
+            type="todo",
+        )
 
         if not self.application:
-            logger.warning("send_todo: no application")
+            logger.warning(f"{ctx} send_todo skipped: no application")
             return
 
         chat_id = int(conversation_id) if isinstance(conversation_id, str) else conversation_id
@@ -401,18 +627,22 @@ class TelegramChannel(BaseChannel):
                     message_id=message_id,
                     text=message,
                 )
-                logger.info(f"Edited todo message {message_id} for {conversation_id}")
+                logger.info(
+                    f'{ctx} edit todo message_id={message_id} text="{truncate_log_text(message)}"'
+                )
                 return
             except BadRequest as e:
                 if "message is not modified" in str(e).lower():
-                    logger.info(
-                        f"Todo message {message_id} for {conversation_id} unchanged; skipping update"
-                    )
+                    logger.info(f"{ctx} edit todo message_id={message_id} unchanged")
                     return
-                logger.warning(f"BadRequest editing todo message {message_id}: {e}, sending new")
+                logger.warning(
+                    f'{ctx} edit todo message_id={message_id} failed error="{e}"; sending new'
+                )
                 del self._todo_messages[conversation_id]
             except Exception as e:
-                logger.warning(f"Error editing todo message {message_id}: {e}, sending new")
+                logger.warning(
+                    f'{ctx} edit todo message_id={message_id} failed error="{e}"; sending new'
+                )
                 del self._todo_messages[conversation_id]
 
         try:
@@ -421,9 +651,11 @@ class TelegramChannel(BaseChannel):
                 text=message,
             )
             self._todo_messages[conversation_id] = msg.message_id
-            logger.info(f"Sent new todo message {msg.message_id} to {conversation_id}")
+            logger.info(
+                f'{ctx} send todo message_id={msg.message_id} text="{truncate_log_text(message)}"'
+            )
         except Exception as e:
-            logger.error(f"Failed to send todo message to {conversation_id}: {e}")
+            logger.error(f'{ctx} send todo failed error="{e}"')
 
     async def handle_message(self, message: MessageFormat) -> None:
         """Handle incoming message through the agent with real-time streaming."""
@@ -482,6 +714,8 @@ class TelegramChannel(BaseChannel):
         request_start = time.time()
         typing_task = None
 
+        ctx = format_log_context("system", component="agent", channel="telegram", conversation=batch[-1].conversation_id, user=sanitize_thread_id_to_user_id(thread_id))
+
         async def _keep_typing():
             """Keep sending typing action every 4 seconds (Telegram expires after ~5s)."""
             while True:
@@ -520,7 +754,6 @@ class TelegramChannel(BaseChannel):
             set_thread_id(thread_id)
 
             # Convert thread_id to user_id (identity_id) for storage and permission checks
-            from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
             user_id_for_storage = sanitize_thread_id_to_user_id(thread_id)
 
             # Ensure group exists and set group_id context only for group chats
@@ -589,11 +822,10 @@ class TelegramChannel(BaseChannel):
                         )
 
             agent_elapsed = time.time() - agent_start
-            logger.info(f"Agent processing: {agent_elapsed:.2f}s, {event_count} events, {message_count} messages")
+            logger.info(f"{ctx} agent processing elapsed={agent_elapsed:.2f}s events={event_count} messages={message_count}")
 
         except Exception as e:
-            import traceback
-            traceback.print_exc()
+            logger.exception(f"{ctx} unhandled exception")
             error_str = str(e)
 
             if self._is_corruption_error(error_str):
@@ -662,6 +894,11 @@ class TelegramChannel(BaseChannel):
         if not update.message:
             return
 
+        thread_id = f"telegram:{update.effective_chat.id}" if update.effective_chat else None
+        user_id = sanitize_thread_id_to_user_id(thread_id) if thread_id else None
+        ctx = format_log_context("message", channel="telegram", user=user_id, conversation=str(update.effective_chat.id) if update.effective_chat else None, type="command", update_id=update.update_id)
+        logger.info(f'{ctx} recv command=/remember')
+
         try:
             # Get the text after /remember command
             args = context.args if context.args else []
@@ -675,7 +912,7 @@ class TelegramChannel(BaseChannel):
                     "• /remember My timezone is America/New_York\n"
                     "• /remember I work 9-5 EST\n\n"
                     "The memory will be stored and can be retrieved in future conversations.",
-                    parse_mode="Markdown"
+                    parse_mode="HTML"
                 )
                 return
 
@@ -702,15 +939,14 @@ class TelegramChannel(BaseChannel):
                     f"💾 *Memory saved!*\n\n"
                     f"Content: {content[:200]}{'...' if len(content) > 200 else ''}\n\n"
                     f"I'll remember this for future conversations.",
-                    parse_mode="Markdown"
+                    parse_mode="HTML"
                 )
             finally:
                 from executive_assistant.storage.file_sandbox import clear_thread_id
                 clear_thread_id()
 
         except Exception as e:
-            import traceback
-            traceback.print_exc()
+            logger.exception(f"{ctx} unhandled exception")
             await update.message.reply_text(f"Sorry, failed to save memory: {e}")
 
     async def _debug_command(
@@ -735,7 +971,7 @@ class TelegramChannel(BaseChannel):
                 f"• `/debug on` - Enable verbose status (see all LLM calls and tools)\n"
                 f"• `/debug off` - Disable (clean mode, status edited in place)\n"
                 f"• `/debug toggle` - Toggle debug mode",
-                parse_mode="Markdown"
+                parse_mode="HTML"
             )
             return
 
@@ -747,7 +983,7 @@ class TelegramChannel(BaseChannel):
                 "✅ *Verbose debug enabled*\n\n"
                 "All LLM calls and tool executions will be shown as separate messages.\n\n"
                 "Use `/debug off` to disable.",
-                parse_mode="Markdown"
+                parse_mode="HTML"
             )
         elif command in ("off", "disable", "0", "false"):
             self._debug_chats.discard(chat_id)
@@ -756,21 +992,21 @@ class TelegramChannel(BaseChannel):
             await update.message.reply_text(
                 "❌ *Verbose debug disabled*\n\n"
                 "Status updates will be edited in place (clean mode).",
-                parse_mode="Markdown"
+                parse_mode="HTML"
             )
         elif command in ("toggle", "switch"):
             if chat_id in self._debug_chats:
                 self._debug_chats.discard(chat_id)
                 self._status_messages.pop(str(chat_id), None)
-                await update.message.reply_text("🔍 Debug mode: OFF", parse_mode="Markdown")
+                await update.message.reply_text("🔍 Debug mode: OFF", parse_mode="HTML")
             else:
                 self._debug_chats.add(chat_id)
-                await update.message.reply_text("🔍 Debug mode: ON", parse_mode="Markdown")
+                await update.message.reply_text("🔍 Debug mode: ON", parse_mode="HTML")
         else:
             await update.message.reply_text(
                 f"Unknown option: {command}\n\n"
                 f"Use: `/debug on|off|toggle`",
-                parse_mode="Markdown"
+                parse_mode="HTML"
             )
 
     async def _clear_checkpoint(self, thread_id: str) -> bool:
@@ -787,7 +1023,6 @@ class TelegramChannel(BaseChannel):
             # Direct database deletion - most reliable method
             import os
             from executive_assistant.config.settings import settings
-
             conn_str = (
                 f"postgresql://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}@"
                 f"{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
@@ -817,7 +1052,10 @@ class TelegramChannel(BaseChannel):
         context: ContextTypes.DEFAULT_TYPE,
     ) -> None:
         """Handle incoming text messages."""
-        print(f"DEBUG: _message_handler called: update={update.update_id}, text={update.message.text if update.message else 'None'}", flush=True)
+        thread_id = f"telegram:{update.effective_chat.id}" if update.effective_chat else None
+        user_id = sanitize_thread_id_to_user_id(thread_id) if thread_id else None
+        ctx = format_log_context("message", channel="telegram", user=user_id, conversation=str(update.effective_chat.id) if update.effective_chat else None, type="text", update_id=update.update_id)
+        logger.info(f'{ctx} recv text="{truncate_log_text(update.message.text if update.message else '')}"')
         if not update.message or not update.message.text:
             return
 
@@ -836,7 +1074,8 @@ class TelegramChannel(BaseChannel):
                 )
             except Exception as e:
                 # Log but don't fail - user can still interact
-                logger.warning(f"Failed to create identity for {thread_id}: {e}")
+                ctx_identity = format_log_context("system", component="identity", channel="telegram", user=identity_id, conversation=str(update.effective_chat.id) if update.effective_chat else None)
+                logger.warning(f'{ctx_identity} create_identity_failed error="{e}"')
 
             # Create MessageFormat with Telegram timestamp
             message = MessageFormat(
@@ -855,8 +1094,7 @@ class TelegramChannel(BaseChannel):
             # Handle through agent (typing indicator is sent in handle_message)
             await self.handle_message(message)
         except Exception as e:
-            import traceback
-            traceback.print_exc()
+            logger.exception(f"{ctx} unhandled exception")
             error_msg = str(e) if str(e) else f"{type(e).__name__}"
             await update.message.reply_text(f"Sorry, an error occurred: {error_msg}")
 
@@ -874,6 +1112,11 @@ class TelegramChannel(BaseChannel):
         if not update.message:
             return
 
+        thread_id = f"telegram:{update.effective_chat.id}" if update.effective_chat else None
+        user_id = sanitize_thread_id_to_user_id(thread_id) if thread_id else None
+        ctx = format_log_context("message", channel="telegram", user=user_id, conversation=str(update.effective_chat.id) if update.effective_chat else None, type="file", update_id=update.update_id)
+        logger.info(f'{ctx} recv file')
+
         try:
             # Auto-create identity for anonymous users
             thread_id = f"telegram:{update.effective_chat.id}"
@@ -889,7 +1132,8 @@ class TelegramChannel(BaseChannel):
                 )
             except Exception as e:
                 # Log but don't fail - user can still interact
-                logger.warning(f"Failed to create identity for {thread_id}: {e}")
+                ctx_identity = format_log_context("system", component="identity", channel="telegram", user=identity_id, conversation=str(update.effective_chat.id) if update.effective_chat else None)
+                logger.warning(f'{ctx_identity} create_identity_failed error="{e}"')
 
             from pathlib import Path
             from executive_assistant.storage.file_sandbox import set_thread_id
@@ -898,7 +1142,6 @@ class TelegramChannel(BaseChannel):
                 set_group_id as set_workspace_context,
             )
             from executive_assistant.config.settings import settings
-
             # Get thread_id for file sandbox
             thread_id = self.get_thread_id(MessageFormat(
                 content="",  # Dummy content for thread_id generation
@@ -910,7 +1153,6 @@ class TelegramChannel(BaseChannel):
 
             # Set up user_id context (individual mode, not personal groups)
             # Convert thread_id to user_id (identity_id) for storage operations
-            from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
             user_id = sanitize_thread_id_to_user_id(thread_id)
             from executive_assistant.storage.group_storage import set_user_id
             set_user_id(user_id)
@@ -1016,8 +1258,7 @@ class TelegramChannel(BaseChannel):
                 await update.message.reply_text("Could not process the uploaded file.")
 
         except Exception as e:
-            import traceback
-            traceback.print_exc()
+            logger.exception(f"{ctx} unhandled exception")
             error_msg = str(e) if str(e) else f"{type(e).__name__}"
             await update.message.reply_text(f"Sorry, an error occurred: {error_msg}")
         finally:

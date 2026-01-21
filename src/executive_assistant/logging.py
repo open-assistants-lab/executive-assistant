@@ -97,6 +97,33 @@ def configure_logging(
         logging.getLogger(logger_name).setLevel(logging.WARNING)
 
 
+
+
+
+def format_log_context(kind: str, **fields: object) -> str:
+    """
+    Format a log context prefix for consistent, searchable logs.
+
+    Example:
+        [kind=message channel=telegram user=anon_telegram_123 conversation=123 type=status]
+    """
+    parts: list[str] = [f"kind={kind}"]
+    for key, value in fields.items():
+        if value is None or value == "":
+            continue
+        parts.append(f"{key}={value}")
+    return f"[{' '.join(parts)}]"
+
+
+def truncate_log_text(text: str, limit: int = 200) -> str:
+    """Trim long log messages while preserving basic readability."""
+    if text is None:
+        return ""
+    cleaned = " ".join(str(text).split())
+    if len(cleaned) <= limit:
+        return cleaned
+    return f"{cleaned[:limit]}..."
+
 def get_logger(name: str | None = None):
     """
     Get a Loguru logger instance.
@@ -118,4 +145,4 @@ def get_logger(name: str | None = None):
 
 
 # Convenience exports
-__all__ = ["configure_logging", "get_logger", "logger"]
+__all__ = ["configure_logging", "format_log_context", "truncate_log_text", "get_logger", "logger"]

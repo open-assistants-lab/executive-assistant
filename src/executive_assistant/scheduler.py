@@ -13,6 +13,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from executive_assistant.config.settings import settings
+from executive_assistant.logging import format_log_context
 from executive_assistant.storage.file_sandbox import set_thread_id, clear_thread_id
 from executive_assistant.storage.reminder import ReminderStorage, get_reminder_storage
 from executive_assistant.storage.scheduled_jobs import get_scheduled_job_storage
@@ -181,39 +182,26 @@ async def start_scheduler():
 
     _scheduler = AsyncIOScheduler()
 
-    # Run at second 1 of every minute to align scans
+    # Run at second 0 of every minute to align scans
     _scheduler.add_job(
         _process_pending_reminders,
-        CronTrigger(second=1),
+        CronTrigger(second=0),
         id="check_pending_reminders",
         replace_existing=True,
     )
 
-    # Run at second 1 of every minute to align scans
+    # Run at second 0 of every minute to align scans
     _scheduler.add_job(
         _process_pending_jobs,
-        CronTrigger(second=1),
+        CronTrigger(second=0),
         id="check_pending_jobs",
         replace_existing=True,
     )
 
     _scheduler.start()
-    import sys
-    print("DEBUG: Scheduler start() called, about to log...", flush=True)
-    try:
-        logger.info("Scheduler started (reminders; scheduled jobs archived)")
-    except Exception as e:
-        print(f"DEBUG: Exception during logger.info: {e}", flush=True)
-        import traceback
-        traceback.print_exc()
-    sys.stdout.flush()
-    sys.stderr.flush()
-    print("DEBUG: Logged, now returning...", flush=True)
-    try:
-        logger.debug("start_scheduler() function returning...")
-    except Exception as e:
-        print(f"DEBUG: Exception during logger.debug: {e}", flush=True)
-    print("DEBUG: Almost returned...", flush=True)
+    ctx = format_log_context("system", component="scheduler")
+    logger.info(f"{ctx} started (reminders; scheduled jobs archived)")
+    logger.debug(f"{ctx} start_scheduler returning")
 
 
 async def stop_scheduler():
@@ -227,7 +215,8 @@ async def stop_scheduler():
         return
 
     _scheduler.shutdown()
-    logger.info("Scheduler stopped")
+    ctx = format_log_context("system", component="scheduler")
+    logger.info(f"{ctx} stopped")
 
 
 def get_scheduler() -> AsyncIOScheduler | None:
@@ -243,7 +232,6 @@ async def load_and_schedule_reminders():
     """
     import asyncpg
     from executive_assistant.config.settings import settings
-
     # Query pending reminder count
     conn = await asyncpg.connect(settings.POSTGRES_URL)
     try:
@@ -253,4 +241,5 @@ async def load_and_schedule_reminders():
     finally:
         await conn.close()
 
-    logger.info(f"Loaded {count} pending reminders from database")
+    ctx = format_log_context("system", component="scheduler")
+    logger.info(f"{ctx} loaded pending_reminders={count}")

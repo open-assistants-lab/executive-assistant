@@ -234,7 +234,7 @@ async def reminder_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     try:
         if action == "list":
             status = args[1].lower() if len(args) > 1 else ""
-            result = await reminder_list(status=status)
+            result = await reminder_list.ainvoke({"status": status})
             await update.message.reply_text(result)
         elif action == "set":
             time_str, message, recurrence = _parse_reminder_set_args(args[1:])
@@ -245,7 +245,7 @@ async def reminder_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                     "Optional: recurrence=<daily|weekly|...>"
                 )
                 return
-            result = await reminder_set(message=message, time=time_str, recurrence=recurrence)
+            result = await reminder_set.ainvoke({"message": message, "time": time_str, "recurrence": recurrence})
             await update.message.reply_text(result)
         elif action == "cancel":
             if len(args) < 2:
@@ -256,7 +256,7 @@ async def reminder_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             except ValueError:
                 await update.message.reply_text("Reminder ID must be a number.")
                 return
-            result = await reminder_cancel(reminder_id=reminder_id)
+            result = await reminder_cancel.ainvoke({"reminder_id": reminder_id})
             await update.message.reply_text(result)
         elif action == "edit":
             reminder_id, time_str, message, recurrence = _parse_reminder_edit_args(args)
@@ -266,12 +266,12 @@ async def reminder_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                     "Tip: use time=<...> message=<...> recurrence=<...> for clarity."
                 )
                 return
-            result = await reminder_edit(
-                reminder_id=reminder_id,
-                message=message or "",
-                time=time_str or "",
-                recurrence=recurrence or "",
-            )
+            result = await reminder_edit.ainvoke({
+                "reminder_id": reminder_id,
+                "message": message or "",
+                "time": time_str or "",
+                "recurrence": recurrence or "",
+            })
             await update.message.reply_text(result)
         else:
             await _reminder_help(update)

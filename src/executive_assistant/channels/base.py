@@ -7,7 +7,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langgraph.types import Runnable
 
 from executive_assistant.config import settings
-from executive_assistant.logging import get_logger
+from executive_assistant.logging import get_logger, format_log_context, truncate_log_text
 from executive_assistant.storage.file_sandbox import (
     set_thread_id,
     clear_thread_id,
@@ -225,17 +225,21 @@ class BaseChannel(ABC):
             from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
             user_id_for_storage = sanitize_thread_id_to_user_id(thread_id)
 
+            ctx = format_log_context("message", channel=channel, user=user_id_for_storage, conversation=message.conversation_id, type="text")
+            logger.info(f'{ctx} recv text="{truncate_log_text(message.content)}"')
+
             # Ensure group exists and set group_id context
             group_id = await ensure_thread_group(thread_id, user_id_for_storage)
             set_workspace_context(group_id)
 
-            logger.info(f"Setting user_id context: {user_id_for_storage} (from thread_id: {thread_id})")
+            ctx_system = format_log_context("system", component="context", channel=channel, user=user_id_for_storage, conversation=message.conversation_id)
+            logger.info(f"{ctx_system} set user_id context from thread_id")
             set_workspace_user_id(user_id_for_storage)
 
             # Verify it was set
             from executive_assistant.storage.group_storage import get_user_id as check_user_id
             verified_id = check_user_id()
-            logger.info(f"Verified user_id in context: {verified_id}")
+            logger.debug(f"{ctx_system} verified user_id")
 
             # Retrieve relevant memories and inject into message
             memories = self._get_relevant_memories(thread_id, message.content)
@@ -298,11 +302,11 @@ class BaseChannel(ABC):
                         )
 
             agent_elapsed = time.time() - agent_start
-            logger.info(f"Agent processing: {agent_elapsed:.2f}s, {event_count} events")
+            logger.info(f"{ctx_system} agent processing elapsed={agent_elapsed:.2f}s events={event_count}")
 
         except Exception as e:
-            import traceback
-            traceback.print_exc()
+            ctx_error = format_log_context("system", component="agent", channel=self.get_channel_name(), user=message.user_id, conversation=message.conversation_id)
+            logger.exception(f"{ctx_error} unhandled exception")
             await self.send_message(
                 message.conversation_id,
                 f"Sorry, an error occurred: {e}",

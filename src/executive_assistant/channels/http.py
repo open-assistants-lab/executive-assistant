@@ -12,6 +12,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 
 from executive_assistant.channels.base import BaseChannel, MessageFormat
 from executive_assistant.config import settings
+from executive_assistant.logging import format_log_context, truncate_log_text
 from executive_assistant.storage.file_sandbox import set_thread_id
 from executive_assistant.storage.group_storage import (
     set_group_id as set_workspace_context,
@@ -131,7 +132,8 @@ class HttpChannel(BaseChannel):
                 )
             except Exception as e:
                 # Log but don't fail - user can still interact
-                logger.warning(f"Failed to create identity for {thread_id}: {e}")
+                ctx_identity = format_log_context("system", component="identity", channel="http", user=identity_id, conversation=conversation_id)
+                logger.warning(f'{ctx_identity} create_identity_failed error="{e}"')
 
             message = MessageFormat(
                 content=req.content,
@@ -208,6 +210,8 @@ class HttpChannel(BaseChannel):
             SSE-formatted chunks
         """
         thread_id = self.get_thread_id(message)
+        ctx = format_log_context("message", channel="http", user=message.user_id, conversation=message.conversation_id, type="text")
+        logger.info(f'{ctx} recv text="{truncate_log_text(message.content)}"')
         queue_lock = self._get_queue_lock(thread_id)
         ack_needed = False
 
@@ -305,7 +309,8 @@ class HttpChannel(BaseChannel):
             return
         import logging
         logger = logging.getLogger(__name__)
-        logger.debug(f"[{conversation_id}] Status: {message}")
+        ctx = format_log_context("message", channel="http", conversation=conversation_id, type="status")
+        logger.debug(f'{ctx} send status text="{truncate_log_text(message)}"')
 
     async def send_todo(
         self,
@@ -318,7 +323,8 @@ class HttpChannel(BaseChannel):
             return
         import logging
         logger = logging.getLogger(__name__)
-        logger.debug(f"[{conversation_id}] Todo: {message}")
+        ctx = format_log_context("message", channel="http", conversation=conversation_id, type="todo")
+        logger.debug(f'{ctx} send todo text="{truncate_log_text(message)}"')
 
     def _enqueue_stream_event(self, conversation_id: str, role: str, content: str) -> bool:
         queue = self._stream_queues.get(conversation_id)

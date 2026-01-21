@@ -156,7 +156,7 @@ class TestSendStatus:
         # Should not raise exception
         assert middleware.last_status_time is not None
         # Should log warning
-        assert "Failed to send status update" in caplog.text
+        assert "send status failed" in caplog.text
 
 
 # =============================================================================
@@ -281,7 +281,7 @@ class TestWrapToolCall:
 
         assert middleware.channel.send_status.call_count == 1
         first_call = middleware.channel.send_status.call_args_list[0]
-        assert "🛠️ Tool: test_tool" in first_call[1]["message"]
+        assert "🛠️ Tool[1]: test_tool" in first_call[1]["message"]
 
     @pytest.mark.asyncio
     async def test_wrap_tool_call_sends_status_after_success(self, middleware, tool_call_request, mock_handler):
