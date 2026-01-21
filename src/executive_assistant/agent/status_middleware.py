@@ -161,14 +161,14 @@ class StatusUpdateMiddleware(AgentMiddleware):
             return
 
         try:
-            logger.info(f'{ctx} send status text="{truncate_log_text(message)}"')
+            logger.debug(f'{ctx} send status text="{truncate_log_text(message)}"')
             await self.channel.send_status(
                 conversation_id=conv_id,
                 message=message,
                 update=True,  # Edit previous message if available
             )
             self.last_status_time = time.time()
-            logger.info(f"{ctx} sent status")
+            logger.debug(f"{ctx} sent status")
         except Exception as e:
             # Don't let status updates break the agent
             logger.error(f'{ctx} send status failed error="{e}"')

@@ -383,6 +383,48 @@ class MemoryStorage:
         finally:
             conn.close()
 
+def get_memory_by_content(
+    self,
+    content: str,
+    thread_id: str | None = None,
+) -> dict | None:
+    """
+    Get a memory by exact content match (most recent active).
+
+    Args:
+        content: Memory content to match (case-insensitive).
+        thread_id: Thread identifier (uses context if None).
+
+    Returns:
+        Memory dict or None.
+    """
+    if thread_id is None:
+        thread_id = get_thread_id()
+
+    normalized = content.strip().lower()
+    conn = self.get_connection(thread_id)
+    try:
+        result = conn.execute(
+            """
+            SELECT id, memory_type, key, content, confidence, status, created_at, updated_at
+            FROM memories
+            WHERE status = 'active'
+              AND lower(content) = ?
+            ORDER BY updated_at DESC
+            LIMIT 1
+            """,
+            (normalized,),
+        )
+        row = result.fetchone()
+        if row:
+            columns = ["id", "memory_type", "key", "content", "confidence", "status", "created_at", "updated_at"]
+            return {**dict(zip(columns, row)), "id": str(row[0])}
+        return None
+    finally:
+        conn.close()
+
+
+
     def get_memory_by_key(
         self,
         key: str,

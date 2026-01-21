@@ -5,6 +5,7 @@ from langchain_core.tools import tool
 from executive_assistant.storage.mem_storage import get_mem_storage
 
 
+
 @tool
 def create_memory(
     content: str,
@@ -13,7 +14,7 @@ def create_memory(
     confidence: float = 1.0,
 ) -> str:
     """
-    Create a new memory entry.
+    Create or update a memory entry.
 
     Args:
         content: The memory content to store.
@@ -26,11 +27,29 @@ def create_memory(
 
     Examples:
         >>> create_memory("User prefers Python over JavaScript", "preference", "language")
-        "Memory saved: [ID]"
+        "Memory updated: [ID]"
         >>> create_memory("User lives in New York", "fact", "location")
-        "Memory saved: [ID]"
+        "Memory updated: [ID]"
     """
     storage = get_mem_storage()
+
+    if key:
+        existing = storage.get_memory_by_key(key)
+        if existing:
+            existing_content = (existing.get("content") or "").strip()
+            if existing_content == content.strip():
+                return f"Memory already exists: {existing['id']}"
+            storage.update_memory(
+                memory_id=existing["id"],
+                content=content,
+                confidence=confidence,
+            )
+            return f"Memory updated: {existing['id']}"
+
+    existing = storage.get_memory_by_content(content)
+    if existing:
+        return f"Memory already exists: {existing['id']}"
+
     memory_id = storage.create_memory(
         content=content,
         memory_type=memory_type,
@@ -38,7 +57,6 @@ def create_memory(
         confidence=confidence,
     )
     return f"Memory saved with ID: {memory_id}"
-
 
 @tool
 def update_memory(

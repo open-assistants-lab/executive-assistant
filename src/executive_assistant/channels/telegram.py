@@ -351,33 +351,34 @@ class TelegramChannel(BaseChannel):
         if not filenames:
             return
 
-        from executive_assistant.storage.file_sandbox import set_thread_id, clear_thread_id, get_sandbox
+        from executive_assistant.storage.file_sandbox import (
+            set_thread_id,
+            clear_thread_id,
+            get_sandbox,
+            SecurityError,
+        )
 
         thread_id = f"telegram:{conversation_id}"
         set_thread_id(thread_id)
         try:
             sandbox = get_sandbox()
-            root = Path(sandbox.root)
             for name in filenames:
-                candidate = root / name
-                if not candidate.exists() and not ('/' in name or '\\' in name):
-                    # Search by basename
-                    hits = list(root.rglob(name))
-                    candidate = hits[0] if hits else candidate
-                if not candidate.exists() and not ('/' in name or '\\' in name):
-                    lower_name = name.lower()
-                    for p in root.rglob("*"):
-                        if p.is_file() and p.name.lower() == lower_name:
-                            candidate = p
-                            break
-                if not candidate.exists():
+                try:
+                    candidate = sandbox.resolve_path(name)
+                except SecurityError:
                     continue
-                with candidate.open('rb') as f:
-                    await self.application.bot.send_document(
-                        chat_id=conversation_id,
-                        document=f,
-                        filename=candidate.name,
-                    )
+                if not candidate.exists() or not candidate.is_file():
+                    continue
+                try:
+                    with candidate.open('rb') as handle:
+                        await self.application.bot.send_document(
+                            chat_id=conversation_id,
+                            document=handle,
+                            filename=candidate.name,
+                        )
+                except Exception:
+                    # Best-effort: if send fails, continue with remaining files
+                    continue
         finally:
             clear_thread_id()
 
@@ -569,7 +570,7 @@ class TelegramChannel(BaseChannel):
                 return
             except BadRequest as e:
                 if "message is not modified" in str(e).lower():
-                    logger.info(f"{ctx} edit status message_id={message_id} unchanged")
+                    logger.debug(f"{ctx} edit status message_id={message_id} unchanged")
                     return
                 # Message might be too old or deleted - remove and send new
                 logger.warning(
@@ -944,53 +945,53 @@ class TelegramChannel(BaseChannel):
         )
         logger.info(f"{ctx} recv command=/remember")
 
-
         try:
-            # Get the text after /remember command
             args = context.args if context.args else []
-
             if not args:
                 await update.message.reply_text(
-                    "📝 *Memory Command*\n\n"
+                    "📝 <b>Memory Command</b>\n\n"
                     "Usage: /remember <content>\n\n"
                     "Examples:\n"
                     "• /remember I prefer Python over JavaScript\n"
                     "• /remember My timezone is America/New_York\n"
                     "• /remember I work 9-5 EST\n\n"
                     "The memory will be stored and can be retrieved in future conversations.",
-                    parse_mode="HTML"
+                    parse_mode="HTML",
                 )
                 return
 
-            # Join args to get the full content
             content = " ".join(args)
 
-            # Store the memory
             from executive_assistant.storage.mem_storage import get_mem_storage
-            from executive_assistant.storage.file_sandbox import set_thread_id
+            from executive_assistant.storage.file_sandbox import set_thread_id, clear_thread_id
 
-            # Set thread_id context
-            thread_id = f"telegram:{update.effective_chat.id}"
             set_thread_id(thread_id)
-
             try:
                 storage = get_mem_storage()
-                memory_id = storage.create_memory(
+                existing = storage.get_memory_by_content(content)
+                if existing:
+                    message = (
+                        f"💾 <b>Memory already saved!</b>\n\n"
+                        f"Content: {content[:200]}{'...' if len(content) > 200 else ''}\n\n"
+                        "I'll keep this in mind."
+                    )
+                    await update.message.reply_text(message, parse_mode="HTML")
+                    return
+
+                storage.create_memory(
                     content=content,
-                    memory_type="note",  # Default type for /remember
-                    confidence=1.0,  # High confidence for explicit memories
+                    memory_type="note",
+                    confidence=1.0,
                 )
 
-                await update.message.reply_text(
-                    f"💾 *Memory saved!*\n\n"
+                message = (
+                    f"💾 <b>Memory saved!</b>\n\n"
                     f"Content: {content[:200]}{'...' if len(content) > 200 else ''}\n\n"
-                    f"I'll remember this for future conversations.",
-                    parse_mode="HTML"
+                    "I'll remember this for future conversations."
                 )
+                await update.message.reply_text(message, parse_mode="HTML")
             finally:
-                from executive_assistant.storage.file_sandbox import clear_thread_id
                 clear_thread_id()
-
         except Exception as e:
             logger.exception(f"{ctx} unhandled exception")
             await update.message.reply_text(f"Sorry, failed to save memory: {e}")
