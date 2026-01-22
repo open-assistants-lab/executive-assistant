@@ -57,7 +57,7 @@ Executive Assistant works where you work:
 
 ### Telegram
 - Chat with Executive Assistant in any Telegram conversation
-- Commands: `/start`, `/help`, `/reminders`, `/groups`, `/debug`, `/id`
+- Commands: `/start`, `/reset`, `/remember`, `/debug`, `/mem`, `/reminder`, `/vs`, `/db`, `/file`, `/meta`, `/user`
 - Perfect for mobile quick-tasks and reminders on-the-go
 
 ### HTTP API
@@ -160,6 +160,7 @@ EXECUTIVE_ASSISTANT_CHANNELS=telegram,http uv run executive_assistant
 - **Multi-channel**: Same agent works on Telegram, HTTP, and more (planned: Email, Slack)
 
 ### Production-Ready Features
+- **Admin customization**: BYO prompt/skills/MCP via `data/admins/` + user allowlist
 - **Middleware stack**: Summarization, retry logic, call limits, todo tracking, context editing
 - **High-precision logging**: Millisecond timestamps for performance analysis
 - **Debug mode**: Toggle verbose status updates to understand agent behavior
@@ -203,7 +204,7 @@ Essential environment variables:
 # LLM Provider (choose one)
 OPENAI_API_KEY=sk-...           # OpenAI (GPT-4, GPT-4o)
 ANTHROPIC_API_KEY=sk-...        # Anthropic (Claude)
-ZHIPU_API_KEY=...               # Zhipu (GLM-4)
+ZHIPUAI_API_KEY=...             # Zhipu (GLM-4)
 
 # Channels
 EXECUTIVE_ASSISTANT_CHANNELS=telegram,http   # Available channels
@@ -226,11 +227,16 @@ See `.env.example` for all available options.
 | Command | Description |
 |---------|-------------|
 | `/start` | Start conversation / show welcome message |
-| `/help` | Show available commands and usage |
-| `/reminders` | List active reminders |
-| `/groups` | Manage shared groups |
+| `/reset` | Reset the current thread context |
+| `/remember` | Save a memory from a single message |
 | `/debug` | Toggle verbose status mode (see LLM/tool timing) |
-| `/id` | Show your user/thread ID for debugging |
+| `/mem` | List/add/update/forget memories |
+| `/reminder` | List/set/edit/cancel reminders |
+| `/vs` | Vector store commands |
+| `/db` | Database commands |
+| `/file` | File commands |
+| `/meta` | Show storage summary (files/VS/DB/reminders) |
+| `/user` | Admin allowlist management |
 
 ### Debug Mode
 
@@ -283,7 +289,7 @@ curl http://localhost:8000/health
 
 ### Database (per-thread)
 - **Create tables**: From JSON/CSV with automatic schema inference
-- **Query**: Full SQL support via DuckDB
+- **Query**: SQLite-compatible SQL (thread/group/shared scoped)
 - **Import/Export**: CSV, JSON, Parquet formats
 - **Use case**: Temporary working data (timesheets, logs, analysis results)
 
@@ -300,6 +306,7 @@ curl http://localhost:8000/health
 
 ### Web Search
 - **SearXNG integration**: Privacy-focused search aggregator
+- **Playwright fallback**: JS-heavy pages can be scraped with the browser tool
 - **No API key needed**: Self-hosted SearXNG instance
 
 ### Time & Reminders

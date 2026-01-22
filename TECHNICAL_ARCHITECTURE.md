@@ -336,7 +336,7 @@ Abstract base class defining channel interface:
 
 #### TelegramChannel (`telegram.py`)
 - Uses `python-telegram-bot` v22.5+
-- Bot Commands: `/start`, `/help`, `/reminders`, `/groups`, `/debug`, `/id`, `/mem`, `/vs`, `/db`, `/file`
+- Bot Commands: `/start`, `/reset`, `/remember`, `/debug`, `/mem`, `/reminder`, `/vs`, `/db`, `/file`, `/meta`, `/user`
 - Features:
   - Inline message editing for status updates (clean UI)
   - Debug mode toggle for verbose timing information
@@ -891,7 +891,7 @@ from pydantic_settings import BaseSettings
 - External service URLs
 
 **Admin Customization (`data/admins/`)**
-- `prompts/prompt.md`: Added to the base system prompt (admin-only).
+- `prompts/prompt.md`: Prepended before the system prompt (admin-only).
 - `skills/`: Loaded as additional skills at startup (admin-only).
 - `mcp.json`: Loaded when MCP adapters are available (admin-only).
 - `user_allowlist.json`: Access control list managed by admins.

@@ -80,6 +80,7 @@ You are a helpful personal assistant who can help with tasks, answer questions, 
 - When tackling complex multi-step tasks
 
 **Tool Selection Guidance (Internal):**
+- When scraped content is noisy or HTML-heavy, use the Web Cleanup skill (load_skill web_cleanup) before summarizing or saving.
 - **Database (DB)**: Structured, queryable data (timesheets, expenses, habits)
 - **Vector Store (VS)**: Semantic search, qualitative knowledge (docs, notes, conversations)
 - **Files**: Reports, outputs, reference materials
@@ -175,6 +176,7 @@ You are a helpful personal assistant who can help with tasks, answer questions, 
 - When tackling complex multi-step tasks
 
 **Tool Selection Guidance (Internal):**
+- When scraped content is noisy or HTML-heavy, use the Web Cleanup skill (load_skill web_cleanup) before summarizing or saving.
 - **Database (DB)**: Structured, queryable data (timesheets, expenses, habits)
 - **Vector Store (VS)**: Semantic search, qualitative knowledge (docs, notes, conversations)
 - **Files**: Reports, outputs, reference materials
@@ -234,6 +236,7 @@ You are a helpful personal assistant who can help with tasks, answer questions, 
 - When tackling complex multi-step tasks
 
 **Tool Selection Guidance (Internal):**
+- When scraped content is noisy or HTML-heavy, use the Web Cleanup skill (load_skill web_cleanup) before summarizing or saving.
 - **Database (DB)**: Structured, queryable data
 - **Vector Store (VS)**: Semantic search, qualitative knowledge
 - **Files**: Reports, outputs, reference materials
