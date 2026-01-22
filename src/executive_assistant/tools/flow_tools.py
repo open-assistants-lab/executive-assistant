@@ -9,10 +9,11 @@ from typing import Any
 
 from langchain_core.tools import tool
 
-from executive_assistant.flows.spec import FlowSpec, AgentSpec, FlowMiddlewareConfig
+from executive_assistant.flows.spec import FlowSpec, FlowMiddlewareConfig
 from executive_assistant.flows.runner import build_flow_payload, run_flow_by_id
 from executive_assistant.storage.file_sandbox import get_thread_id
 from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
+from executive_assistant.storage.agent_registry import get_agent_registry
 from executive_assistant.storage.scheduled_flows import get_scheduled_flow_storage
 from executive_assistant.tools.reminder_tools import _parse_time_expression
 from executive_assistant.utils.cron import parse_cron_next
@@ -24,7 +25,7 @@ FLOW_TOOL_NAMES = {"create_flow", "list_flows", "run_flow", "cancel_flow", "dele
 async def create_flow(
     name: str,
     description: str,
-    agents: list[dict[str, Any]],
+    agent_ids: list[str],
     schedule_type: str = "immediate",
     schedule_time: str | None = None,
     cron_expression: str | None = None,
@@ -32,14 +33,15 @@ async def create_flow(
     notify_on_failure: bool = True,
     notification_channels: list[str] | None = None,
     run_mode: str = "normal",
+    input_payload: dict[str, Any] | None = None,
     middleware: dict[str, Any] | None = None,
 ) -> str:
     """Create a flow (executor chain) for immediate, scheduled, or recurring execution.
 
     IMPORTANT:
-    - Agents are defined inline in the `agents` list (AgentSpec).
-    - There is NO create_agent tool and no pre-registered agent requirement.
-    - If create_flow fails, ensure each agent includes: agent_id, description, model, tools, system_prompt.
+    - Agents are referenced by ID via `agent_ids`.
+    - Define agents using create_agent before creating flows.
+    - Agent tools should be <=5 (hard cap 10).
     """
     thread_id = get_thread_id()
     if not thread_id:
@@ -56,27 +58,55 @@ async def create_flow(
         schedule_type = "recurring"
 
     due_time = datetime.now()
+    # Validate agent_ids and load agent registry
+    if not agent_ids:
+        return "Flow creation requires at least one agent_id."
 
-    # Validate AgentSpec fields early to avoid confusing errors
-    required_fields = {"agent_id", "description", "model", "tools", "system_prompt"}
-    missing_fields = []
-    if not agents:
-        return (
-            "Flow creation requires at least one agent definition. "
-            "There is no create_agent tool; define agents inline with AgentSpec."
+    registry = get_agent_registry(owner)
+    missing = [agent_id for agent_id in agent_ids if not registry.get_agent(agent_id)]
+    if missing:
+        return f"Error: Agent(s) not found: {missing}. Create them first with create_agent."
+
+    agent_records = [registry.get_agent(agent_id) for agent_id in agent_ids]
+    agents_snapshot = []
+    for record in agent_records:
+        if not record:
+            continue
+        agents_snapshot.append(
+            {
+                "agent_id": record.agent_id,
+                "name": record.name,
+                "description": record.description,
+                "tools": record.tools,
+                "system_prompt": record.system_prompt,
+                "output_schema": record.output_schema,
+            }
         )
-    for idx, agent in enumerate(agents, start=1):
-        if not isinstance(agent, dict):
-            return f"Agent #{idx} must be a JSON object (dict)."
-        missing = sorted(required_fields - set(agent.keys()))
-        if missing:
-            missing_fields.append((idx, missing))
-    if missing_fields:
-        details = "; ".join([f"agent #{i} missing {fields}" for i, fields in missing_fields])
-        return (
-            "Flow agents must be defined inline (no create_agent tool). "
-            f"Missing required fields: {details}"
-        )
+
+    warnings = []
+    for agent_id in agent_ids:
+        agent = registry.get_agent(agent_id)
+        if agent and len(agent.tools) > 5:
+            warnings.append(f"{agent_id} uses {len(agent.tools)} tools (recommended <=5)")
+
+    # Validate first agent uses $flow_input when input_payload is provided
+    first_agent = registry.get_agent(agent_ids[0]) if agent_ids else None
+    if input_payload is not None and first_agent and "$flow_input" not in first_agent.system_prompt:
+        return "Error: first agent system_prompt must include $flow_input when input_payload is provided."
+
+    # Require input_payload for the first agent to avoid empty context
+    if input_payload is None:
+        return "Error: input_payload is required for flows to provide context to the first agent."
+
+    # Guard: cron "* * * * *" is often used to mean "run now" and can create duplicate flows.
+    if schedule_type == "recurring" and cron_expression and cron_expression.strip() == "* * * * *":
+        return "Error: cron '* * * * *' is not allowed. Use schedule_type='immediate' for one-off runs."
+
+    # If immediate flow includes a cron, ignore it to avoid accidental recurring duplicates.
+    if schedule_type == "immediate" and cron_expression:
+        warnings.append("cron_expression ignored for immediate flows")
+        cron_expression = None
+
 
     if schedule_type == "scheduled":
         if not schedule_time:
@@ -90,21 +120,29 @@ async def create_flow(
         return "schedule_type must be immediate, scheduled, or recurring."
 
     forbidden = []
-    for agent in agents:
-        for tool_name in agent.get("tools", []):
+    for agent_id in agent_ids:
+        agent = registry.get_agent(agent_id)
+        if not agent:
+            continue
+        for tool_name in agent.tools:
             if tool_name in FLOW_TOOL_NAMES:
                 forbidden.append(tool_name)
     if forbidden:
         return f"Flow agents may not use flow management tools: {sorted(set(forbidden))}"
 
     middleware_config = FlowMiddlewareConfig.model_validate(middleware or {})
+    if middleware_config.model_call_limit and middleware_config.model_call_limit > 10:
+        return "Error: flow model_call_limit must be <= 10"
+    if middleware_config.tool_call_limit and middleware_config.tool_call_limit > 10:
+        return "Error: flow tool_call_limit must be <= 10"
 
     spec = FlowSpec(
         flow_id=flow_id,
         name=name,
         description=description,
         owner=owner,
-        agents=[AgentSpec(**e) for e in agents],
+        agent_ids=agent_ids,
+        agents=agents_snapshot,
         schedule_type=schedule_type,
         schedule_time=due_time if schedule_type == "scheduled" else None,
         cron_expression=cron_expression,
@@ -113,6 +151,7 @@ async def create_flow(
         notification_channels=notification_channels or [thread_id.split(":")[0]],
         run_mode=run_mode,
         middleware=middleware_config,
+        input_payload=input_payload,
     )
 
     storage = await get_scheduled_flow_storage()
@@ -127,7 +166,10 @@ async def create_flow(
         cron=cron_expression,
     )
 
-    return f"Flow created: {flow.id} ({spec.name}) scheduled for {due_time.isoformat()}"
+    msg = f"Flow created: {flow.id} ({spec.name}) scheduled for {due_time.isoformat()}"
+    if warnings:
+        msg += " | Warnings: " + "; ".join(warnings)
+    return msg
 
 
 @tool

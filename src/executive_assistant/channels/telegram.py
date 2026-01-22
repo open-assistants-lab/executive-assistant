@@ -747,7 +747,7 @@ class TelegramChannel(BaseChannel):
                     action="typing"
                 )
             except Exception as e:
-                logger.warning(f"{ctx} typing_action_failed error="{e}"")
+                logger.warning(f"{ctx} typing_action_failed error=\"{e}\"")
 
             # Set up context
             from executive_assistant.storage.file_sandbox import set_thread_id

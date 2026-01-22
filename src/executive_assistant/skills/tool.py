@@ -9,17 +9,19 @@ from executive_assistant.skills.registry import get_skills_registry
 def load_skill(skill_name: str) -> str:
     """Load a specialized skill into the agent's context.
 
-    Use this when you need guidance on tool selection or workflow patterns.
+    Use this when you need guidance on tool selection or flow/agent design.
     Skills teach WHEN to use which tool and HOW to combine tools effectively.
 
-    Available Core Skills (Phase 1):
+    Available Core Skills:
     - data_management: DB vs VS vs Files decision framework
     - record_keeping: Information lifecycle (Record → Organize → Retrieve)
     - progress_tracking: Measuring change over time
-    - workflow_patterns: How to combine tools effectively
+    - tool_combinations: How to combine tools effectively
     - synthesis: Combining multiple information sources
+    - flows: Scheduled/immediate multi-step runs
+    - web_cleanup: Clean and normalize scraped HTML
 
-    Available Personal Skills (Phase 1):
+    Available Personal Skills:
     - task_tracking: Timesheets, habits, expenses
     - information_retrieval: Finding past conversations, docs
     - report_generation: Data analysis & summaries

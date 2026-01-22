@@ -29,7 +29,7 @@ from executive_assistant.storage.file_sandbox import set_thread_id
 def test_simplified_vs_interface():
     """Test the simplified VS tools with content parameter."""
 
-    storage_id = "test_vs_simplified"
+    storage_id = "telegram:999000"  # thread_id format expected by FileSandbox
     collection_name = "test_collection"
 
     # Set context
@@ -46,11 +46,8 @@ def test_simplified_vs_interface():
         "content": "Executive Assistant is an AI assistant built with LangGraph for task automation."
     })
     print(f"   Result: {result}")
-    if "Created VS collection" in result and "chunks from 1 document" in result:
-        print("   ✅ Single content method works")
-    else:
-        print(f"   ❌ Failed: {result}")
-        return False
+    assert "Created VS collection" in result and "chunks from 1 document" in result, result
+    print("   ✅ Single content method works")
 
     # Test 2: Add another single document
     print("\n[2/5] Adding another single document...")
@@ -59,11 +56,8 @@ def test_simplified_vs_interface():
         "content": "LanceDB is an embedded vector database for semantic search."
     })
     print(f"   Result: {result}")
-    if "Added" in result and "chunks" in result and "document" in result:
-        print("   ✅ Add single content works")
-    else:
-        print(f"   ❌ Failed: {result}")
-        return False
+    assert "Added" in result and "chunks" in result and "document" in result, result
+    print("   ✅ Add single content works")
 
     # Test 3: Search for semantically similar content
     print("\n[3/5] Searching for 'AI assistant'...")
@@ -73,23 +67,18 @@ def test_simplified_vs_interface():
         "limit": 5
     })
     print(f"   Result preview:")
-    if "Search results" in result or "From" in result:
-        # Show first few lines
-        for line in result.split('\n')[:5]:
-            print(f"      {line}")
-        print("   ✅ Semantic search works")
-    else:
-        print(f"   ❌ Failed: {result}")
-        return False
+    assert "Search results" in result or "From" in result, result
+    # Show first few lines
+    for line in result.split('\n')[:5]:
+        print(f"      {line}")
+    print("   ✅ Semantic search works")
 
     # Test 4: List collections
     print("\n[4/5] Listing VS collections...")
     result = vs_list.invoke({})
     print(f"   Result: {result}")
-    if collection_name in result:
-        print("   ✅ Collection listed correctly")
-    else:
-        print(f"   ❌ Collection not found in list")
+    assert collection_name in result, f"Collection not found in list: {result}"
+    print("   ✅ Collection listed correctly")
 
     # Test 5: Test JSON array method (backward compatibility)
     print("\n[5/5] Testing JSON array method (backward compatibility)...")
@@ -98,11 +87,8 @@ def test_simplified_vs_interface():
         "documents": '[{"content": "Test document 1"}, {"content": "Test document 2"}]'
     })
     print(f"   Result: {result}")
-    if "Created VS collection" in result and "2 document" in result:
-        print("   ✅ JSON array method still works (backward compatible)")
-    else:
-        print(f"   ❌ Failed: {result}")
-        return False
+    assert "Created VS collection" in result and "2 document" in result, result
+    print("   ✅ JSON array method still works (backward compatible)")
 
     # Cleanup
     print("\n[Cleanup] Removing test collections...")
@@ -113,13 +99,12 @@ def test_simplified_vs_interface():
     print("\n" + "=" * 60)
     print("✅ All VS simplified interface tests passed!")
     print("=" * 60)
-    return True
 
 
 def test_empty_collection_workflow():
     """Test creating empty collection then adding documents."""
 
-    storage_id = "test_vs_workflow"
+    storage_id = "telegram:999001"  # thread_id format expected by FileSandbox
     collection_name = "test_workflow"
 
     # Set context
@@ -135,11 +120,8 @@ def test_empty_collection_workflow():
         "collection_name": collection_name
     })
     print(f"   Result: {result}")
-    if "empty, ready for documents" in result:
-        print("   ✅ Empty collection created")
-    else:
-        print(f"   ❌ Failed: {result}")
-        return False
+    assert "empty, ready for documents" in result, result
+    print("   ✅ Empty collection created")
 
     # Add documents
     print("\n[2/3] Adding documents to empty collection...")
@@ -148,11 +130,8 @@ def test_empty_collection_workflow():
         "content": "This is a test document added to empty collection."
     })
     print(f"   Result: {result}")
-    if "Added" in result:
-        print("   ✅ Documents added to empty collection")
-    else:
-        print(f"   ❌ Failed: {result}")
-        return False
+    assert "Added" in result, result
+    print("   ✅ Documents added to empty collection")
 
     # Search
     print("\n[3/3] Searching the collection...")
@@ -161,11 +140,8 @@ def test_empty_collection_workflow():
         "collection_name": collection_name
     })
     print(f"   Result preview: {result[:100]}...")
-    if "Search results" in result or "From" in result:
-        print("   ✅ Search works on populated collection")
-    else:
-        print(f"   ❌ Failed: {result}")
-        return False
+    assert "Search results" in result or "From" in result, result
+    print("   ✅ Search works on populated collection")
 
     # Cleanup
     print("\n[Cleanup] Removing test collection...")
@@ -175,20 +151,15 @@ def test_empty_collection_workflow():
     print("\n" + "=" * 60)
     print("✅ Empty collection workflow test passed!")
     print("=" * 60)
-    return True
 
 
 if __name__ == "__main__":
-    # Run tests
-    test1_passed = test_simplified_vs_interface()
-    test2_passed = test_empty_collection_workflow()
-
-    # Summary
-    print("\n" + "=" * 60)
-    print("FINAL RESULTS")
-    print("=" * 60)
-    print(f"Simplified Interface Test: {'✅ PASSED' if test1_passed else '❌ FAILED'}")
-    print(f"Empty Collection Workflow: {'✅ PASSED' if test2_passed else '❌ FAILED'}")
-    print("=" * 60)
-
-    sys.exit(0 if (test1_passed and test2_passed) else 1)
+    try:
+        test_simplified_vs_interface()
+        test_empty_collection_workflow()
+    except AssertionError as exc:
+        print(f"\n❌ Test failed: {exc}")
+        sys.exit(1)
+    else:
+        print("\n✅ All tests passed.")
+        sys.exit(0)

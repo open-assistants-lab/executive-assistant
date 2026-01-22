@@ -1,6 +1,6 @@
-# Workflow Patterns
+# Tool Combinations
 
-Description: Learn common tool combinations and multi-step workflows for accomplishing complex tasks efficiently.
+Description: Learn how to combine tools effectively in multi-step workflows.
 
 Tags: core, infrastructure, workflows, patterns, tool-combination
 
@@ -446,3 +446,7 @@ cached = read_file("cache/week_3_metrics.json")
 - Storage type choice is critical
 
 Learn these patterns and you can accomplish complex tasks efficiently.
+
+
+## Flows
+For scheduled or multi-step execution, use the `flows` skill (see flows.md).

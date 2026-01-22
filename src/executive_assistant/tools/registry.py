@@ -305,6 +305,20 @@ async def get_all_tools() -> list[BaseTool]:
     from executive_assistant.tools.firecrawl_tool import get_firecrawl_tools
     all_tools.extend(get_firecrawl_tools())
 
+    # Add agent registry tools
+    from executive_assistant.tools.agent_tools import (
+        create_agent,
+        list_agents,
+        get_agent,
+        update_agent,
+        delete_agent,
+    )
+    all_tools.extend([create_agent, list_agents, get_agent, update_agent, delete_agent])
+
+    # Flow project workspace tools
+    from executive_assistant.tools.flow_project_tools import create_flow_project_workspace
+    all_tools.append(create_flow_project_workspace)
+
     # Add MCP configuration tools ✅ NEW
     from executive_assistant.tools.mcp_tools import get_mcp_config_tools
     all_tools.extend(get_mcp_config_tools())

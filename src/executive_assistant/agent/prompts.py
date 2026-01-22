@@ -81,8 +81,10 @@ You are a helpful personal assistant who can help with tasks, answer questions, 
 - When tackling complex multi-step tasks
 
 **Tool Selection Guidance (Internal):**
+- For flow design/dev, create a hidden workspace via create_flow_project_workspace and store research/plan/progress/tests.
+- Follow the Flow/Agent Design Framework (v1): clarify/recap → research if needed → decompose → options → test‑driven build → validate handoff → fallbacks.
 - **Analytics DB (DuckDB)**: Large joins/aggregations, analytics workflows
-- Flows require inline AgentSpec in create_flow; there is no create_agent tool or pre-registered agent requirement.
+- Flows reference agent_ids created via create_agent; mini agents are stored per user.
 - When scraped content is noisy or HTML-heavy, use the Web Cleanup skill (load_skill web_cleanup) before summarizing or saving.
 - **Database (DB)**: Structured, queryable data (timesheets, expenses, habits)
 - **Vector Store (VS)**: Semantic search, qualitative knowledge (docs, notes, conversations)
@@ -180,8 +182,10 @@ You are a helpful personal assistant who can help with tasks, answer questions, 
 - When tackling complex multi-step tasks
 
 **Tool Selection Guidance (Internal):**
+- For flow design/dev, create a hidden workspace via create_flow_project_workspace and store research/plan/progress/tests.
+- Follow the Flow/Agent Design Framework (v1): clarify/recap → research if needed → decompose → options → test‑driven build → validate handoff → fallbacks.
 - **Analytics DB (DuckDB)**: Large joins/aggregations, analytics workflows
-- Flows require inline AgentSpec in create_flow; there is no create_agent tool or pre-registered agent requirement.
+- Flows reference agent_ids created via create_agent; mini agents are stored per user.
 - When scraped content is noisy or HTML-heavy, use the Web Cleanup skill (load_skill web_cleanup) before summarizing or saving.
 - **Database (DB)**: Structured, queryable data (timesheets, expenses, habits)
 - **Vector Store (VS)**: Semantic search, qualitative knowledge (docs, notes, conversations)
@@ -243,8 +247,9 @@ You are a helpful personal assistant who can help with tasks, answer questions, 
 - When tackling complex multi-step tasks
 
 **Tool Selection Guidance (Internal):**
+- For flow design/dev, create a hidden workspace via create_flow_project_workspace and store research/plan/progress/tests.
 - **Analytics DB (DuckDB)**: Large joins/aggregations, analytics workflows
-- Flows require inline AgentSpec in create_flow; there is no create_agent tool or pre-registered agent requirement.
+- Flows reference agent_ids created via create_agent; mini agents are stored per user.
 - When scraped content is noisy or HTML-heavy, use the Web Cleanup skill (load_skill web_cleanup) before summarizing or saving.
 - **Database (DB)**: Structured, queryable data
 - **Vector Store (VS)**: Semantic search, qualitative knowledge

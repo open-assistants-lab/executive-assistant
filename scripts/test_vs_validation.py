@@ -64,8 +64,7 @@ def test_vs_functionality():
         )
         print(f"   ✅ Collection '{collection_name}' created successfully")
     except Exception as e:
-        print(f"   ❌ Failed to create collection: {e}")
-        return False
+        raise AssertionError(f"Failed to create collection: {e}") from e
 
     # Verify documents were added
     try:
@@ -91,8 +90,7 @@ def test_vs_functionality():
         else:
             print(f"   ⚠️  Search completed but no results found")
     except Exception as e:
-        print(f"   ❌ Search failed: {e}")
-        return False
+        raise AssertionError(f"Search failed: {e}") from e
 
     # Test 3: List collections
     print("\n[3/4] Listing all collections...")
@@ -115,8 +113,7 @@ def test_vs_functionality():
             print(f"   ⚠️  Test collection '{collection_name}' not in list (but search worked)")
             print(f"   ℹ️  Continuing test...")
     except Exception as e:
-        print(f"   ❌ Failed to list collections: {e}")
-        return False
+        raise AssertionError(f"Failed to list collections: {e}") from e
 
     # Test 4: Cleanup (delete test collection)
     print("\n[4/4] Cleaning up test collection...")
@@ -124,16 +121,19 @@ def test_vs_functionality():
         drop_lancedb_collection(storage_id=storage_id, collection_name=collection_name)
         print(f"   ✅ Test collection deleted successfully")
     except Exception as e:
-        print(f"   ❌ Failed to delete collection: {e}")
-        return False
+        raise AssertionError(f"Failed to delete collection: {e}") from e
 
     print("\n" + "=" * 60)
     print("✅ All VS validation tests passed!")
     print("=" * 60)
 
-    return True
-
 
 if __name__ == "__main__":
-    success = test_vs_functionality()
-    sys.exit(0 if success else 1)
+    try:
+        test_vs_functionality()
+    except AssertionError as exc:
+        print(f"\n❌ Test failed: {exc}")
+        sys.exit(1)
+    else:
+        print("\n✅ All tests passed.")
+        sys.exit(0)
