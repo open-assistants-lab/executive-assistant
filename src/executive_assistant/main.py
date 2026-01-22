@@ -20,9 +20,9 @@ from executive_assistant.channels.telegram import TelegramChannel
 from executive_assistant.channels.http import HttpChannel
 from executive_assistant.agent.langchain_agent import create_langchain_agent
 from executive_assistant.skills import SkillsBuilder
-from executive_assistant.agent.prompts import get_system_prompt, load_admin_prompt
+from executive_assistant.agent.prompts import get_default_prompt, get_channel_prompt, load_admin_prompt
 from executive_assistant.scheduler import start_scheduler, stop_scheduler, register_notification_handler
-from executive_assistant.skills import load_and_register_skills, get_skills_registry
+from executive_assistant.skills import load_skills_from_directory, get_skills_registry
 
 logger = logging.getLogger(__name__)
 
@@ -145,20 +145,24 @@ async def main() -> None:
     print(f" Using LLM provider: {settings.DEFAULT_LLM_PROVIDER}")
 
     # Load skills from content directory
+    registry = get_skills_registry()
     skills_dir = Path(__file__).parent / "skills" / "content"
-    skills_count = load_and_register_skills(skills_dir)
-    print(f" Loaded {skills_count} skills")
+    system_skills = load_skills_from_directory(skills_dir)
+    for skill in system_skills:
+        registry.register(skill)
+    print(f" Loaded {len(system_skills)} skills")
     admin_skills_dir = settings.SHARED_ROOT.parent / "admins" / "skills"
-    admin_skills_count = load_and_register_skills(admin_skills_dir)
-    if admin_skills_count:
-        print(f" Loaded {admin_skills_count} admin skills")
+    admin_skills = load_skills_from_directory(admin_skills_dir)
+    for skill in admin_skills:
+        registry.register(skill)
+    if admin_skills:
+        print(f" Loaded {len(admin_skills)} admin skills")
 
     # Load tools (includes load_skill tool)
     tools = await get_all_tools()
     print(f" Loaded {len(tools)} tools")
 
     # Create skills builder (adds skill descriptions to system prompt)
-    registry = get_skills_registry()
     skills_builder = SkillsBuilder(registry)
 
     # Create checkpointer
@@ -172,13 +176,16 @@ async def main() -> None:
     def build_agent(channel_name: str) -> Any:
         cache_key = f"langchain:{channel_name}"
         if cache_key not in agent_cache:
-            # Get base system prompt
-            system_prompt = get_system_prompt(channel_name)
+            # Build prompt: admin -> system -> admin skills -> system skills -> channel
+            base_prompt = get_default_prompt()
             admin_prompt = load_admin_prompt()
             if admin_prompt:
-                system_prompt = f"{system_prompt}\n\n{admin_prompt}"
-            # Add skill descriptions to system prompt
-            system_prompt = skills_builder.build_prompt(system_prompt)
+                base_prompt = f"{admin_prompt}\n\n{base_prompt}"
+            ordered_skills = admin_skills + system_skills
+            system_prompt = skills_builder.build_prompt(base_prompt, ordered_skills=ordered_skills)
+            channel_prompt = get_channel_prompt(channel_name)
+            if channel_prompt:
+                system_prompt = f"{system_prompt}\n\n{channel_prompt}"
             # Create agent with enhanced prompt
             agent_cache[cache_key] = create_langchain_agent(
                 model=model,

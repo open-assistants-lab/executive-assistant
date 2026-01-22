@@ -43,7 +43,7 @@ from executive_assistant.tools.reminder_tools import (
     reminder_edit,
 )
 
-ALLOWED_MEMORY_TYPES = {"profile", "preference", "fact", "task", "note"}
+ALLOWED_MEMORY_TYPES = {"profile", "preference", "fact", "constraint", "style", "context"}
 COMMON_MEMORY_KEYS = {
     "timezone",
     "language",
@@ -397,7 +397,7 @@ async def _mem_help(update: Update) -> None:
         "💾 <b>Memory Management</b>\n\n"
         "Usage:\n"
         "• <code>/mem</code> - Show counts and commands\n"
-        "• <code>/mem list [type]</code> - List by type (profile|preference|fact|task|note)\n"
+        "• <code>/mem list [type]</code> - List by type (profile|preference|fact|constraint|style|context)\n"
         "• <code>/mem add &lt;content&gt; [type] [key]</code> - Add a memory (or use type=/key=)\n"
         "• <code>/mem search &lt;query&gt;</code> - Search memories\n"
         "• <code>/mem forget &lt;index|key|id&gt;</code> - Forget a memory\n"
@@ -523,13 +523,13 @@ async def _mem_add(update: Update, thread_id: str, content: str, mem_type: str |
         # Create new memory
         memory_id = storage.create_memory(
             content=content,
-            memory_type=mem_type or "note",
+            memory_type=mem_type or "fact",
             key=key,
             confidence=1.0
         )
 
         key_note = f" [{key}]" if key else ""
-        type_note = f" ({mem_type or 'note'})"
+        type_note = f" ({mem_type or 'fact'})"
         await update.message.reply_text(f"✅ Memory saved{key_note}{type_note}: {content[:60]}...")
     except Exception as e:
         await update.message.reply_text(f"Error adding memory: {e}")

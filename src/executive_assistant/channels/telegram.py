@@ -364,7 +364,7 @@ class TelegramChannel(BaseChannel):
             sandbox = get_sandbox()
             for name in filenames:
                 try:
-                    candidate = sandbox.resolve_path(name)
+                    candidate = sandbox._validate_path(name)
                 except SecurityError:
                     continue
                 if not candidate.exists() or not candidate.is_file():
@@ -980,7 +980,7 @@ class TelegramChannel(BaseChannel):
 
                 storage.create_memory(
                     content=content,
-                    memory_type="note",
+                    memory_type="fact",
                     confidence=1.0,
                 )
 

@@ -2,6 +2,27 @@
 
 from executive_assistant.config import settings
 
+TELEGRAM_APPENDIX = """Telegram Formatting:
+- Bold: *text* | Italic: _text_ | Code: `text`
+- Avoid markdown tables and pipe/dash table syntax
+- Prefer short bullet lists or numbered lists with clear labels
+- If information is tabular, summarize it as bullets instead of tables
+- Keep messages concise and readable on mobile
+"""
+
+HTTP_APPENDIX = """HTTP Formatting:
+- Use standard markdown formatting
+- Structure longer responses with headings and lists
+"""
+
+def get_channel_prompt(channel: str | None = None) -> str:
+    """Get channel-specific prompt appendix only."""
+    if channel == "telegram":
+        return TELEGRAM_APPENDIX
+    if channel == "http":
+        return HTTP_APPENDIX
+    return ""
+
 
 def _get_telegram_prompt() -> str:
     """Get Telegram-specific system prompt with agent name."""
@@ -265,11 +286,11 @@ def get_system_prompt(channel: str | None = None) -> str:
     Returns:
         System prompt with channel-specific constraints and formatting.
     """
-    if channel == "telegram":
-        return _get_telegram_prompt()
-    elif channel == "http":
-        return _get_http_prompt()
-    return get_default_prompt()
+    base = get_default_prompt()
+    appendix = get_channel_prompt(channel)
+    if appendix:
+        return f"{base}\n\n{appendix}"
+    return base
 
 
 

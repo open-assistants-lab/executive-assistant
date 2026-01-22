@@ -274,6 +274,8 @@ write_file(f"reports/weekly_review_{date.today()}.md", report)
 ```python
 # 1. Search for information
 web_results = search_web("LangGraph subgraphs tutorial")
+# If the site is heavily JS-rendered or results are thin, fall back to:
+# web_results = playwright_scrape("https://example.com/tutorial", wait_for_selector="article")
 
 # 2. Save to file for reference
 write_file("research/langgraph_subgraphs.md", web_results)

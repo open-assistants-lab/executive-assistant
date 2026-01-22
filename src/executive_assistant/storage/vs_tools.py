@@ -356,7 +356,7 @@ def vs_list(scope: Literal["context", "shared"] = "context") -> str:
                 collection = get_lancedb_collection(storage_id, name)
                 count = collection.count()
                 total_docs += count
-                lines.append(f"- {name}: {count} chunks (LanceDB)")
+                lines.append(f"- {name}: {count} chunks")
             except Exception:
                 lines.append(f"- {name}: (error)")
 

@@ -137,7 +137,7 @@ class TodoDisplayMiddleware(AgentMiddleware):
         in_progress = sum(1 for t in todos if t.get("status") == "in_progress")
         total = len(todos)
 
-        lines = [f"📋 Tasks ({completed}/{total} complete):"]
+        lines = [f"📋 Agent Task List ({completed}/{total} complete):"]
 
         for i, todo in enumerate(todos[: self.max_display_todos]):
             status = todo.get("status", "pending")

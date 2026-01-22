@@ -9,7 +9,7 @@ from executive_assistant.storage.mem_storage import get_mem_storage
 @tool
 def create_memory(
     content: str,
-    memory_type: str = "note",
+    memory_type: str = "fact",
     key: str | None = None,
     confidence: float = 1.0,
 ) -> str:
@@ -18,7 +18,7 @@ def create_memory(
 
     Args:
         content: The memory content to store.
-        memory_type: Type of memory. Options: profile, preference, fact, task, note.
+        memory_type: Type of memory. Options: profile, preference, fact, constraint, style, context.
         key: Optional normalized key for deduplication (e.g., "timezone", "language").
         confidence: Confidence score from 0.0 to 1.0. Default is 1.0.
 
@@ -146,7 +146,7 @@ def list_memories(
     List all memories for the current thread.
 
     Args:
-        memory_type: Filter by memory type: profile, preference, fact, task, note.
+        memory_type: Filter by memory type: profile, preference, fact, constraint, style, context.
         status: Filter by status: active, deprecated, deleted. Default is "active".
 
     Returns:

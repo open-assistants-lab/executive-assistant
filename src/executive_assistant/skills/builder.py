@@ -1,6 +1,6 @@
 """Skills builder for progressive disclosure in system prompts."""
 
-from executive_assistant.skills.registry import SkillsRegistry
+from executive_assistant.skills.registry import Skill, SkillsRegistry
 
 
 class SkillsBuilder:
@@ -17,9 +17,8 @@ class SkillsBuilder:
             skills_registry: The skills registry to use.
         """
         self.registry = skills_registry
-        self.skills_prompt = self._build_skills_prompt()
 
-    def _build_skills_prompt(self) -> str:
+    def _build_skills_prompt(self, ordered_skills: list[Skill] | None = None) -> str:
         """Build skills list for system prompt (brief descriptions only).
 
         Progressive disclosure: Only show skill names + brief descriptions.
@@ -29,12 +28,13 @@ class SkillsBuilder:
             Formatted skills list for system prompt.
         """
         skills_list = []
-        for skill in self.registry.list_all():
+        skills = ordered_skills if ordered_skills is not None else self.registry.list_all()
+        for skill in skills:
             skills_list.append(f"- **{skill.name}**: {skill.description}")
 
         return "\n".join(skills_list)
 
-    def build_prompt(self, base_prompt: str) -> str:
+    def build_prompt(self, base_prompt: str, ordered_skills: list[Skill] | None = None) -> str:
         """Build enhanced system prompt with skills information.
 
         This adds skill descriptions to the base system prompt, enabling
@@ -46,12 +46,13 @@ class SkillsBuilder:
         Returns:
             Enhanced system prompt with skills information.
         """
+        skills_prompt = self._build_skills_prompt(ordered_skills)
         skills_section = f"""
 
 **Available Skills (load with load_skill):**
 
 **Core Infrastructure** (how to use tools):
-{self.skills_prompt}
+{skills_prompt}
 
 **When to load skills:**
 - When you're unsure which tool to use for a task

@@ -103,6 +103,13 @@ async def get_search_tools() -> list[BaseTool]:
     from executive_assistant.tools.search_tool import get_search_tools as _get
     return _get()
 
+
+
+async def get_browser_tools() -> list[BaseTool]:
+    """Get browser automation tools (Playwright)."""
+    from executive_assistant.tools.playwright_tool import playwright_scrape
+    return [playwright_scrape]
+
 async def get_ocr_tools() -> list[BaseTool]:
     """Get OCR tools."""
     from executive_assistant.tools.ocr_tool import get_ocr_tools as _get
@@ -260,6 +267,9 @@ async def get_all_tools() -> list[BaseTool]:
 
     # Add search tools
     all_tools.extend(await get_search_tools())
+
+    # Add browser tools (Playwright)
+    all_tools.extend(await get_browser_tools())
 
     # Add OCR tools
     all_tools.extend(await get_ocr_tools())

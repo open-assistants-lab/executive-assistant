@@ -59,7 +59,7 @@ Executive Assistant is a **multi-channel AI agent platform** built on LangGraph 
 | **State/Checkpoint** | PostgreSQL (via asyncpg) | Conversation persistence |
 | **Vector Store** | LanceDB | Semantic search/knowledge base |
 | **Tabular Data** | SQLite (sqlite_db_storage.py, db_tools.py) | Transactional, permanent data (timesheets, CRM, tasks) |
-| **Memories** | DuckDB + FTS (mem_storage.py) | Embedded memories with full-text search |
+| **Memories** | SQLite + FTS5 (mem_storage.py) | Embedded memories with full-text search |
 | **File Storage** | Local filesystem | Document/file storage |
 | **Metadata Registry** | PostgreSQL | File/DB ownership tracking |
 
@@ -820,7 +820,7 @@ from fastapi.responses import StreamingResponse
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 ```
 
-### DuckDB (`duckdb >= 1.1.0`)
+### DuckDB (`duckdb >= 1.1.0`) (legacy)
 **Role:** Thread-scoped database
 **Key Features Used:**
 - Embedded, no external process needed
