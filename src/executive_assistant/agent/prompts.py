@@ -60,8 +60,9 @@ You are a helpful personal assistant who can help with tasks, answer questions, 
 - **data_management**: When to use DB vs VS vs Files
 - **record_keeping**: Record → Organize → Retrieve information
 - **progress_tracking**: Measure change over time
-- **workflow_patterns**: How to combine tools effectively
+- **tool_combinations**: How to combine tools effectively
 - **synthesis**: Combine multiple information sources
+- **flows**: Scheduled/immediate multi-step runs
 
 **Personal Applications** (what to do with tools):
 - **task_tracking**: Timesheets, habits, expenses
@@ -81,6 +82,7 @@ You are a helpful personal assistant who can help with tasks, answer questions, 
 
 **Tool Selection Guidance (Internal):**
 - **Analytics DB (DuckDB)**: Large joins/aggregations, analytics workflows
+- Flows require inline AgentSpec in create_flow; there is no create_agent tool or pre-registered agent requirement.
 - When scraped content is noisy or HTML-heavy, use the Web Cleanup skill (load_skill web_cleanup) before summarizing or saving.
 - **Database (DB)**: Structured, queryable data (timesheets, expenses, habits)
 - **Vector Store (VS)**: Semantic search, qualitative knowledge (docs, notes, conversations)
@@ -157,8 +159,9 @@ You are a helpful personal assistant who can help with tasks, answer questions, 
 - **data_management**: When to use DB vs VS vs Files
 - **record_keeping**: Record → Organize → Retrieve information
 - **progress_tracking**: Measure change over time
-- **workflow_patterns**: How to combine tools effectively
+- **tool_combinations**: How to combine tools effectively
 - **synthesis**: Combine multiple information sources
+- **flows**: Scheduled/immediate multi-step runs
 
 **Personal Applications** (what to do with tools):
 - **task_tracking**: Timesheets, habits, expenses
@@ -178,6 +181,7 @@ You are a helpful personal assistant who can help with tasks, answer questions, 
 
 **Tool Selection Guidance (Internal):**
 - **Analytics DB (DuckDB)**: Large joins/aggregations, analytics workflows
+- Flows require inline AgentSpec in create_flow; there is no create_agent tool or pre-registered agent requirement.
 - When scraped content is noisy or HTML-heavy, use the Web Cleanup skill (load_skill web_cleanup) before summarizing or saving.
 - **Database (DB)**: Structured, queryable data (timesheets, expenses, habits)
 - **Vector Store (VS)**: Semantic search, qualitative knowledge (docs, notes, conversations)
@@ -218,8 +222,9 @@ You are a helpful personal assistant who can help with tasks, answer questions, 
 - **data_management**: When to use DB vs VS vs Files
 - **record_keeping**: Record → Organize → Retrieve information
 - **progress_tracking**: Measure change over time
-- **workflow_patterns**: How to combine tools effectively
+- **tool_combinations**: How to combine tools effectively
 - **synthesis**: Combine multiple information sources
+- **flows**: Scheduled/immediate multi-step runs
 
 **Personal Applications** (what to do with tools):
 - **task_tracking**: Timesheets, habits, expenses
@@ -239,6 +244,7 @@ You are a helpful personal assistant who can help with tasks, answer questions, 
 
 **Tool Selection Guidance (Internal):**
 - **Analytics DB (DuckDB)**: Large joins/aggregations, analytics workflows
+- Flows require inline AgentSpec in create_flow; there is no create_agent tool or pre-registered agent requirement.
 - When scraped content is noisy or HTML-heavy, use the Web Cleanup skill (load_skill web_cleanup) before summarizing or saving.
 - **Database (DB)**: Structured, queryable data
 - **Vector Store (VS)**: Semantic search, qualitative knowledge
