@@ -191,7 +191,7 @@ agent = create_agent(
 
 Pause agent execution for human approval, editing, or rejection of tool calls before they execute. [Human-in-the-loop](/oss/python/langchain/human-in-the-loop) is useful for the following:
 
-* High-stakes operations requiring human approval (e.g. database writes, financial transactions).
+* High-stakes operations requiring human approval (e.g. transactional database writes, financial transactions).
 * Compliance workflows where human oversight is mandatory.
 * Long-running conversations where human feedback guides the agent.
 
@@ -292,7 +292,7 @@ agent = create_agent(
 Control agent execution by limiting the number of tool calls, either globally across all tools or for specific tools. Tool call limits are useful for the following:
 
 * Preventing excessive calls to expensive external APIs.
-* Limiting web searches or database queries.
+* Limiting web searches or transactional database queries.
 * Enforcing rate limits on specific tool usage.
 * Protecting against runaway agent loops.
 
@@ -1108,7 +1108,7 @@ agent = create_agent(
     tools=[search_tool],
     middleware=[
         ShellToolMiddleware(
-            workspace_root="/workspace",
+            thread_root="/thread",
             execution_policy=HostExecutionPolicy(),
         ),
     ],
@@ -1116,7 +1116,7 @@ agent = create_agent(
 ```
 
 <Accordion title="Configuration options">
-  <ParamField body="workspace_root" type="str | Path | None">
+  <ParamField body="thread_root" type="str | Path | None">
     Base directory for the shell session. If omitted, a temporary directory is created when the agent starts and removed when it ends.
   </ParamField>
 
@@ -1182,7 +1182,7 @@ agent = create_agent(
       tools=[search_tool],
       middleware=[
           ShellToolMiddleware(
-              workspace_root="/workspace",
+              thread_root="/thread",
               execution_policy=HostExecutionPolicy(),
           ),
       ],
@@ -1194,8 +1194,8 @@ agent = create_agent(
       tools=[],
       middleware=[
           ShellToolMiddleware(
-              workspace_root="/workspace",
-              startup_commands=["pip install requests", "export PYTHONPATH=/workspace"],
+              thread_root="/thread",
+              startup_commands=["pip install requests", "export PYTHONPATH=/thread"],
               execution_policy=DockerExecutionPolicy(
                   image="python:3.11-slim",
                   command_timeout=60.0,
@@ -1210,7 +1210,7 @@ agent = create_agent(
       tools=[],
       middleware=[
           ShellToolMiddleware(
-              workspace_root="/workspace",
+              thread_root="/thread",
               redaction_rules=[
                   RedactionRule(pii_type="api_key", detector=r"sk-[a-zA-Z0-9]{32}"),
               ],
@@ -1240,7 +1240,7 @@ agent = create_agent(
     tools=[],
     middleware=[
         FilesystemFileSearchMiddleware(
-            root_path="/workspace",
+            root_path="/thread",
             use_ripgrep=True,
         ),
     ],
@@ -1286,7 +1286,7 @@ agent = create_agent(
       tools=[],
       middleware=[
           FilesystemFileSearchMiddleware(
-              root_path="/workspace",
+              root_path="/thread",
               use_ripgrep=True,
               max_file_size_mb=10,
           ),

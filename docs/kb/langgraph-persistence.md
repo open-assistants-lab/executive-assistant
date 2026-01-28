@@ -273,7 +273,7 @@ async def get_response(thread_id: str, message: str):
 **Solutions**:
 1. Ensure `thread_id` is consistent across requests
 2. Verify checkpointer is passed to `create_agent` or graph compilation
-3. Check database connection for PostgresSaver
+3. Check transactional database connection for PostgresSaver
 
 ### Thread Conflicts
 

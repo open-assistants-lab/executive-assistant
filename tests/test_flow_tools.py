@@ -33,13 +33,13 @@ async def test_flow_tools_create_list_delete(monkeypatch, tmp_path):
     monkeypatch.setattr(flow_tools, "get_thread_id", _fake_thread_id)
 
     # Create agent in registry
-    registry = AgentRegistry("anon_telegram_123")
+    registry = AgentRegistry("telegram:123")
     registry.create_agent(
         agent_id="a1",
         name="Agent One",
         description="test",
         tools=["execute_python"],
-        system_prompt="use $flow_input.url",
+        system_prompt="use $input.url",
     )
 
     # Mock storage
@@ -47,7 +47,7 @@ async def test_flow_tools_create_list_delete(monkeypatch, tmp_path):
         async def create(self, **kwargs):
             return _DummyFlow(flow_id=1, name=kwargs.get("name"), due_time=kwargs.get("due_time"))
 
-        async def list_by_user(self, *args, **kwargs):
+        async def list_by_thread(self, *args, **kwargs):
             return [_DummyFlow(flow_id=1, name="flow", due_time=datetime.now(), status="pending")]
 
         async def cancel(self, flow_id):
@@ -86,13 +86,13 @@ async def test_flow_tools_flow_input_required(monkeypatch, tmp_path):
 
     monkeypatch.setattr(flow_tools, "get_thread_id", _fake_thread_id)
 
-    registry = AgentRegistry("anon_telegram_123")
+    registry = AgentRegistry("telegram:123")
     registry.create_agent(
         agent_id="a1",
         name="Agent One",
         description="test",
         tools=["execute_python"],
-        system_prompt="use $flow_input.url",
+        system_prompt="use $input.url",
     )
 
     res = await flow_tools.create_flow.ainvoke({"name":"flow","description":"flow","agent_ids":["a1"],"schedule_type":"immediate","flow_input":None})
@@ -110,13 +110,13 @@ async def test_flow_tools_cron_guard(monkeypatch, tmp_path):
 
     monkeypatch.setattr(flow_tools, "get_thread_id", _fake_thread_id)
 
-    registry = AgentRegistry("anon_telegram_123")
+    registry = AgentRegistry("telegram:123")
     registry.create_agent(
         agent_id="a1",
         name="Agent One",
         description="test",
         tools=["execute_python"],
-        system_prompt="use $flow_input.url",
+        system_prompt="use $input.url",
     )
 
     res = await flow_tools.create_flow.ainvoke({"name":"flow","description":"flow","agent_ids":["a1"],"schedule_type":"recurring","cron_expression":"* * * * *","flow_input":{"url":"https://example.com"}})

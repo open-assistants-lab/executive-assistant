@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test file tools with proper context set.
+Test file tools with proper thread context set.
 """
 
 import asyncio
@@ -11,15 +11,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from executive_assistant.storage.file_sandbox import (
-    set_thread_id,
-    set_user_id,
     list_files,
 )
-from executive_assistant.storage.group_storage import (
-    set_group_id,
-    set_user_id as set_workspace_user_id,
-)
-from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
+from executive_assistant.storage.thread_storage import set_thread_id
 
 
 async def test_file_list_tool():
@@ -30,18 +24,11 @@ async def test_file_list_tool():
 
     # Simulate Telegram user context
     thread_id = "telegram:6282871705"
-    identity_id = sanitize_thread_id_to_user_id(thread_id)
-
     print(f"\n📝 Setting context for Telegram user:")
     print(f"   thread_id: {thread_id}")
-    print(f"   identity_id: {identity_id}")
 
     # Set all contexts
     set_thread_id(thread_id)
-    group_id = f"group_{thread_id}"
-    set_group_id(group_id)
-    set_workspace_user_id(identity_id)
-    set_user_id(identity_id)
 
     print(f"   ✅ Context set successfully")
 

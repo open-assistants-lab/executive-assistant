@@ -1,4 +1,4 @@
-"""Management slash commands for /mem, /vs, /db, /file, /meta.
+"""Management slash commands for /mem, /vdb, /tdb, /adb, /file, /meta.
 
 These commands provide direct access to storage systems without needing
 to go through the agent's tool calling mechanism.
@@ -14,18 +14,16 @@ from telegram.ext import ContextTypes
 from executive_assistant.config import settings
 
 logger = logging.getLogger(__name__)
-from executive_assistant.storage.file_sandbox import set_thread_id, clear_thread_id
-from executive_assistant.storage.group_storage import (
-    ensure_thread_group,
-    set_group_id as set_workspace_context,
-    set_user_id as set_workspace_user_id,
-    clear_group_id as clear_workspace_context,
-    clear_user_id as clear_workspace_user_id,
+from executive_assistant.storage.thread_storage import (
+    set_thread_id,
+    clear_thread_id,
+    set_channel,
+    set_chat_type,
 )
-from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
 from executive_assistant.storage.mem_storage import get_mem_storage
 from executive_assistant.storage.sqlite_db_storage import get_sqlite_db
-from executive_assistant.storage.shared_db_storage import get_shared_db_storage
+from executive_assistant.storage.shared_tdb_storage import get_shared_tdb_storage
+from executive_assistant.storage.adb_tools import list_adb_tables, query_adb
 from executive_assistant.storage.meta_registry import load_meta, refresh_meta, format_meta
 from executive_assistant.storage.user_allowlist import (
     add_user,
@@ -49,6 +47,11 @@ from executive_assistant.tools.flow_tools import (
     run_flow,
     cancel_flow,
     delete_flow,
+)
+from executive_assistant.agent.flow_mode import (
+    enable_flow_mode,
+    disable_flow_mode,
+    is_flow_mode_enabled,
 )
 
 ALLOWED_MEMORY_TYPES = {"profile", "preference", "fact", "constraint", "style", "context"}
@@ -77,22 +80,14 @@ def _get_chat_type(update: Update) -> str | None:
     return None
 
 async def _set_context(thread_id: str, chat_type: str | None = None) -> None:
-    """Set thread, group, and user context for storage operations."""
+    """Set thread context for storage operations."""
     set_thread_id(thread_id)
-    user_id_for_storage = sanitize_thread_id_to_user_id(thread_id)
-    is_group_chat = chat_type in {"group", "supergroup"}
-    if is_group_chat:
-        group_id = await ensure_thread_group(thread_id, user_id_for_storage)
-        set_workspace_context(group_id)
-    else:
-        clear_workspace_context()
-    set_workspace_user_id(user_id_for_storage)
+    set_channel("telegram")
+    set_chat_type("private")
 
 def _clear_context() -> None:
     """Clear thread_id context."""
     clear_thread_id()
-    clear_workspace_context()
-    clear_workspace_user_id()
 
 # ==================== /mem COMMAND ====================
 
@@ -111,7 +106,7 @@ async def mem_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         return
 
     thread_id = _get_thread_id(update)
-    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={sanitize_thread_id_to_user_id(thread_id)} | command recv /mem {update.message.text or ''}")
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={thread_id} | command recv /mem {update.message.text or ''}")
     if not await _ensure_authorized(update, thread_id):
         return
     chat_type = _get_chat_type(update)
@@ -123,7 +118,7 @@ async def mem_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     action = args[0].lower()
 
-    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={sanitize_thread_id_to_user_id(thread_id)} | command /mem action={action} args={args[1:]}")
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={thread_id} | command /mem action={action} args={args[1:]}")
 
     if action == "list":
         # /mem list [type]
@@ -170,9 +165,8 @@ async def user_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     thread_id = _get_thread_id(update)
-    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={sanitize_thread_id_to_user_id(thread_id)} | command recv /user {update.message.text or ''}")
-    user_id = sanitize_thread_id_to_user_id(thread_id)
-    if not is_admin(thread_id, user_id):
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={thread_id} | command recv /user {update.message.text or ''}")
+    if not is_admin(thread_id):
         await update.message.reply_text("Only admins can manage users.")
         return
 
@@ -210,19 +204,19 @@ async def user_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 added = add_user(entry)
             except PermissionError:
                 await update.message.reply_text(
-                    "Allowlist is not writable. Check permissions for ./data/admins (host) or /app/data/admins (container)."
+                    f"Allowlist is not writable. Check permissions for {settings.ADMINS_ROOT} (host) or {settings.ADMINS_ROOT} (container)."
                 )
                 return
             await update.message.reply_text("Added." if added else "Already present.")
             return
         if is_admin_entry(entry):
-            await update.message.reply_text("Admins must be managed in config.yaml.")
+            await update.message.reply_text("Admins must be managed in docker/config.yaml.")
             return
         try:
             removed = remove_user(entry)
         except PermissionError:
             await update.message.reply_text(
-                "Allowlist is not writable. Check permissions for ./data/admins (host) or /app/data/admins (container)."
+                f"Allowlist is not writable. Check permissions for {settings.ADMINS_ROOT} (host) or {settings.ADMINS_ROOT} (container)."
             )
             return
         await update.message.reply_text("Removed." if removed else "Not found.")
@@ -233,8 +227,7 @@ async def user_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 # ==================== /reminder COMMAND ====================
 
 async def _ensure_authorized(update: Update, thread_id: str) -> bool:
-    user_id = sanitize_thread_id_to_user_id(thread_id)
-    if is_authorized(thread_id, user_id):
+    if is_authorized(thread_id):
         return True
     await update.message.reply_text(
         "Access restricted. Ask an admin to add you using /user add <channel:id>. "
@@ -318,7 +311,7 @@ async def reminder_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return
 
     thread_id = _get_thread_id(update)
-    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={sanitize_thread_id_to_user_id(thread_id)} | command recv /reminder {update.message.text or ''}")
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={thread_id} | command recv /reminder {update.message.text or ''}")
     if not await _ensure_authorized(update, thread_id):
         return
     chat_type = _get_chat_type(update)
@@ -330,10 +323,23 @@ async def reminder_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     action = args[0].lower()
 
-    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={sanitize_thread_id_to_user_id(thread_id)} | command /reminder action={action} args={args[1:]}")
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={thread_id} | command /reminder action={action} args={args[1:]}")
 
     await _set_context(thread_id, chat_type)
     try:
+        if action == "status":
+            enabled = is_flow_mode_enabled(str(update.effective_chat.id))
+            status_text = "on" if enabled else "off"
+            await update.message.reply_text(f"Flow mode is {status_text}.")
+            return
+        if action == "on":
+            enable_flow_mode(str(update.effective_chat.id))
+            await update.message.reply_text("🧐 I will build and test the agents + flow now.")
+            return
+        if action == "off":
+            disable_flow_mode(str(update.effective_chat.id))
+            await update.message.reply_text("Flow mode off.")
+            return
         if action == "list":
             status = args[1].lower() if len(args) > 1 else ""
             result = await reminder_list.ainvoke({"status": status})
@@ -383,125 +389,15 @@ async def reminder_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 async def _reminder_help(update: Update) -> None:
     """Show /reminder help."""
     help_text = (
-        "⏰ Reminders\n\n"
-        "Usage:\n"
-        "• /reminder list [status]\n"
-        "• /reminder set <time> <message>\n"
-        "• /reminder cancel <id>\n"
-        "• /reminder edit <id> <time> <message>\n\n"
-        "Tips:\n"
-        "- Use ' | ' to separate time and message when time has spaces\n"
-        "- Add recurrence=<daily|weekly|...> when setting/editing\n\n"
-        "Examples:\n"
-        "/reminder set tomorrow 9am | standup\n"
-        "/reminder list pending\n"
-        "/reminder cancel 12"
-    )
-    await update.message.reply_text(help_text)
-
-async def _mem_help(update: Update) -> None:
-    """Show /mem help."""
-    help_text = (
-        "💾 <b>Memory Management</b>\n\n"
-        "Usage:\n"
-        "• <code>/mem</code> - Show counts and commands\n"
-        "• <code>/mem list [type]</code> - List by type (profile|preference|fact|constraint|style|context)\n"
-        "• <code>/mem add &lt;content&gt; [type] [key]</code> - Add a memory (or use type=/key=)\n"
-        "• <code>/mem search &lt;query&gt;</code> - Search memories\n"
-        "• <code>/mem forget &lt;index|key|id&gt;</code> - Forget a memory\n"
-        "• <code>/mem update &lt;index|id&gt; &lt;text&gt;</code> - Update a memory\n\n"
-        "Examples:\n"
-        "• <code>/mem add I prefer tea over coffee type=preference</code>\n"
-        "• <code>/mem add My office timezone is EST key=timezone</code>\n"
-        "• <code>/mem list preference</code>\n"
-        "• <code>/mem search timezone</code>\n"
-        "• <code>/mem forget 1</code>\n"
-        "• <code>/mem update 1 New content here</code>"
+        "⏰ <b>Reminders</b>\n\n"
+        "Commands:\n"
+        "• <code>/reminder list</code>\n"
+        "• <code>/reminder add &lt;time&gt; &lt;message&gt;</code>\n"
+        "• <code>/reminder edit &lt;id&gt; &lt;time&gt; &lt;message&gt;</code>\n"
+        "• <code>/reminder cancel &lt;id&gt;</code>\n"
+        "• <code>/reminder help</code>"
     )
     await update.message.reply_text(help_text, parse_mode="HTML")
-
-async def _mem_overview(update: Update, thread_id: str, chat_type: str | None) -> None:
-    """Show memory counts and commands."""
-    await _set_context(thread_id, chat_type)
-    try:
-        storage = get_mem_storage()
-        memories = storage.list_memories(memory_type=None, status="active")
-        total = len(memories)
-
-        by_type: dict[str, int] = {}
-        for m in memories:
-            by_type[m["memory_type"]] = by_type.get(m["memory_type"], 0) + 1
-
-        type_summary = ", ".join(
-            f"{mtype}:{count}" for mtype, count in sorted(by_type.items())
-        ) or "none"
-
-        help_text = (
-            "💾 <b>Memory Management</b>\n\n"
-            f"Memories: {total}\n"
-            f"By type: {type_summary}\n\n"
-            "Commands:\n"
-            "• <code>/mem list [type]</code>\n"
-            "• <code>/mem add &lt;content&gt; [type] [key]</code>\n"
-            "• <code>/mem search &lt;query&gt;</code>\n"
-            "• <code>/mem forget &lt;index|key|id&gt;</code>\n"
-            "• <code>/mem update &lt;index|id&gt; &lt;text&gt;</code>\n\n"
-            "Example:\n"
-            "<code>/mem add I prefer tea over coffee type=preference</code>"
-        )
-        await update.message.reply_text(help_text, parse_mode="HTML")
-    except Exception as e:
-        await update.message.reply_text(f"Error reading memories: {e}")
-    finally:
-        _clear_context()
-
-def _parse_mem_add_args(args: list[str]) -> tuple[str, str | None, str | None]:
-    """Parse /mem add arguments into content, memory_type, and key."""
-    if len(args) < 2:
-        return "", None, None
-
-    tokens = args[1:]
-    content_tokens: list[str] = []
-    mem_type: str | None = None
-    key: str | None = None
-    explicit_type = False
-
-    def _extract_prefixed(token: str, prefix: str) -> str | None:
-        if token.startswith(prefix + "="):
-            return token[len(prefix) + 1 :]
-        if token.startswith(prefix + ":"):
-            return token[len(prefix) + 1 :]
-        if token.startswith("--" + prefix + "="):
-            return token[len(prefix) + 3 :]
-        if token.startswith("--" + prefix + ":"):
-            return token[len(prefix) + 3 :]
-        return None
-
-    for token in tokens:
-        key_val = _extract_prefixed(token, "key")
-        if key_val:
-            key = key_val
-            continue
-        type_val = _extract_prefixed(token, "type")
-        if type_val:
-            mem_type = type_val.lower()
-            explicit_type = True
-            continue
-        content_tokens.append(token)
-
-    if not explicit_type:
-        if content_tokens:
-            last = content_tokens[-1].lower()
-            if last in ALLOWED_MEMORY_TYPES:
-                mem_type = content_tokens.pop().lower()
-            elif len(content_tokens) >= 2 and content_tokens[-2].lower() in ALLOWED_MEMORY_TYPES:
-                mem_type = content_tokens.pop(-2).lower()
-                key = content_tokens.pop(-1)
-            elif last in COMMON_MEMORY_KEYS:
-                key = content_tokens.pop(-1)
-
-    content = " ".join(content_tokens).strip()
-    return content, mem_type, key
 
 
 async def _mem_add(update: Update, thread_id: str, content: str, mem_type: str | None = None, key: str | None = None, chat_type: str | None = None) -> None:
@@ -558,7 +454,7 @@ async def _mem_list(update: Update, thread_id: str, mem_type: str | None = None,
 
         lines = [f"💾 <b>Your Memories</b> ({len(memories)} total)\n"]
 
-        # Group by type
+        # Thread by type
         by_type: dict[str, list[dict]] = {}
         for m in memories:
             by_type.setdefault(m["memory_type"], []).append(m)
@@ -670,23 +566,23 @@ async def _mem_update(update: Update, thread_id: str, memory_id: str, content: s
     finally:
         _clear_context()
 
-# ==================== /vs COMMAND ====================
+# ==================== /vdb COMMAND ====================
 
-async def vs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /vs command for Vector Store management.
+async def vdb_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /vdb command for Vector Database management.
 
     Usage:
-        /vs                        - List all VS tables
-        /vs store <table> <json>   - Store documents
-        /vs search <query> [table] - Search VS
-        /vs describe <table>       - Describe a table
-        /vs delete <table>         - Delete a table
+        /vdb                        - List all VDB tables
+        /vdb store <table> <json>   - Store documents
+        /vdb search <query> [table] - Search VDB
+        /vdb describe <table>       - Describe a table
+        /vdb delete <table>         - Delete a table
     """
     if not update.message:
         return
 
     thread_id = _get_thread_id(update)
-    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={sanitize_thread_id_to_user_id(thread_id)} | command recv /vs {update.message.text or ''}")
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={thread_id} | command recv /vdb {update.message.text or ''}")
     if not await _ensure_authorized(update, thread_id):
         return
     chat_type = _get_chat_type(update)
@@ -694,156 +590,155 @@ async def vs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     scope, args = _parse_scope(args)
 
     if not args:
-        await _vs_overview(update, thread_id, scope)
+        await _vdb_overview(update, thread_id, scope)
         return
 
     action = args[0].lower()
 
-    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={sanitize_thread_id_to_user_id(thread_id)} | command /vs action={action} args={args[1:]}")
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={thread_id} | command /vdb action={action} args={args[1:]}")
 
     if action == "list":
-        await _vs_list(update, thread_id, scope)
+        await _vdb_list(update, thread_id, scope)
     elif action == "store":
-        # /vs store <table_name> <json_documents>
+        # /vdb store <table_name> <json_documents>
         if len(args) < 3:
-            await update.message.reply_text("Usage: /vs store <table_name> <json_documents>")
+            await update.message.reply_text("Usage: /vdb store <table_name> <json_documents>")
         else:
             table_name = args[1]
             documents = " ".join(args[2:])
-            await _vs_store(update, thread_id, table_name, documents, scope)
+            await _vdb_store(update, thread_id, table_name, documents, scope)
     elif action == "search":
-        # /vs search <query> [table_name]
+        # /vdb search <query> [table_name]
         query = args[1] if len(args) > 1 else ""
         table_name = args[2] if len(args) > 2 else ""
         if not query:
-            await update.message.reply_text("Usage: /vs search <query> [table_name]")
+            await update.message.reply_text("Usage: /vdb search <query> [table_name]")
         else:
-            await _vs_search(update, thread_id, query, table_name, scope)
+            await _vdb_search(update, thread_id, query, table_name, scope)
     elif action == "describe":
-        # /vs describe <table_name>
+        # /vdb describe <table_name>
         if len(args) < 2:
-            await update.message.reply_text("Usage: /vs describe <table_name>")
+            await update.message.reply_text("Usage: /vdb describe <table_name>")
         else:
-            await _vs_describe(update, thread_id, args[1], scope)
+            await _vdb_describe(update, thread_id, args[1], scope)
     elif action == "delete":
-        # /vs delete <table_name>
+        # /vdb delete <table_name>
         if len(args) < 2:
-            await update.message.reply_text("Usage: /vs delete <table_name>")
+            await update.message.reply_text("Usage: /vdb delete <table_name>")
         else:
-            await _vs_delete(update, thread_id, args[1], scope)
+            await _vdb_delete(update, thread_id, args[1], scope)
     else:
-        await _vs_help(update)
+        await _vdb_help(update)
 
-async def _vs_help(update: Update) -> None:
-    """Show /vs help."""
+async def _vdb_help(update: Update) -> None:
+    """Show /vdb help."""
     help_text = (
-        "🔍 <b>Vector Store Management</b>\n\n"
-        "Usage:\n"
-        "• <code>/vs</code> - Show counts and commands\n"
-        "• <code>/vs store &lt;table&gt; &lt;json&gt;</code> - Store documents\n"
-        "• <code>/vs search &lt;query&gt; [table]</code> - Search\n"
-        "• <code>/vs describe &lt;table&gt;</code> - Describe table\n"
-        "• <code>/vs delete &lt;table&gt;</code> - Delete table\n"
-        "• Add <code>scope=shared</code> to use shared VS\n\n"
-        "Example:\n"
-        "<code>/vs store notes [{\"content\": \"Meeting notes\"}]</code>"
+        "🧠 <b>Vector Database</b>\n\n"
+        "Commands:\n"
+        "• <code>/vdb list</code>\n"
+        "• <code>/vdb create &lt;name&gt;</code>\n"
+        "• <code>/vdb add &lt;name&gt; &lt;text&gt;</code>\n"
+        "• <code>/vdb add_file &lt;name&gt; &lt;path&gt;</code>\n"
+        "• <code>/vdb search &lt;name&gt; &lt;query&gt;</code>\n"
+        "• <code>/vdb describe &lt;name&gt;</code>\n"
+        "• <code>/vdb delete &lt;name&gt;</code>"
     )
     await update.message.reply_text(help_text, parse_mode="HTML")
 
-async def _vs_overview(update: Update, thread_id: str, scope: str) -> None:
-    """Show VS counts and commands."""
+async def _vdb_overview(update: Update, thread_id: str, scope: str) -> None:
+    """Show VDB summary and commands."""
     await _set_context(thread_id, _get_chat_type(update))
     try:
-        from executive_assistant.storage.lancedb_storage import list_lancedb_collections
+        from executive_assistant.storage.vs_tools import vdb_list
 
-        collections = list_lancedb_collections() if scope == "context" else list_lancedb_collections("shared")
-        total = len(collections)
+        tables_text = vdb_list.invoke({"scope": scope})
+        total = 0
+        if isinstance(tables_text, str) and tables_text.startswith("Vector Database collections:"):
+            total = len([line for line in tables_text.splitlines() if line.strip().startswith("-")])
 
         help_text = (
-            "🔍 <b>Vector Store Management</b>\n\n"
+            "🧠 <b>Vector Database (VDB)</b>\n\n"
             f"Collections: {total}\n\n"
             "Commands:\n"
-            "• <code>/vs list</code>\n"
-            "• <code>/vs store &lt;table&gt; &lt;json&gt;</code>\n"
-            "• <code>/vs search &lt;query&gt; [table]</code>\n"
-            "• <code>/vs describe &lt;table&gt;</code>\n"
-            "• <code>/vs delete &lt;table&gt;</code>\n"
-            "• Add <code>scope=shared</code> to use shared VS\n\n"
-            "Example:\n"
-            "<code>/vs store notes [{\"content\": \"Meeting notes\"}]</code>"
+            "• <code>/vdb list</code>\n"
+            "• <code>/vdb store &lt;name&gt; &lt;json&gt;</code>\n"
+            "• <code>/vdb search &lt;query&gt; [name]</code>\n"
+            "• <code>/vdb describe &lt;name&gt;</code>\n"
+            "• <code>/vdb delete &lt;name&gt;</code>"
         )
         await update.message.reply_text(help_text, parse_mode="HTML")
     except Exception as e:
-        await update.message.reply_text(f"Error listing VS: {e}")
+        await update.message.reply_text(f"Error loading VDB overview: {e}")
     finally:
         _clear_context()
 
-async def _vs_list(update: Update, thread_id: str, scope: str) -> None:
-    """List VS tables."""
+
+async def _vdb_list(update: Update, thread_id: str, scope: str) -> None:
+    """List VDB tables."""
     await _set_context(thread_id, _get_chat_type(update))
     try:
-        from executive_assistant.storage.vs_tools import vs_list
+        from executive_assistant.storage.vs_tools import vdb_list
 
-        result = vs_list.invoke({"scope": scope})
+        result = vdb_list.invoke({"scope": scope})
         await update.message.reply_text(result)
     except Exception as e:
-        await update.message.reply_text(f"Error listing VS: {e}")
+        await update.message.reply_text(f"Error listing VDB: {e}")
     finally:
         _clear_context()
 
-async def _vs_store(update: Update, thread_id: str, table_name: str, documents: str, scope: str) -> None:
-    """Store documents in VS."""
+async def _vdb_store(update: Update, thread_id: str, table_name: str, documents: str, scope: str) -> None:
+    """Store documents in VDB."""
     await _set_context(thread_id, _get_chat_type(update))
     try:
-        from executive_assistant.storage.vs_tools import create_vs_collection
+        from executive_assistant.storage.vs_tools import create_vdb_collection
 
-        result = create_vs_collection.invoke({"collection_name": table_name, "documents": documents, "scope": scope})
+        result = create_vdb_collection.invoke({"collection_name": table_name, "documents": documents, "scope": scope})
         await update.message.reply_text(result)
     except Exception as e:
         await update.message.reply_text(f"Error storing documents: {e}")
     finally:
         _clear_context()
 
-async def _vs_search(update: Update, thread_id: str, query: str, table_name: str, scope: str) -> None:
-    """Search VS."""
+async def _vdb_search(update: Update, thread_id: str, query: str, table_name: str, scope: str) -> None:
+    """Search VDB."""
     await _set_context(thread_id, _get_chat_type(update))
     try:
-        from executive_assistant.storage.vs_tools import search_vs
+        from executive_assistant.storage.vs_tools import search_vdb
 
-        result = search_vs.invoke({"query": query, "collection_name": table_name, "limit": 5, "scope": scope})
+        result = search_vdb.invoke({"query": query, "collection_name": table_name, "limit": 5, "scope": scope})
         await update.message.reply_text(result)
     except Exception as e:
-        await update.message.reply_text(f"Error searching VS: {e}")
+        await update.message.reply_text(f"Error searching VDB: {e}")
     finally:
         _clear_context()
 
-async def _vs_describe(update: Update, thread_id: str, table_name: str, scope: str) -> None:
-    """Describe VS table."""
+async def _vdb_describe(update: Update, thread_id: str, table_name: str, scope: str) -> None:
+    """Describe VDB table."""
     await _set_context(thread_id, _get_chat_type(update))
     try:
-        from executive_assistant.storage.vs_tools import describe_vs_collection
+        from executive_assistant.storage.vs_tools import describe_vdb_collection
 
-        result = describe_vs_collection.invoke({"collection_name": table_name, "scope": scope})
+        result = describe_vdb_collection.invoke({"collection_name": table_name, "scope": scope})
         await update.message.reply_text(result)
     except Exception as e:
         await update.message.reply_text(f"Error describing table: {e}")
     finally:
         _clear_context()
 
-async def _vs_delete(update: Update, thread_id: str, table_name: str, scope: str) -> None:
-    """Delete VS table."""
+async def _vdb_delete(update: Update, thread_id: str, table_name: str, scope: str) -> None:
+    """Delete VDB table."""
     await _set_context(thread_id, _get_chat_type(update))
     try:
-        from executive_assistant.storage.vs_tools import drop_vs_collection
+        from executive_assistant.storage.vs_tools import drop_vdb_collection
 
-        result = drop_vs_collection.invoke({"collection_name": table_name, "scope": scope})
+        result = drop_vdb_collection.invoke({"collection_name": table_name, "scope": scope})
         await update.message.reply_text(result)
     except Exception as e:
         await update.message.reply_text(f"Error deleting table: {e}")
     finally:
         _clear_context()
 
-# ==================== /db COMMAND ====================
+# ==================== /tdb COMMAND ====================
 
 def _db_execute(storage, sql: str) -> list[tuple]:
     cursor = storage.conn.execute(sql)
@@ -867,41 +762,104 @@ def _parse_scope(args: list[str]) -> tuple[str, list[str]]:
 
 def _get_db_storage_for_scope(scope: str):
     if scope == "shared":
-        return get_shared_db_storage()
+        return get_shared_tdb_storage()
     return get_sqlite_db()
 
-def _get_user_files_path(thread_id: str) -> Path:
-    from executive_assistant.storage.group_storage import get_user_id
-
-    user_id = get_user_id()
-    if user_id:
-        return settings.get_user_files_path(user_id)
-
-    user_id = sanitize_thread_id_to_user_id(thread_id)
-    return settings.get_user_files_path(user_id)
+def _get_thread_files_path(thread_id: str) -> Path:
+    return settings.get_thread_files_path(thread_id)
 
 def _get_files_path_for_scope(thread_id: str, scope: str) -> Path:
     if scope == "shared":
         return settings.get_shared_files_path()
-    return _get_user_files_path(thread_id)
+    return _get_thread_files_path(thread_id)
 
-async def db_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /db command for database management.
+async def _adb_overview(update: Update, thread_id: str, scope: str) -> None:
+    """Show ADB counts and commands."""
+    await _set_context(thread_id, _get_chat_type(update))
+    try:
+        tables_text = list_adb_tables.invoke({"scope": scope})
+        total = 0
+        if tables_text.startswith("Tables:"):
+            total = len([line for line in tables_text.splitlines() if line.strip().startswith("-")])
+
+        help_text = (
+            "📈 <b>Analytics DB (ADB)</b>\n\n"
+            f"Tables: {total}\n\n"
+            "Commands:\n"
+            "• <code>/adb list</code>\n"
+            "• <code>/adb query &lt;sql&gt;</code>"
+        )
+        await update.message.reply_text(help_text, parse_mode="HTML")
+    except Exception as e:
+        await update.message.reply_text(f"Error reading ADB: {e}")
+
+
+async def adb_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /adb command for analytics DB management.
 
     Usage:
-        /db                          - List all tables
-        /db create <table> <json>    - Create table
-        /db insert <table> <json>    - Insert data
-        /db query <sql>              - Run SQL query
-        /db describe <table>         - Describe table
-        /db drop <table>             - Drop table
-        /db export <table> <file>    - Export table
+        /adb               - Show counts and commands
+        /adb list          - List tables
+        /adb query <sql>   - Run SQL query
     """
     if not update.message:
         return
 
     thread_id = _get_thread_id(update)
-    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={sanitize_thread_id_to_user_id(thread_id)} | command recv /db {update.message.text or ''}")
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={thread_id} | command recv /adb {update.message.text or ''}")
+    if not await _ensure_authorized(update, thread_id):
+        return
+
+    args = context.args if context.args else []
+    scope, args = _parse_scope(args)
+
+    if scope != "context":
+        await update.message.reply_text("ADB currently supports context scope only.")
+        return
+
+    if not args:
+        await _adb_overview(update, thread_id, scope)
+        return
+
+    action = args[0].lower()
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={thread_id} | command /adb action={action} args={args[1:]}")
+
+    if action in {"list", "tables"}:
+        await _set_context(thread_id, _get_chat_type(update))
+        result = list_adb_tables.invoke({"scope": scope})
+        await update.message.reply_text(result)
+        return
+
+    if action == "query":
+        sql = " ".join(args[1:])
+        if not sql.strip():
+            await update.message.reply_text("Usage: /adb query <sql>")
+            return
+        await _set_context(thread_id, _get_chat_type(update))
+        result = query_adb.invoke({"sql": sql, "scope": scope})
+        await update.message.reply_text(result)
+        return
+
+    await update.message.reply_text("Usage: /adb list | /adb query <sql>")
+
+
+async def tdb_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /tdb command for database management.
+
+    Usage:
+        /tdb                          - List all tables
+        /tdb create <table> <json>    - Create table
+        /tdb insert <table> <json>    - Insert data
+        /tdb query <sql>              - Run SQL query
+        /tdb describe <table>         - Describe table
+        /tdb drop <table>             - Drop table
+        /tdb export <table> <file>    - Export table
+    """
+    if not update.message:
+        return
+
+    thread_id = _get_thread_id(update)
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={thread_id} | command recv /tdb {update.message.text or ''}")
     if not await _ensure_authorized(update, thread_id):
         return
     args = context.args if context.args else []
@@ -913,113 +871,107 @@ async def db_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
     action = args[0].lower()
 
-    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={sanitize_thread_id_to_user_id(thread_id)} | command /db action={action} args={args[1:]}")
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={thread_id} | command /tdb action={action} args={args[1:]}")
 
     if action == "list":
         await _db_list(update, thread_id, scope)
     elif action == "create":
-        # /db create <table_name> <json_data>
+        # /tdb create <table_name> <json_data>
         if len(args) < 3:
-            await update.message.reply_text("Usage: /db create <table> <json_data>")
+            await update.message.reply_text("Usage: /tdb create <table> <json_data>")
         else:
             table_name = args[1]
             data = " ".join(args[2:])
             await _db_create(update, thread_id, table_name, data, scope)
     elif action == "insert":
-        # /db insert <table_name> <json_data>
+        # /tdb insert <table_name> <json_data>
         if len(args) < 3:
-            await update.message.reply_text("Usage: /db insert <table> <json_data>")
+            await update.message.reply_text("Usage: /tdb insert <table> <json_data>")
         else:
             table_name = args[1]
             data = " ".join(args[2:])
             await _db_insert(update, thread_id, table_name, data, scope)
     elif action == "query":
-        # /db query <sql>
+        # /tdb query <sql>
         sql = " ".join(args[1:])
         if not sql:
-            await update.message.reply_text("Usage: /db query <sql>")
+            await update.message.reply_text("Usage: /tdb query <sql>")
         else:
             await _db_query(update, thread_id, sql, scope)
     elif action == "describe":
-        # /db describe <table_name>
+        # /tdb describe <table_name>
         if len(args) < 2:
-            await update.message.reply_text("Usage: /db describe <table_name>")
+            await update.message.reply_text("Usage: /tdb describe <table_name>")
         else:
             await _db_describe(update, thread_id, args[1], scope)
     elif action == "drop":
-        # /db drop <table_name>
+        # /tdb drop <table_name>
         if len(args) < 2:
-            await update.message.reply_text("Usage: /db drop <table_name>")
+            await update.message.reply_text("Usage: /tdb drop <table_name>")
         else:
             await _db_drop(update, thread_id, args[1], scope)
     elif action == "export":
-        # /db export <table_name> <filename>
+        # /tdb export <table_name> <filename>
         if len(args) < 3:
-            await update.message.reply_text("Usage: /db export <table> <filename>")
+            await update.message.reply_text("Usage: /tdb export <table> <filename>")
         else:
             await _db_export(update, thread_id, args[1], args[2], scope)
     else:
         await _db_help(update)
 
 async def _db_help(update: Update) -> None:
-    """Show /db help."""
+    """Show /tdb help."""
     help_text = (
-        "🗄️ <b>Database Management</b>\n\n"
-        "Usage:\n"
-        "• <code>/db</code> - Show counts and commands\n"
-        "• <code>/db create &lt;table&gt; &lt;json&gt;</code> - Create table\n"
-        "• <code>/db insert &lt;table&gt; &lt;json&gt;</code> - Insert data\n"
-        "• <code>/db query &lt;sql&gt;</code> - Run query\n"
-        "• <code>/db describe &lt;table&gt;</code> - Describe table\n"
-        "• <code>/db drop &lt;table&gt;</code> - Drop table\n"
-        "• <code>/db export &lt;table&gt; &lt;file&gt;</code> - Export to CSV\n"
-        "• Add <code>scope=shared</code> to use shared DB\n\n"
-        "Example:\n"
-        "<code>/db create users [{\"name\": \"Alice\", \"age\": 30}]</code>"
+        "🗄️ <b>Transactional Database (TDB)</b>\n\n"
+        "Commands:\n"
+        "• <code>/tdb list</code>\n"
+        "• <code>/tdb create &lt;table&gt; &lt;json&gt;</code>\n"
+        "• <code>/tdb insert &lt;table&gt; &lt;json&gt;</code>\n"
+        "• <code>/tdb query &lt;sql&gt;</code>\n"
+        "• <code>/tdb describe &lt;table&gt;</code>\n"
+        "• <code>/tdb drop &lt;table&gt;</code>\n"
+        "• <code>/tdb export &lt;table&gt; &lt;filename&gt;</code>"
     )
     await update.message.reply_text(help_text, parse_mode="HTML")
 
 async def _db_overview(update: Update, thread_id: str, scope: str) -> None:
-    """Show DB counts and commands."""
+    """Show TDB summary and commands."""
     await _set_context(thread_id, _get_chat_type(update))
     try:
         storage = _get_db_storage_for_scope(scope)
         tables = storage.list_tables()
         total = len(tables)
-
         help_text = (
-            "🗄️ <b>Database Management</b>\n\n"
+            "🗄️ <b>Transactional Database (TDB)</b>\n\n"
             f"Tables: {total}\n\n"
             "Commands:\n"
-            "• <code>/db list</code>\n"
-            "• <code>/db create &lt;table&gt; &lt;json&gt;</code>\n"
-            "• <code>/db insert &lt;table&gt; &lt;json&gt;</code>\n"
-            "• <code>/db query &lt;sql&gt;</code>\n"
-            "• <code>/db describe &lt;table&gt;</code>\n"
-            "• <code>/db drop &lt;table&gt;</code>\n"
-            "• <code>/db export &lt;table&gt; &lt;file&gt;</code>\n"
-            "• Add <code>scope=shared</code> to use shared DB\n\n"
-            "Example:\n"
-            "<code>/db create users [{\"name\": \"Alice\", \"age\": 30}]</code>"
+            "• <code>/tdb list</code>\n"
+            "• <code>/tdb create &lt;table&gt; &lt;json&gt;</code>\n"
+            "• <code>/tdb insert &lt;table&gt; &lt;json&gt;</code>\n"
+            "• <code>/tdb query &lt;sql&gt;</code>\n"
+            "• <code>/tdb describe &lt;table&gt;</code>\n"
+            "• <code>/tdb drop &lt;table&gt;</code>\n"
+            "• <code>/tdb export &lt;table&gt; &lt;filename&gt;</code>"
         )
         await update.message.reply_text(help_text, parse_mode="HTML")
     except Exception as e:
-        await update.message.reply_text(f"Error listing tables: {e}")
+        await update.message.reply_text(f"Error loading TDB overview: {e}")
     finally:
         _clear_context()
 
+
 async def _db_list(update: Update, thread_id: str, scope: str) -> None:
-    """List DB tables."""
+    """List TDB tables."""
     await _set_context(thread_id, _get_chat_type(update))
     try:
         storage = _get_db_storage_for_scope(scope)
         tables = storage.list_tables()
 
         if not tables:
-            await update.message.reply_text("🗄️ No tables. Use /db create <table> <json> to create one.")
+            await update.message.reply_text("🗄️ No tables. Use /tdb create <table> <json> to create one.")
             return
 
-        lines = ["🗄️ Database Tables\n"]
+        lines = ["🗄️ TDB Tables\n"]
         for table in tables:
             lines.append(f"• {table}")
 
@@ -1030,7 +982,7 @@ async def _db_list(update: Update, thread_id: str, scope: str) -> None:
         _clear_context()
 
 async def _db_create(update: Update, thread_id: str, table_name: str, data: str, scope: str) -> None:
-    """Create DB table."""
+    """Create TDB table."""
     await _set_context(thread_id, _get_chat_type(update))
     try:
         try:
@@ -1048,7 +1000,7 @@ async def _db_create(update: Update, thread_id: str, table_name: str, data: str,
         _clear_context()
 
 async def _db_insert(update: Update, thread_id: str, table_name: str, data: str, scope: str) -> None:
-    """Insert into DB table."""
+    """Insert into TDB table."""
     await _set_context(thread_id, _get_chat_type(update))
     try:
         try:
@@ -1067,7 +1019,7 @@ async def _db_insert(update: Update, thread_id: str, table_name: str, data: str,
 
 
 async def _db_query(update: Update, thread_id: str, sql: str, scope: str) -> None:
-    """Run SQL query."""
+    """Run SQL query (TDB)."""
     await _set_context(thread_id, _get_chat_type(update))
     try:
         storage = _get_db_storage_for_scope(scope)
@@ -1096,7 +1048,7 @@ async def _db_query(update: Update, thread_id: str, sql: str, scope: str) -> Non
 
 
 async def _db_describe(update: Update, thread_id: str, table_name: str, scope: str) -> None:
-    """Describe DB table."""
+    """Describe TDB table."""
     await _set_context(thread_id, _get_chat_type(update))
     try:
         storage = _get_db_storage_for_scope(scope)
@@ -1117,7 +1069,7 @@ async def _db_describe(update: Update, thread_id: str, table_name: str, scope: s
         _clear_context()
 
 async def _db_drop(update: Update, thread_id: str, table_name: str, scope: str) -> None:
-    """Drop DB table."""
+    """Drop TDB table."""
     await _set_context(thread_id, _get_chat_type(update))
     try:
         storage = _get_db_storage_for_scope(scope)
@@ -1129,7 +1081,7 @@ async def _db_drop(update: Update, thread_id: str, table_name: str, scope: str) 
         _clear_context()
 
 async def _db_export(update: Update, thread_id: str, table_name: str, filename: str, scope: str) -> None:
-    """Export DB table."""
+    """Export TDB table."""
     await _set_context(thread_id, _get_chat_type(update))
     try:
         storage = _get_db_storage_for_scope(scope)
@@ -1166,7 +1118,7 @@ async def file_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     thread_id = _get_thread_id(update)
-    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={sanitize_thread_id_to_user_id(thread_id)} | command recv /file {update.message.text or ''}")
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={thread_id} | command recv /file {update.message.text or ''}")
     if not await _ensure_authorized(update, thread_id):
         return
     args = context.args if context.args else []
@@ -1178,7 +1130,7 @@ async def file_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     action = args[0].lower()
 
-    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={sanitize_thread_id_to_user_id(thread_id)} | command /file action={action} args={args[1:]}" )
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={thread_id} | command /file action={action} args={args[1:]}" )
 
     if action == "list":
         pattern = args[1] if len(args) > 1 else None
@@ -1211,52 +1163,36 @@ async def file_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def _file_help(update: Update) -> None:
     """Show /file help."""
     help_text = (
-        "📁 <b>File Management</b>\n\n"
-        "Usage:\n"
-        "• <code>/file</code> - Show counts and commands\n"
-        "• <code>/file list [pattern]</code> - List with pattern\n"
-        "• <code>/file read &lt;path&gt;</code> - Read file\n"
-        "• <code>/file write &lt;path&gt; &lt;text&gt;</code> - Write file\n"
-        "• <code>/file create &lt;folder&gt;</code> - Create folder\n"
-        "• <code>/file delete &lt;path&gt;</code> - Delete file/folder\n"
-        "• Add <code>scope=shared</code> to use shared files\n\n"
-        "Examples:\n"
-        "• <code>/file list *.txt</code>\n"
-        "• <code>/file read notes.txt</code>"
+        "📁 <b>Files</b>\n\n"
+        "Commands:\n"
+        "• <code>/file list</code>\n"
+        "• <code>/file read &lt;path&gt;</code>\n"
+        "• <code>/file write &lt;path&gt; &lt;text&gt;</code>\n"
+        "• <code>/file delete &lt;path&gt;</code>"
     )
     await update.message.reply_text(help_text, parse_mode="HTML")
 
 async def _file_overview(update: Update, thread_id: str, scope: str) -> None:
-    """Show file counts and commands."""
+    """Show file scope summary and commands."""
     await _set_context(thread_id, _get_chat_type(update))
     try:
-        import os
-        from executive_assistant.storage.file_sandbox import get_sandbox, get_shared_sandbox
-
-        sandbox = get_shared_sandbox() if scope == "shared" else get_sandbox()
-        total_files = 0
-        for _, _, files in os.walk(sandbox.root):
-            total_files += len(files)
-
+        base_path = _get_files_path_for_scope(thread_id, scope)
         help_text = (
-            "📁 <b>File Management</b>\n\n"
-            f"Files: {total_files}\n\n"
+            "📂 <b>Files</b>\n\n"
+            f"Scope: {scope}\n"
+            f"Base path: <code>{base_path}</code>\n\n"
             "Commands:\n"
-            "• <code>/file list [pattern]</code>\n"
+            "• <code>/file list</code>\n"
             "• <code>/file read &lt;path&gt;</code>\n"
             "• <code>/file write &lt;path&gt; &lt;text&gt;</code>\n"
-            "• <code>/file create &lt;folder&gt;</code>\n"
-            "• <code>/file delete &lt;path&gt;</code>\n"
-            "• Add <code>scope=shared</code> to use shared files\n\n"
-            "Examples:\n"
-            "• <code>/file list *.txt</code>\n"
-            "• <code>/file read notes.txt</code>"
+            "• <code>/file delete &lt;path&gt;</code>"
         )
         await update.message.reply_text(help_text, parse_mode="HTML")
     except Exception as e:
-        await update.message.reply_text(f"Error listing files: {e}")
+        await update.message.reply_text(f"Error loading file overview: {e}")
     finally:
         _clear_context()
+
 
 async def _file_list(update: Update, thread_id: str, pattern: str | None = None, scope: str = "context") -> None:
     """List files."""
@@ -1360,7 +1296,7 @@ async def meta_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     thread_id = _get_thread_id(update)
     chat_type = _get_chat_type(update)
-    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={sanitize_thread_id_to_user_id(thread_id)} | command recv /meta {update.message.text or ''}")
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={thread_id} | command recv /meta {update.message.text or ''}")
     if not await _ensure_authorized(update, thread_id):
         return
     args = context.args if context.args else []
@@ -1407,7 +1343,7 @@ async def flow_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     thread_id = _get_thread_id(update)
-    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={sanitize_thread_id_to_user_id(thread_id)} | command recv /flow {update.message.text or ''}")
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={thread_id} | command recv /flow {update.message.text or ''}")
     if not await _ensure_authorized(update, thread_id):
         return
 
@@ -1416,15 +1352,28 @@ async def flow_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     if not args:
         await update.message.reply_text(
-            "Usage: /flow list [status] | /flow run <id> | /flow cancel <id> | /flow delete <id>"
+            "Usage: /flow status | /flow on | /flow off | /flow list [status] | /flow run <id> | /flow cancel <id> | /flow delete <id>"
         )
         return
 
     action = args[0].lower()
-    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={sanitize_thread_id_to_user_id(thread_id)} | command /flow action={action} args={args[1:]}")
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={thread_id} | command /flow action={action} args={args[1:]}")
 
     await _set_context(thread_id, chat_type)
     try:
+        if action == "status":
+            enabled = is_flow_mode_enabled(str(update.effective_chat.id))
+            status_text = "on" if enabled else "off"
+            await update.message.reply_text(f"Flow mode is {status_text}.")
+            return
+        if action == "on":
+            enable_flow_mode(str(update.effective_chat.id))
+            await update.message.reply_text("I will build and test the agents + flow now.")
+            return
+        if action == "off":
+            disable_flow_mode(str(update.effective_chat.id))
+            await update.message.reply_text("Flow mode off.")
+            return
         if action == "list":
             status = args[1].lower() if len(args) > 1 else None
             result = await list_flows.ainvoke({"status": status})

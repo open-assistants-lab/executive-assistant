@@ -12,8 +12,7 @@ class Reminder:
     """A reminder record."""
 
     id: int
-    user_id: str
-    thread_ids: list[str]
+    thread_id: str
     message: str
     due_time: datetime
     status: str  # pending, sent, cancelled, failed
@@ -39,11 +38,52 @@ class ReminderStorage:
     def __init__(self, conn_string: str | None = None) -> None:
         """Initialize reminder storage."""
         self._conn_string = conn_string or settings.POSTGRES_URL
+        self._schema_ready = False
+
+    async def _ensure_schema(self, conn: asyncpg.Connection) -> None:
+        """Ensure reminders schema exists and remove legacy user_id column."""
+        if self._schema_ready:
+            return
+
+        statements = [
+            """
+            CREATE TABLE IF NOT EXISTS reminders (
+                id SERIAL PRIMARY KEY,
+                thread_id VARCHAR(255) NOT NULL,
+                message TEXT NOT NULL,
+                due_time TIMESTAMP NOT NULL,
+                status VARCHAR(20) DEFAULT 'pending',
+                recurrence VARCHAR(100),
+                created_at TIMESTAMP DEFAULT NOW(),
+                sent_at TIMESTAMP,
+                error_message TEXT
+            );
+            """,
+            "CREATE INDEX IF NOT EXISTS idx_reminders_due_time ON reminders(due_time) WHERE status = 'pending';",
+            "CREATE INDEX IF NOT EXISTS idx_reminders_thread_id ON reminders(thread_id);",
+            "CREATE INDEX IF NOT EXISTS idx_reminders_status ON reminders(status);",
+        ]
+        for statement in statements:
+            await conn.execute(statement)
+
+        has_user_id = await conn.fetchval(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_name = 'reminders'
+                  AND column_name = 'user_id'
+            )
+            """
+        )
+        if has_user_id:
+            await conn.execute("ALTER TABLE reminders DROP COLUMN IF EXISTS user_id;")
+
+        self._schema_ready = True
 
     async def create(
         self,
-        user_id: str,
-        thread_ids: list[str],
+        thread_id: str,
         message: str,
         due_time: datetime,
         recurrence: str | None = None,
@@ -51,14 +91,14 @@ class ReminderStorage:
         """Create a new reminder."""
         conn = await asyncpg.connect(self._conn_string)
         try:
+            await self._ensure_schema(conn)
             row = await conn.fetchrow(
                 """
-                INSERT INTO reminders (user_id, thread_ids, message, due_time, recurrence)
-                VALUES ($1, $2, $3, $4, $5)
+                INSERT INTO reminders (thread_id, message, due_time, recurrence)
+                VALUES ($1, $2, $3, $4)
                 RETURNING *
                 """,
-                user_id,
-                thread_ids,
+                thread_id,
                 message,
                 due_time,
                 recurrence,
@@ -72,6 +112,7 @@ class ReminderStorage:
         """Get reminder by ID."""
         conn = await asyncpg.connect(self._conn_string)
         try:
+            await self._ensure_schema(conn)
             row = await conn.fetchrow(
                 "SELECT * FROM reminders WHERE id = $1",
                 reminder_id,
@@ -85,6 +126,7 @@ class ReminderStorage:
         """Get all pending reminders due before the given time."""
         conn = await asyncpg.connect(self._conn_string)
         try:
+            await self._ensure_schema(conn)
             rows = await conn.fetch(
                 """
                 SELECT * FROM reminders
@@ -98,30 +140,31 @@ class ReminderStorage:
 
         return [self._row_to_reminder(row) for row in rows]
 
-    async def list_by_user(
-        self, user_id: str, status: str | None = None
+    async def list_by_thread(
+        self, thread_id: str, status: str | None = None
     ) -> list[Reminder]:
-        """List all reminders for a user, optionally filtered by status."""
+        """List all reminders for a thread, optionally filtered by status."""
         conn = await asyncpg.connect(self._conn_string)
         try:
+            await self._ensure_schema(conn)
             if status:
                 rows = await conn.fetch(
                     """
                     SELECT * FROM reminders
-                    WHERE user_id = $1 AND status = $2
+                    WHERE thread_id = $1 AND status = $2
                     ORDER BY due_time ASC
                     """,
-                    user_id,
+                    thread_id,
                     status,
                 )
             else:
                 rows = await conn.fetch(
                     """
                     SELECT * FROM reminders
-                    WHERE user_id = $1
+                    WHERE thread_id = $1
                     ORDER BY due_time ASC
                     """,
-                    user_id,
+                    thread_id,
                 )
         finally:
             await conn.close()
@@ -135,6 +178,7 @@ class ReminderStorage:
 
         conn = await asyncpg.connect(self._conn_string)
         try:
+            await self._ensure_schema(conn)
             result = await conn.execute(
                 """
                 UPDATE reminders
@@ -155,6 +199,7 @@ class ReminderStorage:
         """Mark reminder as failed."""
         conn = await asyncpg.connect(self._conn_string)
         try:
+            await self._ensure_schema(conn)
             result = await conn.execute(
                 """
                 UPDATE reminders
@@ -173,6 +218,7 @@ class ReminderStorage:
         """Cancel a pending reminder."""
         conn = await asyncpg.connect(self._conn_string)
         try:
+            await self._ensure_schema(conn)
             result = await conn.execute(
                 """
                 UPDATE reminders
@@ -220,6 +266,7 @@ class ReminderStorage:
 
         conn = await asyncpg.connect(self._conn_string)
         try:
+            await self._ensure_schema(conn)
             row = await conn.fetchrow(
                 f"""
                 UPDATE reminders
@@ -239,8 +286,7 @@ class ReminderStorage:
         """Convert database row to Reminder object."""
         return Reminder(
             id=row["id"],
-            user_id=row["user_id"],
-            thread_ids=list(row["thread_ids"]) if row["thread_ids"] else [],
+            thread_id=row["thread_id"],
             message=row["message"],
             due_time=row["due_time"],
             status=row["status"],

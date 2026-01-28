@@ -7,7 +7,7 @@
 - [x] Created load_skills_from_directory() loader
 - [x] Created load_skill tool with fuzzy matching
 - [x] Created SkillsBuilder for progressive disclosure (renamed from SkillsMiddleware)
-- [x] Integrated skills into main.py (auto-load on startup)
+- [x] Integrated skills into src/executive_assistant/main.py (auto-load on startup)
 - [x] Created 10 skills total:
   - 5 Core Infrastructure: data_management, progress_tracking, record_keeping, synthesis, tool_combinations
   - 5 Personal Application: task_tracking, information_retrieval, report_generation, planning, organization
@@ -36,11 +36,11 @@
 - [x] Route thread file paths through `USERS_ROOT` helpers
 - [x] Stop eager creation of legacy `./data/db` and `./data/vs` on startup
 - [x] **Workspace→Group Refactoring** (2026-01-18)
-  - Renamed `workspace_storage.py` → `group_storage.py`
+  - Renamed `group_storage.py` → `group_storage.py`
   - Added `GROUPS_ROOT` and `USERS_ROOT` path helpers
   - Added `get_group_*()` and `get_user_*()` methods
   - Updated all imports across codebase
-  - 342 tests passing (see `discussions/workspace-to-group-refactoring-plan.md`)
+  - 342 tests passing (see `discussions/group-to-group-refactoring-plan.md`)
 
 ### Reminder Feature
 - [x] Install APScheduler dependency
@@ -128,7 +128,7 @@ CREATE TABLE reminders (
 - [ ] **ShellToolMiddleware** (see `discussions/shell-tool-middleware-plan-20260116.md`)
   - [ ] Add settings to `src/executive_assistant/config/settings.py`
   - [ ] Wire up middleware in `src/executive_assistant/agent/langchain_agent.py`
-  - [ ] Update `.env.example` with shell settings
+  - [ ] Update `docker/.env.example` with shell settings
   - [ ] Update prompts in `src/executive_assistant/agent/prompts.py`
   - [ ] Add unit tests (enabled/disabled states)
 
@@ -204,7 +204,7 @@ CREATE TABLE workflow_runs (
     completed_at TIMESTAMP
 );
 
-CREATE TABLE workflow_executor_runs (
+CREATE TABLE flow_agent_runs (
     id SERIAL PRIMARY KEY,
     workflow_run_id INT REFERENCES workflow_runs(id),
     executor_name VARCHAR(255),

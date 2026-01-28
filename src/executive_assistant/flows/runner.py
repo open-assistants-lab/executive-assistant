@@ -14,7 +14,6 @@ from executive_assistant.config import settings, create_model
 from executive_assistant.agent.langchain_state import ExecutiveAssistantAgentState
 from executive_assistant.flows.spec import FlowSpec, AgentSpec, FlowMiddlewareConfig
 from executive_assistant.storage.file_sandbox import set_thread_id, clear_thread_id
-from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
 from executive_assistant.storage.scheduled_flows import ScheduledFlow, get_scheduled_flow_storage
 from executive_assistant.storage.agent_registry import get_agent_registry
 from executive_assistant.tools.registry import get_tools_by_name
@@ -107,12 +106,12 @@ def _build_prompt(
     prompt = system_prompt
     if flow_input is not None:
         prompt = prompt.replace(
-            "$flow_input",
+            "$input",
             json.dumps(flow_input, indent=2, ensure_ascii=False),
         )
     if previous_output is not None:
         prompt = prompt.replace(
-            "$previous_output",
+            "$output",
             json.dumps(previous_output, indent=2, ensure_ascii=False),
         )
     return prompt
@@ -225,8 +224,8 @@ async def _run_agent(
         "Flow agent prompt markers: run_id=%s agent_id=%s uses_flow_input=%s uses_previous_output=%s prompt_len=%s",
         flow_run_id,
         agent_spec.agent_id,
-        "$flow_input" in agent_spec.system_prompt,
-        "$previous_output" in agent_spec.system_prompt,
+        "$input" in agent_spec.system_prompt,
+        "$output" in agent_spec.system_prompt,
         len(prompt),
     )
 
@@ -289,7 +288,7 @@ async def _run_agent(
 async def execute_flow(flow: ScheduledFlow) -> dict:
     storage = await get_scheduled_flow_storage()
     thread_id = flow.thread_id
-    owner = sanitize_thread_id_to_user_id(thread_id)
+    owner = thread_id
 
     try:
         flow_spec = _parse_flow_spec(flow.flow, owner)

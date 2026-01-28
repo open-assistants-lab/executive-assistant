@@ -12,6 +12,32 @@ This skill teaches **how to combine tools effectively**. Individual tools are po
 
 ---
 
+## Tool Selection Guidance
+
+Use the smallest set of tools that can solve the task. Prefer thread‑scoped data.
+
+- **Files:** `write_file`, `read_file`, `list_files`, `create_folder`, `delete_file`, `delete_folder`, `move_file`, `rename_folder`, `glob_files`, `grep_files`
+- **TDB (transactional):** `create_tdb_table`, `insert_tdb_table`, `query_tdb`, `list_tdb_tables`, `describe_tdb_table`, `delete_tdb_table`, `add_tdb_column`, `drop_tdb_column`, `import_tdb_table`, `export_tdb_table`
+- **VDB (semantic):** `create_vdb_collection`, `add_vdb_documents`, `add_file_to_vdb`, `search_vdb`, `describe_vdb_collection`, `vdb_list`, `update_vdb_document`, `delete_vdb_documents`, `drop_vdb_collection`
+- **ADB (analytics / DuckDB):** `list_adb_tables`, `query_adb`
+- **Flows / agents:** `create_agent`, `update_agent`, `create_flow`, `run_flow`, `list_flows`, `cancel_flow`, `delete_flow`, `create_flow_project`
+- **Web:** `search_web`, `firecrawl_scrape`, `firecrawl_crawl`, `firecrawl_check_status`, `playwright_scrape`
+- **OCR:** `ocr_extract_text`, `ocr_extract_structured`, `extract_from_image`
+- **Reminders:** `reminder_set`, `reminder_list`, `reminder_edit`, `reminder_cancel`
+- **Memory:** `create_memory`, `list_memories`, `update_memory`, `forget_memory`
+- **Meta / inventory:** `get_meta`
+- **Confirmations:** `confirm_request`
+
+**Scopes**
+- Prefer `scope="context"` for user data.
+- If the user explicitly asks for shared access, allow `scope="shared"` for reads.
+- Shared writes require admin privileges.
+
+**Python**
+- If you suggest Python code, verify it with `execute_python`.
+
+---
+
 ## Common Workflow Patterns
 
 
@@ -30,8 +56,8 @@ Use flows to run multi-step executor chains now or on a schedule.
 **When:** You need to query data and create a report
 
 ```python
-# Step 1: Query data from DB
-data = query_db("""
+# Step 1: Query data from TDB
+data = query_tdb("""
     SELECT project, SUM(hours) as total_hours
     FROM timesheets
     WHERE date >= '2025-01-01'
@@ -48,7 +74,7 @@ for row in data:
 write_file("reports/weekly_hours_summary.md", report)
 ```
 
-**Tools Used:** `query_db` → `write_file`
+**Tools Used:** `query_tdb` → `write_file`
 
 ---
 
@@ -63,11 +89,11 @@ results = search_web("best practices for timesheet tracking")
 # Step 2: Save key findings to file
 write_file("research/timesheet_best_practices.md", results)
 
-# Step 3: Index in VS for semantic search
-add_file_to_vs("knowledge", "research/timesheet_best_practices.md")
+# Step 3: Index in VDB for semantic search
+add_file_to_vdb("knowledge", "research/timesheet_best_practices.md")
 ```
 
-**Tools Used:** `search_web` → `write_file` → `add_file_to_vs`
+**Tools Used:** `search_web` → `write_file` → `add_file_to_vdb`
 
 ---
 
@@ -77,22 +103,22 @@ add_file_to_vs("knowledge", "research/timesheet_best_practices.md")
 
 ```python
 # Step 1: Create table with initial data
-create_db_table(
+create_tdb_table(
     "expenses",
     '[{"category": "groceries", "amount": 45.50, "date": "2025-01-19"}]'
 )
 
 # Step 2: Add more data
-insert_db_table(
+insert_tdb_table(
     "expenses",
     '[{"category": "transport", "amount": 12.00, "date": "2025-01-19"}]'
 )
 
 # Step 3: Query to verify
-query_db("SELECT * FROM expenses")
+query_tdb("SELECT * FROM expenses")
 ```
 
-**Tools Used:** `create_db_table` → `insert_db_table` → `query_db`
+**Tools Used:** `create_tdb_table` → `insert_tdb_table` → `query_tdb`
 
 ---
 
@@ -121,8 +147,8 @@ read_file("reports/weekly_summary.md")
 
 ```python
 # Step 1: Collect data from multiple sources
-timesheets = query_db("SELECT * FROM timesheets WHERE date >= '2025-01-01'")
-expenses = query_db("SELECT * FROM expenses WHERE date >= '2025-01-01'")
+timesheets = query_tdb("SELECT * FROM timesheets WHERE date >= '2025-01-01'")
+expenses = query_tdb("SELECT * FROM expenses WHERE date >= '2025-01-01'")
 
 # Step 2: Analyze with Python
 analysis = execute_python("""
@@ -138,22 +164,22 @@ write_file("reports/january_analysis.md", analysis)
 
 **Python sandbox libraries:** json, csv, pathlib, pypdf, fitz (PyMuPDF), docx (python-docx), pptx (python-pptx), openpyxl, markdown_it, bs4 (BeautifulSoup), lxml, html5lib, PIL (Pillow), reportlab, dateparser, dateutil, urllib.*
 
-**Tools Used:** `query_db` → `execute_python` → `write_file`
+**Tools Used:** `query_tdb` → `execute_python` → `write_file`
 
 ---
 
 ## Multi-Storage Workflows
 
-### Workflow 1: DB → VS → File
+### Workflow 1: TDB → VDB → File
 
 **Use Case:** Comprehensive reporting with context
 
 ```python
-# 1. Query structured data from DB
-data = query_db("SELECT * FROM projects WHERE status = 'active'")
+# 1. Query structured data from TDB
+data = query_tdb("SELECT * FROM projects WHERE status = 'active'")
 
-# 2. Get related documents from VS
-docs = search_vs("project planning milestones", "project_docs")
+# 2. Get related documents from VDB
+docs = search_vdb("project planning milestones", "project_docs")
 
 # 3. Combine into report
 report = f"# Active Projects Report\\n\\n## Projects\\n{data}\\n\\n## Related Documentation\\n{docs}"
@@ -163,13 +189,13 @@ write_file("reports/active_projects_with_context.md", report)
 ```
 
 **Why this works:**
-- DB provides structured, queryable data
-- VS provides qualitative context and related info
+- TDB provides structured, queryable data
+- VDB provides qualitative context and related info
 - File preserves the combined output
 
 ---
 
-### Workflow 2: File → DB → Query
+### Workflow 2: File → TDB → Query
 
 **Use Case:** Importing and analyzing external data
 
@@ -177,11 +203,11 @@ write_file("reports/active_projects_with_context.md", report)
 # 1. Read CSV file
 csv_data = read_file("data/sales_2025.csv")
 
-# 2. Import into DB
-import_db_table("sales", "sales_2025.csv")
+# 2. Import into TDB
+import_tdb_table("sales", "sales_2025.csv")
 
 # 3. Query and analyze
-query_db("""
+query_tdb("""
     SELECT
         strftime('%Y-%m', date) as month,
         SUM(amount) as total
@@ -192,31 +218,31 @@ query_db("""
 
 **Why this works:**
 - File provides import format
-- DB enables querying and aggregation
+- TDB enables querying and aggregation
 - Query produces insights
 
 ---
 
-### Workflow 3: VS → DB → Export
+### Workflow 3: VDB → TDB → Export
 
 **Use Case:** Extracting structure from unstructured data
 
 ```python
-# 1. Search VS for relevant information
-meetings = search_vs("budget planning financial", "meetings")
+# 1. Search VDB for relevant information
+meetings = search_vdb("budget planning financial", "meetings")
 
-# 2. Extract structured data and save to DB
+# 2. Extract structured data and save to TDB
 budget_items = extract_from_text(meetings)  # Parse meeting notes
-create_db_table("budget_items", data=budget_items)
+create_tdb_table("budget_items", data=budget_items)
 
 # 3. Query and export
-query_db("SELECT * FROM budget_items WHERE amount > 1000")
-export_db_table("budget_items", "budget_over_1000.csv")
+query_tdb("SELECT * FROM budget_items WHERE amount > 1000")
+export_tdb_table("budget_items", "budget_over_1000.csv")
 ```
 
 **Why this works:**
-- VS finds relevant qualitative info
-- DB structures it for analysis
+- VDB finds relevant qualitative info
+- TDB structures it for analysis
 - Export enables sharing
 
 ---
@@ -230,13 +256,13 @@ export_db_table("budget_items", "budget_over_1000.csv")
 reminders = reminder_list(status="pending")
 
 # 2. Review previous progress
-yesterday = query_db("""
+yesterday = query_tdb("""
     SELECT * FROM daily_log
     WHERE date = '2025-01-18'
 """)
 
 # 3. Plan today's tasks
-create_db_table(
+create_tdb_table(
     "today_tasks",
     '[{"task": "Review PR", "priority": "high", "estimated_hours": 1}]'
 )
@@ -245,7 +271,7 @@ create_db_table(
 reminder_set("Code review due at 3pm", "today 3pm")
 ```
 
-**Tools:** `reminder_list` → `query_db` → `create_db_table` → `reminder_set`
+**Tools:** `reminder_list` → `query_tdb` → `create_tdb_table` → `reminder_set`
 
 ---
 
@@ -253,7 +279,7 @@ reminder_set("Code review due at 3pm", "today 3pm")
 
 ```python
 # 1. Get week's timesheets
-timesheets = query_db("""
+timesheets = query_tdb("""
     SELECT project, SUM(hours) as total
     FROM timesheets
     WHERE date >= '2025-01-13'
@@ -261,7 +287,7 @@ timesheets = query_db("""
 """)
 
 # 2. Get week's expenses
-expenses = query_db("""
+expenses = query_tdb("""
     SELECT category, SUM(amount) as total
     FROM expenses
     WHERE date >= '2025-01-13'
@@ -269,14 +295,14 @@ expenses = query_db("""
 """)
 
 # 3. Find related notes
-notes = search_vs("weekly progress accomplishments", "journal")
+notes = search_vdb("weekly progress accomplishments", "journal")
 
 # 4. Generate weekly report
 report = f"# Weekly Review\\n\\n## Time Distribution\\n{timesheets}\\n\\n## Spending\\n{expenses}\\n\\n## Notes\\n{notes}"
 write_file(f"reports/weekly_review_{date.today()}.md", report)
 ```
 
-**Tools:** `query_db` → `search_vs` → `write_file`
+**Tools:** `query_tdb` → `search_vdb` → `write_file`
 
 ---
 
@@ -299,15 +325,15 @@ content = open('research/langgraph_subgraphs.md').read()
 # ... extract key points ...
 """)
 
-# 4. Save to VS for semantic search
-create_vs_collection(
+# 4. Save to VDB for semantic search
+create_vdb_collection(
     "research",
     content=key_points,
     metadata={"topic": "langgraph", "type": "tutorial", "date": "2025-01-19"}
 )
 ```
 
-**Tools:** `search_web` → `write_file` → `execute_python` → `create_vs_collection`
+**Tools:** `search_web` → `write_file` → `execute_python` → `create_vdb_collection`
 
 ---
 
@@ -328,9 +354,9 @@ except FileNotFoundError:
 # 2. Transform data if needed
 transformed = transform_data(data)
 
-# 3. Load into DB
+# 3. Load into TDB
 try:
-    import_db_table("imported_data", "data/import.csv")
+    import_tdb_table("imported_data", "data/import.csv")
 except Exception as e:
     return f"Error importing: {e}"
 ```
@@ -343,18 +369,18 @@ except Exception as e:
 
 ```python
 # Instead of multiple single inserts:
-# insert_db_table("tasks", '[{"task": "A"}]')
-# insert_db_table("tasks", '[{"task": "B"}]')
+# insert_tdb_table("tasks", '[{"task": "A"}]')
+# insert_tdb_table("tasks", '[{"task": "B"}]')
 
 # Batch insert:
-insert_db_table("tasks", '[{"task": "A"}, {"task": "B"}, {"task": "C"}]')
+insert_tdb_table("tasks", '[{"task": "A"}, {"task": "B"}, {"task": "C"}]')
 ```
 
 ### Pattern: Query → Cache → Reuse
 
 ```python
 # 1. Query once and cache
-weekly_data = query_db("SELECT * FROM metrics WHERE week = '2025-03'")
+weekly_data = query_tdb("SELECT * FROM metrics WHERE week = '2025-03'")
 write_file("cache/week_3_metrics.json", weekly_data)
 
 # 2. Reuse from cache
@@ -370,14 +396,14 @@ cached = read_file("cache/week_3_metrics.json")
 
 | Starting Point | Common Next Steps | Purpose |
 |----------------|-------------------|---------|
-| `create_db_table` | `insert_db_table` → `query_db` | Set up tracking |
-| `query_db` | `write_file` or `execute_python` | Report/analyze |
-| `search_web` | `write_file` → `add_file_to_vs` | Research/save |
-| `search_vs` | `read_file` or `query_db` | Find context |
+| `create_tdb_table` | `insert_tdb_table` → `query_tdb` | Set up tracking |
+| `query_tdb` | `write_file` or `execute_python` | Report/analyze |
+| `search_web` | `write_file` → `add_file_to_vdb` | Research/save |
+| `search_vdb` | `read_file` or `query_tdb` | Find context |
 | `list_files` | `grep_files` → `read_file` | Browse/find/read |
-| `create_vs_collection` | `search_vs` | Store/search |
+| `create_vdb_collection` | `search_vdb` | Store/search |
 | `reminder_set` | `reminder_list` | Schedule/manage |
-| `read_file` | `create_vs_collection` or `create_db_table` | Import/index |
+| `read_file` | `create_vdb_collection` or `create_tdb_table` | Import/index |
 
 ---
 
@@ -410,16 +436,16 @@ cached = read_file("cache/week_3_metrics.json")
 **Common Workflows:**
 - **Report:** Query → Format → Write File
 - **Research:** Search → Save → Index → Search
-- **Import:** Read File → Validate → Import DB → Query
+- **Import:** Read File → Validate → Import TDB → Query
 - **Analysis:** Query → Python → Chart → Export
-- **Backup:** Export DB → Write File → Archive
+- **Backup:** Export TDB → Write File → Archive
 - **Review:** Query Multiple → Combine → Report → Save
 
 **Multi-Storage:**
-- **DB + File:** Query → Export → Share
-- **VS + DB:** Search → Extract → Structure → Query
-- **DB + VS:** Query → Find Context → Combine → Report
-- **File + VS:** Read → Index → Search → Retrieve
+- **TDB + File:** Query → Export → Share
+- **VDB + TDB:** Search → Extract → Structure → Query
+- **TDB + VDB:** Query → Find Context → Combine → Report
+- **File + VDB:** Read → Index → Search → Retrieve
 
 ---
 

@@ -82,7 +82,7 @@ async def test_run_agent_tool(monkeypatch, tmp_path):
         "name": "Agent One",
         "description": "test",
         "tools": ["execute_python"],
-        "system_prompt": "Use $flow_input then $previous_output",
+        "system_prompt": "Use $input then $output",
         "output_schema": {},
     })
 

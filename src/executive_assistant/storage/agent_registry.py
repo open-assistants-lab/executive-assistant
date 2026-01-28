@@ -31,17 +31,17 @@ class AgentRecord:
 
 
 class AgentRegistry:
-    """SQLite-backed registry for per-user agents."""
+    """SQLite-backed registry for per-thread agents."""
 
-    def __init__(self, user_id: str) -> None:
-        self.user_id = user_id
-        self.db_path = self._get_db_path(user_id)
+    def __init__(self, thread_id: str) -> None:
+        self.thread_id = thread_id
+        self.db_path = self._get_db_path(thread_id)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._ensure_schema()
 
     @staticmethod
-    def _get_db_path(user_id: str) -> Path:
-        return (settings.USERS_ROOT / user_id / "agents" / "agents.db").resolve()
+    def _get_db_path(thread_id: str) -> Path:
+        return (settings.get_thread_root(thread_id) / "agents" / "agents.db").resolve()
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
@@ -226,5 +226,5 @@ class AgentRegistry:
         )
 
 
-def get_agent_registry(user_id: str) -> AgentRegistry:
-    return AgentRegistry(user_id)
+def get_agent_registry(thread_id: str) -> AgentRegistry:
+    return AgentRegistry(thread_id)

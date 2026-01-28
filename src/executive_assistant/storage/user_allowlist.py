@@ -9,7 +9,6 @@ from datetime import datetime
 from pathlib import Path
 
 from executive_assistant.config.settings import settings
-from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
 
 
 @dataclass(frozen=True)
@@ -19,7 +18,7 @@ class Allowlist:
 
 
 def _allowlist_path() -> Path:
-    path = settings.SHARED_ROOT.parent / "admins" / "user_allowlist.json"
+    path = settings.ADMINS_ROOT / "user_allowlist.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -40,17 +39,9 @@ def normalize_entry(entry: str) -> str:
     return _normalize_entry(entry)
 
 
-def is_admin(thread_id: str | None, user_id: str | None) -> bool:
+def is_admin(thread_id: str | None) -> bool:
     if thread_id and thread_id in settings.ADMIN_THREAD_IDS:
         return True
-    if user_id and user_id in settings.ADMIN_USER_IDS:
-        return True
-    if thread_id:
-        raw_id = thread_id.split(":", 1)[1]
-        if raw_id in settings.ADMIN_USER_IDS:
-            return True
-        if sanitize_thread_id_to_user_id(thread_id) in settings.ADMIN_USER_IDS:
-            return True
     return False
 
 
@@ -58,18 +49,13 @@ def is_admin_entry(entry: str) -> bool:
     normalized = _normalize_entry(entry)
     if normalized in settings.ADMIN_THREAD_IDS:
         return True
-    channel, ident = normalized.split(":", 1)
-    if ident in settings.ADMIN_USER_IDS:
-        return True
-    if sanitize_thread_id_to_user_id(f"{channel}:{ident}") in settings.ADMIN_USER_IDS:
-        return True
     return False
 
 
-def is_authorized(thread_id: str | None, user_id: str | None) -> bool:
+def is_authorized(thread_id: str | None) -> bool:
     if thread_id is None:
         return False
-    if is_admin(thread_id, user_id):
+    if is_admin(thread_id):
         return True
     return is_allowed(thread_id)
 

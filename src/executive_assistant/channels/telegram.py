@@ -4,7 +4,10 @@ import asyncio
 import html
 import io
 import re
+import shutil
 from pathlib import Path
+
+import asyncpg
 from typing import Any
 
 from telegram import Update
@@ -21,10 +24,11 @@ from langgraph.types import Runnable
 
 from executive_assistant.channels.base import BaseChannel, MessageFormat
 from executive_assistant.channels.management_commands import (
+    adb_command,
     mem_command,
     reminder_command,
-    vs_command,
-    db_command,
+    vdb_command,
+    tdb_command,
     file_command,
     meta_command,
     user_command,
@@ -32,9 +36,9 @@ from executive_assistant.channels.management_commands import (
 )
 from executive_assistant.config.settings import settings
 from executive_assistant.logging import format_log_context, truncate_log_text
-from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
 from executive_assistant.storage.user_registry import UserRegistry
-from executive_assistant.storage.user_allowlist import is_authorized, is_admin
+from executive_assistant.storage.user_allowlist import is_authorized
+from executive_assistant.agent.flow_mode import enable_flow_mode, disable_flow_mode, is_flow_mode_enabled, set_flow_mode_active
 from loguru import logger
 
 
@@ -73,6 +77,7 @@ class TelegramChannel(BaseChannel):
         self._status_messages: dict[str, int] = {}  # conversation_id -> message_id for editing
         self._todo_messages: dict[str, int] = {}  # conversation_id -> message_id for todo edits
         self._debug_chats: set[int] = set()  # chat IDs with verbose debug mode enabled
+        self._pending_resets: dict[str, dict[str, str]] = {}  # conversation_id -> {scope, thread_id}
 
     def _get_thread_lock(self, thread_id: str) -> asyncio.Lock:
         """Get or create a lock for the given thread_id."""
@@ -110,11 +115,14 @@ class TelegramChannel(BaseChannel):
         self.application.add_handler(CommandHandler("reset", self._reset_command))
         self.application.add_handler(CommandHandler("remember", self._remember_command))
         self.application.add_handler(CommandHandler("debug", self._debug_command))
+        self.application.add_handler(CommandHandler("stop", self._stop_command))
+        self.application.add_handler(CommandHandler("cancel", self._stop_command))
         # Management commands
         self.application.add_handler(CommandHandler("mem", mem_command))
         self.application.add_handler(CommandHandler("reminder", reminder_command))
-        self.application.add_handler(CommandHandler("vs", vs_command))
-        self.application.add_handler(CommandHandler("db", db_command))
+        self.application.add_handler(CommandHandler("vdb", vdb_command))
+        self.application.add_handler(CommandHandler("tdb", tdb_command))
+        self.application.add_handler(CommandHandler("adb", adb_command))
         self.application.add_handler(CommandHandler("file", file_command))
         self.application.add_handler(CommandHandler("meta", meta_command))
         self.application.add_handler(CommandHandler("user", user_command))
@@ -153,7 +161,7 @@ class TelegramChannel(BaseChannel):
             if update.effective_chat:
                 chat_id = update.effective_chat.id
                 thread_id = f"telegram:{chat_id}"
-                user_id = sanitize_thread_id_to_user_id(thread_id)
+                user_id = thread_id
         ctx = format_log_context(
             "system",
             component="telegram",
@@ -721,7 +729,7 @@ class TelegramChannel(BaseChannel):
         request_start = time.time()
         typing_task = None
 
-        ctx = format_log_context("system", component="agent", channel="telegram", conversation=batch[-1].conversation_id, user=sanitize_thread_id_to_user_id(thread_id))
+        ctx = format_log_context("system", component="agent", channel="telegram", conversation=batch[-1].conversation_id, user=thread_id)
 
         async def _keep_typing():
             """Keep sending typing action every 4 seconds (Telegram expires after ~5s)."""
@@ -750,31 +758,23 @@ class TelegramChannel(BaseChannel):
                 logger.warning(f"{ctx} typing_action_failed error=\"{e}\"")
 
             # Set up context
-            from executive_assistant.storage.file_sandbox import set_thread_id
-            from executive_assistant.storage.group_storage import (
-                ensure_thread_group,
-                set_group_id as set_workspace_context,
-                set_user_id as set_workspace_user_id,
-                clear_group_id as clear_workspace_context,
+            from executive_assistant.storage.thread_storage import (
+                set_thread_id,
+                set_channel,
+                set_chat_type,
+            )
+            from executive_assistant.agent.flow_mode import (
+                set_flow_mode_active,
+                is_flow_mode_enabled,
             )
             channel = self.__class__.__name__.lower().replace("channel", "")
             config = {"configurable": {"thread_id": thread_id}}
 
-            # Set thread_id context for file sandbox operations
+            # Thread-only context
             set_thread_id(thread_id)
-
-            # Convert thread_id to user_id (identity_id) for storage and permission checks
-            user_id_for_storage = sanitize_thread_id_to_user_id(thread_id)
-
-            # Ensure group exists and set group_id context only for group chats
-            chat_type = batch[-1].metadata.get("chat_type") if batch[-1].metadata else None
-            is_group_chat = chat_type in {"group", "supergroup"}
-            if is_group_chat:
-                group_id = await ensure_thread_group(thread_id, user_id_for_storage)
-                set_workspace_context(group_id)
-            else:
-                clear_workspace_context()
-            set_workspace_user_id(user_id_for_storage)
+            set_channel(channel)
+            set_chat_type("private")
+            set_flow_mode_active(is_flow_mode_enabled(batch[-1].conversation_id))
 
             messages: list[HumanMessage] = []
             last_message_id = batch[-1].message_id
@@ -792,7 +792,6 @@ class TelegramChannel(BaseChannel):
                 if self.registry:
                     await self.registry.log_message(
                         conversation_id=thread_id,
-                        user_id=msg.user_id,
                         channel=channel,
                         message=HumanMessage(content=enhanced_content),
                         message_id=msg.message_id,
@@ -806,13 +805,16 @@ class TelegramChannel(BaseChannel):
                 "thread_model_call_count": 0,
                 "thread_tool_call_count": {},
                 "todos": [],
+                "thread_id": thread_id,
+                "conversation_id": batch[-1].conversation_id,
             }
 
             # Stream agent responses and send IMMEDIATELY (no batching)
             agent_start = time.time()
             event_count = 0
             message_count = 0
-            async for event in self.agent.astream(state, config):
+            request_agent = await self._build_request_agent(batch[-1].content, batch[-1].conversation_id)
+            async for event in request_agent.astream(state, config):
                 event_count += 1
 
                 # Extract and send messages immediately as they arrive
@@ -826,7 +828,6 @@ class TelegramChannel(BaseChannel):
                     if self.registry and (hasattr(msg, 'content') and msg.content or (hasattr(msg, 'tool_calls') and msg.tool_calls)):
                         await self.registry.log_message(
                             conversation_id=thread_id,
-                            user_id=batch[-1].user_id,
                             channel=channel,
                             message=msg,
                         )
@@ -844,7 +845,7 @@ class TelegramChannel(BaseChannel):
                     batch[-1].conversation_id,
                     "🔄 *Conversation auto-reset due to state error*\n\n"
                     "The corrupted conversation history has been cleared. Please send your message again.\n\n"
-                    "Your data is preserved: • Files  • VS  • DB tables"
+                    "Your data is preserved: • Files  • VDB  • TDB tables"
                 )
             else:
                 await self.send_message(
@@ -874,8 +875,8 @@ class TelegramChannel(BaseChannel):
         if not update.message:
             return
         thread_id = f"telegram:{update.effective_chat.id}"
-        user_id = sanitize_thread_id_to_user_id(thread_id)
-        admin_flag = is_admin(thread_id, user_id)
+        user_id = thread_id
+        admin_flag = is_admin(thread_id)
         message = (
             f"Your ID: {thread_id}\n"
             "Share this with an admin to request access."
@@ -884,47 +885,148 @@ class TelegramChannel(BaseChannel):
             message += "\nAdmin access enabled."
         await update.message.reply_text(message)
 
+    async def _execute_reset_scope(
+        self,
+        scope: str,
+        thread_id: str,
+    ) -> str:
+        """Execute a scoped reset operation."""
+        user_root = settings.get_thread_root(thread_id)
+        deleted = []
+
+        async def _delete_postgres_rows() -> None:
+            conn = await asyncpg.connect(settings.POSTGRES_URL)
+            try:
+                if scope in ("reminders", "all"):
+                    await conn.execute("DELETE FROM reminders WHERE thread_id = $1", thread_id)
+                if scope in ("flows", "all"):
+                    await conn.execute("DELETE FROM scheduled_flows WHERE thread_id = $1", thread_id)
+                if scope in ("conversation", "all"):
+                    await conn.execute("DELETE FROM checkpoints WHERE thread_id = $1", thread_id)
+            finally:
+                await conn.close()
+
+        if scope in ("conversation", "all"):
+            try:
+                await _delete_postgres_rows()
+                deleted.append("conversation state")
+            except Exception:
+                pass
+
+        if scope in ("tdb", "all"):
+            db_path = user_root / "tdb" / "db.sqlite"
+            if db_path.exists():
+                db_path.unlink()
+                deleted.append("tdb")
+
+        if scope in ("vdb", "all"):
+            vs_path = user_root / "vdb"
+            if vs_path.exists():
+                shutil.rmtree(vs_path)
+                deleted.append("vdb")
+
+        if scope in ("files", "all"):
+            files_path = user_root / "files"
+            if files_path.exists():
+                shutil.rmtree(files_path)
+                deleted.append("files")
+
+        if scope in ("mem", "all"):
+            mem_path = user_root / "mem" / "mem.db"
+            if mem_path.exists():
+                mem_path.unlink()
+                deleted.append("memories")
+
+        if scope in ("agents", "all"):
+            agents_path = user_root / "agents"
+            if agents_path.exists():
+                shutil.rmtree(agents_path)
+                deleted.append("agents")
+
+        if scope in ("adb", "all"):
+            analytics_path = user_root / "adb"
+            if analytics_path.exists():
+                shutil.rmtree(analytics_path)
+                deleted.append("adb")
+
+        if scope in ("reminders", "all"):
+            try:
+                await _delete_postgres_rows()
+                deleted.append("reminders")
+            except Exception:
+                pass
+
+        if scope in ("flows", "all"):
+            try:
+                await _delete_postgres_rows()
+                deleted.append("flows")
+            except Exception:
+                pass
+
+        if scope == "all" and user_root.exists():
+            try:
+                shutil.rmtree(user_root)
+                deleted.append("user data")
+            except Exception:
+                pass
+
+        if not deleted:
+            return "⚠️ Nothing to reset or unable to delete requested scope."
+        return "🔄 Reset complete: " + ", ".join(sorted(set(deleted)))
+
     async def _reset_command(
         self,
         update: Update,
         context: ContextTypes.DEFAULT_TYPE,
     ) -> None:
-        """Handle /reset command to clear conversation."""
+        """Handle /reset command with scoped confirmation."""
         if not update.message or not update.effective_chat:
             return
         thread_id = f"telegram:{update.effective_chat.id}"
-        user_id = sanitize_thread_id_to_user_id(thread_id)
-        if not is_authorized(thread_id, user_id):
+        user_id = thread_id
+        if not is_authorized(thread_id):
             await update.message.reply_text(
                 "Access restricted. Ask an admin to add you using /user add <channel:id>. "
                 "Use /start to get your ID."
             )
             return
-        try:
-            # Actually clear the checkpoint from database
-            thread_id = f"telegram:{update.effective_chat.id}"
 
-            # Use global checkpointer if available
-            try:
-                from executive_assistant.storage.checkpoint import get_async_checkpointer
-
-                checkpointer = await get_async_checkpointer()
-                if hasattr(checkpointer, "conn") and checkpointer.conn:
-                    await checkpointer.conn.execute(
-                        "DELETE FROM checkpoints WHERE thread_id = $1",
-                        thread_id,
-                    )
-            except Exception:
-                pass  # Fall through to success message
-
+        scope_arg = context.args[0].lower() if context.args else "conversation"
+        aliases = {
+            "mem": "mem",
+            "memory": "mem",
+            "memories": "mem",
+            "tdb": "tdb",
+            "vdb": "vdb",
+            "files": "files",
+            "reminders": "reminders",
+            "reminder": "reminders",
+            "flows": "flows",
+            "flow": "flows",
+            "agents": "agents",
+            "agent": "agents",
+            "adb": "adb",
+            "analytics": "adb",
+            "all": "all",
+            "conversation": "conversation",
+        }
+        scope = aliases.get(scope_arg)
+        if not scope:
             await update.message.reply_text(
-                "🔄 Conversation history cleared!\n\n"
-                "You can start fresh. Note that VS and file data are preserved."
+                "Usage: /reset <conversation|tdb|vdb|files|mem|reminders|flows|agents|adb|all>"
             )
-        except Exception as e:
-            await update.message.reply_text(f"🔄 Reset attempted. If issues persist, try: {e}")
+            return
+
+        self._pending_resets[str(update.effective_chat.id)] = {
+            "scope": scope,
+            "thread_id": thread_id,
+        }
+        await update.message.reply_text(
+            f"⚠️ Confirm reset '{scope}'. Reply 'yes' to proceed or 'no' to cancel."
+        )
 
     async def _remember_command(
+
         self,
         update: Update,
         context: ContextTypes.DEFAULT_TYPE,
@@ -933,8 +1035,8 @@ class TelegramChannel(BaseChannel):
         if not update.message or not update.effective_chat:
             return
         thread_id = f"telegram:{update.effective_chat.id}"
-        user_id = sanitize_thread_id_to_user_id(thread_id)
-        if not is_authorized(thread_id, user_id):
+        user_id = thread_id
+        if not is_authorized(thread_id):
             await update.message.reply_text(
                 "Access restricted. Ask an admin to add you using /user add <channel:id>. "
                 "Use /start to get your ID."
@@ -1001,6 +1103,28 @@ class TelegramChannel(BaseChannel):
             logger.exception(f"{ctx} unhandled exception")
             await update.message.reply_text(f"Sorry, failed to save memory: {e}")
 
+    async def _stop_command(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+    ) -> None:
+        """Handle /stop to cancel the current run."""
+        if not update.message or not update.effective_chat:
+            return
+        thread_id = f"telegram:{update.effective_chat.id}"
+        user_id = thread_id
+        if not is_authorized(thread_id):
+            await update.message.reply_text(
+                "Access restricted. Ask an admin to add you using /user add <channel:id>. "
+                "Use /start to get your ID."
+            )
+            return
+        cancelled = self.cancel_active_task(str(update.effective_chat.id))
+        if cancelled:
+            await update.message.reply_text("Stopped the current run.")
+        else:
+            await update.message.reply_text("No active run to stop.")
+
     async def _debug_command(
         self,
         update: Update,
@@ -1010,8 +1134,8 @@ class TelegramChannel(BaseChannel):
         if not update.message or not update.effective_chat:
             return
         thread_id = f"telegram:{update.effective_chat.id}"
-        user_id = sanitize_thread_id_to_user_id(thread_id)
-        if not is_authorized(thread_id, user_id):
+        user_id = thread_id
+        if not is_authorized(thread_id):
             await update.message.reply_text(
                 "Access restricted. Ask an admin to add you using /user add <channel:id>. "
                 "Use /start to get your ID."
@@ -1113,39 +1237,50 @@ class TelegramChannel(BaseChannel):
     ) -> None:
         """Handle incoming text messages."""
         thread_id = f"telegram:{update.effective_chat.id}" if update.effective_chat else None
-        user_id = sanitize_thread_id_to_user_id(thread_id) if thread_id else None
+        user_id = thread_id if thread_id else None
         ctx = format_log_context("message", channel="telegram", user=user_id, conversation=str(update.effective_chat.id) if update.effective_chat else None, type="text", update_id=update.update_id)
         logger.info(f'{ctx} recv text="{truncate_log_text(update.message.text if update.message else '')}"')
         if not update.message or not update.message.text:
             return
+        raw_text = update.message.text
+        flow_prefix = raw_text.strip().lower().startswith("flow mode:")
+        if flow_prefix:
+            enable_flow_mode(str(update.effective_chat.id))
+            await update.message.reply_text("I will build and test the agents + flow now.")
+            raw_text = raw_text.split(":", 1)[1].strip() if ":" in raw_text else ""
+            if not raw_text:
+                return
+            update.message.text = raw_text
+
 
         thread_id = f"telegram:{update.effective_chat.id}" if update.effective_chat else None
-        user_id = sanitize_thread_id_to_user_id(thread_id) if thread_id else None
-        if not thread_id or not is_authorized(thread_id, user_id):
+        user_id = thread_id if thread_id else None
+        if not thread_id or not is_authorized(thread_id):
             await update.message.reply_text(
                 "Access restricted. Ask an admin to add you using /user add <channel:id>. "
                 "Use /start to get your ID."
             )
             return
 
-        try:
-            # Auto-create identity for anonymous users
-            thread_id = f"telegram:{update.effective_chat.id}"
-            identity_id = sanitize_thread_id_to_user_id(thread_id)
-
-            # Create identity record if it doesn't exist
-            try:
-                registry = UserRegistry()
-                await registry.create_identity_if_not_exists(
-                    thread_id=thread_id,
-                    identity_id=identity_id,
-                    channel="telegram"
+        pending_reset = self._pending_resets.get(str(update.effective_chat.id))
+        if pending_reset:
+            decision = update.message.text.strip().lower()
+            if decision in ("yes", "y", "confirm", "proceed", "do it", "go ahead"):
+                result = await self._execute_reset_scope(
+                    pending_reset["scope"],
+                    pending_reset["thread_id"],
                 )
-            except Exception as e:
-                # Log but don't fail - user can still interact
-                ctx_identity = format_log_context("system", component="identity", channel="telegram", user=identity_id, conversation=str(update.effective_chat.id) if update.effective_chat else None)
-                logger.warning(f'{ctx_identity} create_identity_failed error="{e}"')
+                self._pending_resets.pop(str(update.effective_chat.id), None)
+                await update.message.reply_text(result)
+                return
+            if decision in ("no", "n", "cancel", "stop"):
+                self._pending_resets.pop(str(update.effective_chat.id), None)
+                await update.message.reply_text("❌ Reset cancelled.")
+                return
+            await update.message.reply_text("Please reply 'yes' to confirm or 'no' to cancel the pending /reset.")
+            return
 
+        try:
             # Create MessageFormat with Telegram timestamp
             message = MessageFormat(
                 content=update.message.text,
@@ -1181,49 +1316,47 @@ class TelegramChannel(BaseChannel):
         if not update.message:
             return
         thread_id = f"telegram:{update.effective_chat.id}"
-        user_id = sanitize_thread_id_to_user_id(thread_id)
-        if not is_authorized(thread_id, user_id):
+        user_id = thread_id
+        if not is_authorized(thread_id):
+            await update.message.reply_text(
+                "Access restricted. Ask an admin to add you using /user add <channel:id>. "
+                "Use /start to get your ID."
+            )
+
+        thread_id = f"telegram:{update.effective_chat.id}" if update.effective_chat else None
+        user_id = thread_id if thread_id else None
+        if not thread_id or not is_authorized(thread_id):
             await update.message.reply_text(
                 "Access restricted. Ask an admin to add you using /user add <channel:id>. "
                 "Use /start to get your ID."
             )
             return
 
-        thread_id = f"telegram:{update.effective_chat.id}" if update.effective_chat else None
-        user_id = sanitize_thread_id_to_user_id(thread_id) if thread_id else None
-        if not thread_id or not is_authorized(thread_id, user_id):
-            await update.message.reply_text(
-                "Access restricted. Ask an admin to add you using /user add <channel:id>. "
-                "Use /start to get your ID."
-            )
+        pending_reset = self._pending_resets.get(str(update.effective_chat.id))
+        if pending_reset:
+            decision = update.message.text.strip().lower()
+            if decision in ("yes", "y", "confirm", "proceed", "do it", "go ahead"):
+                result = await self._execute_reset_scope(
+                    pending_reset["scope"],
+                    pending_reset["thread_id"],
+                )
+                self._pending_resets.pop(str(update.effective_chat.id), None)
+                await update.message.reply_text(result)
+                return
+            if decision in ("no", "n", "cancel", "stop"):
+                self._pending_resets.pop(str(update.effective_chat.id), None)
+                await update.message.reply_text("❌ Reset cancelled.")
+                return
+            await update.message.reply_text("Please reply 'yes' to confirm or 'no' to cancel the pending /reset.")
             return
-        user_id = sanitize_thread_id_to_user_id(thread_id) if thread_id else None
-        ctx = format_log_context("message", channel="telegram", user=user_id, conversation=str(update.effective_chat.id) if update.effective_chat else None, type="file", update_id=update.update_id)
+        ctx = format_log_context("message", channel="telegram", user=thread_id, conversation=str(update.effective_chat.id) if update.effective_chat else None, type="file", update_id=update.update_id)
         logger.info(f'{ctx} recv file')
 
         try:
-            # Auto-create identity for anonymous users
-            thread_id = f"telegram:{update.effective_chat.id}"
-            identity_id = sanitize_thread_id_to_user_id(thread_id)
-
-            # Create identity record if it doesn't exist
-            try:
-                registry = UserRegistry()
-                await registry.create_identity_if_not_exists(
-                    thread_id=thread_id,
-                    identity_id=identity_id,
-                    channel="telegram"
-                )
-            except Exception as e:
-                # Log but don't fail - user can still interact
-                ctx_identity = format_log_context("system", component="identity", channel="telegram", user=identity_id, conversation=str(update.effective_chat.id) if update.effective_chat else None)
-                logger.warning(f'{ctx_identity} create_identity_failed error="{e}"')
-
-            from pathlib import Path
-            from executive_assistant.storage.file_sandbox import set_thread_id
-            from executive_assistant.storage.group_storage import (
-                ensure_thread_group,
-                set_group_id as set_workspace_context,
+            from executive_assistant.storage.thread_storage import (
+                set_thread_id,
+                set_channel,
+                set_chat_type,
             )
             from executive_assistant.config.settings import settings
             # Get thread_id for file sandbox
@@ -1234,15 +1367,13 @@ class TelegramChannel(BaseChannel):
                 message_id=str(update.message.message_id),
             ))
             set_thread_id(thread_id)
+            set_channel("telegram")
+            set_chat_type("private")
 
-            # Set up user_id context (individual mode, not personal groups)
-            # Convert thread_id to user_id (identity_id) for storage operations
-            user_id = sanitize_thread_id_to_user_id(thread_id)
-            from executive_assistant.storage.group_storage import set_user_id
-            set_user_id(user_id)
+            # Thread-only storage context
 
-            # Use user-based path (matches agent's file tools)
-            user_dir = settings.get_user_files_path(user_id)
+            # Use thread-based path for attachments
+            user_dir = settings.get_thread_files_path(thread_id)
             user_dir.mkdir(parents=True, exist_ok=True)
 
             attachment = None
@@ -1273,7 +1404,7 @@ class TelegramChannel(BaseChannel):
                     )
                     return
 
-                # Download file to user directory (individual mode, not personal groups)
+                # Download file to user directory (individual mode)
                 local_path = user_dir / file_name
                 # Use download_to_drive() - download() is deprecated
                 downloaded_path = await file_info.download_to_drive(local_path)
@@ -1346,8 +1477,8 @@ class TelegramChannel(BaseChannel):
             error_msg = str(e) if str(e) else f"{type(e).__name__}"
             await update.message.reply_text(f"Sorry, an error occurred: {error_msg}")
         finally:
-            # Clean up thread_id and group_id to avoid leaking context
+            # Clean up thread_id and thread_id to avoid leaking context
             from executive_assistant.storage.file_sandbox import clear_thread_id
-            from executive_assistant.storage.group_storage import clear_group_id as clear_workspace_context
+            from executive_assistant.storage.thread_storage import clear_thread_id
             clear_thread_id()
-            clear_workspace_context()
+            clear_thread_id()

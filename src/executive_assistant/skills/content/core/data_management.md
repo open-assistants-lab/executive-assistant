@@ -1,18 +1,18 @@
 # Data Management
 
-Description: Learn to choose the right storage (DB, VS, Files) for your task and access it efficiently.
+Description: Learn to choose the right storage (TDB, VDB, Files) for your task and access it efficiently.
 
 Tags: core, infrastructure, storage, db, vs, files
 
 ## Overview
 
-This skill teaches you how to choose between Database (DB), Vector Store (VS), and Files for storing and retrieving information. All three are **persisted** storage - the difference is **how you query/access them**.
+This skill teaches you how to choose between Transactional Database (TDB), Vector Transactional Database (VDB), and Files for storing and retrieving information. All three are **persisted** storage - the difference is **how you query/access them**.
 
 ---
 
 ## Storage Decision Framework
 
-### Database (DB) - Persisted, SQL-Queryable, Structured
+### Transactional Database (TDB) - Persisted, SQL-Queryable, Structured
 
 **When to use:**
 - Structured data with consistent schema (timesheets, expenses, habits)
@@ -36,25 +36,25 @@ This skill teaches you how to choose between Database (DB), Vector Store (VS), a
 
 **Tool Pattern:**
 ```
-1. create_db_table - Define schema (or infer from data)
-2. insert_db_table - Add data
-3. add_db_column - Extend schema when new fields appear
-4. drop_db_column - Remove unused columns
-5. query_db - Retrieve with SQL queries
+1. create_tdb_table - Define schema (or infer from data)
+2. insert_tdb_table - Add data
+3. add_tdb_column - Extend schema when new fields appear
+4. drop_tdb_column - Remove unused columns
+5. query_tdb - Retrieve with SQL queries
 ```
 
 **Example Workflow:**
 ```python
 # User: "Track my daily expenses"
-create_db_table("expenses", '[{"category": "groceries", "amount": 45.50, "date": "2025-01-19"}]')
-insert_db_table("expenses", '[{"category": "transport", "amount": 12.00, "date": "2025-01-19"}]')
-query_db("SELECT category, SUM(amount) as total FROM expenses GROUP BY category")
+create_tdb_table("expenses", '[{"category": "groceries", "amount": 45.50, "date": "2025-01-19"}]')
+insert_tdb_table("expenses", '[{"category": "transport", "amount": 12.00, "date": "2025-01-19"}]')
+query_tdb("SELECT category, SUM(amount) as total FROM expenses GROUP BY category")
 # → Shows spending by category
 ```
 
 ---
 
-### Vector Store (VS) - Persisted, Semantic Search, Qualitative
+### Vector Transactional Database (VDB) - Persisted, Semantic Search, Qualitative
 
 **When to use:**
 - Qualitative knowledge: meeting notes, documentation, conversations
@@ -78,18 +78,18 @@ query_db("SELECT category, SUM(amount) as total FROM expenses GROUP BY category"
 
 **Tool Pattern:**
 ```
-1. create_vs_collection - Create collection (optional: add initial content)
-2. add_vs_documents - Add more documents
-3. search_vs - Semantic search by meaning
+1. create_vdb_collection - Create collection (optional: add initial content)
+2. add_vdb_documents - Add more documents
+3. search_vdb - Semantic search by meaning
 ```
 
 **Example Workflow:**
 ```python
 # User: "Save our meeting notes for later"
-create_vs_collection("meetings", content="Discussed Q1 goals: increase user engagement by 20%")
+create_vdb_collection("meetings", content="Discussed Q1 goals: increase user engagement by 20%")
 
 # Later: "What did we decide about goals?"
-search_vs("goals", "meetings")
+search_vdb("goals", "meetings")
 # → Finds meeting about Q1 goals even if you search for "objectives" or "targets"
 ```
 
@@ -99,13 +99,13 @@ search_vs("goals", "meetings")
 
 **When to use:**
 - Generated outputs: reports, summaries, analyses
-- Exported data from DB or VS queries
+- Exported data from TDB or VDB queries
 - Reference documents: templates, code snippets, config files
 - One-off analyses that don't need querying
 
 **Examples:**
 - Generated reports: "Weekly Sales Report - 2025-01-19.md"
-- Exported data: `export_db_table("expenses", "january_expenses.csv")`
+- Exported data: `export_tdb_table("expenses", "january_expenses.csv")`
 - Reference materials: templates, examples
 - Code snippets: utility scripts
 
@@ -118,15 +118,20 @@ search_vs("goals", "meetings")
 
 **Tool Pattern:**
 ```
-1. query_db or search_vs - Get data from storage
+1. query_tdb or search_vdb - Get data from storage
 2. write_file - Save output to file
 3. read_file - Load file content later
 ```
 
+**Scope guidance (important):**
+- Default to `scope="context"` for user-owned files.
+- Use `scope="shared"` only when the user explicitly asks for shared storage.
+- Shared writes require admin privileges; non-admins can read shared files only.
+
 **Example Workflow:**
 ```python
 # User: "Generate a report from my timesheet data"
-data = query_db("SELECT * FROM timesheets WHERE date >= '2025-01-01'")
+data = query_tdb("SELECT * FROM timesheets WHERE date >= '2025-01-01'")
 report = format_timesheet_report(data)  # Format as markdown
 write_file("timesheet_report_january.md", report)
 # → File saved, can be read later or shared
@@ -140,13 +145,13 @@ write_file("timesheet_report_january.md", report)
 Task: Store information
 │
 ├─ Is it structured data that needs querying?
-│  ├─ YES → Use DB (persisted, SQL-queryable)
+│  ├─ YES → Use TDB (persisted, SQL-queryable)
 │  │   ✅ Timesheets, expenses, habits, CRM data
-│  │   ✅ Need: filter, sort, group, aggregate
+│  │   ✅ Need: filter, sort, aggregate
 │  │
 │  └─ NO
 │     ├─ Is it qualitative knowledge for semantic search?
-│     │  ├─ YES → Use VS (persisted, semantic search)
+│     │  ├─ YES → Use VDB (persisted, semantic search)
 │     │  │   ✅ Meeting notes, docs, conversations
 │     │  │   ✅ Need: find by meaning/concept
 │     │  │
@@ -157,12 +162,12 @@ Task: Store information
 Task: Retrieve information
 │
 ├─ Exact match with filtering/aggregation?
-│  └─ YES → Use DB queries
-│      query_db("SELECT * FROM expenses WHERE amount > 100")
+│  └─ YES → Use TDB queries
+│      query_tdb("SELECT * FROM expenses WHERE amount > 100")
 │
 ├─ Find by meaning/concept?
-│  └─ YES → Use VS search
-│      search_vs("spending patterns", "finances")
+│  └─ YES → Use VDB search
+│      search_vdb("spending patterns", "finances")
 │
 └─ Know the exact file path?
     └─ YES → Use Files
@@ -175,18 +180,18 @@ Task: Retrieve information
 
 ### ✅ DO
 
-- **Use DB for structured data** - Timesheets, expenses, habits, metrics
-- **Use VS for knowledge** - Meeting notes, documentation, conversations
+- **Use TDB for structured data** - Timesheets, expenses, habits, metrics
+- **Use VDB for knowledge** - Meeting notes, documentation, conversations
 - **Use Files for outputs** - Reports, summaries, exported data
-- **Combine storage types** - Query DB → Export to File, Search VS → Save to DB
-- **Start with DB if unsure** - Most flexible for common tasks
-- **Add metadata to VS** - Helps with filtering and organization
+- **Combine storage types** - Query TDB → Export to File, Search VDB → Save to TDB
+- **Start with TDB if unsure** - Most flexible for common tasks
+- **Add metadata to VDB** - Helps with filtering and organization
 
 ### ❌ DON'T
 
-- **Don't use Files for data you need to query** - Use DB instead
-- **Don't use DB for semantic search** - Use VS instead
-- **Don't use VS for exact matching** - Use DB instead
+- **Don't use Files for data you need to query** - Use TDB instead
+- **Don't use TDB for semantic search** - Use VDB instead
+- **Don't use VDB for exact matching** - Use TDB instead
 - **Don't duplicate storage** - Choose one primary storage per use case
 - **Don't forget all storage is persisted** - Nothing is temporary
 
@@ -194,50 +199,50 @@ Task: Retrieve information
 
 ## Workflow Examples
 
-### Example 1: Timesheet Tracking (DB)
+### Example 1: Timesheet Tracking (TDB)
 
 ```python
 # User: "I want to track my daily work hours"
 
 # Create table with initial data
-create_db_table(
+create_tdb_table(
     "timesheets",
     '[{"date": "2025-01-19", "hours": 4.5, "project": "Executive Assistant", "description": "Skills implementation"}]'
 )
 
 # Add more entries
-insert_db_table(
+insert_tdb_table(
     "timesheets",
     '[{"date": "2025-01-19", "hours": 3.0, "project": "Executive Assistant", "description": "Documentation"}]'
 )
 
 # Query for summary
-query_db("SELECT project, SUM(hours) as total FROM timesheets GROUP BY project")
+query_tdb("SELECT project, SUM(hours) as total FROM timesheets GROUP BY project")
 # → Executive Assistant: 7.5 hours
 ```
 
-### Example 2: Meeting Notes (VS)
+### Example 2: Meeting Notes (VDB)
 
 ```python
 # User: "Save notes from today's meeting"
 
-create_vs_collection(
+create_vdb_collection(
     "meetings",
     content="Meeting 2025-01-19: Discussed Q1 roadmap. Priorities: 1) Skills system, 2) Tool improvements, 3) Testing. Agreed to implement skills first."
 )
 
 # Later: "What did we discuss about priorities?"
-search_vs("priorities", "meetings")
+search_vdb("priorities", "meetings")
 # → Finds meeting, returns discussion about priorities (Skills, Tools, Testing)
 ```
 
-### Example 3: Report Generation (DB + Files)
+### Example 3: Report Generation (TDB + Files)
 
 ```python
 # User: "Generate a weekly expense report"
 
-# Get data from DB
-data = query_db("SELECT * FROM expenses WHERE date >= '2025-01-13'")
+# Get data from TDB
+data = query_tdb("SELECT * FROM expenses WHERE date >= '2025-01-13'")
 
 # Format as report
 report = "# Weekly Expense Report\n\n"
@@ -249,17 +254,17 @@ for row in data:
 write_file("weekly_expense_report.md", report)
 ```
 
-### Example 4: Knowledge Retrieval (VS + DB)
+### Example 4: Knowledge Retrieval (VDB + TDB)
 
 ```python
 # User: "Find all conversations about testing and save summary"
 
-# Search VS for relevant conversations
-search_vs("testing quality assurance", "conversations")
+# Search VDB for relevant conversations
+search_vdb("testing quality assurance", "conversations")
 # → Returns: conversation_123, conversation_456
 
-# Save summary to DB
-create_db_table(
+# Save summary to TDB
+create_tdb_table(
     "testing_notes",
     '[{"date": "2025-01-19", "topic": "Testing", "conversations_found": 2}]'
 )
@@ -282,38 +287,38 @@ write_file("expenses.json", '[{"amount": 45.50}, {"amount": 12.00}]')
 
 ✅ **Right:**
 ```python
-create_db_table("expenses", '[{"amount": 45.50}, {"amount": 12.00}]')
-query_db("SELECT SUM(amount) FROM expenses")
+create_tdb_table("expenses", '[{"amount": 45.50}, {"amount": 12.00}]')
+query_tdb("SELECT SUM(amount) FROM expenses")
 # → 57.50
 ```
 
-### Mistake 2: Using DB for Semantic Search
+### Mistake 2: Using TDB for Semantic Search
 
 ❌ **Wrong:**
 ```python
 # Trying to find similar meeting notes
-query_db("SELECT * FROM meetings WHERE notes LIKE '%goals%'")
+query_tdb("SELECT * FROM meetings WHERE notes LIKE '%goals%'")
 # → Misses "objectives", "targets", "aims"
 ```
 
 ✅ **Right:**
 ```python
-search_vs("goals objectives targets", "meetings")
+search_vdb("goals objectives targets", "meetings")
 # → Finds all meetings about goals, even if they used different words
 ```
 
-### Mistake 3: Using VS for Exact Matching
+### Mistake 3: Using VDB for Exact Matching
 
 ❌ **Wrong:**
 ```python
 # Trying to find exact expense by ID
-search_vs("expense_12345", "finances")
+search_vdb("expense_12345", "finances")
 # → Might return irrelevant results
 ```
 
 ✅ **Right:**
 ```python
-query_db("SELECT * FROM expenses WHERE id = 'expense_12345'")
+query_tdb("SELECT * FROM expenses WHERE id = 'expense_12345'")
 # → Exact match
 ```
 
@@ -321,33 +326,33 @@ query_db("SELECT * FROM expenses WHERE id = 'expense_12345'")
 
 ## Tool Combinations
 
-### DB → VS (Enrichment)
+### TDB → VDB (Enrichment)
 
 ```python
-# Get data from DB
-data = query_db("SELECT * FROM customers")
+# Get data from TDB
+data = query_tdb("SELECT * FROM customers")
 
-# Add to VS for semantic search
-create_vs_collection("customers", documents=data)
+# Add to VDB for semantic search
+create_vdb_collection("customers", documents=data)
 # Now can search: "Find customers interested in AI"
 ```
 
-### VS → DB (Structure)
+### VDB → TDB (Structure)
 
 ```python
-# Search VS for relevant info
-results = search_vs("project timeline milestones", "meetings")
+# Search VDB for relevant info
+results = search_vdb("project timeline milestones", "meetings")
 
-# Extract structured data and save to DB
+# Extract structured data and save to TDB
 milestones = extract_milestones(results)
-create_db_table("milestones", data=milestones)
+create_tdb_table("milestones", data=milestones)
 ```
 
-### DB → Files (Reporting)
+### TDB → Files (Reporting)
 
 ```python
-# Query DB for data
-data = query_db("SELECT * FROM timesheets WHERE date >= '2025-01-01'")
+# Query TDB for data
+data = query_tdb("SELECT * FROM timesheets WHERE date >= '2025-01-01'")
 
 # Generate report
 report = generate_report(data)
@@ -362,25 +367,25 @@ write_file("monthly_timesheet_report.md", report)
 
 | Task | Use | Tool |
 |------|-----|------|
-| Track timesheets | DB | `create_db_table` + `insert_db_table` |
-| Search meeting notes | VS | `create_vs_collection` + `search_vs` |
-| Generate report | DB → Files | `query_db` + `write_file` |
-| Find similar docs | VS | `search_vs` |
-| Save conversation | VS | `create_vs_collection` |
-| Update VS document | VS | `update_vs_document` |
-| Export data | DB → Files | `export_db_table` |
-| Aggregate metrics | DB | `query_db` with SQL |
-| Semantic search | VS | `search_vs` |
+| Track timesheets | TDB | `create_tdb_table` + `insert_tdb_table` |
+| Search meeting notes | VDB | `create_vdb_collection` + `search_vdb` |
+| Generate report | TDB → Files | `query_tdb` + `write_file` |
+| Find similar docs | VDB | `search_vdb` |
+| Save conversation | VDB | `create_vdb_collection` |
+| Update VDB document | VDB | `update_vdb_document` |
+| Export data | TDB → Files | `export_tdb_table` |
+| Aggregate metrics | TDB | `query_tdb` with SQL |
+| Semantic search | VDB | `search_vdb` |
 
 ---
 
 ## Summary
 
 **Key Points:**
-- All three storage types (DB, VS, Files) are **persisted**
+- All three storage types (TDB, VDB, Files) are **persisted**
 - Difference is **how you access/query them**
-- DB: SQL queries for structured data
-- VS: Semantic search for qualitative knowledge
+- TDB: SQL queries for structured data
+- VDB: Semantic search for qualitative knowledge
 - Files: Path-based access for outputs/reports
 - Combine storage types for complex workflows
 - Choose based on how you need to **retrieve** the data, not just store it

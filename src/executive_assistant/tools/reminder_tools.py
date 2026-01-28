@@ -25,7 +25,7 @@ async def _refresh_reminder_meta(thread_id: str) -> None:
     """Refresh reminder count in meta registry."""
     try:
         storage = await _get_storage()
-        reminders = await storage.list_by_user(thread_id, None)
+        reminders = await storage.list_by_thread(thread_id, None)
         record_reminder_count(thread_id, len(reminders))
     except Exception:
         return
@@ -152,12 +152,8 @@ async def reminder_set(
     except ValueError as e:
         return str(e)
 
-    # Use thread_id as user_id for non-merged users
-    user_id = thread_id
-
     reminder = await storage.create(
-        user_id=user_id,
-        thread_ids=[thread_id],
+        thread_id=thread_id,
         message=message,
         due_time=due_time,
         recurrence=recurrence or None,
@@ -172,7 +168,7 @@ async def reminder_set(
 async def reminder_list(
     status: str = "",
 ) -> str:
-    """List all reminders for the current user.
+    """List all reminders for the current thread.
 
     Args:
         status: Filter by status ('pending', 'sent', 'cancelled', 'failed'). Empty for all.
@@ -186,14 +182,12 @@ async def reminder_list(
     if thread_id is None:
         return "Error: Could not determine conversation context."
 
-    user_id = thread_id
-
     # Validate status if provided
     valid_statuses = {"pending", "sent", "cancelled", "failed"}
     if status and status not in valid_statuses:
         return f"Invalid status. Use one of: {', '.join(valid_statuses)}"
 
-    reminders = await storage.list_by_user(user_id, status or None)
+    reminders = await storage.list_by_thread(thread_id, status or None)
 
     if not reminders:
         return "No reminders found."
@@ -234,8 +228,7 @@ async def reminder_cancel(
     if not reminder:
         return f"Reminder {reminder_id} not found."
 
-    user_id = thread_id
-    if reminder.user_id != user_id:
+    if reminder.thread_id != thread_id:
         return "You can only cancel your own reminders."
 
     if reminder.status != "pending":
@@ -274,8 +267,7 @@ async def reminder_edit(
     if not reminder:
         return f"Reminder {reminder_id} not found."
 
-    user_id = thread_id
-    if reminder.user_id != user_id:
+    if reminder.thread_id != thread_id:
         return "You can only edit your own reminders."
 
     if reminder.status != "pending":

@@ -1,6 +1,6 @@
-"""SQLite storage for group DB.
+"""SQLite storage for thread DB.
 
-Provides per-group SQLite databases for general data management
+Provides per-thread SQLite databases for general data management
 (timesheets, CRM, tasks, etc.).
 """
 
@@ -14,14 +14,14 @@ from pathlib import Path
 
 from executive_assistant.config import settings
 from executive_assistant.storage.db_storage import validate_identifier
-from executive_assistant.storage.group_storage import get_workspace_id
+from executive_assistant.storage.thread_storage import get_thread_id
 
 
 @dataclass
 class SQLiteDatabase:
-    """A workspace SQLite database."""
+    """A thread SQLite database."""
 
-    workspace_id: str
+    thread_id: str
     conn: sqlite3.Connection
     path: Path
 
@@ -276,50 +276,35 @@ class SQLiteDatabase:
 
 def get_db_storage_dir(storage_id: str | None = None) -> Path:
     """
-    Return the DB directory for a group.
+    Return the DB directory for a thread.
 
-    Storage layout: data/groups/{group_id}/db/
+    Storage layout: data/users/{thread_id}/tdb/
 
     Args:
-        storage_id: Group identifier (optional, uses context if None).
+        storage_id: Thread identifier (optional, uses context if None).
 
     Returns:
         Path to the DB directory.
     """
     if storage_id is None:
-        # Priority: user_id (individual) > group_id (team) > thread_id (fallback)
-        from executive_assistant.storage.group_storage import get_user_id
-        from executive_assistant.storage.file_sandbox import get_thread_id
-
-        storage_id = get_user_id()
-        if storage_id is None:
-            storage_id = get_workspace_id()
-        if storage_id is None:
-            storage_id = get_thread_id()
+        from executive_assistant.storage.thread_storage import get_thread_id
+        storage_id = get_thread_id()
 
     if not storage_id:
         raise ValueError("No storage_id provided and none in context")
 
-    # Use user path if not a group, otherwise use group path
-    from executive_assistant.storage.group_storage import get_workspace_id
-    group_id = get_workspace_id()
-    if storage_id == group_id:
-        # This is a group, use group path
-        db_path = settings.get_workspace_db_path(storage_id)
-    else:
-        # This is a user_id, use user path
-        db_path = settings.get_user_db_path(storage_id)
-
+    db_path = settings.get_thread_tdb_path(storage_id)
     db_path.parent.mkdir(parents=True, exist_ok=True)
     return db_path.parent
 
 
+
 @lru_cache(maxsize=128)
 def _get_sqlite_connection(storage_id: str, path: Path) -> sqlite3.Connection:
-    """Get a cached SQLite connection for a group.
+    """Get a cached SQLite connection for a thread.
 
     Args:
-        storage_id: Group identifier.
+        storage_id: Thread identifier.
         path: Path to the DB directory.
 
     Returns:
@@ -342,35 +327,29 @@ def _get_sqlite_connection(storage_id: str, path: Path) -> sqlite3.Connection:
 
 def get_sqlite_db(storage_id: str | None = None) -> SQLiteDatabase:
     """
-    Get a SQLite database for a workspace.
+    Get a SQLite database for a thread.
 
     Args:
-        storage_id: Workspace identifier (optional, uses context if None).
+        storage_id: Thread identifier (optional, uses context if None).
 
     Returns:
         SQLiteDatabase instance.
     """
     if storage_id is None:
-        # Priority: user_id (individual) > group_id (team) > thread_id (fallback)
-        from executive_assistant.storage.group_storage import get_user_id
-        from executive_assistant.storage.file_sandbox import get_thread_id
-
-        storage_id = get_user_id()
+        from executive_assistant.storage.thread_storage import get_thread_id
+        storage_id = get_thread_id()
         if storage_id is None:
-            storage_id = get_workspace_id()
-        if storage_id is None:
-            storage_id = get_thread_id()
-        if storage_id is None:
-            raise ValueError("No context (user_id, group_id, or thread_id) available")
+            raise ValueError("No thread_id context available")
 
     path = get_db_storage_dir(storage_id)
     conn = _get_sqlite_connection(storage_id, path)
 
     return SQLiteDatabase(
-        workspace_id=storage_id,
+        thread_id=storage_id,
         conn=conn,
         path=path / "db.sqlite"
     )
+
 
 
 def reset_connection_cache():

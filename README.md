@@ -7,7 +7,7 @@ Your intelligent assistant that manages tasks, tracks work, stores knowledge, an
 Executive Assistant is a multi-channel AI agent that helps you stay organized and productive. Whether you're tracking timesheets, managing a knowledge base, or automating data analysis, Executive Assistant intelligently selects the right tools for the job.
 
 ### Track Your Work
-- **Timesheet logging**: Simply tell Executive Assistant what you worked on, and it stores structured data in your private database
+- **Timesheet logging**: Simply tell Executive Assistant what you worked on, and it stores structured data in your private transactional database
 - **Time-aware**: Knows the current time in any timezone, perfect for distributed teams
 - **Data analysis**: Query your logged work with SQL, export to CSV/JSON, or visualize trends
 
@@ -19,7 +19,7 @@ Executive Assistant is a multi-channel AI agent that helps you stay organized an
 ### Build a Knowledge Base
 - **Semantic search**: Store documents and find them by meaning, not just keywords
 - **Smart retrieval**: Ask "What did we decide about the API pricing?" and get the right answer
-- **Group collaboration**: Share knowledge across team conversations while keeping private data isolated
+- **Shared knowledge**: Store documents and retrieve them semantically across threads (with explicit shared scope)
 
 ### Automate Data Work
 - **Python execution**: Run calculations, data processing, and file operations in a secure sandbox
@@ -28,8 +28,8 @@ Executive Assistant is a multi-channel AI agent that helps you stay organized an
 
 ### Intelligent Tool Selection
 Executive Assistant uses a skills system to choose the right approach:
-- **Database tools** for structured data and temporary analysis (timesheets, logs, datasets)
-- **Vector Store** for long-term knowledge retrieval (meeting notes, decisions, documentation)
+- **Transactional Database tools** for structured data and temporary analysis (timesheets, logs, datasets)
+- **Vector Transactional Database** for long-term knowledge retrieval (meeting notes, decisions, documentation)
 - **File tools** for browsing and exact-text search (codebases, document archives)
 
 You don't need to remember which tool does what—Executive Assistant figures it out from context.
@@ -39,7 +39,7 @@ You don't need to remember which tool does what—Executive Assistant figures it
 Executive Assistant is a **ReAct agent** built on LangGraph. Unlike simple chatbots, it:
 
 1. **Reasons** about your request using an LLM
-2. **Acts** by calling tools (file operations, database queries, web search, etc.)
+2. **Acts** by calling tools (file operations, transactional database queries, web search, etc.)
 3. **Observes** the results and decides what to do next
 4. **Responds** with a clear confirmation of what was done
 
@@ -57,7 +57,7 @@ Executive Assistant works where you work:
 
 ### Telegram
 - Chat with Executive Assistant in any Telegram conversation
-- Commands: `/start`, `/reset`, `/remember`, `/debug`, `/mem`, `/reminder`, `/vs`, `/db`, `/file`, `/meta`, `/user`
+- Commands: `/start`, `/reset`, `/remember`, `/debug`, `/mem`, `/reminder`, `/vdb`, `/tdb`, `/file`, `/meta`, `/user`
 - Perfect for mobile quick-tasks and reminders on-the-go
 
 ### HTTP API
@@ -72,14 +72,13 @@ Executive Assistant takes data isolation seriously with a unified `scope` parame
 
 ### Context-Scoped Storage (Default)
 All storage tools support `scope="context"` (default):
-- **In a group**: Uses `data/groups/{group_id}/` for team collaboration
-- **Individual threads**: Uses `data/users/{thread_id}/` for private data
+- **Thread-only context**: Uses `data/users/{thread_id}/` for private data
 
 ```python
-# Context-scoped (automatic - uses group or thread)
-create_db_table("users", data=[...], scope="context")
+# Context-scoped (automatic - uses thread)
+create_tdb_table("users", data=[...], scope="context")
 write_file("notes.txt", "My notes", scope="context")
-create_vs_collection("knowledge", content="Team decisions", scope="context")
+create_vdb_collection("knowledge", content="Decisions", scope="context")
 ```
 
 ### Organization-Wide Shared Storage
@@ -90,9 +89,9 @@ All storage tools support `scope="shared"` for organization-wide data:
 
 ```python
 # Organization-wide shared
-create_db_table("org_users", data=[...], scope="shared")
+create_tdb_table("org_users", data=[...], scope="shared")
 write_file("policy.txt", "Company policy", scope="shared")
-create_vs_collection("org_knowledge", content="Company processes", scope="shared")
+create_vdb_collection("org_knowledge", content="Company processes", scope="shared")
 ```
 
 ### Storage Hierarchy
@@ -100,32 +99,26 @@ create_vs_collection("org_knowledge", content="Company processes", scope="shared
 data/
 ├── shared/              # scope="shared" (organization-wide)
 │   ├── files/           # Shared file storage
-│   ├── db/              # Shared database
-│   └── vs/              # Shared vector store
-├── groups/              # scope="context" when group_id is set
-│   └── {group_id}/      # Team groups
-│       ├── files/
-│       ├── db/
-│       └── vs/
+│   ├── tdb/             # Shared transactional database
+│   └── vdb/             # Shared vector database
 └── users/               # scope="context" for individual threads
     └── {thread_id}/
         ├── files/
-        ├── db/
-        └── vs/
+        ├── tdb/
+        └── vdb/
 ```
 
-### Merge & Identity Management
-- Start as anonymous (identified by `thread_id`)
-- Merge multiple threads into a persistent `user_id`
-- Ownership tracking for all files, databases, and reminders
-- Audit log for all operations
+### Thread-Scoped Ownership
+- Data is stored under `data/users/{thread_id}/`
+- Ownership tracking for files, TDB, VDB, and reminders
+- Audit log for operations
 
 ## Quick Start
 
 ```bash
 # Setup environment
-cp .env.example .env
-# Edit .env with your API keys
+cp docker/.env.example docker/.env
+# Edit docker/.env with your API keys
 
 # Start PostgreSQL
 docker compose up -d postgres
@@ -154,7 +147,7 @@ EXECUTIVE_ASSISTANT_CHANNELS=telegram,http uv run executive_assistant
 - **Safe**: Sandboxed execution, per-message limits, audit logging
 
 ### Unlike Other AI Agents
-- **Intelligent storage**: Knows when to use DB (structured) vs VS (semantic) vs files (raw)
+- **Intelligent storage**: Knows when to use TDB (structured) vs VDB (semantic) vs files (raw)
 - **Skills system**: Progressive disclosure of advanced patterns (load with `load_skill`)
 - **Privacy-first**: Thread isolation by design, merge only when you request it
 - **Multi-channel**: Same agent works on Telegram, HTTP, and more (planned: Email, Slack)
@@ -174,7 +167,7 @@ You: Log 4 hours of API development
 Executive Assistant: Created timesheet table and logged entry.
 
 You: How many hours did I work this week?
-Executive Assistant: [queries database] You worked 32 hours total:
+Executive Assistant: [queries transactional database] You worked 32 hours total:
      - API development: 16h
      - Bug fixes: 12h
      - Meetings: 4h
@@ -186,7 +179,7 @@ You: Save this: API rate limit is 1000 req/min for pro accounts
 Executive Assistant: Saved to knowledge base.
 
 You: What's the rate limit for pro accounts?
-Executive Assistant: [searches vector store] 1000 requests per minute.
+Executive Assistant: [searches vector database] 1000 requests per minute.
 ```
 
 ### Data Analysis
@@ -220,7 +213,7 @@ POSTGRES_PASSWORD=your_password
 POSTGRES_DB=executive_assistant_db
 ```
 
-See `.env.example` for all available options.
+See `docker/.env.example` for all available options.
 
 ## Telegram Bot Commands
 
@@ -232,10 +225,10 @@ See `.env.example` for all available options.
 | `/debug` | Toggle verbose status mode (see LLM/tool timing) |
 | `/mem` | List/add/update/forget memories |
 | `/reminder` | List/set/edit/cancel reminders |
-| `/vs` | Vector store commands |
-| `/db` | Database commands |
+| `/vdb` | Vector store commands |
+| `/tdb` | Transactional Database commands |
 | `/file` | File commands |
-| `/meta` | Show storage summary (files/VS/DB/reminders) |
+| `/meta` | Show storage summary (files/VDB/TDB/reminders) |
 | `/user` | Admin allowlist management |
 
 ### Debug Mode
@@ -287,16 +280,16 @@ curl http://localhost:8000/health
 - **Search**: Find files by pattern (`*.py`, `**/*.json`) or search contents with regex
 - **Secure**: Thread-scoped paths prevent access to other users' data
 
-### Database (per-thread)
+### Transactional Database (TDB, per-thread)
 - **Create tables**: From JSON/CSV with automatic schema inference
-- **Query**: SQLite-compatible SQL (thread/group/shared scoped)
+- **Query**: SQLite-compatible SQL (thread/shared scoped)
 - **Import/Export**: CSV, JSON, Parquet formats
 - **Use case**: Temporary working data (timesheets, logs, analysis results)
 
-### Vector Store (per-group/thread)
+### Vector Database (VDB, per-thread)
 - **Semantic search**: Find documents by meaning, not just keywords
 - **Hybrid search**: Combines full-text + vector similarity
-- **Persistent**: Survives thread resets (group/thread-scoped)
+- **Persistent**: Survives thread resets (thread-scoped)
 - **Use case**: Long-term knowledge base (meeting notes, decisions, docs)
 
 ### Python Execution
@@ -326,7 +319,7 @@ Executive Assistant uses a **ReAct agent pattern** with LangGraph:
 1. **User message** → Channel (Telegram/HTTP)
 2. **Channel** → Agent with state (messages, iterations, summary)
 3. **Agent** → ReAct loop (Think → Act → Observe)
-4. **Tools** → Storage (files, DB, VS), external APIs
+4. **Tools** → Storage (files, TDB, VDB), external APIs
 5. **Response** → Channel → User
 
 ### Storage Hierarchy
@@ -335,18 +328,13 @@ Executive Assistant uses a **ReAct agent pattern** with LangGraph:
 data/
 ├── shared/             # Organization-wide (scope="shared")
 │   ├── files/          # Shared files
-│   ├── db/             # Shared database
-│   └── vs/             # Knowledge base
-├── groups/             # Group-scoped (scope="context" with group_id)
-│   └── {group_id}/
-│       ├── files/      # Shared files
-│       ├── db/         # Team database
-│       └── vs/         # Knowledge base
-└── users/              # Thread-scoped (scope="context" without group_id)
+│   ├── tdb/            # Shared transactional database
+│   └── vdb/            # Shared vector database
+└── users/              # Thread-scoped (scope="context")
     └── {thread_id}/
         ├── files/      # Private files
-        ├── db/         # Working database
-        ├── vs/         # Thread VS (rarely used)
+        ├── tdb/        # Working transactional database
+        ├── vdb/        # Thread VDB (rarely used)
         └── mem/        # Embedded memories
 ```
 
@@ -358,8 +346,9 @@ data/
 | `conversations` | Conversation metadata per thread |
 | `messages` | Message audit log |
 | `file_paths` | File ownership per thread |
-| `db_paths` | Database ownership per thread |
-| `user_registry` | Operation audit (merge/split/remove) |
+| `tdb_paths` | Transactional Database ownership per thread |
+| `vdb_paths` | Vector database ownership per thread |
+| `adb_paths` | Analytics DB ownership per thread |
 | `reminders` | Scheduled reminder notifications |
 
 ## Testing
@@ -388,8 +377,8 @@ RUN_LIVE_LLM_TESTS=1 uv run pytest -m "langchain_integration and vcr" --record-m
 executive_assistant/
 ├── src/executive_assistant/
 │   ├── channels/       # Telegram, HTTP
-│   ├── storage/        # User registry, file sandbox, DB, VS, reminders
-│   ├── tools/          # LangChain tools (file, DB, time, Python, search, OCR)
+│   ├── storage/        # File sandbox, TDB, VDB, reminders
+│   ├── tools/          # LangChain tools (file, TDB, time, Python, search, OCR)
 │   ├── agent/          # Agent runtimes (custom graph + LangChain)
 │   ├── scheduler.py    # APScheduler integration
 │   └── config/         # Settings

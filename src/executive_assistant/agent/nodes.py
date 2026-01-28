@@ -48,34 +48,6 @@ async def call_model(
     # Build system prompt with summary
     prompt = system_prompt or get_system_prompt(state.get("channel"))
 
-    # Get structured summary and intent for KB-first routing
-    structured_summary = state.get("structured_summary")
-    intent = "hybrid"  # Default
-
-    if structured_summary:
-        # Extract intent from active topic if available
-        active_topics = [
-            t for t in structured_summary.get("topics", [])
-            if t.get("status") == "active"
-        ]
-        if active_topics:
-            intent = active_topics[0].get("intent", "hybrid")
-
-        # For factual queries, use minimal summary context (KB-first mode)
-        if intent == "factual":
-            # Only show current request, skip the rest of the summary
-            # This prevents context contamination for factual lookups
-            active_request = structured_summary.get("active_request", {})
-            if isinstance(active_request, dict) and active_request.get("text"):
-                prompt += f"\n\n[Current Request]\n{active_request['text']}"
-                prompt += "\n\nNote: For this factual query, prioritize KB results over conversation context."
-        else:
-            # For conversational/hybrid, show full summary
-            from executive_assistant.agent.topic_classifier import StructuredSummaryBuilder
-            rendered = StructuredSummaryBuilder.render_for_prompt(structured_summary)
-            if rendered:
-                prompt += f"\n\n{rendered}"
-
     # Trim messages to fit context window (keep recent, preserve continuity)
     # IMPORTANT: Don't trim if there are pending tool calls to avoid checkpoint corruption
     last_message = messages[-1] if messages else None

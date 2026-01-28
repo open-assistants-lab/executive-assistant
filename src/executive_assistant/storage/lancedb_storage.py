@@ -3,8 +3,8 @@
 LanceDB is an embedded, serverless vector database optimized for AI/ML workloads.
 This implementation provides the same interface as DuckDB storage for easy comparison.
 
-Multi-tenancy: Each group/user gets its own LanceDB database file at:
-    data/groups/{group_id}/vs/.lancedb/
+Multi-tenancy: Each thread gets its own LanceDB database file at:
+    data/users/{thread_id}/vdb/.lancedb/
 """
 
 from __future__ import annotations
@@ -20,7 +20,8 @@ import pyarrow as pa
 
 from executive_assistant.config import settings
 from executive_assistant.storage.chunking import get_embeddings
-from executive_assistant.storage.group_storage import get_workspace_id, sanitize_thread_id
+from executive_assistant.storage.thread_storage import get_thread_id, get_thread_path, sanitize_thread_id
+from executive_assistant.storage.user_registry import register_vdb_path_best_effort
 
 
 # =============================================================================
@@ -41,7 +42,7 @@ class LanceDBCollection:
     """A LanceDB vector collection."""
 
     name: str
-    workspace_id: str
+    thread_id: str
     db: Any  # lancedb.DB
     table: Any  # lancedb.table.Table
     dimension: int = 384
@@ -66,9 +67,9 @@ class LanceDBCollection:
         Returns:
             Number of documents added.
         """
-        from executive_assistant.storage.chunking import prepare_documents_for_vs
+        from executive_assistant.storage.chunking import prepare_documents_for_vdb
 
-        chunks = prepare_documents_for_vs(documents, auto_chunk=True)
+        chunks = prepare_documents_for_vdb(documents, auto_chunk=True)
 
         if not chunks:
             return 0
@@ -244,54 +245,42 @@ class LanceDBCollection:
 
 
 # =============================================================================
-# Storage Path Management (Group-based routing)
+# Storage Path Management (Thread-based routing)
 # =============================================================================
 
 def _get_storage_id() -> str:
     """
-    Get the storage ID for VS operations.
+    Get the storage ID for VDB operations.
 
     Priority:
-    1. group_id from context (new, primary)
-    2. thread_id from context (legacy, fallback)
+    1. thread_id from context
 
     Returns:
         The storage identifier.
 
     Raises:
-        ValueError: If no user_id, group_id or thread_id in context.
+        ValueError: If no thread_id in context.
     """
-    # Priority: user_id (individual) > group_id (team) > thread_id (fallback)
-    from executive_assistant.storage.group_storage import get_user_id
-    user_id = get_user_id()
-    if user_id:
-        return user_id
-
-    # Try group_id (new group routing)
-    group_id = get_workspace_id()
-    if group_id:
-        return group_id
-
-    # Fall back to thread_id (legacy routing)
-    from executive_assistant.storage.file_sandbox import get_thread_id
+    from executive_assistant.storage.thread_storage import get_thread_id
     thread_id = get_thread_id()
     if thread_id:
         return thread_id
 
-    raise ValueError("No user_id, group_id or thread_id in context")
+    raise ValueError("No thread_id in context")
 
 
-def get_vs_storage_dir(storage_id: str | None = None) -> Path:
+
+def get_vdb_storage_dir(storage_id: str | None = None) -> Path:
     """
-    Return the VS directory for a group or thread.
+    Return the VDB directory for a thread.
 
-    Storage layout: data/groups/{group_id}/vs/
+    Storage layout: data/users/{thread_id}/vdb/
 
     Args:
-        storage_id: Group or thread identifier (optional, uses context if None).
+        storage_id: Thread identifier (optional, uses context if None).
 
     Returns:
-        Path to the VS directory.
+        Path to the VDB directory.
     """
     if storage_id is None:
         storage_id = _get_storage_id()
@@ -299,19 +288,11 @@ def get_vs_storage_dir(storage_id: str | None = None) -> Path:
     if not storage_id:
         raise ValueError("No storage_id provided and none in context")
 
-    # Check if this is a group_id (starts with "ws:") or legacy thread_id
-    # For group routing: data/groups/{group_id}/vs/
-    # For legacy thread routing: data/users/{thread_id}/vs/
-    if storage_id.startswith("ws:"):
-        # Group-based storage
-        root = settings.GROUPS_ROOT
-        path = root / sanitize_thread_id(storage_id) / "vs"
-    else:
-        # Legacy thread-based storage
-        path = settings.get_thread_root(storage_id) / "vs"
-
+    path = get_thread_path(storage_id) / "vdb"
     path.mkdir(parents=True, exist_ok=True)
+    register_vdb_path_best_effort(storage_id, "unknown", str(path))
     return path
+
 
 
 # =============================================================================
@@ -324,7 +305,7 @@ def _get_lancedb_connection(storage_id: str, path: Path):
 
     Args:
         storage_id: Storage identifier.
-        path: Path to the VS directory.
+        path: Path to the VDB directory.
 
     Returns:
         LanceDB database object.
@@ -339,10 +320,10 @@ def _get_lancedb_connection(storage_id: str, path: Path):
 
 def get_lancedb_connection(storage_id: str | None = None) -> Any:
     """
-    Get a LanceDB connection for a group or thread.
+    Get a LanceDB connection for a thread or thread.
 
     Args:
-        storage_id: Group or thread identifier (optional, uses context if None).
+        storage_id: Thread or thread identifier (optional, uses context if None).
 
     Returns:
         LanceDB database object.
@@ -350,7 +331,7 @@ def get_lancedb_connection(storage_id: str | None = None) -> Any:
     if storage_id is None:
         storage_id = _get_storage_id()
 
-    path = get_vs_storage_dir(storage_id)
+    path = get_vdb_storage_dir(storage_id)
     return _get_lancedb_connection(storage_id, path)
 
 
@@ -376,23 +357,23 @@ def create_lancedb_collection(
     embedding_dimension: int = 384,
     documents: list[dict[str, Any]] | None = None,
     # Deprecated alias for backward compatibility
-    workspace_id: str | None = None,
+    thread_id: str | None = None,
 ) -> LanceDBCollection:
     """Create a new LanceDB vector collection.
 
     Args:
-        storage_id: Workspace or thread identifier (optional, uses context if None).
+        storage_id: Thread or thread identifier (optional, uses context if None).
         collection_name: Name for the collection.
         embedding_dimension: Vector dimension (default 384 for all-MiniLM-L6-v2).
         documents: Optional initial documents.
-        workspace_id: Deprecated alias for storage_id.
+        thread_id: Deprecated alias for storage_id.
 
     Returns:
         LanceDBCollection instance.
     """
-    # Backward compatibility: workspace_id → storage_id
-    if workspace_id is not None:
-        storage_id = workspace_id
+    # Backward compatibility: thread_id → storage_id
+    if thread_id is not None:
+        storage_id = thread_id
 
     if storage_id is None:
         storage_id = _get_storage_id()
@@ -428,10 +409,10 @@ def create_lancedb_collection(
         except Exception:
             raise ValueError(f"Failed to create or open collection '{collection_name}': {e}")
 
-    path = get_vs_storage_dir(storage_id)
+    path = get_vdb_storage_dir(storage_id)
     collection = LanceDBCollection(
         name=collection_name,
-        workspace_id=storage_id,
+        thread_id=storage_id,
         db=db,
         table=table,
         dimension=embedding_dimension,
@@ -461,21 +442,21 @@ def get_lancedb_collection(
     storage_id: str | None = None,
     collection_name: str = "",
     # Deprecated alias for backward compatibility
-    workspace_id: str | None = None,
+    thread_id: str | None = None,
 ) -> LanceDBCollection:
     """Get an existing LanceDB collection.
 
     Args:
-        storage_id: Workspace or thread identifier (optional, uses context if None).
+        storage_id: Thread or thread identifier (optional, uses context if None).
         collection_name: Collection name.
-        workspace_id: Deprecated alias for storage_id.
+        thread_id: Deprecated alias for storage_id.
 
     Returns:
         LanceDBCollection instance.
     """
-    # Backward compatibility: workspace_id → storage_id
-    if workspace_id is not None:
-        storage_id = workspace_id
+    # Backward compatibility: thread_id → storage_id
+    if thread_id is not None:
+        storage_id = thread_id
 
     if storage_id is None:
         storage_id = _get_storage_id()
@@ -495,30 +476,30 @@ def get_lancedb_collection(
 
     return LanceDBCollection(
         name=collection_name,
-        workspace_id=storage_id,
+        thread_id=storage_id,
         db=db,
         table=table,
-        path=get_vs_storage_dir(storage_id)
+        path=get_vdb_storage_dir(storage_id)
     )
 
 
 def list_lancedb_collections(
     storage_id: str | None = None,
     # Deprecated alias for backward compatibility
-    workspace_id: str | None = None,
+    thread_id: str | None = None,
 ) -> list[str]:
-    """List all collection names for a group or thread.
+    """List all collection names for a thread or thread.
 
     Args:
-        storage_id: Group or thread identifier (optional, uses context if None).
-        workspace_id: Deprecated alias for storage_id.
+        storage_id: Thread or thread identifier (optional, uses context if None).
+        thread_id: Deprecated alias for storage_id.
 
     Returns:
         List of collection names.
     """
-    # Backward compatibility: workspace_id → storage_id
-    if workspace_id is not None:
-        storage_id = workspace_id
+    # Backward compatibility: thread_id → storage_id
+    if thread_id is not None:
+        storage_id = thread_id
 
     if storage_id is None:
         storage_id = _get_storage_id()
@@ -548,8 +529,8 @@ def list_lancedb_collections(
 
     # Fallback to on-disk scan when list_tables returns nothing
     try:
-        vs_dir = get_vs_storage_dir(storage_id)
-        lancedb_dir = vs_dir / ".lancedb"
+        vdb_dir = get_vdb_storage_dir(storage_id)
+        lancedb_dir = vdb_dir / ".lancedb"
         if not lancedb_dir.exists():
             return []
         names = []
@@ -565,21 +546,21 @@ def drop_lancedb_collection(
     storage_id: str | None = None,
     collection_name: str = "",
     # Deprecated alias for backward compatibility
-    workspace_id: str | None = None,
+    thread_id: str | None = None,
 ) -> bool:
     """Drop a LanceDB collection.
 
     Args:
-        storage_id: Workspace or thread identifier (optional, uses context if None).
+        storage_id: Thread or thread identifier (optional, uses context if None).
         collection_name: Collection name.
-        workspace_id: Deprecated alias for storage_id.
+        thread_id: Deprecated alias for storage_id.
 
     Returns:
         True if dropped, False if not found.
     """
-    # Backward compatibility: workspace_id → storage_id
-    if workspace_id is not None:
-        storage_id = workspace_id
+    # Backward compatibility: thread_id → storage_id
+    if thread_id is not None:
+        storage_id = thread_id
 
     if storage_id is None:
         storage_id = _get_storage_id()
@@ -600,10 +581,10 @@ def drop_lancedb_collection(
 
 
 def drop_all_lancedb_collections(storage_id: str | None = None) -> int:
-    """Drop all collections for a group or thread.
+    """Drop all collections for a thread or thread.
 
     Args:
-        storage_id: Group or thread identifier (optional, uses context if None).
+        storage_id: Thread or thread identifier (optional, uses context if None).
 
     Returns:
         Number of collections dropped.

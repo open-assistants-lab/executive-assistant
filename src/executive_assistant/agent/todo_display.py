@@ -25,7 +25,7 @@ from langchain.agents.middleware import AgentMiddleware
 from langchain_core.messages import AIMessage
 
 from executive_assistant.config import settings
-from executive_assistant.storage.file_sandbox import get_thread_id
+from executive_assistant.storage.thread_storage import get_thread_id, set_thread_id
 
 if TYPE_CHECKING:
     from executive_assistant.channels.base import BaseChannel
@@ -255,15 +255,33 @@ class TodoDisplayMiddleware(AgentMiddleware):
         self.last_todos = []
         self.last_update_time = 0
 
-        try:
-            thread_id = get_thread_id()
+        thread_id = get_thread_id()
+        if not thread_id and isinstance(state, dict):
+            thread_id = state.get("thread_id") or state.get("conversation_id")
+        if not thread_id:
+            config = getattr(runtime, "config", None)
+            configurable = getattr(runtime, "configurable", None)
+            if isinstance(configurable, dict):
+                thread_id = configurable.get("thread_id")
+            elif isinstance(config, dict):
+                thread_id = config.get("configurable", {}).get("thread_id")
+
+        if thread_id:
+            if not get_thread_id():
+                set_thread_id(thread_id)
             self.current_conversation_id = (
                 thread_id.split(":")[-1] if ":" in thread_id else thread_id
             )
             self._log_debug("start")
-        except ValueError:
-            logger.warning("TodoDisplayMiddleware: No thread_id in context")
-            self.current_conversation_id = None
+        else:
+            conversation_id = None
+            if isinstance(state, dict):
+                conversation_id = state.get("conversation_id")
+            if conversation_id:
+                self.current_conversation_id = conversation_id
+            else:
+                logger.warning("TodoDisplayMiddleware: No thread_id in context")
+                self.current_conversation_id = None
 
         # Clear any persisted todos so each run starts fresh.
         if "todos" in state and state["todos"]:

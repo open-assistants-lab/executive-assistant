@@ -7,33 +7,7 @@ from executive_assistant.skills.registry import get_skills_registry
 
 @tool
 def load_skill(skill_name: str) -> str:
-    """Load a specialized skill into the agent's context.
-
-    Use this when you need guidance on tool selection or flow/agent design.
-    Skills teach WHEN to use which tool and HOW to combine tools effectively.
-
-    Available Core Skills:
-    - data_management: DB vs VS vs Files decision framework
-    - record_keeping: Information lifecycle (Record → Organize → Retrieve)
-    - progress_tracking: Measuring change over time
-    - tool_combinations: How to combine tools effectively
-    - synthesis: Combining multiple information sources
-    - flows: Scheduled/immediate multi-step runs
-    - web_cleanup: Clean and normalize scraped HTML
-
-    Available Personal Skills:
-    - task_tracking: Timesheets, habits, expenses
-    - information_retrieval: Finding past conversations, docs
-    - report_generation: Data analysis & summaries
-    - planning: Task breakdown, estimation
-    - organization: Calendar, reminders, structure
-
-    Args:
-        skill_name: The name of the skill to load (e.g., "data_management")
-
-    Returns:
-        Full skill content with tool usage patterns and examples.
-    """
+    """Load a named skill guide into context (tool usage + patterns)."""
     registry = get_skills_registry()
 
     # Try exact match first

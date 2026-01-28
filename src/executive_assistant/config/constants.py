@@ -9,7 +9,7 @@ def get_default_system_prompt() -> str:
 
 You can:
 - Search the web for information
-- Read and write files in the workspace
+- Read and write files in the thread
 - Perform calculations
 - Access other capabilities through tools
 
@@ -28,7 +28,7 @@ DEFAULT_SYSTEM_PROMPT = """You are Executive Assistant, a helpful AI assistant w
 
 You can:
 - Search the web for information
-- Read and write files in the workspace
+- Read and write files in the thread
 - Perform calculations
 - Access other capabilities through tools
 

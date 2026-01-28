@@ -25,13 +25,13 @@ Organization systems help you stay on top of commitments and find time for what 
 
 ```python
 # Create calendar events table
-create_db_table(
+create_tdb_table(
     "calendar_events",
     columns="date,start_time,end_time,title,category,notes"
 )
 
 # Add time blocks
-insert_db_table("calendar_events", [
+insert_tdb_table("calendar_events", [
     {"date": "2025-01-20", "start_time": "09:00", "end_time": "11:00", "title": "Deep Work - Project X", "category": "work", "notes": "No interruptions"},
     {"date": "2025-01-20", "start_time": "11:00", "end_time": "12:00", "title": "Team Standup", "category": "meeting", "notes": ""},
     {"date": "2025-01-20", "start_time": "13:00", "end_time": "14:00", "title": "Exercise", "category": "personal", "notes": "Gym"},
@@ -44,7 +44,7 @@ insert_db_table("calendar_events", [
 
 ```python
 # View today's schedule
-query_db("""
+query_tdb("""
     SELECT
         start_time,
         end_time,
@@ -60,7 +60,7 @@ query_db("""
 
 ```python
 # Week at a glance
-query_db("""
+query_tdb("""
     SELECT
         date,
         category,
@@ -132,13 +132,13 @@ reminder_edit("reminder_id", new_time="tomorrow 3pm")
 
 ```python
 # Create tasks table
-create_db_table(
+create_tdb_table(
     "tasks",
     columns="title,priority,status,due_date,category,notes"
 )
 
 # Add tasks
-insert_db_table("tasks", [
+insert_tdb_table("tasks", [
     {"title": "Finish project proposal", "priority": "high", "status": "pending", "due_date": "2025-01-25", "category": "work"},
     {"title": "Call dentist", "priority": "medium", "status": "pending", "due_date": "2025-01-22", "category": "personal"},
     {"title": "Review code PR", "priority": "high", "status": "pending", "due_date": "2025-01-20", "category": "work"}
@@ -150,7 +150,7 @@ insert_db_table("tasks", [
 **View tasks by priority:**
 ```python
 # High priority tasks due soon
-query_db("""
+query_tdb("""
     SELECT *
     FROM tasks
     WHERE priority = 'high'
@@ -163,7 +163,7 @@ query_db("""
 
 ```python
 # 1. Check today's tasks
-today_tasks = query_db("""
+today_tasks = query_tdb("""
     SELECT *
     FROM tasks
     WHERE date(due_date) = CURRENT_DATE
@@ -178,7 +178,7 @@ for task in today_tasks:
         reminder_set(f"Task due: {task['title']}", task['due_date'])
 
 # 3. Mark complete when done
-# query_db("UPDATE tasks SET status = 'complete' WHERE id = X")
+# query_tdb("UPDATE tasks SET status = 'complete' WHERE id = X")
 ```
 
 ---
@@ -236,7 +236,7 @@ weekly_template = {
 
 ```python
 # 1. Check today's calendar
-calendar = query_db("""
+calendar = query_tdb("""
     SELECT * FROM calendar_events
     WHERE date = CURRENT_DATE
     ORDER BY start_time
@@ -246,7 +246,7 @@ calendar = query_db("""
 reminders = reminder_list(status="pending")
 
 # 3. Check today's tasks
-tasks = query_db("""
+tasks = query_tdb("""
     SELECT * FROM tasks
     WHERE due_date = CURRENT_DATE
     ORDER BY priority DESC
@@ -272,7 +272,7 @@ write_file(f"agenda/{date.today()}.md", agenda)
 
 ```python
 # 1. Review past week
-past_week = query_db("""
+past_week = query_tdb("""
     SELECT
         strftime('%Y-%W', date) as week,
         category,
@@ -283,7 +283,7 @@ past_week = query_db("""
 """)
 
 # 2. Review task completion
-tasks_done = query_db("""
+tasks_done = query_tdb("""
     SELECT
         date(due_date) as day,
         COUNT(*) as completed,
@@ -295,7 +295,7 @@ tasks_done = query_db("""
 """)
 
 # 3. Plan next week
-next_week_tasks = query_db("""
+next_week_tasks = query_tdb("""
     SELECT *
     FROM tasks
     WHERE due_date >= '2025-01-20' AND due_date < '2025-01-27'

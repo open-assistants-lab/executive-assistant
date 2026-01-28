@@ -9,14 +9,12 @@ from langchain_core.tools import tool
 
 from executive_assistant.storage.agent_registry import get_agent_registry
 from executive_assistant.storage.file_sandbox import get_thread_id
-from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
 
-
-def _get_user_id() -> str:
+def _get_thread_id() -> str:
     thread_id = get_thread_id()
     if not thread_id:
         raise ValueError("No thread context available.")
-    return sanitize_thread_id_to_user_id(thread_id)
+    return thread_id
 
 
 def _parse_tools(tools: list[str] | str) -> list[str]:
@@ -42,8 +40,8 @@ async def create_agent(
     output_schema: dict | None = None,
 ) -> str:
     """Create a mini-agent for flows (per-user)."""
-    user_id = _get_user_id()
-    registry = get_agent_registry(user_id)
+    thread_id = _get_thread_id()
+    registry = get_agent_registry(thread_id)
     tools_list = _parse_tools(tools)
     return registry.create_agent(
         agent_id=agent_id,
@@ -58,8 +56,8 @@ async def create_agent(
 @tool
 async def list_agents() -> str:
     """List registered mini-agents for the current user."""
-    user_id = _get_user_id()
-    registry = get_agent_registry(user_id)
+    thread_id = _get_thread_id()
+    registry = get_agent_registry(thread_id)
     agents = registry.list_agents()
     if not agents:
         return "No agents found."
@@ -74,8 +72,8 @@ async def list_agents() -> str:
 @tool
 async def get_agent(agent_id: str) -> str:
     """Get a mini-agent definition by agent_id."""
-    user_id = _get_user_id()
-    registry = get_agent_registry(user_id)
+    thread_id = _get_thread_id()
+    registry = get_agent_registry(thread_id)
     agent = registry.get_agent(agent_id)
     if not agent:
         return f"Agent '{agent_id}' not found."
@@ -99,8 +97,8 @@ async def update_agent(
     output_schema: dict | None = None,
 ) -> str:
     """Update a mini-agent definition."""
-    user_id = _get_user_id()
-    registry = get_agent_registry(user_id)
+    thread_id = _get_thread_id()
+    registry = get_agent_registry(thread_id)
     tools_list = _parse_tools(tools) if tools is not None else None
     return registry.update_agent(
         agent_id=agent_id,
@@ -115,8 +113,8 @@ async def update_agent(
 @tool
 async def delete_agent(agent_id: str) -> str:
     """Delete a mini-agent by agent_id."""
-    user_id = _get_user_id()
-    registry = get_agent_registry(user_id)
+    thread_id = _get_thread_id()
+    registry = get_agent_registry(thread_id)
     return registry.delete_agent(agent_id)
 
 
@@ -132,8 +130,8 @@ async def run_agent(
     from executive_assistant.flows.spec import AgentSpec, FlowMiddlewareConfig
     from executive_assistant.flows import runner
 
-    user_id = _get_user_id()
-    registry = get_agent_registry(user_id)
+    thread_id = _get_thread_id()
+    registry = get_agent_registry(thread_id)
     record = registry.get_agent(agent_id)
     if not record:
         return f"Agent '{agent_id}' not found."
@@ -160,10 +158,10 @@ async def run_agent(
     if previous_output is not None and prev_output_dict is None:
         return "Error: previous_output must be a dict or JSON object string."
 
-    if flow_input_dict is not None and "$flow_input" not in record.system_prompt:
-        return "Error: agent prompt must include $flow_input when flow_input is provided."
-    if prev_output_dict is not None and "$previous_output" not in record.system_prompt:
-        return "Error: agent prompt must include $previous_output when previous_output is provided."
+    if flow_input_dict is not None and "$input" not in record.system_prompt:
+        return "Error: agent prompt must include $input when flow_input is provided."
+    if prev_output_dict is not None and "$output" not in record.system_prompt:
+        return "Error: agent prompt must include $output when previous_output is provided."
 
     agent_spec = AgentSpec(
         agent_id=record.agent_id,

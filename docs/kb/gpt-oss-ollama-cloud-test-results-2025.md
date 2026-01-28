@@ -154,7 +154,7 @@ Compare response quality between:
 
 Test with real Executive Assistant workflows:
 - Conversational interactions
-- Database operations
+- Transactional Database operations
 - Web search
 - Memory retention
 

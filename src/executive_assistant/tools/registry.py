@@ -1,15 +1,38 @@
 """Tool registry for aggregating all available tools."""
 
-from langchain_core.tools import BaseTool
 from typing import Any
+import re
 
-from executive_assistant.storage.file_sandbox import (
-    list_files,
-    read_file,
-    write_file,
-)
+from langchain_core.tools import BaseTool
 
 _mcp_client_cache: dict[str, Any] = {}
+
+
+def _normalize_tool(tool):
+    if isinstance(tool, BaseTool):
+        if getattr(tool, "coroutine", None):
+            return tool.coroutine
+        if getattr(tool, "func", None):
+            return tool.func
+    return tool
+
+
+def _mcp_server_to_connection(server_config: dict) -> dict:
+    if "command" in server_config:
+        return {
+            "transport": "stdio",
+            "command": server_config.get("command"),
+            "args": server_config.get("args", []),
+            "env": server_config.get("env"),
+            "cwd": server_config.get("cwd"),
+        }
+    if "url" in server_config:
+        return {
+            "transport": "http",
+            "url": server_config.get("url"),
+            "headers": server_config.get("headers"),
+        }
+    raise ValueError("Unsupported MCP server config; expected command/args or url")
 
 
 def clear_mcp_cache() -> None:
@@ -20,8 +43,8 @@ def clear_mcp_cache() -> None:
 
 async def get_confirmation_tools() -> list[BaseTool]:
     """Get user confirmation tools for large operations."""
-    from executive_assistant.tools.confirmation_tool import confirmation_request
-    return [confirmation_request]
+    from executive_assistant.tools.confirmation_tool import confirm_request
+    return [confirm_request]
 
 
 async def get_file_tools() -> list[BaseTool]:
@@ -32,6 +55,7 @@ async def get_file_tools() -> list[BaseTool]:
         list_files,
         create_folder,
         delete_folder,
+        delete_file,
         rename_folder,
         move_file,
         glob_files,
@@ -43,6 +67,7 @@ async def get_file_tools() -> list[BaseTool]:
         list_files,
         create_folder,
         delete_folder,
+        delete_file,
         rename_folder,
         move_file,
         glob_files,
@@ -50,28 +75,38 @@ async def get_file_tools() -> list[BaseTool]:
     ]
 
 
-async def get_db_tools() -> list[BaseTool]:
-    """Get DB tabular data tools (thread-scoped)."""
+async def get_tdb_tools() -> list[BaseTool]:
+    """Get transactional database (TDB) tools (thread-scoped)."""
     from executive_assistant.storage.db_tools import (
-        create_db_table,
-        insert_db_table,
-        query_db,
-        list_db_tables,
-        describe_db_table,
-        delete_db_table,
-        export_db_table,
-        import_db_table,
+        create_tdb_table,
+        insert_tdb_table,
+        query_tdb,
+        list_tdb_tables,
+        describe_tdb_table,
+        delete_tdb_table,
+        export_tdb_table,
+        import_tdb_table,
+        add_tdb_column,
+        drop_tdb_column,
     )
     return [
-        create_db_table,
-        insert_db_table,
-        query_db,
-        list_db_tables,
-        describe_db_table,
-        delete_db_table,
-        export_db_table,
-        import_db_table,
+        create_tdb_table,
+        insert_tdb_table,
+        query_tdb,
+        list_tdb_tables,
+        describe_tdb_table,
+        delete_tdb_table,
+        export_tdb_table,
+        import_tdb_table,
+        add_tdb_column,
+        drop_tdb_column,
     ]
+
+
+async def get_adb_tools() -> list[BaseTool]:
+    """Get analytics DB (DuckDB) tools."""
+    from executive_assistant.storage.adb_tools import get_adb_tools as _get
+    return await _get()
 
 
 async def get_time_tools() -> list[BaseTool]:
@@ -104,17 +139,16 @@ async def get_search_tools() -> list[BaseTool]:
     return _get()
 
 
-
 async def get_browser_tools() -> list[BaseTool]:
     """Get browser automation tools (Playwright)."""
     from executive_assistant.tools.playwright_tool import playwright_scrape
     return [playwright_scrape]
 
+
 async def get_ocr_tools() -> list[BaseTool]:
     """Get OCR tools."""
     from executive_assistant.tools.ocr_tool import get_ocr_tools as _get
     return _get()
-
 
 
 async def get_skills_tools() -> list[BaseTool]:
@@ -123,9 +157,9 @@ async def get_skills_tools() -> list[BaseTool]:
     return [load_skill]
 
 
-async def get_vs_tools() -> list[BaseTool]:
-    """Get Vector Store tools backed by LanceDB for high-performance vector search."""
-    from executive_assistant.storage.vs_tools import get_vs_tools as _get
+async def get_vdb_tools() -> list[BaseTool]:
+    """Get Vector Database (VDB) tools backed by LanceDB for vector search."""
+    from executive_assistant.storage.vs_tools import get_vdb_tools as _get
     return await _get()
 
 
@@ -135,37 +169,11 @@ async def get_memory_tools() -> list[BaseTool]:
     return _get()
 
 
-async def get_identity_tools() -> list[BaseTool]:
-    """Get identity merge tools for user identity consolidation."""
-    from executive_assistant.tools.identity_tools import (
-        request_identity_merge,
-        confirm_identity_merge,
-        merge_additional_identity,
-        get_my_identity,
-    )
-    return [
-        request_identity_merge,
-        confirm_identity_merge,
-        merge_additional_identity,
-        get_my_identity,
-    ]
-
-
 async def get_mcp_tools() -> list[BaseTool]:
-    """
-    Get tools from MCP servers configured in admin mcp.json.
-
-    This connects to the configured MCP servers (Firecrawl, Chrome DevTools,
-    Meilisearch) and converts their tools to LangChain-compatible format.
-
-    Returns:
-        List of LangChain tools from MCP servers.
-    """
-    tools = []
-
+    """Get tools from MCP servers configured in admin mcp.json."""
+    tools: list[BaseTool] = []
     try:
-        from langchain_mcp_adapters import MCPClient
-        from pathlib import Path
+        from langchain_mcp_adapters.client import MultiServerMCPClient
         import json
 
         from executive_assistant.storage.mcp_storage import get_admin_mcp_config_path
@@ -176,15 +184,17 @@ async def get_mcp_tools() -> list[BaseTool]:
         with open(mcp_config_path) as f:
             mcp_config = json.load(f)
 
-        # Connect to each MCP server and get tools
+        connections = {}
         for server_name, server_config in mcp_config.get("mcpServers", {}).items():
             try:
-                client = MCPClient(server_config)
-                server_tools = await client.get_tools()
-                tools.extend(server_tools)
+                connections[server_name] = _mcp_server_to_connection(server_config)
             except Exception as e:
-                print(f"Warning: Failed to connect to MCP server '{server_name}': {e}")
+                print(f"Warning: Invalid MCP server config for '{server_name}': {e}")
 
+        if connections:
+            client = MultiServerMCPClient(connections=connections)
+            server_tools = await client.get_tools()
+            tools.extend(server_tools)
     except ImportError:
         print("Warning: langchain-mcp-adapters not installed. MCP tools unavailable.")
     except Exception as e:
@@ -195,13 +205,10 @@ async def get_mcp_tools() -> list[BaseTool]:
 
 def get_standard_tools() -> list[BaseTool]:
     """Get standard LangChain tools."""
-    tools = []
-
-    # Add Tavily search if API key is available
+    tools: list[BaseTool] = []
     try:
         from langchain_community.tools import TavilySearchResults
         import os
-
         if os.getenv("TAVILY_API_KEY"):
             tools.append(TavilySearchResults(max_results=5))
     except ImportError:
@@ -227,123 +234,174 @@ async def get_flow_tools() -> list[BaseTool]:
 async def get_tools_by_name(names: list[str]) -> list[BaseTool]:
     """Resolve tools by name from the registry."""
     all_tools = await get_all_tools()
-    tool_map = {tool.name: tool for tool in all_tools}
+    tool_map: dict[str, BaseTool] = {}
+    for tool in all_tools:
+        name = getattr(tool, "name", None)
+        if not name:
+            name = getattr(tool, "__name__", None)
+        if name:
+            tool_map[name] = tool
     missing = [name for name in names if name not in tool_map]
     if missing:
         raise ValueError(f"Unknown tool(s): {', '.join(missing)}")
     return [tool_map[name] for name in names]
 
+
 async def get_all_tools() -> list[BaseTool]:
-    """
-    Get all available tools for the agent.
+    """Aggregate all available tools for the agent."""
+    all_tools: list = []
 
-    Aggregates tools from:
-    - File operations (read_file, write_file, list_files, create_folder, delete_folder, rename_folder, move_file, glob_files, grep_files)
-    - Database operations (create_db_table, query_db, etc. with scope="context"|"shared")
-    - Vector Store (create_vs_collection, search_vs, vs_list, etc.)
-    - Memory (create_memory, update_memory, delete_memory, list_memories, search_memories, etc.)
-    - Identity (request_identity_merge, confirm_identity_merge, merge_additional_identity, get_my_identity)
-    - Time tools (get_current_time, get_current_date, list_timezones)
-    - Reminder tools (reminder_set with dateparser, reminder_list, reminder_cancel, reminder_edit)
-    - Python execution (execute_python for calculations and data processing)
-    - Web search (search_web via SearXNG)
-    - OCR (extract text/structured data from images/PDFs)
-    - Confirmation (confirmation_request for large operations)
-    - Standard tools (search)
-    - **MCP configuration** (get_mcp_config, reload_mcp_tools, enable_mcp_tools, disable_mcp_tools, add_mcp_server, remove_mcp_server)
-    - **MCP tools** (auto-loaded if enabled via load_mcp_tools_if_enabled)
-    - **Skills** (load_skill)
-    """
-    all_tools = []
-
-    # Add file tools
     all_tools.extend(await get_file_tools())
-
-    # Add database tools
-    all_tools.extend(await get_db_tools())
-
-    # Add skills tools
+    all_tools.extend(await get_tdb_tools())
+    all_tools.extend(await get_adb_tools())
     all_tools.extend(await get_skills_tools())
-
-    # Add VS tools
-    all_tools.extend(await get_vs_tools())
-
-    # Add memory tools
+    all_tools.extend(await get_vdb_tools())
     all_tools.extend(await get_memory_tools())
-
-    # Add identity tools
-    all_tools.extend(await get_identity_tools())
-
-    # Add time tools
     all_tools.extend(await get_time_tools())
-
-    # Add reminder tools
     all_tools.extend(await get_reminder_tools())
-
-    # Add flow tools
     all_tools.extend(await get_flow_tools())
-
-    # Add meta tools
     all_tools.extend(await get_meta_tools())
-
-    # Add python tools
     all_tools.extend(await get_python_tools())
-
-    # Add search tools
     all_tools.extend(await get_search_tools())
-
-    # Add browser tools (Playwright)
     all_tools.extend(await get_browser_tools())
-
-    # Add OCR tools
     all_tools.extend(await get_ocr_tools())
-
-    # Add confirmation tools
     all_tools.extend(await get_confirmation_tools())
 
-    # Add Firecrawl tools (only if API key is configured)
     from executive_assistant.tools.firecrawl_tool import get_firecrawl_tools
     all_tools.extend(get_firecrawl_tools())
 
-    # Add agent registry tools
     from executive_assistant.tools.agent_tools import (
         create_agent,
         list_agents,
         get_agent,
         update_agent,
         delete_agent,
+        run_agent,
     )
     all_tools.extend([create_agent, list_agents, get_agent, update_agent, delete_agent, run_agent])
 
-    # Flow project workspace tools
-    from executive_assistant.tools.flow_project_tools import create_flow_project_workspace
-    all_tools.append(create_flow_project_workspace)
+    from executive_assistant.tools.flow_project_tools import create_flow_project
+    all_tools.append(create_flow_project)
 
-    # Add MCP configuration tools ✅ NEW
     from executive_assistant.tools.mcp_tools import get_mcp_config_tools
     all_tools.extend(get_mcp_config_tools())
 
-    # Add standard tools
     all_tools.extend(get_standard_tools())
 
-    # Load MCP tools if enabled ✅ NEW
-    from executive_assistant.tools.registry import load_mcp_tools_if_enabled
     all_tools.extend(await load_mcp_tools_if_enabled())
 
+    all_tools = [_normalize_tool(t) for t in all_tools]
     return all_tools
 
 
+def _text_has_any(text: str, patterns: list[str]) -> bool:
+    if not text:
+        return False
+    hay = text.lower()
+    return any(p in hay for p in patterns)
+
+
+def _matches_regex(text: str, patterns: list[str]) -> bool:
+    if not text:
+        return False
+    for pattern in patterns:
+        if re.search(pattern, text, re.IGNORECASE):
+            return True
+    return False
+
+
+async def get_tools_for_request(
+    message_text: str,
+    *,
+    flow_mode: bool = False,
+) -> list[BaseTool]:
+    """Return a minimized tool list based on the user message."""
+    tools: list[BaseTool] = []
+
+    # Always allow skills + confirmations.
+    tools.extend(await get_skills_tools())
+    tools.extend(await get_confirmation_tools())
+
+    if flow_mode or _text_has_any(message_text, ["flow", "flows", "agent", "agents"]):
+        from executive_assistant.tools.agent_tools import (
+            create_agent,
+            list_agents,
+            get_agent,
+            update_agent,
+            delete_agent,
+            run_agent,
+        )
+        tools.extend([create_agent, list_agents, get_agent, update_agent, delete_agent, run_agent])
+        tools.extend(await get_flow_tools())
+        from executive_assistant.tools.flow_project_tools import create_flow_project
+        tools.append(create_flow_project)
+
+    if _text_has_any(message_text, ["file", "folder", "directory", "path", "read file", "write file", "list files"]):
+        tools.extend(await get_file_tools())
+
+    if _text_has_any(message_text, ["tdb", "table", "sql", "database", "transactional database"]):
+        tools.extend(await get_tdb_tools())
+
+    if _text_has_any(
+        message_text,
+        [
+            "vdb",
+            "vector",
+            "semantic",
+            "embedding",
+            "vector database",
+            "collection",
+            "collections",
+        ],
+    ):
+        tools.extend(await get_vdb_tools())
+
+    if _text_has_any(message_text, ["adb", "duckdb", "analytics", "aggregate", "join"]):
+        tools.extend(await get_adb_tools())
+
+    if _text_has_any(message_text, ["memory", "remember", "forget", "preference"]):
+        tools.extend(await get_memory_tools())
+
+    if _text_has_any(message_text, ["reminder", "remind", "schedule"]):
+        tools.extend(await get_reminder_tools())
+
+    if _text_has_any(message_text, ["time", "date", "timezone", "clock"]):
+        tools.extend(await get_time_tools())
+
+    if _text_has_any(message_text, ["python", "script", "code", "execute_python"]):
+        tools.extend(await get_python_tools())
+
+    if _text_has_any(message_text, ["search", "web", "browse", "crawl", "scrape", "firecrawl", "playwright"]):
+        tools.extend(await get_search_tools())
+        from executive_assistant.tools.firecrawl_tool import get_firecrawl_tools
+        tools.extend(get_firecrawl_tools())
+        tools.extend(await get_browser_tools())
+
+    if _text_has_any(message_text, ["ocr", "image", "scan", "screenshot", "pdf"]):
+        tools.extend(await get_ocr_tools())
+
+    if _text_has_any(message_text, ["meta", "inventory", "system inventory"]):
+        tools.extend(await get_meta_tools())
+
+    if _text_has_any(message_text, ["mcp", "server", "tools config"]):
+        from executive_assistant.tools.mcp_tools import get_mcp_config_tools
+        tools.extend(get_mcp_config_tools())
+        tools.extend(await load_mcp_tools_if_enabled())
+
+    # Deduplicate by name
+    deduped: dict[str, BaseTool] = {}
+    for tool in tools:
+        name = getattr(tool, "name", None) or getattr(tool, "__name__", None)
+        if name and name not in deduped:
+            deduped[name] = tool
+    return [_normalize_tool(t) for t in deduped.values()]
+
+
 async def load_mcp_tools_if_enabled() -> list[BaseTool]:
-    """
-    Load MCP tools from admin config if enabled.
-
-    Returns:
-        List of LangChain tools from MCP servers.
-    """
-    tools = []
-
+    """Load MCP tools from admin config if enabled."""
+    tools: list[BaseTool] = []
     try:
-        from langchain_mcp_adapters import MCPClient
+        from langchain_mcp_adapters.client import MultiServerMCPClient
         from executive_assistant.storage.mcp_storage import load_mcp_config
 
         config = load_mcp_config()
@@ -354,16 +412,25 @@ async def load_mcp_tools_if_enabled() -> list[BaseTool]:
             return []
 
         global _mcp_client_cache
-        for server_name, server_config in mcp_servers.items():
-            cache_key = server_name
-            if cache_key not in _mcp_client_cache:
+        cache_key = "all"
+        if cache_key not in _mcp_client_cache:
+            connections = {}
+            for server_name, server_config in mcp_servers.items():
                 try:
-                    client = MCPClient(server_config)
-                    server_tools = await client.get_tools()
-                    tools.extend(server_tools)
-                    _mcp_client_cache[cache_key] = client
+                    connections[server_name] = _mcp_server_to_connection(server_config)
                 except Exception as e:
-                    print(f"Warning: Failed to connect to MCP server '{server_name}': {e}")
+                    print(f"Warning: Invalid MCP server config for '{server_name}': {e}")
+            if connections:
+                client = MultiServerMCPClient(connections=connections)
+                server_tools = await client.get_tools()
+                tools.extend(server_tools)
+                _mcp_client_cache[cache_key] = client
+        else:
+            try:
+                server_tools = await _mcp_client_cache[cache_key].get_tools()
+                tools.extend(server_tools)
+            except Exception as e:
+                print(f"Warning: Failed to load MCP tools: {e}")
 
     except ImportError:
         print("Warning: langchain-mcp-adapters not installed. MCP tools unavailable.")

@@ -25,11 +25,16 @@ def _load_yaml_config(config_path: Path | str | None = None) -> dict[str, Any]:
     import yaml
 
     if config_path is None:
-        # Try to find config.yaml at project root
+        # Try to find config.yaml at project root or docker/config.yaml
         # This file is at: src/executive_assistant/config/loader.py
         # Go up from src/executive_assistant/config to project root
         this_file = Path(__file__).resolve()
-        config_path = this_file.parent.parent.parent.parent / "config.yaml"
+        project_root = this_file.parent.parent.parent.parent
+        docker_config = project_root / "docker" / "config.yaml"
+        if docker_config.exists():
+            config_path = docker_config
+        else:
+            config_path = project_root / "config.yaml"
 
     config_path = Path(config_path).resolve()
 
@@ -178,7 +183,7 @@ def create_settings_class(
 
         # Field defaults will be set from YAML
         model_config = SettingsConfigDict(
-            env_file=".env",
+            env_file=("docker/.env", ".env"),
             env_file_encoding="utf-8",
             case_sensitive=False,
             extra="ignore",

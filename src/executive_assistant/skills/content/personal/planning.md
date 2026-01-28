@@ -15,6 +15,8 @@ Planning transforms vague goals into actionable steps. This skill covers:
 
 **Key Principle:** Good planning prevents surprises. Invest time upfront to save time later.
 
+**When to use todos:** Use `write_todos` only when it helps manage complex multi-step work.
+
 ---
 
 ## Planning Framework
@@ -49,13 +51,13 @@ Planning transforms vague goals into actionable steps. This skill covers:
 
 ```python
 # Create goals table
-create_db_table(
+create_tdb_table(
     "goals",
     columns="title,description,success_criteria,deadline,priority,status"
 )
 
 # Add goal
-insert_db_table(
+insert_tdb_table(
     "goals",
     '[{"title": "Launch Website", "description": "Deploy company website with all features", "success_criteria": "All features work, performance benchmarks met", "deadline": "2025-03-31", "priority": "high", "status": "planning"}]'
 )
@@ -78,7 +80,7 @@ insert_db_table(
 │   ├── "Design mockups"
 │   └── "Get approval"
 ├── "Develop backend"
-│   ├── "Set up database"
+│   ├── "Set up transactional database"
 │   ├── "Build API"
 │   └── "Write tests"
 └── "Develop frontend"
@@ -87,16 +89,16 @@ insert_db_table(
     └── "Deploy to production"
 ```
 
-**Implement with DB:**
+**Implement with TDB:**
 ```python
 # Create tasks with hierarchy
-create_db_table(
+create_tdb_table(
     "tasks",
     columns="title,parent_id,status,estimate,dependencies"
 )
 
 # Add subtasks
-insert_db_table("tasks", [
+insert_tdb_table("tasks", [
     {"title": "Launch Website", "parent_id": null, "status": "in_progress"},
     {"title": "Design homepage", "parent_id": 1, "status": "pending"},
     {"title": "Create wireframes", "parent_id": 2, "status": "pending"},
@@ -119,7 +121,7 @@ estimates = {
     "Create wireframes": 2,  # hours
     "Design mockups": 4,
     "Get approval": 1,
-    "Set up database": 3,
+    "Set up transactional database": 3,
     "Build API": 16,
     "Write tests": 8,
     "Build components": 12,
@@ -132,7 +134,7 @@ buffer = total * 0.2  # 20% buffer
 realistic_total = total + buffer
 
 # Save estimates
-create_db_table(
+create_tdb_table(
     "task_estimates",
     columns="task,estimate_hours,complexity,notes"
 )
@@ -174,12 +176,12 @@ complexity = {
 **Sequential Tasks:**
 ```python
 # Tasks that depend on each other
-create_db_table(
+create_tdb_table(
     "schedule",
     columns="task,start_date,end_date,predecessors"
 )
 
-insert_db_table("schedule", [
+insert_tdb_table("schedule", [
     {"task": "Create wireframes", "start_date": "2025-01-20", "end_date": "2025-01-21", "predecessors": ""},
     {"task": "Design mockups", "start_date": "2025-01-22", "end_date": "2025-01-25", "predecessors": "Create wireframes"},
     {"task": "Get approval", "start_date": "2025-01-26", "end_date": "2025-01-26", "predecessors": "Design mockups"}
@@ -199,12 +201,12 @@ parallel_tasks = [
 **Milestone Scheduling:**
 ```python
 # Define milestones
-create_db_table(
+create_tdb_table(
     "milestones",
     columns="name,target_date,dependencies,status"
 )
 
-insert_db_table("milestones", [
+insert_tdb_table("milestones", [
     {"name": "Design Complete", "target_date": "2025-01-31", "dependencies": "", "status": "pending"},
     {"name": "Development Complete", "target_date": "2025-02-28", "dependencies": "Design Complete", "status": "pending"},
     {"name": "Testing Complete", "target_date": "2025-03-15", "dependencies": "Development Complete", "status": "pending"},
@@ -221,12 +223,12 @@ insert_db_table("milestones", [
 ### Risk Register
 
 ```python
-create_db_table(
+create_tdb_table(
     "risks",
     columns="risk,probability,impact,mitigation,status"
 )
 
-insert_db_table("risks", [
+insert_tdb_table("risks", [
     {"risk": "Scope creep", "probability": "high", "impact": "high", "mitigation": "Clear requirements, change control process", "status": "monitoring"},
     {"risk": "Technical challenges", "probability": "medium", "impact": "high", "mitigation": "Prototype early, research solutions", "status": "monitoring"},
     {"risk": "Resource constraints", "probability": "medium", "impact": "medium", "mitigation": "Buffer in estimates, prioritize tasks", "status": "accepted"}
@@ -291,7 +293,7 @@ phases = [
 ]
 
 # Track progress
-create_db_table(
+create_tdb_table(
     "learning_plan",
     columns="goal,phase,task,status,week_completed"
 )
@@ -332,7 +334,7 @@ timeline = {
 **Show task hierarchy:**
 ```python
 # Recursive query to show task tree
-query_db("""
+query_tdb("""
     WITH RECURSIVE task_tree AS (
         SELECT title, id, parent_id, 1 as level
         FROM tasks
@@ -352,7 +354,7 @@ query_db("""
 **Find next tasks:**
 ```python
 # Tasks ready to start (dependencies complete)
-query_db("""
+query_tdb("""
     SELECT t.title
     FROM tasks t
     WHERE t.status = 'pending'
@@ -369,7 +371,7 @@ query_db("""
 **Critical path:**
 ```python
 # Longest path through tasks
-query_db("""
+query_tdb("""
     WITH task_paths AS (
         SELECT
             title,
@@ -388,7 +390,7 @@ query_db("""
 
 **Milestone progress:**
 ```python
-query_db("""
+query_tdb("""
     SELECT
         name,
         target_date,
@@ -479,8 +481,8 @@ query_db("""
 - Supports decisions
 
 **Tools:**
-- DB for task lists, estimates, schedules
-- VS for planning documents, research
+- TDB for task lists, estimates, schedules
+- VDB for planning documents, research
 - Files for saved plans, reports
 
 **Remember:** Plans are guides, not guarantees. Update as you learn more.

@@ -46,24 +46,9 @@ class SkillsBuilder:
         Returns:
             Enhanced system prompt with skills information.
         """
-        skills_prompt = self._build_skills_prompt(ordered_skills)
-        skills_section = f"""
+        _ = ordered_skills  # Skills are loaded on-demand; keep system prompt lean.
+        skills_section = """
 
-**Available Skills (load with load_skill):**
-
-**Core Infrastructure** (how to use tools):
-{skills_prompt}
-
-**When to load skills:**
-- When you're unsure which tool to use for a task
-- When you need guidance on combining tools effectively
-- When tackling complex multi-step tasks
-
-**Tool Selection Guidance (Internal):**
-- **Database (DB)**: Structured, queryable data (timesheets, expenses, habits)
-- **Vector Store (VS)**: Semantic search, qualitative knowledge (docs, notes, conversations)
-- **Files**: Reports, outputs, reference materials
-
-All storage (DB, VS, Files) is persisted - not temporary.
+Use load_skill("<skill_name>") when you need detailed guidance.
 """
         return base_prompt + skills_section

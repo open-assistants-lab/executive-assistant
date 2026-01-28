@@ -1,8 +1,6 @@
-"""Secure file operations within a group sandbox."""
+"""Secure file operations within a thread sandbox."""
 
 import os
-import threading
-from contextvars import ContextVar
 from pathlib import Path
 from typing import Literal
 
@@ -10,102 +8,30 @@ from langchain_core.tools import tool
 
 from executive_assistant.config.settings import settings
 from executive_assistant.storage.meta_registry import (
-    record_file_written,
     record_file_moved,
+    record_file_written,
     record_files_removed_by_prefix,
     record_folder_renamed,
 )
-from executive_assistant.storage.group_storage import (
-    get_workspace_id,
+from executive_assistant.storage.thread_storage import (
+    get_thread_id as get_thread_id_context,
+    set_thread_id as set_thread_id_context,
+    clear_thread_id as clear_thread_id_context,
     require_permission,
 )
 
-
-# Context variable for thread_id - set by channels when processing messages
-# This provides true thread isolation via Python's contextvars mechanism
-_thread_id: ContextVar[str | None] = ContextVar("_thread_id", default=None)
-_user_id: ContextVar[str | None] = ContextVar("_user_id", default=None)
-
-# Thread-local fallback for thread-pool execution where ContextVar may not propagate
-# Keys are thread IDs (int), values are thread_id strings (str)
-_thread_local_fallback: dict[int, str] = {}
-_user_local_fallback: dict[int, str] = {}
-_thread_local_lock = threading.Lock()
-
-
 def set_thread_id(thread_id: str) -> None:
-    """Set the thread_id for the current context.
-
-    Stores in both ContextVar (for async propagation) and thread-local dict
-    (for thread-pool execution fallback).
-    """
-    _thread_id.set(thread_id)
-    # Also store in thread-local fallback
-    thread_id_int = threading.get_ident()
-    with _thread_local_lock:
-        _thread_local_fallback[thread_id_int] = thread_id
-
-
-def set_user_id(user_id: str) -> None:
-    """Set the user_id for the current context."""
-    _user_id.set(user_id)
-    thread_id_int = threading.get_ident()
-    with _thread_local_lock:
-        _user_local_fallback[thread_id_int] = user_id
+    """Set the thread_id for the current context."""
+    set_thread_id_context(thread_id)
 
 
 def get_thread_id() -> str | None:
-    """Get the thread_id for the current context.
-
-    Uses ContextVar which provides automatic propagation across async tasks
-    and thread pools, ensuring proper isolation between concurrent requests.
-
-    Falls back to thread-local dict if ContextVar is empty (can happen in
-    thread-pool execution where ContextVar doesn't propagate).
-    """
-    # Try ContextVar first (async-safe)
-    ctx_val = _thread_id.get()
-    if ctx_val:
-        return ctx_val
-
-    # Fallback: check thread-local dict
-    thread_id_int = threading.get_ident()
-    with _thread_local_lock:
-        return _thread_local_fallback.get(thread_id_int)
-
-
-def get_user_id() -> str | None:
-    """Get the user_id for the current context."""
-    ctx_val = _user_id.get()
-    if ctx_val:
-        return ctx_val
-
-    thread_id_int = threading.get_ident()
-    with _thread_local_lock:
-        return _user_local_fallback.get(thread_id_int)
-
+    """Get the thread_id for the current context."""
+    return get_thread_id_context()
 
 def clear_thread_id() -> None:
     """Clear the thread_id from the current context."""
-    try:
-        _thread_id.set(None)
-    except Exception:
-        pass
-    # Also clear from thread-local fallback
-    thread_id_int = threading.get_ident()
-    with _thread_local_lock:
-        _thread_local_fallback.pop(thread_id_int, None)
-
-
-def clear_user_id() -> None:
-    """Clear the user_id from the current context."""
-    try:
-        _user_id.set(None)
-    except Exception:
-        pass
-    thread_id_int = threading.get_ident()
-    with _thread_local_lock:
-        _user_local_fallback.pop(thread_id_int, None)
+    clear_thread_id_context()
 
 
 class FileSandbox:
@@ -227,60 +153,39 @@ class SecurityError(Exception):
 _sandbox = None
 
 
-def get_sandbox(user_id: str | None = None) -> FileSandbox:
+def get_sandbox(thread_id: str | None = None) -> FileSandbox:
     """
-    Get a sandbox instance scoped to user_id, group_id, or thread_id from context.
+    Get a sandbox instance scoped to thread_id (per-thread storage).
 
     Priority:
-    1. user_id if provided (explicit parameter)
-    2. user_id from context (individual mode)
-    3. group_id from context (team mode)
-    4. thread_id from context (legacy fallback)
+    1. thread_id parameter
+    2. thread_id from context
 
     Args:
-        user_id: Optional user ID for sandbox separation.
+        thread_id: Optional thread ID.
 
     Returns:
-        A FileSandbox instance scoped to the user/thread/group.
+        A FileSandbox instance scoped to the thread.
 
     Raises:
-        ValueError: If no user_id, group_id, or thread_id context is available.
+        ValueError: If no thread_id context is available.
     """
-    # 1. Explicit user_id parameter
-    if user_id:
-        user_path = settings.get_user_files_path(user_id)
-        user_path.mkdir(parents=True, exist_ok=True)
-        return FileSandbox(root=user_path)
+    # 1. Explicit thread_id parameter
+    if thread_id:
+        thread_path = settings.get_thread_files_path(thread_id)
+        thread_path.mkdir(parents=True, exist_ok=True)
+        return FileSandbox(root=thread_path)
 
-    # 2. user_id from context (individual mode)
-    from executive_assistant.storage.group_storage import get_user_id
-    user_id_val = get_user_id()
-    if user_id_val:
-        user_path = settings.get_user_files_path(user_id_val)
-        user_path.mkdir(parents=True, exist_ok=True)
-        return FileSandbox(root=user_path)
-
-    # 3. group_id from context (team mode)
-    group_id_val = get_workspace_id()
-    if group_id_val:
-        group_path = settings.get_group_files_path(group_id_val)
-        group_path.mkdir(parents=True, exist_ok=True)
-        return FileSandbox(root=group_path)
-
-    # 4. thread_id from context (convert to user_id)
-    # This ensures all storage is user-based, not thread-based
+    # 2. thread_id from context
     thread_id_val = get_thread_id()
     if thread_id_val:
-        # Convert thread_id to user_id (anon_* format)
-        from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
-        user_id_from_thread = sanitize_thread_id_to_user_id(thread_id_val)
-        user_path = settings.get_user_files_path(user_id_from_thread)
-        user_path.mkdir(parents=True, exist_ok=True)
-        return FileSandbox(root=user_path)
+        thread_path = settings.get_thread_files_path(thread_id_val)
+        thread_path.mkdir(parents=True, exist_ok=True)
+        return FileSandbox(root=thread_path)
 
     raise ValueError(
-        "FileSandbox requires user_id, group_id, or thread_id context. "
-        "Call with user_id or ensure context is set."
+        "FileSandbox requires thread_id context. "
+        "Ensure thread_id is set before file operations."
     )
 
 
@@ -300,12 +205,14 @@ def get_shared_sandbox() -> FileSandbox:
     return FileSandbox(root=shared_path)
 
 
-def _get_sandbox_with_scope(scope: Literal["context", "shared"] = "context") -> FileSandbox:
+def _get_sandbox_with_scope(
+    scope: Literal["context", "shared"] = "context",
+) -> FileSandbox:
     """
     Get sandbox based on scope.
 
     Args:
-        scope: "context" (default) uses group_id/thread_id from context,
+        scope: "context" (default) uses thread_id/thread_id from context,
                "shared" uses organization-wide shared storage.
 
     Returns:
@@ -322,18 +229,7 @@ def _get_sandbox_with_scope(scope: Literal["context", "shared"] = "context") -> 
 @tool
 @require_permission("read")
 def read_file(file_path: str, scope: Literal["context", "shared"] = "context") -> str:
-    """Read file contents as text. [Files]
-
-    USE THIS WHEN: You need to read a specific file's contents (reports, notes, configurations).
-
-    Args:
-        file_path: Path relative to files directory.
-        scope: "context" (default) for group/thread-scoped storage,
-               "shared" for organization-wide shared storage.
-
-    Returns:
-        File contents as string.
-    """
+    """Read a file's contents as text."""
     sandbox = _get_sandbox_with_scope(scope)
     try:
         validated_path = sandbox._validate_path(file_path)
@@ -348,20 +244,10 @@ def read_file(file_path: str, scope: Literal["context", "shared"] = "context") -
 
 @tool
 @require_permission("write")
-def write_file(file_path: str, content: str, scope: Literal["context", "shared"] = "context") -> str:
-    """Write content to a file (creates or overwrites). [Files]
-
-    USE THIS WHEN: Saving reports, exporting analysis results, storing reference materials.
-
-    Args:
-        file_path: Path relative to files directory.
-        content: Text content to write.
-        scope: "context" (default) for group/thread-scoped storage,
-               "shared" for organization-wide shared storage (admin-only writes).
-
-    Returns:
-        Success message with file path.
-    """
+def write_file(
+    file_path: str, content: str, scope: Literal["context", "shared"] = "context"
+) -> str:
+    """Write text to a file (create or overwrite)."""
     sandbox = _get_sandbox_with_scope(scope)
     try:
         sandbox._validate_size(content)
@@ -379,29 +265,13 @@ def write_file(file_path: str, content: str, scope: Literal["context", "shared"]
 
 
 @tool
-def file_write(file_path: str, content: str) -> str:
-    """Legacy alias for write_file (kept for backward compatibility)."""
-    return write_file(file_path, content)
-
-
-@tool
 @require_permission("read")
-def list_files(directory: str = "", recursive: bool = False, scope: Literal["context", "shared"] = "context") -> str:
-    """Browse directory structure (file/folder names only). [Files]
-
-    USE THIS WHEN: Exploring folders, seeing what's available, verifying file locations.
-
-    For pattern search: glob_files. For content search: grep_files.
-
-    Args:
-        directory: Subdirectory to list (empty for root).
-        recursive: List all files recursively if True.
-        scope: "context" (default) for group/thread-scoped storage,
-               "shared" for organization-wide shared storage.
-
-    Returns:
-        List of files and folders.
-    """
+def list_files(
+    directory: str = "",
+    recursive: bool = False,
+    scope: Literal["context", "shared"] = "context",
+) -> str:
+    """List files/folders in a directory (optionally recursive)."""
     sandbox = _get_sandbox_with_scope(scope)
     try:
         # Use the directory relative to sandbox root
@@ -423,6 +293,7 @@ def list_files(directory: str = "", recursive: bool = False, scope: Literal["con
                         list_recursive(item, prefix + "  ")
                     else:
                         items.append(f"{prefix}{item.name}")
+
             list_recursive(target_path)
         else:
             # Non-recursive listing
@@ -444,24 +315,10 @@ def list_files(directory: str = "", recursive: bool = False, scope: Literal["con
 
 @tool
 @require_permission("write")
-def create_folder(folder_path: str, scope: Literal["context", "shared"] = "context") -> str:
-    """
-    Create a new folder in the files directory.
-
-    Args:
-        folder_path: Path for the new folder (can be nested like "docs/work").
-        scope: "context" (default) for group/thread-scoped storage,
-               "shared" for organization-wide shared storage (admin-only writes).
-
-    Returns:
-        Success message or error description.
-
-    Examples:
-        >>> create_folder("documents")
-        "Folder created: documents/"
-        >>> create_folder("projects/2024")
-        "Folder created: projects/2024/"
-    """
+def create_folder(
+    folder_path: str, scope: Literal["context", "shared"] = "context"
+) -> str:
+    """Create a folder (supports nested paths)."""
     sandbox = _get_sandbox_with_scope(scope)
     try:
         validated_path = sandbox._validate_directory_path(folder_path)
@@ -475,22 +332,10 @@ def create_folder(folder_path: str, scope: Literal["context", "shared"] = "conte
 
 @tool
 @require_permission("write")
-def delete_folder(folder_path: str, scope: Literal["context", "shared"] = "context") -> str:
-    """
-    Delete a folder and all its contents.
-
-    Args:
-        folder_path: Path to the folder to delete.
-        scope: "context" (default) for group/thread-scoped storage,
-               "shared" for organization-wide shared storage (admin-only writes).
-
-    Returns:
-        Success message or error description.
-
-    Examples:
-        >>> delete_folder("old_folder")
-        "Folder deleted: old_folder/"
-    """
+def delete_folder(
+    folder_path: str, scope: Literal["context", "shared"] = "context"
+) -> str:
+    """Delete a folder and all its contents."""
     sandbox = _get_sandbox_with_scope(scope)
     try:
         validated_path = sandbox._validate_directory_path(folder_path)
@@ -502,6 +347,7 @@ def delete_folder(folder_path: str, scope: Literal["context", "shared"] = "conte
             return f"Not a folder: {folder_path}"
 
         import shutil
+
         shutil.rmtree(validated_path)
         # Only record metadata for context-scoped operations
         if scope == "context":
@@ -515,25 +361,10 @@ def delete_folder(folder_path: str, scope: Literal["context", "shared"] = "conte
 
 @tool
 @require_permission("write")
-def rename_folder(old_path: str, new_path: str, scope: Literal["context", "shared"] = "context") -> str:
-    """
-    Rename or move a folder.
-
-    Args:
-        old_path: Current folder path.
-        new_path: New folder path.
-        scope: "context" (default) for group/thread-scoped storage,
-               "shared" for organization-wide shared storage (admin-only writes).
-
-    Returns:
-        Success message or error description.
-
-    Examples:
-        >>> rename_folder("old_folder", "new_folder")
-        "Folder renamed: old_folder/ -> new_folder/"
-        >>> rename_folder("docs", "documents/archive")
-        "Folder renamed: docs/ -> documents/archive/"
-    """
+def rename_folder(
+    old_path: str, new_path: str, scope: Literal["context", "shared"] = "context"
+) -> str:
+    """Rename or move a folder."""
     sandbox = _get_sandbox_with_scope(scope)
     try:
         old_validated = sandbox._validate_directory_path(old_path)
@@ -549,6 +380,7 @@ def rename_folder(old_path: str, new_path: str, scope: Literal["context", "share
             return f"Target already exists: {new_path}"
 
         import shutil
+
         shutil.move(str(old_validated), str(new_validated))
         # Only record metadata for context-scoped operations
         if scope == "context":
@@ -562,25 +394,23 @@ def rename_folder(old_path: str, new_path: str, scope: Literal["context", "share
 
 @tool
 @require_permission("write")
-def move_file(source: str, destination: str, scope: Literal["context", "shared"] = "context") -> str:
-    """
-    Move or rename a file.
-
-    Args:
-        source: Current file path.
-        destination: New file path.
-        scope: "context" (default) for group/thread-scoped storage,
-               "shared" for organization-wide shared storage (admin-only writes).
-
-    Returns:
-        Success message or error description.
-
-    Examples:
-        >>> move_file("old.txt", "new.txt")
-        "File moved: old.txt -> new.txt"
-        >>> move_file("file.txt", "docs/file.txt")
-        "File moved: file.txt -> docs/file.txt"
-    """
+def delete_file(file_path: str, scope: Literal["context", "shared"] = "context") -> str:
+    """Delete a file."""
+    sandbox = _get_sandbox_with_scope(scope)
+    try:
+        validated_path = sandbox._validate_path(file_path)
+        if not validated_path.exists():
+            return f"File not found: {file_path}"
+        validated_path.unlink()
+        return f"Deleted file: {file_path}"
+    except SecurityError as e:
+        return f"Security error: {e}"
+    except Exception as e:
+        return f"Error deleting file: {e}"
+def move_file(
+    source: str, destination: str, scope: Literal["context", "shared"] = "context"
+) -> str:
+    """Move or rename a file."""
     sandbox = _get_sandbox_with_scope(scope)
     try:
         source_validated = sandbox._validate_path(source, allow_directories=True)
@@ -596,6 +426,7 @@ def move_file(source: str, destination: str, scope: Literal["context", "shared"]
         dest_validated.parent.mkdir(parents=True, exist_ok=True)
 
         import shutil
+
         shutil.move(str(source_validated), str(dest_validated))
         # Only record metadata for context-scoped operations
         if scope == "context":
@@ -609,22 +440,10 @@ def move_file(source: str, destination: str, scope: Literal["context", "shared"]
 
 @tool
 @require_permission("read")
-def glob_files(pattern: str, directory: str = "", scope: Literal["context", "shared"] = "context") -> str:
-    """Find files by name pattern or extension. [Files]
-
-    USE THIS WHEN: Finding files of a specific type (*.csv, *.json) or matching a name pattern.
-
-    For browsing: list_files. For content search: grep_files.
-
-    Args:
-        pattern: Glob pattern (*.py, **/*.json, data/**/*.csv).
-        directory: Base directory to search (empty for root).
-        scope: "context" (default) for group/thread-scoped storage,
-               "shared" for organization-wide shared storage.
-
-    Returns:
-        List of matching files with sizes and timestamps.
-    """
+def glob_files(
+    pattern: str, directory: str = "", scope: Literal["context", "shared"] = "context"
+) -> str:
+    """Find files by glob pattern."""
     import glob as stdlib_glob
     from datetime import datetime
 
@@ -647,6 +466,7 @@ def glob_files(pattern: str, directory: str = "", scope: Literal["context", "sha
 
         # Build result with metadata
         from pathlib import Path as StdPath
+
         results = []
         for match in matches:
             p = StdPath(match)
@@ -654,10 +474,14 @@ def glob_files(pattern: str, directory: str = "", scope: Literal["context", "sha
                 # Get relative path from sandbox root
                 rel_path = p.relative_to(sandbox.root)
                 size = p.stat().st_size
-                mtime = datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+                mtime = datetime.fromtimestamp(p.stat().st_mtime).strftime(
+                    "%Y-%m-%d %H:%M"
+                )
                 results.append(f"- {rel_path} ({size} bytes, {mtime})")
 
-        return f"Found {len(results)} file(s) matching '{pattern}':\n" + "\n".join(results)
+        return f"Found {len(results)} file(s) matching '{pattern}':\n" + "\n".join(
+            results
+        )
     except SecurityError as e:
         return f"Security error: {e}"
     except Exception as e:
@@ -674,24 +498,7 @@ def grep_files(
     ignore_case: bool = False,
     scope: Literal["context", "shared"] = "context",
 ) -> str:
-    """Search INSIDE file contents (like Unix grep). [Files]
-
-    USE THIS WHEN: Finding specific text/patterns WITHIN files (e.g., which files contain "TODO", function definitions).
-
-    For browsing: list_files. For filename search: glob_files.
-
-    Args:
-        pattern: Regular expression to search for.
-        directory: Directory to search (empty for root).
-        output_mode: "files" (list), "content" (show matches), "count" (per-file totals).
-        context_lines: Context lines before/after matches.
-        ignore_case: Case-insensitive search.
-        scope: "context" (default) for group/thread-scoped storage,
-               "shared" for organization-wide shared storage.
-
-    Returns:
-        Search results in specified format.
-    """
+    """Search inside files (regex)."""
     import re
     from pathlib import Path as StdPath
 
@@ -764,7 +571,9 @@ def grep_files(
                 for line_num, line in file_matches:
                     # Add context lines before
                     start = max(0, line_num - context_lines - 1)
-                    end = min(len(file_matches), file_matches.index((line_num, line)) + 1)
+                    end = min(
+                        len(file_matches), file_matches.index((line_num, line)) + 1
+                    )
                     # Get all lines for this file
                     try:
                         full_content = (sandbox.root / path).read_text(encoding="utf-8")
@@ -772,10 +581,12 @@ def grep_files(
                     except:
                         continue
 
-                    for i in range(max(0, line_num - context_lines - 1),
-                                 min(len(all_lines), line_num + context_lines)):
+                    for i in range(
+                        max(0, line_num - context_lines - 1),
+                        min(len(all_lines), line_num + context_lines),
+                    ):
                         prefix = "  " if i != line_num - 1 else ">>"
-                        result += f"{prefix} {i+1}: {all_lines[i]}\n"
+                        result += f"{prefix} {i + 1}: {all_lines[i]}\n"
                     result += "\n"
             return result.rstrip()
 
@@ -813,7 +624,7 @@ def find_files_fuzzy(
         limit: Maximum number of results to return (default: 10).
         score_cutoff: Minimum similarity score (0-100). Default 70 = 70% similar.
                      Lower this value to get more results (but less accurate).
-        scope: "context" (default) for group/thread-scoped storage,
+        scope: "context" (default) for thread-scoped storage,
                "shared" for organization-wide shared storage.
 
     Returns:
@@ -833,7 +644,8 @@ def find_files_fuzzy(
         ..."
     """
     from pathlib import Path as StdPath
-    from rapidfuzz import process, fuzz
+
+    from rapidfuzz import fuzz, process
 
     sandbox = _get_sandbox_with_scope(scope)
     try:
@@ -852,11 +664,7 @@ def find_files_fuzzy(
             all_files = list(base_path.glob("*"))
 
         # Filter to files only (not directories)
-        files = [
-            f.relative_to(sandbox.root)
-            for f in all_files
-            if f.is_file()
-        ]
+        files = [f.relative_to(sandbox.root) for f in all_files if f.is_file()]
 
         if not files:
             return f"No files found in {directory or 'root'}"
@@ -874,9 +682,7 @@ def find_files_fuzzy(
 
         # Filter by score cutoff
         filtered_matches = [
-            (path, score)
-            for path, score, _ in matches
-            if score >= score_cutoff
+            (path, score) for path, score, _ in matches if score >= score_cutoff
         ]
 
         if not filtered_matches:

@@ -58,7 +58,7 @@ def delegate_to_orchestrator(task: str, flow: str, schedule: str = None) -> str:
     Args:
         task: Concrete task to execute (e.g., "Check Amazon price for B08X12345")
         flow: Execution flow with conditions, e.g.:
-            - "fetch price → if < $100 notify, else log to database"
+            - "fetch price → if < $100 notify, else log to transactional database"
             - "check API → if error retry 3x, else continue"
             - "scrape data → if empty send alert, else save to file"
         schedule: Optional schedule (e.g., "daily at 9am", "hourly")
@@ -131,7 +131,7 @@ Workers (with Python capability) handle conditions and loops:
 
 | Flow Pattern | Example |
 |--------------|---------|
-| **If/else** | "If price < $100 notify, else log to database" |
+| **If/else** | "If price < $100 notify, else log to transactional database" |
 | **For loop** | "For each product in list → check price → if < $100 add to alert list" |
 | **While loop** | "While API returns more pages → fetch results → append to file" |
 | **Retry loop** | "Check API → if error retry 3x → if still fails, send alert" |
@@ -319,11 +319,11 @@ For the simple approach:
 - `create_react_graph()`: Already implemented in `src/executive_assistant/agent/graph.py`
 - APScheduler: Already installed for reminders
 - Python exec(): Already used in python_tool
-- File/database tools: Already implemented
+- File/transactional database tools: Already implemented
 
 ## Implementation Plan
 
-1. **Phase 1**: Database schema for workers and flows
+1. **Phase 1**: Transactional Database schema for workers and flows
    - `workers` table (name, tools[], prompt, user_id, created_at)
    - `scheduled_flows` table (from scheduled_flows_design.md)
 

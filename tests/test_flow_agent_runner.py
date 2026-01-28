@@ -57,7 +57,7 @@ async def test_run_agent_injects_payload_and_previous_output(monkeypatch):
         name="a1",
         description="test",
         tools=["execute_python"],
-        system_prompt="Use $flow_input then $previous_output",
+        system_prompt="Use $input then $output",
         output_schema={},
     )
 
@@ -242,9 +242,7 @@ async def test_execute_flow_passes_flow_input_once(monkeypatch):
 
     flow = runner.ScheduledFlow(
         id=1,
-        user_id="anon",
         thread_id="telegram:1",
-        worker_id=None,
         name="flow",
         task="flow",
         flow=flow_spec.model_dump_json(),

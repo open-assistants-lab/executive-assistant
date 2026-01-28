@@ -51,42 +51,42 @@ This skill teaches you how to **measure change over time**. Progress tracking re
 
 ### Creating Baselines
 
-**Simple Baseline (DB):**
+**Simple Baseline (TDB):**
 ```python
 # User: "Track my exercise habits"
-create_db_table(
+create_tdb_table(
     "exercise_log",
     columns="date,type,duration,intensity,mood"
 )
 
 # Establish baseline
-insert_db_table(
+insert_tdb_table(
     "exercise_log",
     '[{"date": "2025-01-19", "type": "running", "duration": 20, "intensity": "medium", "mood": "good"}]'
 )
 
 # Get baseline
-query_db("SELECT AVG(duration) as avg_duration FROM exercise_log")
+query_tdb("SELECT AVG(duration) as avg_duration FROM exercise_log")
 # → Baseline: 20 minutes avg
 ```
 
 **Complex Baseline (Multiple Metrics):**
 ```python
 # User: "Track my productivity"
-create_db_table(
+create_tdb_table(
     "productivity",
     columns="date,hours_worked,tasks_completed,meetings,energy_level"
 )
 
 # Baseline week
-insert_db_table("productivity", [
+insert_tdb_table("productivity", [
     {"date": "2025-01-13", "hours_worked": 8, "tasks_completed": 5, "meetings": 3, "energy_level": 7},
     {"date": "2025-01-14", "hours_worked": 7.5, "tasks_completed": 4, "meetings": 2, "energy_level": 6},
     # ... full week
 ])
 
 # Baseline summary
-query_db("""
+query_tdb("""
     SELECT
         AVG(hours_worked) as avg_hours,
         AVG(tasks_completed) as avg_tasks,
@@ -112,13 +112,13 @@ query_db("""
 
 ```python
 # Daily habit tracker
-create_db_table(
+create_tdb_table(
     "habits",
     columns="date,habit,completed,notes"
 )
 
 # Log daily
-insert_db_table(
+insert_tdb_table(
     "habits",
     '[{"date": "2025-01-19", "habit": "exercise", "completed": true, "notes": "30min run"}]'
 )
@@ -132,7 +132,7 @@ insert_db_table(
 
 ```python
 # Weekly progress
-create_db_table(
+create_tdb_table(
     "weekly_progress",
     columns="week,goal,progress_score,blockers,next_steps"
 )
@@ -171,7 +171,7 @@ create_db_table(
 **Simple Trend (Single Metric):**
 ```python
 # User: "Am I exercising more over time?"
-query_db("""
+query_tdb("""
     SELECT
         date,
         SUM(duration) as total_minutes
@@ -186,7 +186,7 @@ query_db("""
 **Comparison (Before/After):**
 ```python
 # User: "Compare productivity before and after new routine"
-query_db("""
+query_tdb("""
     SELECT
         CASE
             WHEN date < '2025-01-15' THEN 'before'
@@ -201,7 +201,7 @@ query_db("""
 **Moving Average (Smooth Trends):**
 ```python
 # 7-day moving average
-query_db("""
+query_tdb("""
     SELECT
         date,
         AVG(tasks_completed) OVER (
@@ -216,7 +216,7 @@ query_db("""
 **Growth Rate:**
 ```python
 # Week-over-week change
-query_db("""
+query_tdb("""
     WITH weekly AS (
         SELECT
             strftime('%Y-%W', date) as week,
@@ -243,13 +243,13 @@ query_db("""
 
 ```python
 # Habit tracking
-create_db_table(
+create_tdb_table(
     "habit_tracker",
     columns="date,habit,completed,streak"
 )
 
 # Calculate streaks
-query_db("""
+query_tdb("""
     WITH streaks AS (
         SELECT
             habit,
@@ -275,13 +275,13 @@ query_db("""
 
 ```python
 # Financial tracking
-create_db_table(
+create_tdb_table(
     "finances",
     columns="date,type,category,amount"
 )
 
 # Monthly spending by category
-query_db("""
+query_tdb("""
     SELECT
         strftime('%Y-%m', date) as month,
         category,
@@ -293,7 +293,7 @@ query_db("""
 """)
 
 # Savings rate
-query_db("""
+query_tdb("""
     WITH monthly AS (
         SELECT
             strftime('%Y-%m', date) as month,
@@ -319,13 +319,13 @@ query_db("""
 
 ```python
 # Project tracking
-create_db_table(
+create_tdb_table(
     "project_milestones",
     columns="project,milestone,status,target_date,actual_date"
 )
 
 # Progress report
-query_db("""
+query_tdb("""
     SELECT
         project,
         COUNT(*) as total_milestones,
@@ -345,14 +345,14 @@ query_db("""
 **Generate Charts:**
 ```python
 # Export data for visualization
-query_db("""
+query_tdb("""
     SELECT date, total_minutes
     FROM exercise_summary
     ORDER BY date
 """)
 
 # Write to CSV for charting
-export_db_table("exercise_summary", "exercise_trend.csv")
+export_tdb_table("exercise_summary", "exercise_trend.csv")
 ```
 
 ### Statistical Analysis
@@ -360,7 +360,7 @@ export_db_table("exercise_summary", "exercise_trend.csv")
 **Identify Patterns:**
 ```python
 # Best performing days
-query_db("""
+query_tdb("""
     SELECT
         strftime('%w', date) as day_of_week,
         AVG(tasks_completed) as avg_tasks
@@ -370,7 +370,7 @@ query_db("""
 """)
 
 # Correlations
-query_db("""
+query_tdb("""
     SELECT
         energy_level,
         AVG(tasks_completed) as avg_tasks
@@ -412,13 +412,13 @@ query_db("""
 
 | What to Track | Storage | Frequency | Key Queries |
 |---------------|---------|-----------|-------------|
-| Habits | DB | Daily | Streak length, completion rate |
-| Finances | DB | Daily/Weekly | Spending by category, savings rate |
-| Productivity | DB | Daily | Tasks completed, energy levels |
-| Health | DB | Weekly | Weight, sleep, exercise minutes |
-| Projects | DB | Weekly | Milestones completed, blockers |
-| Goals | DB | Monthly | Progress percentage, time remaining |
-| Mood | DB | Daily | Average mood, patterns by day |
+| Habits | TDB | Daily | Streak length, completion rate |
+| Finances | TDB | Daily/Weekly | Spending by category, savings rate |
+| Productivity | TDB | Daily | Tasks completed, energy levels |
+| Health | TDB | Weekly | Weight, sleep, exercise minutes |
+| Projects | TDB | Weekly | Milestones completed, blockers |
+| Goals | TDB | Monthly | Progress percentage, time remaining |
+| Mood | TDB | Daily | Average mood, patterns by day |
 
 **Common Analyses:**
 - **Trend:** `GROUP BY date ORDER BY date`
@@ -445,8 +445,8 @@ query_db("""
 - Compare self to self (before/after)
 
 **Storage Choice:**
-- **DB** for all progress tracking (structured, queryable, aggregatable)
-- **VS** for qualitative notes about progress
+- **TDB** for all progress tracking (structured, queryable, aggregatable)
+- **VDB** for qualitative notes about progress
 - **Files** for exported reports and visualizations
 
 You can't improve what you don't measure. Start tracking today.

@@ -61,28 +61,6 @@ class TestDatabaseSchema:
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_users_table_exists(self, db_conn):
-        """Test that users table exists."""
-        result = await db_conn.fetchval("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables
-                WHERE table_name = 'users'
-            )
-        """)
-        assert result is True
-
-    @pytest.mark.asyncio
-    async def test_groups_table_exists(self, db_conn):
-        """Test that groups table exists."""
-        result = await db_conn.fetchval("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables
-                WHERE table_name = 'groups'
-            )
-        """)
-        assert result is True
-
-    @pytest.mark.asyncio
     async def test_conversations_table_exists(self, db_conn):
         """Test that conversations table exists."""
         result = await db_conn.fetchval("""
@@ -100,17 +78,6 @@ class TestDatabaseSchema:
             SELECT EXISTS (
                 SELECT FROM information_schema.tables
                 WHERE table_name = 'messages'
-            )
-        """)
-        assert result is True
-
-    @pytest.mark.asyncio
-    async def test_workers_table_exists(self, db_conn):
-        """Test that workers table exists."""
-        result = await db_conn.fetchval("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables
-                WHERE table_name = 'workers'
             )
         """)
         assert result is True
@@ -139,175 +106,6 @@ class TestDatabaseSchema:
 
 
 # =============================================================================
-# User Operations Tests
-# =============================================================================
-
-@pytest.mark.postgres
-class TestUserOperations:
-    """Test user CRUD operations."""
-
-    @pytest.mark.asyncio
-    async def test_create_user(self, db_conn, clean_test_data):
-        """Test creating a new user."""
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
-
-        await db_conn.execute(
-            "INSERT INTO users (user_id) VALUES ($1)",
-            user_id
-        )
-
-        # Verify user was created
-        result = await db_conn.fetchrow(
-            "SELECT * FROM users WHERE user_id = $1",
-            user_id
-        )
-        assert result is not None
-        assert result["user_id"] == user_id
-        assert result["status"] == "active"  # Default status
-
-    @pytest.mark.asyncio
-    async def test_create_user_with_alias(self, db_conn, clean_test_data):
-        """Test creating a user with an alias."""
-        alias_id = f"anon:{uuid.uuid4().hex}"
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
-
-        await db_conn.execute(
-            "INSERT INTO users (user_id) VALUES ($1)",
-            user_id
-        )
-        await db_conn.execute(
-            "INSERT INTO user_aliases (alias_id, user_id) VALUES ($1, $2)",
-            alias_id, user_id
-        )
-
-        # Verify alias was created
-        result = await db_conn.fetchrow(
-            "SELECT * FROM user_aliases WHERE alias_id = $1",
-            alias_id
-        )
-        assert result is not None
-        assert result["user_id"] == user_id
-
-    @pytest.mark.asyncio
-    async def test_user_status_update(self, db_conn, clean_test_data):
-        """Test updating user status."""
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
-
-        await db_conn.execute(
-            "INSERT INTO users (user_id, status) VALUES ($1, 'active')",
-            user_id
-        )
-
-        # Suspend user
-        await db_conn.execute(
-            "UPDATE users SET status = 'suspended' WHERE user_id = $1",
-            user_id
-        )
-
-        # Verify status was updated
-        result = await db_conn.fetchval(
-            "SELECT status FROM users WHERE user_id = $1",
-            user_id
-        )
-        assert result == "suspended"
-
-
-# =============================================================================
-# Group Operations Tests
-# =============================================================================
-
-@pytest.mark.postgres
-class TestGroupOperations:
-    """Test group CRUD operations."""
-
-    @pytest.mark.asyncio
-    async def test_create_group(self, db_conn, clean_test_data):
-        """Test creating a new group."""
-        group_id = f"test_group_{uuid.uuid4().hex[:8]}"
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
-
-        await db_conn.execute(
-            "INSERT INTO users (user_id) VALUES ($1)",
-            user_id,
-        )
-
-        await db_conn.execute(
-            "INSERT INTO groups (group_id, type, name, owner_user_id) VALUES ($1, $2, $3, $4)",
-            group_id, "group", "Test Group", user_id
-        )
-
-        # Verify group was created
-        result = await db_conn.fetchrow(
-            "SELECT * FROM groups WHERE group_id = $1",
-            group_id
-        )
-        assert result is not None
-        assert result["name"] == "Test Group"
-
-    @pytest.mark.asyncio
-    async def test_add_group_member(self, db_conn, clean_test_data):
-        """Test adding a member to a group."""
-        group_id = f"test_group_{uuid.uuid4().hex[:8]}"
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
-
-        # Create user and group
-        await db_conn.execute(
-            "INSERT INTO users (user_id) VALUES ($1)",
-            user_id
-        )
-        await db_conn.execute(
-            "INSERT INTO groups (group_id, type, name, owner_user_id) VALUES ($1, $2, $3, $4)",
-            group_id, "group", "Test Group", user_id
-        )
-
-        # Add member
-        await db_conn.execute(
-            "INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'admin')",
-            group_id, user_id
-        )
-
-        # Verify membership
-        result = await db_conn.fetchrow(
-            "SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2",
-            group_id, user_id
-        )
-        assert result is not None
-        assert result["role"] == "admin"
-
-    @pytest.mark.asyncio
-    async def test_list_group_members(self, db_conn, clean_test_data):
-        """Test listing all members of a group."""
-        group_id = f"test_group_{uuid.uuid4().hex[:8]}"
-        user_ids = [f"test_user_{uuid.uuid4().hex[:8]}" for _ in range(3)]
-
-        # Create users and group
-        for user_id in user_ids:
-            await db_conn.execute(
-                "INSERT INTO users (user_id) VALUES ($1)",
-                user_id
-            )
-        await db_conn.execute(
-            "INSERT INTO groups (group_id, type, name, owner_user_id) VALUES ($1, $2, $3, $4)",
-            group_id, "group", "Test Group", user_ids[0]
-        )
-        for user_id in user_ids:
-            await db_conn.execute(
-                "INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'reader')",
-                group_id, user_id
-            )
-
-        # List members
-        results = await db_conn.fetch(
-            "SELECT user_id FROM group_members WHERE group_id = $1",
-            group_id
-        )
-        member_ids = [r["user_id"] for r in results]
-        assert len(member_ids) == 3
-        for user_id in user_ids:
-            assert user_id in member_ids
-
-
-# =============================================================================
 # Conversation and Message Tests
 # =============================================================================
 
@@ -319,12 +117,11 @@ class TestConversationsAndMessages:
     async def test_create_conversation(self, db_conn, clean_test_data):
         """Test creating a conversation."""
         conversation_id = f"test_conv_{uuid.uuid4().hex[:8]}"
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
 
         await db_conn.execute(
-            """INSERT INTO conversations (conversation_id, user_id, channel)
-               VALUES ($1, $2, 'test')""",
-            conversation_id, user_id
+            """INSERT INTO conversations (conversation_id, channel)
+               VALUES ($1, 'test')""",
+            conversation_id
         )
 
         # Verify conversation
@@ -333,7 +130,6 @@ class TestConversationsAndMessages:
             conversation_id
         )
         assert result is not None
-        assert result["user_id"] == user_id
         assert result["channel"] == "test"
         assert result["status"] == "active"
 
@@ -344,8 +140,8 @@ class TestConversationsAndMessages:
 
         # Create conversation
         await db_conn.execute(
-            """INSERT INTO conversations (conversation_id, user_id, channel)
-               VALUES ($1, 'test_user', 'test')""",
+            """INSERT INTO conversations (conversation_id, channel)
+               VALUES ($1, 'test')""",
             conversation_id
         )
 
@@ -372,8 +168,8 @@ class TestConversationsAndMessages:
 
         # Create conversation
         await db_conn.execute(
-            """INSERT INTO conversations (conversation_id, user_id, channel)
-               VALUES ($1, 'test_user', 'test')""",
+            """INSERT INTO conversations (conversation_id, channel)
+               VALUES ($1, 'test')""",
             conversation_id
         )
 
@@ -399,90 +195,42 @@ class TestConversationsAndMessages:
 
 @pytest.mark.postgres
 class TestWorkersAndJobs:
-    """Test worker and scheduled job operations."""
+    """Test scheduled flow operations."""
 
     @pytest.mark.asyncio
-    async def test_create_worker(self, db_conn, clean_test_data):
-        """Test creating a worker."""
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+    async def test_create_scheduled_flow(self, db_conn, clean_test_data):
+        """Test creating a scheduled flow."""
         thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
 
-        await db_conn.execute(
-            """INSERT INTO workers (user_id, thread_id, name, tools, prompt)
-               VALUES ($1, $2, $3, $4, $5)""",
-            user_id, thread_id, "Test Worker",
-            ["web_search", "execute_python"],
-            "You are a helpful assistant."
-        )
-
-        # Verify worker
-        result = await db_conn.fetchrow(
-            "SELECT * FROM workers WHERE user_id = $1 AND thread_id = $2",
-            user_id, thread_id
-        )
-        assert result is not None
-        assert result["name"] == "Test Worker"
-        assert result["tools"] == ["web_search", "execute_python"]
-
-    @pytest.mark.asyncio
-    async def test_create_scheduled_job(self, db_conn, clean_test_data):
-        """Test creating a scheduled job."""
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
-        thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
-
-        # First create a worker
-        worker_result = await db_conn.fetchrow(
-            """INSERT INTO workers (user_id, thread_id, name, tools, prompt)
-               VALUES ($1, $2, $3, $4, $5)
-               RETURNING id""",
-            user_id, thread_id, "Test Worker",
-            ["web_search"],
-            "Test prompt"
-        )
-        worker_id = worker_result["id"]
-
-        # Create scheduled job
         await db_conn.execute(
             """INSERT INTO scheduled_flows
-               (user_id, thread_id, worker_id, name, task, flow, due_time)
-               VALUES ($1, $2, $3, $4, $5, $6, NOW() + INTERVAL '1 hour')""",
-            user_id, thread_id, worker_id,
-            "Test Job", "Test task description", "Simple flow"
+               (thread_id, name, task, flow, due_time)
+               VALUES ($1, $2, $3, $4, NOW() + INTERVAL '1 hour')""",
+            thread_id, "Test Flow", "Test task", "Simple flow"
         )
 
-        # Verify job
         result = await db_conn.fetchrow(
-            "SELECT * FROM scheduled_flows WHERE user_id = $1 AND thread_id = $2",
-            user_id, thread_id
+            "SELECT * FROM scheduled_flows WHERE thread_id = $1 AND name = $2",
+            thread_id, "Test Flow"
         )
         assert result is not None
-        assert result["name"] == "Test Job"
+        assert result["name"] == "Test Flow"
         assert result["status"] == "pending"
 
     @pytest.mark.asyncio
-    async def test_job_status_transition(self, db_conn, clean_test_data):
-        """Test updating job status through its lifecycle."""
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+    async def test_flow_status_transition(self, db_conn, clean_test_data):
+        """Test updating flow status through its lifecycle."""
         thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
-
-        # Create worker and job
-        worker_result = await db_conn.fetchrow(
-            """INSERT INTO workers (user_id, thread_id, name, tools, prompt)
-               VALUES ($1, $2, $3, $4, $5) RETURNING id""",
-            user_id, thread_id, "Test Worker", ["web_search"], "Test prompt"
-        )
 
         job_result = await db_conn.fetchrow(
             """INSERT INTO scheduled_flows
-               (user_id, thread_id, worker_id, name, task, flow, due_time)
-               VALUES ($1, $2, $3, $4, $5, $6, NOW() + INTERVAL '1 hour')
+               (thread_id, name, task, flow, due_time)
+               VALUES ($1, $2, $3, $4, NOW() + INTERVAL '1 hour')
                RETURNING id""",
-            user_id, thread_id, worker_result["id"],
-            "Test Job", "Test task", "Flow"
+            thread_id, "Test Flow", "Test task", "Flow"
         )
         job_id = job_result["id"]
 
-        # Transition to running
         await db_conn.execute(
             """UPDATE scheduled_flows
                SET status = 'running', started_at = NOW()
@@ -490,49 +238,46 @@ class TestWorkersAndJobs:
             job_id
         )
 
-        # Transition to completed
+        result = await db_conn.fetchrow(
+            "SELECT * FROM scheduled_flows WHERE id = $1",
+            job_id
+        )
+        assert result["status"] == "running"
+        assert result["started_at"] is not None
+
         await db_conn.execute(
             """UPDATE scheduled_flows
-               SET status = 'completed', completed_at = NOW(), result = 'Done'
+               SET status = 'completed', completed_at = NOW()
                WHERE id = $1""",
             job_id
         )
 
-        # Verify final state
         result = await db_conn.fetchrow(
             "SELECT * FROM scheduled_flows WHERE id = $1",
             job_id
         )
         assert result["status"] == "completed"
-        assert result["result"] == "Done"
-        assert result["started_at"] is not None
         assert result["completed_at"] is not None
 
 
-# =============================================================================
-# Reminder Tests
-# =============================================================================
-
-@pytest.mark.postgres
 class TestReminders:
     """Test reminder operations."""
 
     @pytest.mark.asyncio
     async def test_create_reminder(self, db_conn, clean_test_data):
         """Test creating a reminder."""
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
         thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
 
         await db_conn.execute(
-            """INSERT INTO reminders (user_id, thread_ids, message, due_time)
-               VALUES ($1, $2, $3, NOW() + INTERVAL '1 day')""",
-            user_id, [thread_id], "Test reminder"
+            """INSERT INTO reminders (thread_id, message, due_time)
+               VALUES ($1, $2, NOW() + INTERVAL '1 day')""",
+            thread_id, "Test reminder"
         )
 
         # Verify reminder
         result = await db_conn.fetchrow(
-            "SELECT * FROM reminders WHERE user_id = $1",
-            user_id
+            "SELECT * FROM reminders WHERE thread_id = $1",
+            thread_id
         )
         assert result is not None
         assert result["message"] == "Test reminder"
@@ -541,18 +286,18 @@ class TestReminders:
     @pytest.mark.asyncio
     async def test_reminder_with_recurrence(self, db_conn, clean_test_data):
         """Test creating a recurring reminder."""
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+        thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
 
         await db_conn.execute(
-            """INSERT INTO reminders (user_id, thread_ids, message, due_time, recurrence)
-               VALUES ($1, $2, $3, NOW() + INTERVAL '1 hour', $4)""",
-            user_id, ["thread1"], "Daily check-in", "0 9 * * *"
+            """INSERT INTO reminders (thread_id, message, due_time, recurrence)
+               VALUES ($1, $2, NOW() + INTERVAL '1 hour', $3)""",
+            thread_id, "Daily check-in", "0 9 * * *"
         )
 
         # Verify reminder
         result = await db_conn.fetchrow(
-            "SELECT * FROM reminders WHERE user_id = $1",
-            user_id
+            "SELECT * FROM reminders WHERE thread_id = $1",
+            thread_id
         )
         assert result is not None
         assert result["recurrence"] == "0 9 * * *"
@@ -570,12 +315,11 @@ class TestFilePaths:
     async def test_create_file_path(self, db_conn, clean_test_data):
         """Test creating a file path entry."""
         thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
 
         await db_conn.execute(
-            """INSERT INTO file_paths (thread_id, user_id, channel)
-               VALUES ($1, $2, $3)""",
-            thread_id, user_id, "telegram"
+            """INSERT INTO file_paths (thread_id, channel)
+               VALUES ($1, $2)""",
+            thread_id, "telegram"
         )
 
         # Verify entry
@@ -584,62 +328,29 @@ class TestFilePaths:
             thread_id
         )
         assert result is not None
-        assert result["user_id"] == user_id
         assert result["channel"] == "telegram"
 
 
 @pytest.mark.postgres
-class TestDBPaths:
-    """Test database path ownership tracking."""
+class TestTDBPaths:
+    """Test transactional database path ownership tracking."""
 
     @pytest.mark.asyncio
-    async def test_create_db_path(self, db_conn, clean_test_data):
-        """Test creating a DB path entry."""
+    async def test_create_tdb_path(self, db_conn, clean_test_data):
+        """Test creating a TDB path entry."""
         thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
-        db_path = "/data/db/test_thread.db"
+        tdb_path = "/data/tdb/test_thread.db"
 
         await db_conn.execute(
-            """INSERT INTO db_paths (thread_id, db_path, channel)
+            """INSERT INTO tdb_paths (thread_id, tdb_path, channel)
                VALUES ($1, $2, $3)""",
-            thread_id, db_path, "telegram"
+            thread_id, tdb_path, "telegram"
         )
 
         # Verify entry
         result = await db_conn.fetchrow(
-            "SELECT * FROM db_paths WHERE thread_id = $1",
+            "SELECT * FROM tdb_paths WHERE thread_id = $1",
             thread_id
         )
         assert result is not None
-        assert result["db_path"] == db_path
-
-
-# =============================================================================
-# Cascade Delete Tests
-# =============================================================================
-
-@pytest.mark.postgres
-class TestCascadeDeletes:
-    """Test foreign key cascade delete behavior."""
-
-    @pytest.mark.asyncio
-    async def test_delete_user_cascades_to_aliases(self, db_conn, clean_test_data):
-        """Test that deleting a user cascades to their aliases."""
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
-        alias_id = f"anon:{uuid.uuid4().hex}"
-
-        # Create user with alias
-        await db_conn.execute("INSERT INTO users (user_id) VALUES ($1)", user_id)
-        await db_conn.execute(
-            "INSERT INTO user_aliases (alias_id, user_id) VALUES ($1, $2)",
-            alias_id, user_id
-        )
-
-        # Delete user
-        await db_conn.execute("DELETE FROM users WHERE user_id = $1", user_id)
-
-        # Verify alias is also deleted
-        result = await db_conn.fetchval(
-            "SELECT COUNT(*) FROM user_aliases WHERE alias_id = $1",
-            alias_id
-        )
-        assert result == 0
+        assert result["tdb_path"] == tdb_path

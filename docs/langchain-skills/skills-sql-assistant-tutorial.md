@@ -6,9 +6,9 @@
 
 This tutorial shows how to use **progressive disclosure** - a context management technique where the agent loads information on-demand rather than upfront - to implement **skills** (specialized prompt-based instructions). The agent loads skills via tool calls, rather than dynamically changing the system prompt, discovering and loading only the skills it needs for each task.
 
-**Use case:** Imagine building an agent to help write SQL queries across different business verticals in a large enterprise. Your organization might have separate datastores for each vertical, or a single monolithic database with thousands of tables. Either way, loading all schemas upfront would overwhelm the context window. Progressive disclosure solves this by loading only the relevant schema when needed. This architecture also enables different product owners and stakeholders to independently contribute and maintain skills for their specific business verticals.
+**Use case:** Imagine building an agent to help write SQL queries across different business verticals in a large enterprise. Your organization might have separate datastores for each vertical, or a single monolithic transactional database with thousands of tables. Either way, loading all schemas upfront would overwhelm the context window. Progressive disclosure solves this by loading only the relevant schema when needed. This architecture also enables different product owners and stakeholders to independently contribute and maintain skills for their specific business verticals.
 
-**What you'll build:** A SQL query assistant with two skills (sales analytics and inventory management). The agent sees lightweight skill descriptions in its system prompt, then loads full database schemas and business logic through tool calls only when relevant to the user's query.
+**What you'll build:** A SQL query assistant with two skills (sales analytics and inventory management). The agent sees lightweight skill descriptions in its system prompt, then loads full transactional database schemas and business logic through tool calls only when relevant to the user's query.
 
 ## How it works
 
@@ -17,7 +17,6 @@ Here's the flow when a user asks for a SQL query:
 ### Why progressive disclosure:
 
 - **Reduces context usage** - load only the 2-3 skills needed for a task, not all available skills
-- **Enables team autonomy** - different teams can develop specialized skills independently (similar to other multi-agent architectures)
 - **Scales efficiently** - add dozens or hundreds of skills without overwhelming context
 - **Simplifies conversation history** - single agent with one conversation thread
 
@@ -86,7 +85,7 @@ Now define example skills for a SQL query assistant. The skills are designed to 
 SKILLS: list[Skill] = [
     {
         "name": "sales_analytics",
-        "description": "Database schema and business logic for sales data analysis including customers, orders, and revenue.",
+        "description": "Transactional Database schema and business logic for sales data analysis including customers, orders, and revenue.",
         "content": """# Sales Analytics Schema
 
 ## Tables
@@ -144,7 +143,7 @@ LIMIT 10;
     },
     {
         "name": "inventory_management",
-        "description": "Database schema and business logic for inventory tracking including products, warehouses, and stock levels.",
+        "description": "Transactional Database schema and business logic for inventory tracking including products, warehouses, and stock levels.",
         "content": """# Inventory Management Schema
 
 ## Tables
@@ -494,7 +493,7 @@ def write_sql_query(
     """Write and validate a SQL query for a specific business vertical.
 
     This tool helps format and validate SQL queries. You must load the
-    appropriate skill first to understand the database schema.
+    appropriate skill first to understand the transactional database schema.
 
     Args:
         query: The SQL query to write
@@ -506,7 +505,7 @@ def write_sql_query(
     if vertical not in skills_loaded:
         return (
             f"Error: You must load the '{vertical}' skill first "
-            f"to understand the database schema before writing queries. "
+            f"to understand the transactional database schema before writing queries. "
             f"Use load_skill('{vertical}') to load the schema."
         )
 
@@ -515,7 +514,7 @@ def write_sql_query(
         f"SQL Query for {vertical}:\n\n"
         f"```sql\n{query}\n```\n\n"
         f"✓ Query validated against {vertical} schema\n"
-        f"Ready to execute against the database."
+        f"Ready to execute against the transactional database."
     )
 ```
 

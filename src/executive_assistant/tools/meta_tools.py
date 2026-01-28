@@ -13,7 +13,7 @@ from executive_assistant.storage.meta_registry import load_meta, refresh_meta, f
 @tool
 async def get_meta(format: str = "text", refresh: bool = False) -> str:
     """
-    View thread system inventory (files/KB/DB/reminders).
+    View thread system inventory (files/KB/TDB/VDB/reminders).
 
     Args:
         format: "text" (default) or "json".

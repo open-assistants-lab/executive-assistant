@@ -3,22 +3,22 @@
 from typing import Literal
 
 from langchain_core.tools import tool
+from executive_assistant.config.settings import settings
 from executive_assistant.storage.mcp_storage import (
     load_mcp_config,
     save_admin_mcp_config,
     delete_admin_mcp_config,
 )
 from executive_assistant.storage.file_sandbox import get_thread_id
-from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
 from executive_assistant.storage.user_allowlist import is_admin
 
+admin_root = settings.ADMINS_ROOT
 
 def _ensure_admin() -> bool:
     thread_id = get_thread_id()
     if not thread_id:
         return False
-    user_id = sanitize_thread_id_to_user_id(thread_id)
-    return is_admin(thread_id, user_id)
+    return is_admin(thread_id)
 
 
 def get_mcp_config_tools():
@@ -43,35 +43,31 @@ def get_mcp_config() -> str:
     mcp_servers = config.get("mcpServers", {})
 
     if not mcp_servers:
-        return """
-# MCP Configuration
-
-**Status:** Disabled
-
-No MCP servers configured.
-
-To enable MCP tools:
-1. Create `data/admins/mcp.json` file
-2. Add MCP server configuration
-3. Use `reload_mcp_tools` tool to refresh
-
-Example configuration (data/admins/mcp.json):
-```json
-{
-  "mcpServers": {
-    "firecrawl": {
-      "command": "npx",
-      "args": ["-y", "firecrawl-mcp"],
-      "env": {
-        "FIRECRAWL_API_URL": "https://...",
-        "FIRECRAWL_API_KEY": "your-key"
-      }
-    }
-  },
-  "mcpEnabled": true
-}
-```
-"""
+        return (
+            "# MCP Configuration\n\n"
+            "**Status:** Disabled\n\n"
+            "No MCP servers configured.\n\n"
+            "To enable MCP tools:\n"
+            f"1. Create `{admin_root}/mcp.json` file\n"
+            "2. Add MCP server configuration\n"
+            "3. Use `reload_mcp_tools` tool to refresh\n\n"
+            f"Example configuration ({admin_root}/mcp.json):\n"
+            "```json\n"
+            "{{\n"
+            "  \"mcpServers\": {{\n"
+            "    \"firecrawl\": {{\n"
+            "      \"command\": \"npx\",\n"
+            "      \"args\": [\"-y\", \"firecrawl-mcp\"],\n"
+            "      \"env\": {{\n"
+            "        \"FIRECRAWL_API_URL\": \"https://...\",\n"
+            "        \"FIRECRAWL_API_KEY\": \"your-key\"\n"
+            "      }}\n"
+            "    }}\n"
+            "  }},\n"
+            "  \"mcpEnabled\": true\n"
+            "}}\n"
+            "```\n"
+        )
 
     lines = [
         "# MCP Configuration",
@@ -93,7 +89,7 @@ Example configuration (data/admins/mcp.json):
 
     lines.append("")
     lines.append("**Configuration File:**")
-    lines.append("  Admin: data/admins/mcp.json")
+    lines.append(f"  Admin: {admin_root}/mcp.json")
 
     return "\n".join(lines)
 
@@ -105,7 +101,7 @@ def reload_mcp_tools() -> str:
         return "Admin access required."
     from executive_assistant.tools.registry import clear_mcp_cache
     clear_mcp_cache()
-    return "MCP tools reloaded from data/admins/mcp.json."
+    return f"MCP tools reloaded from {admin_root}/mcp.json."
 
 
 @tool

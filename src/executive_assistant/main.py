@@ -51,7 +51,6 @@ def config_verify() -> int:
     try:
         for path_name, path_value in [
             ("SHARED_ROOT", settings.SHARED_ROOT),
-            ("GROUPS_ROOT", settings.GROUPS_ROOT),
             ("USERS_ROOT", settings.USERS_ROOT),
         ]:
             path = Path(path_value)
@@ -130,7 +129,7 @@ async def main() -> None:
     configure_logging()
 
     if not allowlist_writable():
-        logger.warning(f'{format_log_context("system", component="startup")} allowlist_not_writable path="./data/admins/user_allowlist.json"')
+        logger.warning(f'{format_log_context("system", component="startup")} allowlist_not_writable path="{settings.ADMINS_ROOT}/user_allowlist.json"')
 
     # Validate LLM configuration on startup
     try:
@@ -151,7 +150,7 @@ async def main() -> None:
     for skill in system_skills:
         registry.register(skill)
     print(f" Loaded {len(system_skills)} skills")
-    admin_skills_dir = settings.SHARED_ROOT.parent / "admins" / "skills"
+    admin_skills_dir = settings.ADMINS_ROOT / "skills"
     admin_skills = load_skills_from_directory(admin_skills_dir)
     for skill in admin_skills:
         registry.register(skill)
@@ -221,27 +220,26 @@ async def main() -> None:
 
             # Register notification handler for reminders
             bot_name_cache = {"name": None}
-            async def telegram_notification_handler(thread_ids, message, channel_ref=channel):
+            async def telegram_notification_handler(thread_id, message, channel_ref=channel):
                 """Send reminder notification via Telegram."""
-                for thread_id in thread_ids:
-                    # Extract chat_id from thread_id (format: telegram:chat_id)
-                    if thread_id.startswith("telegram:"):
-                        chat_id = thread_id.split(":", 1)[1]
-                        bot_name = bot_name_cache["name"]
-                        if not bot_name and channel_ref.application:
-                            try:
-                                me = await channel_ref.application.bot.get_me()
-                                bot_name = me.username or me.first_name or "unknown"
-                                bot_name_cache["name"] = bot_name
-                            except Exception as e:
-                                logger.warning(
-                                    f'{format_log_context("system", component="telegram", channel="telegram")} reminder_bot_lookup_failed error="{e}"'
-                                )
-                                bot_name = "unknown"
-                        logger.info(
-                            f'{format_log_context("system", component="telegram", channel="telegram")} reminder_send bot="{bot_name}" chat_id={chat_id}'
-                        )
-                        await channel_ref.send_message(chat_id, f"🔔 Reminder: {message}")
+                # Extract chat_id from thread_id (format: telegram:chat_id)
+                if thread_id.startswith("telegram:"):
+                    chat_id = thread_id.split(":", 1)[1]
+                    bot_name = bot_name_cache["name"]
+                    if not bot_name and channel_ref.application:
+                        try:
+                            me = await channel_ref.application.bot.get_me()
+                            bot_name = me.username or me.first_name or "unknown"
+                            bot_name_cache["name"] = bot_name
+                        except Exception as e:
+                            logger.warning(
+                                f'{format_log_context("system", component="telegram", channel="telegram")} reminder_bot_lookup_failed error="{e}"'
+                            )
+                            bot_name = "unknown"
+                    logger.info(
+                        f'{format_log_context("system", component="telegram", channel="telegram")} reminder_send bot="{bot_name}" chat_id={chat_id}'
+                    )
+                    await channel_ref.send_message(chat_id, f"🔔 Reminder: {message}")
 
             register_notification_handler("telegram", telegram_notification_handler)
 
@@ -258,7 +256,7 @@ async def main() -> None:
             channel.registry = registry
 
             # Register notification handler for reminders
-            async def http_notification_handler(thread_ids, message):
+            async def http_notification_handler(thread_id, message):
                 """HTTP channel doesn't support push notifications yet."""
                 # HTTP clients would need to poll or use websockets
                 print(f"HTTP reminder notification (not delivered): {message}")

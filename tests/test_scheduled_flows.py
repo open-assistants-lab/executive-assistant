@@ -26,9 +26,7 @@ class TestScheduledFlow:
         """Test flow status property methods."""
         flow = ScheduledFlow(
             id=1,
-            user_id="test_user",
             thread_id="test_thread",
-            worker_id=None,
             name="Test Job",
             task="Test task",
             flow="Simple flow",
@@ -52,9 +50,7 @@ class TestScheduledFlow:
         """Test running status property."""
         flow = ScheduledFlow(
             id=1,
-            user_id="test_user",
             thread_id="test_thread",
-            worker_id=None,
             name="Test Job",
             task="Test task",
             flow="Simple flow",
@@ -77,9 +73,7 @@ class TestScheduledFlow:
         """Test completed status property."""
         flow = ScheduledFlow(
             id=1,
-            user_id="test_user",
             thread_id="test_thread",
-            worker_id=None,
             name="Test Job",
             task="Test task",
             flow="Simple flow",
@@ -102,9 +96,7 @@ class TestScheduledFlow:
         """Test failed status property."""
         flow = ScheduledFlow(
             id=1,
-            user_id="test_user",
             thread_id="test_thread",
-            worker_id=None,
             name="Test Job",
             task="Test task",
             flow="Simple flow",
@@ -127,9 +119,7 @@ class TestScheduledFlow:
         """Test recurring flow property."""
         flow = ScheduledFlow(
             id=1,
-            user_id="test_user",
             thread_id="test_thread",
-            worker_id=None,
             name="Daily Job",
             task="Test task",
             flow="Simple flow",
@@ -150,9 +140,7 @@ class TestScheduledFlow:
         """Test non-recurring flow property."""
         flow = ScheduledFlow(
             id=1,
-            user_id="test_user",
             thread_id="test_thread",
-            worker_id=None,
             name="One-time Job",
             task="Test task",
             flow="Simple flow",
@@ -172,9 +160,7 @@ class TestScheduledFlow:
         """Test that empty cron string is not considered recurring."""
         flow = ScheduledFlow(
             id=1,
-            user_id="test_user",
             thread_id="test_thread",
-            worker_id=None,
             name="Job",
             task="Test task",
             flow="Simple flow",
@@ -230,12 +216,10 @@ class TestScheduledFlowStorageIntegration:
     @pytest.mark.asyncio
     async def test_create_flow(self, storage, db_conn, clean_test_data):
         """Test creating a new scheduled flow."""
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
         thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
         due_time = datetime.now() + timedelta(hours=1)
 
         flow = await storage.create(
-            user_id=user_id,
             thread_id=thread_id,
             task="Check the weather",
             flow="fetch weather → report result",
@@ -244,50 +228,20 @@ class TestScheduledFlowStorageIntegration:
         )
 
         assert flow.id is not None
-        assert flow.user_id == user_id
         assert flow.thread_id == thread_id
         assert flow.task == "Check the weather"
         assert flow.flow == "fetch weather → report result"
         assert flow.name == "Weather Check"
         assert flow.status == "pending"
-        assert flow.worker_id is None
         assert flow.cron is None
-
-    @pytest.mark.asyncio
-    async def test_create_flow_with_worker(self, storage, db_conn, clean_test_data):
-        """Test creating a flow with an associated worker."""
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
-        thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
-        due_time = datetime.now() + timedelta(hours=1)
-
-        # Create a worker first
-        worker_result = await db_conn.fetchrow(
-            """INSERT INTO workers (user_id, thread_id, name, tools, prompt)
-               VALUES ($1, $2, $3, $4, $5) RETURNING id""",
-            user_id, thread_id, "Test Worker", ["web_search"], "Test prompt"
-        )
-        worker_id = worker_result["id"]
-
-        flow = await storage.create(
-            user_id=user_id,
-            thread_id=thread_id,
-            task="Execute task",
-            flow="Simple flow",
-            due_time=due_time,
-            worker_id=worker_id,
-        )
-
-        assert flow.worker_id == worker_id
 
     @pytest.mark.asyncio
     async def test_create_recurring_flow(self, storage, db_conn, clean_test_data):
         """Test creating a recurring flow with cron expression."""
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
         thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
         due_time = datetime.now() + timedelta(hours=1)
 
         flow = await storage.create(
-            user_id=user_id,
             thread_id=thread_id,
             task="Daily backup",
             flow="backup → verify",
@@ -302,13 +256,11 @@ class TestScheduledFlowStorageIntegration:
     @pytest.mark.asyncio
     async def test_get_by_id(self, storage, db_conn, clean_test_data):
         """Test retrieving a flow by ID."""
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
         thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
         due_time = datetime.now() + timedelta(hours=1)
 
         # Create a flow
         created_flow = await storage.create(
-            user_id=user_id,
             thread_id=thread_id,
             task="Test task",
             flow="Simple flow",
@@ -331,13 +283,11 @@ class TestScheduledFlowStorageIntegration:
     @pytest.mark.asyncio
     async def test_get_due_flows(self, storage, db_conn, clean_test_data):
         """Test retrieving flows due before a given time."""
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
         thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
         now = datetime.now()
 
         # Create multiple flows at different times
         await storage.create(
-            user_id=user_id,
             thread_id=thread_id,
             task="Past flow",
             flow="flow",
@@ -345,7 +295,6 @@ class TestScheduledFlowStorageIntegration:
         )
 
         await storage.create(
-            user_id=user_id,
             thread_id=thread_id,
             task="Future flow",
             flow="flow",
@@ -353,7 +302,6 @@ class TestScheduledFlowStorageIntegration:
         )
 
         await storage.create(
-            user_id=user_id,
             thread_id=thread_id,
             task="Now flow",
             flow="flow",
@@ -370,14 +318,12 @@ class TestScheduledFlowStorageIntegration:
         assert "Future flow" not in task_list
 
     @pytest.mark.asyncio
-    async def test_list_by_user(self, storage, db_conn, clean_test_data):
+    async def test_list_by_thread(self, storage, db_conn, clean_test_data):
         """Test listing flows for a specific user."""
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
         thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
 
         # Create multiple flows for the same user
         await storage.create(
-            user_id=user_id,
             thread_id=thread_id,
             task="Task 1",
             flow="flow1",
@@ -385,7 +331,6 @@ class TestScheduledFlowStorageIntegration:
         )
 
         await storage.create(
-            user_id=user_id,
             thread_id=thread_id,
             task="Task 2",
             flow="flow2",
@@ -393,7 +338,7 @@ class TestScheduledFlowStorageIntegration:
         )
 
         # List flows for user
-        flows = await storage.list_by_user(user_id)
+        flows = await storage.list_by_thread(thread_id)
         assert len(flows) >= 2
 
         task_list = [flow.task for flow in flows]
@@ -401,14 +346,12 @@ class TestScheduledFlowStorageIntegration:
         assert "Task 2" in task_list
 
     @pytest.mark.asyncio
-    async def test_list_by_user_with_status_filter(self, storage, db_conn, clean_test_data):
+    async def test_list_by_thread_with_status_filter(self, storage, db_conn, clean_test_data):
         """Test listing flows for a user with status filter."""
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
         thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
 
         # Create flows with different statuses
         flow1 = await storage.create(
-            user_id=user_id,
             thread_id=thread_id,
             task="Pending flow",
             flow="flow",
@@ -416,7 +359,6 @@ class TestScheduledFlowStorageIntegration:
         )
 
         flow2 = await storage.create(
-            user_id=user_id,
             thread_id=thread_id,
             task="Another pending",
             flow="flow",
@@ -428,7 +370,7 @@ class TestScheduledFlowStorageIntegration:
         await storage.mark_completed(flow1.id, "Done")
 
         # List only pending flows
-        pending_flows = await storage.list_by_user(user_id, status="pending")
+        pending_flows = await storage.list_by_thread(thread_id, status="pending")
         assert len(pending_flows) >= 1
 
         task_list = [flow.task for flow in pending_flows]
@@ -438,12 +380,10 @@ class TestScheduledFlowStorageIntegration:
     @pytest.mark.asyncio
     async def test_list_by_thread(self, storage, db_conn, clean_test_data):
         """Test listing flows for a specific thread."""
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
         thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
 
         # Create flows for the thread
         await storage.create(
-            user_id=user_id,
             thread_id=thread_id,
             task="Thread flow 1",
             flow="flow",
@@ -451,7 +391,6 @@ class TestScheduledFlowStorageIntegration:
         )
 
         await storage.create(
-            user_id=user_id,
             thread_id=thread_id,
             task="Thread flow 2",
             flow="flow",
@@ -469,11 +408,9 @@ class TestScheduledFlowStorageIntegration:
     @pytest.mark.asyncio
     async def test_mark_started(self, storage, db_conn, clean_test_data):
         """Test marking a flow as started."""
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
         thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
 
         flow = await storage.create(
-            user_id=user_id,
             thread_id=thread_id,
             task="Test task",
             flow="flow",
@@ -499,11 +436,9 @@ class TestScheduledFlowStorageIntegration:
     @pytest.mark.asyncio
     async def test_mark_completed(self, storage, db_conn, clean_test_data):
         """Test marking a flow as completed."""
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
         thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
 
         flow = await storage.create(
-            user_id=user_id,
             thread_id=thread_id,
             task="Test task",
             flow="flow",
@@ -527,11 +462,9 @@ class TestScheduledFlowStorageIntegration:
     @pytest.mark.asyncio
     async def test_mark_failed(self, storage, db_conn, clean_test_data):
         """Test marking a flow as failed."""
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
         thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
 
         flow = await storage.create(
-            user_id=user_id,
             thread_id=thread_id,
             task="Test task",
             flow="flow",
@@ -553,11 +486,9 @@ class TestScheduledFlowStorageIntegration:
     @pytest.mark.asyncio
     async def test_cancel(self, storage, db_conn, clean_test_data):
         """Test cancelling a pending flow."""
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
         thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
 
         flow = await storage.create(
-            user_id=user_id,
             thread_id=thread_id,
             task="Test task",
             flow="flow",
@@ -576,11 +507,9 @@ class TestScheduledFlowStorageIntegration:
     @pytest.mark.asyncio
     async def test_cancel_running_flow_fails(self, storage, db_conn, clean_test_data):
         """Test that cancelling a running flow has no effect."""
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
         thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
 
         flow = await storage.create(
-            user_id=user_id,
             thread_id=thread_id,
             task="Test task",
             flow="flow",
@@ -602,13 +531,11 @@ class TestScheduledFlowStorageIntegration:
     @pytest.mark.asyncio
     async def test_create_next_instance(self, storage, db_conn, clean_test_data):
         """Test creating the next instance of a recurring flow."""
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
         thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
         now = datetime.now()
 
         # Create a recurring flow
         parent_flow = await storage.create(
-            user_id=user_id,
             thread_id=thread_id,
             task="Daily check",
             flow="check → report",
@@ -634,13 +561,11 @@ class TestScheduledFlowStorageIntegration:
     @pytest.mark.asyncio
     async def test_create_next_instance_non_recurring(self, storage, db_conn, clean_test_data):
         """Test that next instance is None for non-recurring flows."""
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
         thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
         now = datetime.now()
 
         # Create a non-recurring flow
         parent_flow = await storage.create(
-            user_id=user_id,
             thread_id=thread_id,
             task="One-time task",
             flow="flow",
@@ -656,13 +581,11 @@ class TestScheduledFlowStorageIntegration:
     @pytest.mark.asyncio
     async def test_flow_lifecycle(self, storage, db_conn, clean_test_data):
         """Test complete flow lifecycle: create -> start -> complete -> next."""
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
         thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
         now = datetime.now()
 
         # Create recurring flow
         flow = await storage.create(
-            user_id=user_id,
             thread_id=thread_id,
             task="Recurring task",
             flow="execute → log",

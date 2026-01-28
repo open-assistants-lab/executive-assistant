@@ -1,4 +1,4 @@
-"""Database tools for tabular data operations (context-scoped)."""
+"""Transactional Database tools for tabular data operations (context-scoped)."""
 
 from contextvars import ContextVar
 from pathlib import Path
@@ -10,12 +10,12 @@ from executive_assistant.config import settings
 from executive_assistant.storage.db_storage import validate_identifier
 from executive_assistant.storage.file_sandbox import get_thread_id
 from executive_assistant.storage.meta_registry import (
-    record_db_path,
-    record_db_table_added,
-    record_db_table_removed,
+    record_tdb_path,
+    record_tdb_table_added,
+    record_tdb_table_removed,
 )
 from executive_assistant.storage.sqlite_db_storage import SQLiteDatabase, get_sqlite_db
-from executive_assistant.storage.group_storage import require_permission
+from executive_assistant.storage.thread_storage import require_permission
 
 
 # Context variable for thread_id - shared with file_sandbox
@@ -31,7 +31,7 @@ def _get_current_thread_id() -> str:
     thread_id = get_thread_id()
     if thread_id is None:
         raise ValueError(
-            "No thread_id in context. Database tools must be called from within a channel message handler. "
+            "No thread_id in context. Transactional Database tools must be called from within a channel message handler. "
             "If you're calling this tool directly, make sure to set thread_id context first using "
             "set_thread_id() from executive_assistant.storage.file_sandbox."
         )
@@ -39,20 +39,20 @@ def _get_current_thread_id() -> str:
 
 
 def _get_current_context_id() -> str:
-    """Get the current context ID (group_id or thread_id fallback).
+    """Get the current context ID (thread_id or thread_id fallback).
 
-    This ensures DB tools respect the group_id context just like file uploads do.
+    This ensures TDB tools respect the thread_id context just like file uploads do.
 
     Raises:
         ValueError: If no context is available.
     """
-    from executive_assistant.storage.group_storage import get_workspace_id
+    from executive_assistant.storage.thread_storage import get_thread_id
     from executive_assistant.storage.db_storage import get_db_storage
 
-    # Try group_id first (team groups and "personal groups")
-    workspace_id = get_workspace_id()
-    if workspace_id:
-        return workspace_id
+    # Try thread_id context first
+    thread_id = get_thread_id()
+    if thread_id:
+        return thread_id
 
     # Fallback to thread_id (legacy)
     thread_id = get_thread_id()
@@ -60,8 +60,8 @@ def _get_current_context_id() -> str:
         return thread_id
 
     raise ValueError(
-        "No context (group_id or thread_id) available. "
-        "Database tools must be called from within a channel message handler."
+        "No context (thread_id or thread_id) available. "
+        "Transactional Database tools must be called from within a channel message handler."
     )
 
 
@@ -71,21 +71,21 @@ def _get_meta_thread_id() -> str | None:
 
 
 def _get_db() -> SQLiteDatabase:
-    """Get the current context's SQLite database.
+    """Get the current context's SQLite transactional database.
 
-    Respects group_id context (when set) just like file uploads do.
-    This fixes the split storage bug where files and DB were in different directories.
+    Respects thread_id context (when set) just like file uploads do.
+    This fixes the split storage bug where files and TDB were in different directories.
     """
-    # Let get_sqlite_db use group_id from context automatically
+    # Let get_sqlite_db use thread_id from context automatically
     return get_sqlite_db()
 
 
 def _get_db_with_scope(scope: Literal["context", "shared"] = "context") -> SQLiteDatabase:
-    """Get database based on scope.
+    """Get transactional database based on scope.
 
     Args:
-        scope: "context" (default) uses group_id/thread_id context,
-               "shared" uses organization-wide shared database.
+        scope: "context" (default) uses thread_id/thread_id context,
+               "shared" uses organization-wide shared transactional database.
 
     Returns:
         SQLiteDatabase instance for the requested scope.
@@ -94,24 +94,24 @@ def _get_db_with_scope(scope: Literal["context", "shared"] = "context") -> SQLit
         ValueError: If scope is invalid or admin check fails for shared writes.
     """
     if scope == "shared":
-        from executive_assistant.storage.shared_db_storage import get_shared_db_storage
-        return get_shared_db_storage()
+        from executive_assistant.storage.shared_tdb_storage import get_shared_tdb_storage
+        return get_shared_tdb_storage()
     elif scope == "context":
-        return get_sqlite_db()  # Uses group_id/thread_id from context
+        return get_sqlite_db()  # Uses thread_id/thread_id from context
     else:
         raise ValueError(f"Invalid scope: {scope}. Must be 'context' or 'shared'.")
 
 
 
-@tool
+@tool("create_tdb_table", description="TDB tool: create_tdb_table.")
 @require_permission("write")
-def create_db_table(
+def create_tdb_table(
     table_name: str,
     data: str | list[dict] = "",
     columns: str = "",
     scope: Literal["context", "shared"] = "context",
 ) -> str:
-    """Create a new table for structured data storage. [DB]
+    """Create a new table for structured data storage. [TDB]
 
     USE THIS WHEN: Starting a new tracking task (timesheets, habits, expenses) or when you need queryable, tabular data for analysis.
 
@@ -124,7 +124,7 @@ def create_db_table(
                Leave empty to create empty table structure.
         columns: Comma-separated column names (e.g., "name,email,phone").
                Required when creating empty table; optional with data.
-        scope: "context" (default) for group/thread-scoped storage,
+        scope: "context" (default) for thread-scoped storage,
                "shared" for organization-wide shared storage (admin-only writes).
 
     Returns:
@@ -153,8 +153,8 @@ def create_db_table(
             if scope == "context":
                 meta_thread_id = _get_meta_thread_id()
                 if meta_thread_id:
-                    record_db_path(meta_thread_id, db.path)
-                    record_db_table_added(meta_thread_id, table_name)
+                    record_tdb_path(meta_thread_id, db.path)
+                    record_tdb_table_added(meta_thread_id, table_name)
             col_str = ", ".join(column_defs)
             return f"Table '{table_name}' created with columns: {col_str}"
         except Exception as e:
@@ -187,21 +187,21 @@ def create_db_table(
         if scope == "context":
             meta_thread_id = _get_meta_thread_id()
             if meta_thread_id:
-                record_db_path(meta_thread_id, db.path)
-                record_db_table_added(meta_thread_id, table_name)
+                record_tdb_path(meta_thread_id, db.path)
+                record_tdb_table_added(meta_thread_id, table_name)
         return f"Table '{table_name}' created with {len(parsed_data)} rows"
     except Exception as e:
         return f"Error creating table: {str(e)}"
 
 
-@tool
+@tool("insert_tdb_table", description="TDB tool: insert_tdb_table.")
 @require_permission("write")
-def insert_db_table(
+def insert_tdb_table(
     table_name: str,
     data: str | list[dict],
     scope: Literal["context", "shared"] = "context",
 ) -> str:
-    """Add rows to an existing table. [DB]
+    """Add rows to an existing table. [TDB]
 
     USE THIS WHEN: You need to add new records/entries to a table you've already created.
 
@@ -209,7 +209,7 @@ def insert_db_table(
         table_name: Name of the table to insert into.
         data: List of dictionaries (e.g., [{"name": "Alice", "age": 30}])
                OR JSON string (e.g., '[{"name": "Alice", "age": 30}]')
-        scope: "context" (default) for group/thread-scoped storage,
+        scope: "context" (default) for thread-scoped storage,
                "shared" for organization-wide shared storage (admin-only writes).
 
     Returns:
@@ -243,23 +243,23 @@ def insert_db_table(
         return f"Error inserting data: {str(e)}"
 
 
-@tool
+@tool("query_tdb", description="TDB tool: query_tdb.")
 @require_permission("read")
-def query_db(
+def query_tdb(
     sql: str,
     scope: Literal["context", "shared"] = "context",
 ) -> str:
-    """Execute SQL queries to retrieve, analyze, or modify data. [DB]
+    """Execute SQL queries to retrieve, analyze, or modify data. [TDB]
 
     USE THIS WHEN: You need to search/filter data, calculate aggregates (SUM, AVG, COUNT), join tables, or perform complex analysis.
 
-    Database: SQLite (not DuckDB). Use SQLite-compatible syntax.
+    Transactional Database: SQLite (not DuckDB). Use SQLite-compatible syntax.
     - JSON: json_array(), json_extract(), json_each()
     - Dates: date('now'), strftime('%Y-%m-%d', col)
 
     Args:
         sql: SQL query (SELECT, INSERT, UPDATE, DELETE, etc.).
-        scope: "context" (default) for group/thread-scoped storage,
+        scope: "context" (default) for thread-scoped storage,
                "shared" for organization-wide shared storage.
 
     Returns:
@@ -397,15 +397,15 @@ def _format_query_results(columns: list[str], rows: list[tuple]) -> str:
     return "\n".join(output)
 
 
-@tool
+@tool("list_tdb_tables", description="TDB tool: list_tdb_tables.")
 @require_permission("read")
-def list_db_tables(scope: Literal["context", "shared"] = "context") -> str:
-    """List all tables in the database. [DB]
+def list_tdb_tables(scope: Literal["context", "shared"] = "context") -> str:
+    """List all tables in the transactional database. [TDB]
 
     USE THIS WHEN: You need to see what tables exist or verify table names.
 
     Args:
-        scope: "context" (default) for group/thread-scoped storage,
+        scope: "context" (default) for thread-scoped storage,
                "shared" for organization-wide shared storage.
 
     Returns:
@@ -416,24 +416,24 @@ def list_db_tables(scope: Literal["context", "shared"] = "context") -> str:
         tables = db.list_tables()
 
         if not tables:
-            return "No tables found in DB"
+            return "No tables found in TDB"
 
-        return "Tables in DB:\n" + "\n".join(f"- {table}" for table in tables)
+        return "Tables in TDB:\n" + "\n".join(f"- {table}" for table in tables)
 
     except Exception as e:
         return f"Error listing tables: {str(e)}"
 
 
-@tool
+@tool("describe_tdb_table", description="TDB tool: describe_tdb_table.")
 @require_permission("read")
-def describe_db_table(table_name: str, scope: Literal["context", "shared"] = "context") -> str:
-    """Get table schema (column names and types). [DB]
+def describe_tdb_table(table_name: str, scope: Literal["context", "shared"] = "context") -> str:
+    """Get table schema (column names and types). [TDB]
 
     USE THIS WHEN: You need to see what columns exist in a table before querying or inserting data.
 
     Args:
         table_name: Name of the table to describe.
-        scope: "context" (default) for group/thread-scoped storage,
+        scope: "context" (default) for thread-scoped storage,
                "shared" for organization-wide shared storage.
 
     Returns:
@@ -460,15 +460,15 @@ def describe_db_table(table_name: str, scope: Literal["context", "shared"] = "co
         return f"Error describing table: {str(e)}"
 
 
-@tool
+@tool("add_tdb_column", description="TDB tool: add_tdb_column.")
 @require_permission("write")
-def add_db_column(
+def add_tdb_column(
     table_name: str,
     column_name: str,
     column_type: str = "TEXT",
     scope: Literal["context", "shared"] = "context",
 ) -> str:
-    """Add a column to an existing table. [DB]
+    """Add a column to an existing table. [TDB]
 
     USE THIS WHEN: You need to extend a table schema with a new column.
 
@@ -476,7 +476,7 @@ def add_db_column(
         table_name: Name of the table to alter.
         column_name: New column name (letters, numbers, underscore).
         column_type: SQLite column type (TEXT, INTEGER, REAL, etc.).
-        scope: "context" (default) for group/thread-scoped storage,
+        scope: "context" (default) for thread-scoped storage,
                "shared" for organization-wide shared storage (admin-only writes).
 
     Returns:
@@ -501,21 +501,21 @@ def add_db_column(
         return f"Error adding column: {str(e)}"
 
 
-@tool
+@tool("drop_tdb_column", description="TDB tool: drop_tdb_column.")
 @require_permission("write")
-def drop_db_column(
+def drop_tdb_column(
     table_name: str,
     column_name: str,
     scope: Literal["context", "shared"] = "context",
 ) -> str:
-    """Remove a column from an existing table. [DB]
+    """Remove a column from an existing table. [TDB]
 
     USE THIS WHEN: You need to remove a column from a table schema.
 
     Args:
         table_name: Name of the table to alter.
         column_name: Column name to remove.
-        scope: "context" (default) for group/thread-scoped storage,
+        scope: "context" (default) for thread-scoped storage,
                "shared" for organization-wide shared storage (admin-only writes).
 
     Returns:
@@ -540,10 +540,10 @@ def drop_db_column(
         return f"Error dropping column: {str(e)}"
 
 
-@tool
+@tool("delete_tdb_table", description="TDB tool: delete_tdb_table.")
 @require_permission("write")
-def delete_db_table(table_name: str, scope: Literal["context", "shared"] = "context") -> str:
-    """Delete a table and all its data. [DB]
+def delete_tdb_table(table_name: str, scope: Literal["context", "shared"] = "context") -> str:
+    """Delete a table and all its data. [TDB]
 
     USE THIS WHEN: You need to remove an entire table permanently.
 
@@ -551,7 +551,7 @@ def delete_db_table(table_name: str, scope: Literal["context", "shared"] = "cont
 
     Args:
         table_name: Name of the table to delete.
-        scope: "context" (default) for group/thread-scoped storage,
+        scope: "context" (default) for thread-scoped storage,
                "shared" for organization-wide shared storage (admin-only writes).
 
     Returns:
@@ -568,22 +568,22 @@ def delete_db_table(table_name: str, scope: Literal["context", "shared"] = "cont
         # Only record metadata for context-scoped DBs
         if scope == "context":
             thread_id = _get_current_thread_id()
-            record_db_table_removed(thread_id, table_name)
+            record_tdb_table_removed(thread_id, table_name)
         return f"Table '{table_name}' dropped"
 
     except Exception as e:
         return f"Error dropping table: {str(e)}"
 
 
-@tool
+@tool("export_tdb_table", description="TDB tool: export_tdb_table.")
 @require_permission("write")
-def export_db_table(
+def export_tdb_table(
     table_name: str,
     filename: str,
     format: Literal["csv"] = "csv",
     scope: Literal["context", "shared"] = "context",
 ) -> str:
-    """Export table data to a CSV file. [DB → Files]
+    """Export table data to a CSV file. [TDB → Files]
 
     USE THIS WHEN: You need to export data for analysis in other tools, create reports, or backup data.
 
@@ -591,7 +591,7 @@ def export_db_table(
         table_name: Name of the table to export.
         filename: Name for the exported file (extension added automatically).
         format: Export format (only "csv" supported).
-        scope: "context" (default) for group/thread-scoped storage,
+        scope: "context" (default) for thread-scoped storage,
                "shared" for organization-wide shared storage.
 
     Returns:
@@ -628,21 +628,21 @@ def export_db_table(
         return f"Error exporting table: {str(e)}"
 
 
-@tool
+@tool("import_tdb_table", description="TDB tool: import_tdb_table.")
 @require_permission("write")
-def import_db_table(
+def import_tdb_table(
     table_name: str,
     filename: str,
     scope: Literal["context", "shared"] = "context",
 ) -> str:
-    """Import CSV file data into a new table. [Files → DB]
+    """Import CSV file data into a new table. [Files → TDB]
 
     USE THIS WHEN: You have CSV data in your files directory that you want to query or analyze with SQL.
 
     Args:
         table_name: Name for the new table.
         filename: Name of the CSV file (must exist in files directory).
-        scope: "context" (default) for group/thread-scoped storage,
+        scope: "context" (default) for thread-scoped storage,
                "shared" for organization-wide shared storage (admin-only writes).
 
     Returns:
@@ -666,8 +666,8 @@ def import_db_table(
         if scope == "context":
             meta_thread_id = _get_meta_thread_id()
             if meta_thread_id:
-                record_db_path(meta_thread_id, db.path)
-                record_db_table_added(meta_thread_id, table_name)
+                record_tdb_path(meta_thread_id, db.path)
+                record_tdb_table_added(meta_thread_id, table_name)
         return f"Imported '{filename}' into table '{table_name}' ({row_count} rows)"
 
     except Exception as e:
@@ -675,17 +675,17 @@ def import_db_table(
 
 
 # Export list of tools for use in agent
-async def get_db_tools() -> list:
-    """Get all DB tools for use in the agent."""
+async def get_tdb_tools() -> list:
+    """Get all TDB tools for use in the agent."""
     return [
-        create_db_table,
-        insert_db_table,
-        query_db,
-        list_db_tables,
-        describe_db_table,
-        delete_db_table,
-        add_db_column,
-        drop_db_column,
-        export_db_table,
-        import_db_table,
+        create_tdb_table,
+        insert_tdb_table,
+        query_tdb,
+        list_tdb_tables,
+        describe_tdb_table,
+        delete_tdb_table,
+        add_tdb_column,
+        drop_tdb_column,
+        export_tdb_table,
+        import_tdb_table,
     ]

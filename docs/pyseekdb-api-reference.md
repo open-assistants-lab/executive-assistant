@@ -30,13 +30,13 @@ import pyseekdb
 # Create embedded client with explicit path
 client = pyseekdb.Client(
     path="./seekdb",      # Path to seekdb data directory (DIRECTORY, not file)
-    database="demo"        # Database name
+    transactional database="demo"        # Transactional Database name
 )
 
 # Create embedded client with default path (current working directory)
 # If path is not provided, uses seekdb.db in the current process working directory
 client = pyseekdb.Client(
-    database="demo"        # Database name (path defaults to current working directory/seekdb.db)
+    transactional database="demo"        # Transactional Database name (path defaults to current working directory/seekdb.db)
 )
 ```
 
@@ -53,7 +53,7 @@ import pyseekdb
 client = pyseekdb.Client(
     host="127.0.0.1",      # Server host
     port=2881,              # Server port (default: 2881)
-    database="demo",        # Database name
+    transactional database="demo",        # Transactional Database name
     user="root",            # Username (default: "root")
     password=""             # Password (can be retrieved from SEEKDB_PASSWORD environment variable)
 )
@@ -63,7 +63,7 @@ client = pyseekdb.Client(
     host="127.0.0.1",      # Server host
     port=2881,              # Server port (default: 2881)
     tenant="sys",          # Tenant name (default: sys)
-    database="demo",       # Database name
+    transactional database="demo",       # Transactional Database name
     user="root",           # Username (default: "root")
     password=""             # Password (can be retrieved from SEEKDB_PASSWORD environment variable)
 )
@@ -76,24 +76,24 @@ client = pyseekdb.Client(
 | `create_collection()` | Create a new collection (see Collection Management) |
 | `get_collection()` | Get an existing collection object |
 | `delete_collection()` | Delete a collection |
-| `list_collections()` | List all collections in the current database |
+| `list_collections()` | List all collections in the current transactional database |
 | `has_collection()` | Check if a collection exists |
 | `get_or_create_collection()` | Get an existing collection or create it if it doesn't exist |
-| `count_collection()` | Count the number of collections in the current database |
+| `count_collection()` | Count the number of collections in the current transactional database |
 
 ---
 
-## 2. AdminClient Connection and Database Management
+## 2. AdminClient Connection and Transactional Database Management
 
-The `AdminClient` class provides database management operations. It uses the same connection modes as `Client` but only exposes database management methods.
+The `AdminClient` class provides transactional database management operations. It uses the same connection modes as `Client` but only exposes transactional database management methods.
 
 ### 2.1 AdminClient Methods
 
 | Method | Description |
 | --- | --- |
-| `create_database(name, tenant=DEFAULT_TENANT)` | Create a new database |
-| `get_database(name, tenant=DEFAULT_TENANT)` | Get database object with metadata |
-| `delete_database(name, tenant=DEFAULT_TENANT)` | Delete a database |
+| `create_database(name, tenant=DEFAULT_TENANT)` | Create a new transactional database |
+| `get_database(name, tenant=DEFAULT_TENANT)` | Get transactional database object with metadata |
+| `delete_database(name, tenant=DEFAULT_TENANT)` | Delete a transactional database |
 | `list_databases(limit=None, offset=None, tenant=DEFAULT_TENANT)` | List all databases with optional pagination |
 
 ---
@@ -114,7 +114,7 @@ from pyseekdb import (
 )
 
 # Create a client
-client = pyseekdb.Client(host="127.0.0.1", port=2881, database="test")
+client = pyseekdb.Client(host="127.0.0.1", port=2881, transactional database="test")
 
 # Create a collection with default configuration
 collection = client.create_collection(
@@ -236,9 +236,9 @@ collections = client.list_collections()
 for coll in collections:
     print(f"Collection: {coll.name}, Dimension: {coll.dimension}")
 
-# Count collections in database
+# Count collections in transactional database
 collection_count = client.count_collection()
-print(f"Database has {collection_count} collections")
+print(f"Transactional Database has {collection_count} collections")
 ```
 
 ### 3.4 Deleting a Collection
@@ -630,9 +630,9 @@ for i in range(len(preview["ids"])):
     print(f"ID: {preview['ids'][i]}, Document: {preview['documents'][i]}")
     print(f"Metadata: {preview['metadatas'][i]}, Embedding: {preview['embeddings'][i]}")
 
-# Count collections in database
+# Count collections in transactional database
 collection_count = client.count_collection()
-print(f"Database has {collection_count} collections")
+print(f"Transactional Database has {collection_count} collections")
 ```
 
 ---
@@ -819,6 +819,6 @@ python3 -m pytest tests/integration_tests/test_collection_query.py::TestCollecti
 ## Sources
 
 - [pyseekdb GitHub](https://github.com/oceanbase/pyseekdb)
-- [SeekDB Release Announcement](https://www.marktechpost.com/2025/11/26/oceanbase-releases-seekdb-an-open-source-ai-native-hybrid-search-database)
+- [SeekDB Release Announcement](https://www.marktechpost.com/2025/11/26/oceanbase-releases-seekdb-an-open-source-ai-native-hybrid-search-transactional database)
 - [pyseekdb API Documentation](https://github.com/oceanbase/pyseekdb/blob/develop/README.md)
 - [OceanBase AI Blog - SeekDB Tutorials](https://open.oceanbase.com/blog)

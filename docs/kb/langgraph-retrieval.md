@@ -6,7 +6,7 @@ Retrieval Augmented Generation (RAG) enhances LLM responses by fetching relevant
 
 ## Basic RAG Setup
 
-### Vector Store Setup
+### Vector Transactional Database Setup
 
 ```python
 from langchain_core.vectorstores import InMemoryVectorStore
@@ -25,7 +25,7 @@ text_splitter = RecursiveCharacterTextSplitter(
 )
 splits = text_splitter.split_documents(docs)
 
-# Create vector store
+# Create vector transactional database
 vectorstore = InMemoryVectorStore.from_documents(
     documents=splits,
     embedding=OpenAIEmbeddings()
@@ -308,4 +308,4 @@ def test_retrieval(retriever):
 
 - [Agentic RAG Tutorial](https://docs.langchain.com/oss/python/langgraph/agentic-rag)
 - [Retrieval Documentation](https://docs.langchain.com/oss/python/langchain/retrieval)
-- [Vector Store Integrations](https://docs.langchain.com/oss/python/integrations/vectorstores/)
+- [Vector Transactional Database Integrations](https://docs.langchain.com/oss/python/integrations/vectorstores/)

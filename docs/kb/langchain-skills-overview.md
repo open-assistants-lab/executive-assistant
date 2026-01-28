@@ -11,12 +11,12 @@ In the __skills__ architecture, specialized capabilities are packaged as invokab
 
 - **Prompt-driven specialization**: Skills are primarily defined by specialized prompts
 - **Progressive disclosure**: Skills become available based on context or user needs
-- **Team distribution**: Different teams can develop and maintain skills independently
+- **Team distribution**: Different contributors can develop and maintain skills independently
 - **Lightweight composition**: Skills are simpler than full sub-agents
 
 ## When to use
 
-Use the skills pattern when you want a single agent with many possible specializations, you don't need to enforce specific constraints between skills, or different teams need to develop capabilities independently. Common examples include:
+Use the skills pattern when you want a single agent with many possible specializations, you don't need to enforce specific constraints between skills, or different contributors need to develop capabilities independently. Common examples include:
 
 - Coding assistants (skills for different languages or tasks)
 - Knowledge bases (skills for different domains)
@@ -38,7 +38,7 @@ def load_skill(skill_name: str) -> str:
 
     Returns the skill's prompt and context.
     """
-    # Load skill content from file/database
+    # Load skill content from file/transactional database
     ...
 
 agent = create_agent(
@@ -59,8 +59,8 @@ When writing custom implementations, you can extend the basic skills pattern in 
 
 ### Dynamic tool registration
 
-Combine progressive disclosure with state management to register new tools as skills load. For example, loading a "database_admin" skill could both add specialized context and register database-specific tools (backup, restore, migrate). This uses the same tool-and-state mechanisms used across multi-agent patterns—tools updating state to dynamically change agent capabilities.
+Combine progressive disclosure with state management to register new tools as skills load. For example, loading a "database_admin" skill could both add specialized context and register transactional database-specific tools (backup, restore, migrate). This uses the same tool-and-state mechanisms used across multi-agent patterns—tools updating state to dynamically change agent capabilities.
 
 ### Hierarchical skills
 
-Skills can define other skills in a tree structure, creating nested specializations. For instance, loading a "data_science" skill might make available sub-skills like "pandas_expert", "visualization", and "statistical_analysis". Each sub-skill can be loaded independently as needed, allowing for fine-grained progressive disclosure of domain knowledge. This hierarchical approach helps manage large knowledge bases by organizing capabilities into logical groupings that can be discovered and loaded on-demand.
+Skills can define other skills in a tree structure, creating nested specializations. For instance, loading a "data_science" skill might make available sub-skills like "pandas_expert", "visualization", and "statistical_analysis". Each sub-skill can be loaded independently as needed, allowing for fine-grained progressive disclosure of domain knowledge. This hierarchical approach helps manage large knowledge bases by organizing capabilities into logical sets that can be discovered and loaded on-demand.

@@ -12,7 +12,6 @@ from executive_assistant.storage.db_storage import (
     get_db_storage,
 )
 from executive_assistant.storage.file_sandbox import set_thread_id, clear_thread_id
-from executive_assistant.storage.group_storage import set_group_id, clear_group_id
 
 
 # =============================================================================
@@ -114,7 +113,7 @@ class TestDBStorage:
         clear_thread_id()
 
     def test_get_db_path_error_no_context(self, storage):
-        """Test error when no thread_id or workspace_id provided."""
+        """Test default path when no thread_id provided."""
         clear_thread_id()
         assert storage._get_db_path().parent == storage.root
 
@@ -258,14 +257,14 @@ class TestGetDBStorage:
 
     def test_get_db_storage_returns_singleton(self, tmp_path):
         """Test that get_db_storage returns the same instance."""
-        from executive_assistant.storage.group_storage import set_user_id, clear_user_id
-        set_user_id("test_user")
+        from executive_assistant.storage.thread_storage import set_thread_id, clear_thread_id
+        set_thread_id("telegram:test_user")
         try:
             storage1 = get_db_storage()
             storage2 = get_db_storage()
             assert storage1 is storage2
         finally:
-            clear_user_id()
+            clear_thread_id()
 
 
 

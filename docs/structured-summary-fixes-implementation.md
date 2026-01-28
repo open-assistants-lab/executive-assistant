@@ -236,7 +236,7 @@ def should_create_new_topic(
 
 1. **Embedding-based similarity**: Replace keyword-based similarity with vector embeddings for more accurate topic matching
 
-2. **Topic archival**: Persist inactive topics to database for historical analysis
+2. **Topic archival**: Persist inactive topics to transactional database for historical analysis
 
 3. **Intent refinement**: Add more granular intent categories (e.g., "definition", "comparison", "procedural")
 

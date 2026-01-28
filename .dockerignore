@@ -14,3 +14,4 @@ logs
 *.log
 scripts/benchmark_results
 .langgraph_api
+docker/.env

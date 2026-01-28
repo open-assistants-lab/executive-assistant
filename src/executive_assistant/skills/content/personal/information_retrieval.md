@@ -14,38 +14,38 @@ This skill teaches **how to find information quickly** from your stored data. Th
 
 ## Retrieval Strategies
 
-### Strategy 1: Exact Match (DB)
+### Strategy 1: Exact Match (TDB)
 
 **When:** You know exactly what you're looking for
 
 ```python
 # Find specific task
-query_db("SELECT * FROM tasks WHERE title = 'Fix login bug'")
+query_tdb("SELECT * FROM tasks WHERE title = 'Fix login bug'")
 
 # Find expenses by amount
-query_db("SELECT * FROM expenses WHERE amount > 100")
+query_tdb("SELECT * FROM expenses WHERE amount > 100")
 
 # Find timesheets by date
-query_db("SELECT * FROM timesheets WHERE date = '2025-01-19'")
+query_tdb("SELECT * FROM timesheets WHERE date = '2025-01-19'")
 ```
 
 **Use for:** Structured data with specific values
 
 ---
 
-### Strategy 2: Semantic Search (VS)
+### Strategy 2: Semantic Search (VDB)
 
 **When:** You remember the topic/concept but not exact words
 
 ```python
 # Find meetings about planning
-search_vs("project planning milestones", "meetings")
+search_vdb("project planning milestones", "meetings")
 
 # Find documentation about authentication
-search_vs("login security authentication", "docs")
+search_vdb("login security authentication", "docs")
 
 # Find notes with similar meaning
-search_vs("obstacles blockers challenges", "journal")
+search_vdb("obstacles blockers challenges", "journal")
 ```
 
 **Use for:** Qualitative knowledge, concepts, meanings
@@ -78,8 +78,8 @@ grep_files("summary", "reports/")
 **"What did we decide about the architecture?"**
 
 ```python
-# Search VS for decisions
-search_vs("architecture decision choice", "meetings")
+# Search VDB for decisions
+search_vdb("architecture decision choice", "meetings")
 
 # Search for keywords
 grep_files("architecture", "docs/", output_mode="files")
@@ -93,12 +93,12 @@ read_file("docs/architecture_decisions.md")
 **"Show me everything about project X"**
 
 ```python
-# DB data
-query_db("SELECT * FROM timesheets WHERE project = 'Project X'")
-query_db("SELECT * FROM tasks WHERE project = 'Project X'")
+# TDB data
+query_tdb("SELECT * FROM timesheets WHERE project = 'Project X'")
+query_tdb("SELECT * FROM tasks WHERE project = 'Project X'")
 
-# VS knowledge
-search_vs("Project X", "all")  # Search all collections
+# VDB knowledge
+search_vdb("Project X", "all")  # Search all collections
 
 # Files
 list_files("projects/project_x/", recursive=True)
@@ -111,63 +111,63 @@ grep_files("Project X", "docs/")
 
 ```python
 # Time-based queries
-query_db("SELECT * FROM timesheets WHERE date >= '2025-01-13' AND date < '2025-01-20'")
-query_db("SELECT * FROM expenses WHERE date >= '2025-01-13' AND date < '2025-01-20'")
+query_tdb("SELECT * FROM timesheets WHERE date >= '2025-01-13' AND date < '2025-01-20'")
+query_tdb("SELECT * FROM expenses WHERE date >= '2025-01-13' AND date < '2025-01-20'")
 
 # Find files by date
 list_files("reports/weekly/", recursive=False)
 
 # Check journals/notes
-search_vs("week progress update", "journal")
+search_vdb("week progress update", "journal")
 ```
 
 ---
 
 ## Search Techniques
 
-### VS Semantic Search
+### VDB Semantic Search
 
 **Natural language queries work best:**
 ```python
 # Good: Descriptive, conceptual
-search_vs("project timeline milestones", "meetings")
-search_vs("budget spending financial", "meetings")
-search_vs("challenges blockers problems", "journal")
+search_vdb("project timeline milestones", "meetings")
+search_vdb("budget spending financial", "meetings")
+search_vdb("challenges blockers problems", "journal")
 
 # Bad: Exact words only
-search_vs("meeting", "meetings")  # Too generic
+search_vdb("meeting", "meetings")  # Too generic
 ```
 
 **Combine with filters:**
 ```python
 # Search specific collection
-search_vs("architecture", "docs")
+search_vdb("architecture", "docs")
 
 # Search across all collections
-search_vs("project planning", "")
+search_vdb("project planning", "")
 ```
 
-### DB SQL Queries
+### TDB SQL Queries
 
 **Use WHERE for filtering:**
 ```python
 # Date range
-query_db("SELECT * FROM tasks WHERE due_date BETWEEN '2025-01-01' AND '2025-01-31'")
+query_tdb("SELECT * FROM tasks WHERE due_date BETWEEN '2025-01-01' AND '2025-01-31'")
 
 # Multiple conditions
-query_db("SELECT * FROM tasks WHERE priority = 'high' AND status = 'pending'")
+query_tdb("SELECT * FROM tasks WHERE priority = 'high' AND status = 'pending'")
 
 # Pattern matching
-query_db("SELECT * FROM docs WHERE title LIKE '%project%'")
+query_tdb("SELECT * FROM docs WHERE title LIKE '%project%'")
 ```
 
 **Use aggregation for summaries:**
 ```python
 # Count by category
-query_db("SELECT category, COUNT(*) as count FROM expenses GROUP BY category")
+query_tdb("SELECT category, COUNT(*) as count FROM expenses GROUP BY category")
 
 # Latest item
-query_db("SELECT * FROM timesheets ORDER BY date DESC LIMIT 1")
+query_tdb("SELECT * FROM timesheets ORDER BY date DESC LIMIT 1")
 ```
 
 ### File System Search
@@ -200,13 +200,13 @@ grep_files("milestone", "docs/", output_mode="content", context_lines=2)
 **Add metadata:**
 ```python
 # Good: Rich metadata
-insert_db_table(
+insert_tdb_table(
     "notes",
     '[{"title": "Architecture decision", "type": "decision", "project": "Executive Assistant", "tags": "technical,important", "date": "2025-01-19"}]'
 )
 
 # Easier to find:
-query_db("SELECT * FROM notes WHERE type = 'decision' AND project = 'Executive Assistant'")
+query_tdb("SELECT * FROM notes WHERE type = 'decision' AND project = 'Executive Assistant'")
 ```
 
 **Use consistent naming:**
@@ -219,17 +219,17 @@ write_file("reports/weekly/2025-01-26_summary.md", content)
 glob_files("2025-01-*_summary.md", "reports/weekly/")
 ```
 
-**Add tags to VS:**
+**Add tags to VDB:**
 ```python
 # Good: Descriptive metadata
-create_vs_collection(
+create_vdb_collection(
     "decisions",
     content="...",
     metadata={"type": "decision", "project": "Executive Assistant", "category": "technical", "date": "2025-01-19"}
 )
 
 # Easy to search:
-search_vs("technical decisions", "decisions")
+search_vdb("technical decisions", "decisions")
 ```
 
 ---
@@ -240,9 +240,9 @@ search_vs("technical decisions", "decisions")
 
 **"What did we discuss about the budget?"**
 
-1. Search VS (semantic):
+1. Search VDB (semantic):
 ```python
-search_vs("budget spending financial", "meetings")
+search_vdb("budget spending financial", "meetings")
 ```
 
 2. Search files:
@@ -250,9 +250,9 @@ search_vs("budget spending financial", "meetings")
 grep_files("budget", "meetings/")
 ```
 
-3. Check DB records:
+3. Check TDB records:
 ```python
-query_db("SELECT * FROM decisions WHERE category = 'budget'")
+query_tdb("SELECT * FROM decisions WHERE category = 'budget'")
 ```
 
 ### Workflow: Find Reference Material
@@ -269,9 +269,9 @@ list_files("docs/api/", recursive=True)
 grep_files("authentication", "docs/api/")
 ```
 
-3. Search VS:
+3. Search VDB:
 ```python
-search_vs("API authentication login", "docs")
+search_vdb("API authentication login", "docs")
 ```
 
 ### Workflow: Find Previous Work
@@ -280,13 +280,13 @@ search_vs("API authentication login", "docs")
 
 1. Search journal/notes:
 ```python
-search_vs("problem solution fix workaround", "journal")
+search_vdb("problem solution fix workaround", "journal")
 ```
 
 2. Check commit history (if in git):
 ```python
-# This would be a separate tool, but you could store commit info in DB
-query_db("SELECT * FROM commits WHERE message LIKE '%bug fix%'")
+# This would be a separate tool, but you could store commit info in TDB
+query_tdb("SELECT * FROM commits WHERE message LIKE '%bug fix%'")
 ```
 
 3. Search documentation:
@@ -305,7 +305,7 @@ grep_files("workaround", "docs/")
 - **Tag comprehensively** - Multiple search angles
 - **Organize by topic** - Group related information
 - **Use semantic search** - Describe concepts, not keywords
-- **Check multiple sources** - DB + VS + Files
+- **Check multiple sources** - TDB + VDB + Files
 - **Refine searches** - Start broad, narrow down
 - **Save successful searches** - Reuse query patterns
 
@@ -328,18 +328,18 @@ grep_files("workaround", "docs/")
 
 | You Know | Use This |
 |----------|-----------|
-| Exact value | `query_db("WHERE field = 'value'")` |
-| Date range | `query_db("WHERE date BETWEEN X AND Y")` |
-| Topic/concept | `search_vs("topic words", "collection")` |
+| Exact value | `query_tdb("WHERE field = 'value'")` |
+| Date range | `query_tdb("WHERE date BETWEEN X AND Y")` |
+| Topic/concept | `search_vdb("topic words", "collection")` |
 | File location | `list_files("path/")` |
 | File name pattern | `glob_files("pattern", "path/")` |
 | Text in files | `grep_files("text", "path/")` |
-| General topic | `search_vs("topic", "")` |
+| General topic | `search_vdb("topic", "")` |
 
 **Search Patterns:**
 - **Narrow down:** Start broad, add filters
 - **Use synonyms:** Try different words
-- **Check multiple places:** DB + VS + Files
+- **Check multiple places:** TDB + VDB + Files
 - **Refine queries:** Add WHERE, LIMIT, specific terms
 
 **Common Queries:**
@@ -354,8 +354,8 @@ grep_files("workaround", "docs/")
 ## Summary
 
 **Retrieval Strategies:**
-1. **Exact match** (DB) - When you know specifics
-2. **Semantic search** (VS) - When you know concepts
+1. **Exact match** (TDB) - When you know specifics
+2. **Semantic search** (VDB) - When you know concepts
 3. **Browse** (Files) - When you know location
 
 **Key Principles:**

@@ -45,7 +45,7 @@ Report generation transforms raw data into actionable insights. This skill cover
 
 ```python
 # Query data
-data = query_db("""
+data = query_tdb("""
     SELECT
         project,
         SUM(hours) as total_hours,
@@ -85,7 +85,7 @@ write_file("reports/timesheets_weekly_2025-01-19.md", report)
 
 ```python
 # Query monthly data
-data = query_db("""
+data = query_tdb("""
     SELECT
         strftime('%Y-%m', date) as month,
         category,
@@ -117,7 +117,7 @@ write_file("reports/expense_trends.md", report)
 
 ```python
 # Compare two periods
-data = query_db("""
+data = query_tdb("""
     WITH periods AS (
         SELECT
             CASE
@@ -155,7 +155,7 @@ write_file("reports/routine_comparison.md", report)
 
 ```python
 # Gather data
-milestones = query_db("""
+milestones = query_tdb("""
     SELECT
         project,
         COUNT(*) as total,
@@ -165,7 +165,7 @@ milestones = query_db("""
     GROUP BY project
 """)
 
-blockers = search_vs("blockers obstacles issues", "meetings")
+blockers = search_vdb("blockers obstacles issues", "meetings")
 
 # Create report
 report = f"""# Project Progress Report
@@ -195,10 +195,10 @@ write_file("reports/project_progress.md", report)
 ```python
 def generate_daily_summary():
     # Gather data
-    tasks_completed = query_db("SELECT COUNT(*) as count FROM tasks WHERE status = 'complete' AND date = '2025-01-19'")
-    hours_worked = query_db("SELECT SUM(hours) as total FROM timesheets WHERE date = '2025-01-19'")
-    expenses = query_db("SELECT SUM(amount) as total FROM expenses WHERE date = '2025-01-19'")
-    habits = query_db("SELECT * FROM habits WHERE date = '2025-01-19' AND completed = 1")
+    tasks_completed = query_tdb("SELECT COUNT(*) as count FROM tasks WHERE status = 'complete' AND date = '2025-01-19'")
+    hours_worked = query_tdb("SELECT SUM(hours) as total FROM timesheets WHERE date = '2025-01-19'")
+    expenses = query_tdb("SELECT SUM(amount) as total FROM expenses WHERE date = '2025-01-19'")
+    habits = query_tdb("SELECT * FROM habits WHERE date = '2025-01-19' AND completed = 1")
 
     # Format
     report = f"""# Daily Summary - {date.today()}
@@ -209,10 +209,10 @@ def generate_daily_summary():
 - Money Spent: ${expenses[0]['total'] or 0:.2f}
 
 ## ✅ Completed Tasks
-{format_tasks(query_db("SELECT * FROM tasks WHERE status = 'complete' AND date = '2025-01-19'"))}
+{format_tasks(query_tdb("SELECT * FROM tasks WHERE status = 'complete' AND date = '2025-01-19'"))}
 
 ## 💰 Expenses
-{format_expenses(query_db("SELECT * FROM expenses WHERE date = '2025-01-19'"))}
+{format_expenses(query_tdb("SELECT * FROM expenses WHERE date = '2025-01-19'"))}
 
 ## 🎯 Habits
 {format_habits(habits)}
@@ -225,7 +225,7 @@ def generate_daily_summary():
 ```python
 def generate_weekly_review():
     # Time distribution
-    time_data = query_db("""
+    time_data = query_tdb("""
         SELECT project, SUM(hours) as hours
         FROM timesheets
         WHERE date >= '2025-01-13'
@@ -233,7 +233,7 @@ def generate_weekly_review():
     """)
 
     # Task completion
-    task_data = query_db("""
+    task_data = query_tdb("""
         SELECT
             DATE(date) as day,
             SUM(CASE WHEN status = 'complete' THEN 1 ELSE 0 END) as completed,
@@ -244,7 +244,7 @@ def generate_weekly_review():
     """)
 
     # Financial summary
-    expense_data = query_db("""
+    expense_data = query_tdb("""
         SELECT category, SUM(amount) as total
         FROM expenses
         WHERE date >= '2025-01-13'
@@ -264,7 +264,7 @@ def generate_weekly_review():
 {format_table(expense_data)}
 
 ## 📝 Notes & Reflections
-{format_notes(search_vs("week reflection lessons", "journal"))}
+{format_notes(search_vdb("week reflection lessons", "journal"))}
 """
     return report
 ```
@@ -275,14 +275,14 @@ def generate_weekly_review():
 def generate_monthly_dashboard():
     # Key metrics
     metrics = {
-        'total_hours': query_db("SELECT SUM(hours) FROM timesheets WHERE date LIKE '2025-01%'")[0]['total'],
-        'total_expenses': query_db("SELECT SUM(amount) FROM expenses WHERE date LIKE '2025-01%'")[0]['total'],
-        'tasks_completed': query_db("SELECT COUNT(*) FROM tasks WHERE status = 'complete' AND date LIKE '2025-01%'")[0]['count'],
-        'habit_success': query_db("SELECT ROUND(AVG(completed) * 100, 1) FROM habits WHERE date LIKE '2025-01%'")[0]['avg_completed']
+        'total_hours': query_tdb("SELECT SUM(hours) FROM timesheets WHERE date LIKE '2025-01%'")[0]['total'],
+        'total_expenses': query_tdb("SELECT SUM(amount) FROM expenses WHERE date LIKE '2025-01%'")[0]['total'],
+        'tasks_completed': query_tdb("SELECT COUNT(*) FROM tasks WHERE status = 'complete' AND date LIKE '2025-01%'")[0]['count'],
+        'habit_success': query_tdb("SELECT ROUND(AVG(completed) * 100, 1) FROM habits WHERE date LIKE '2025-01%'")[0]['avg_completed']
     }
 
     # Trends
-    hourly_trend = query_db("""
+    hourly_trend = query_tdb("""
         SELECT DATE(date) as day, SUM(hours) as hours
         FROM timesheets
         WHERE date LIKE '2025-01%'
@@ -391,8 +391,8 @@ report += f"- Outlier days: {format_outliers(analysis['outliers'])}\\n"
 
 ```python
 # Combine data from multiple sources
-db_data = query_db("SELECT * FROM metrics")
-vs_insights = search_vs("performance improvements", "journal")
+db_data = query_tdb("SELECT * FROM metrics")
+vs_insights = search_vdb("performance improvements", "journal")
 file_data = read_file("notes/weekly_observations.md")
 
 # Create comprehensive report
@@ -423,10 +423,10 @@ report = f"""# Comprehensive Performance Report
 write_file("report.md", markdown_content)
 
 # CSV (for data analysis)
-export_db_table("data", "report.csv")
+export_tdb_table("data", "report.csv")
 
 # JSON (for APIs)
-json_data = query_db("SELECT * FROM data WHERE ...")
+json_data = query_tdb("SELECT * FROM data WHERE ...")
 write_file("report.json", json.dumps(json_data))
 ```
 
@@ -519,9 +519,9 @@ write_file(f"reports/weekly_{date.today().isoformat()}.md", report)
 - Consider the audience
 
 **Tools Used:**
-- `query_db` - Aggregate data
+- `query_tdb` - Aggregate data
 - `execute_python` - Complex analysis
 - `write_file` - Save report
-- `export_db_table` - CSV export
+- `export_tdb_table` - CSV export
 
 Transform data into insights. Make reports actionable.

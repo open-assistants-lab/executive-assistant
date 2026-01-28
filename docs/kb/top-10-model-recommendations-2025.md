@@ -394,7 +394,7 @@ Test the 3 Ollama Cloud models with simple scenarios to confirm speed improvemen
 
 ### Phase 2: Quality Assessment
 If speed is acceptable, test quality with complex Executive Assistant-specific scenarios:
-- `db_operation` (database interactions)
+- `db_operation` (transactional database interactions)
 - `research_and_store` (tool use workflows)
 - `long_context` (memory retention)
 - `coding_tasks` (if using Python tool)

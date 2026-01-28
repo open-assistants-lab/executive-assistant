@@ -12,3 +12,5 @@ class ExecutiveAssistantAgentState(BaseAgentState[Any]):
     """AgentState extended with task_state."""
 
     task_state: NotRequired[TaskState]
+    thread_id: NotRequired[str]
+    conversation_id: NotRequired[str]

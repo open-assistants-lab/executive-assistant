@@ -55,6 +55,8 @@ def configure_logging(
     handlers.append(console_handler)
 
     if file_path:
+        file_path = Path(file_path)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
         max_bytes = _parse_bytes(rotation)
         backup_count = _parse_retention(retention)
         file_handler = RotatingFileHandler(
@@ -137,7 +139,7 @@ def format_log_context(kind: str, **fields: object) -> str:
     Format a log context prefix for consistent, human-readable logs.
 
     Example:
-        CH=telegram USER=anon_telegram_123 CONV=123 TYPE=status | recv_text
+        CH=telegram USER=telegram:123 CONV=123 TYPE=status | recv_text
     """
     channel = fields.pop("channel", None)
     component = fields.pop("component", None)

@@ -13,13 +13,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 from executive_assistant.channels.base import BaseChannel, MessageFormat
 from executive_assistant.config import settings
 from executive_assistant.logging import format_log_context, truncate_log_text
-from executive_assistant.storage.file_sandbox import set_thread_id
-from executive_assistant.storage.group_storage import (
-    set_group_id as set_workspace_context,
-    set_user_id as set_workspace_user_id,
-    clear_group_id as clear_workspace_context,
-)
-from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
+from executive_assistant.storage.thread_storage import set_thread_id
 from executive_assistant.storage.user_registry import UserRegistry
 from executive_assistant.storage.user_allowlist import is_authorized
 from loguru import logger
@@ -29,7 +23,7 @@ class MessageRequest(BaseModel):
     """Request model for sending a message."""
 
     content: str = Field(..., description="The message content")
-    user_id: str = Field(..., description="User identifier")
+    user_id: str = Field(..., description="Thread identifier (caller-supplied)")
     conversation_id: str | None = Field(None, description="Conversation ID (auto-generated if not provided)")
     stream: bool = Field(True, description="Whether to stream the response")
     metadata: dict[str, Any] | None = Field(None, description="Additional metadata")
@@ -119,28 +113,13 @@ class HttpChannel(BaseChannel):
             # Generate conversation_id if not provided
             conversation_id = req.conversation_id or f"http_{req.user_id}"
 
-            # Auto-create identity for anonymous users
             thread_id = f"http:{conversation_id}"
-            identity_id = sanitize_thread_id_to_user_id(thread_id)
 
-            if not is_authorized(thread_id, identity_id):
+            if not is_authorized(thread_id):
                 raise HTTPException(
                     status_code=403,
                     detail="Access restricted. Ask an admin to add you using /user add <channel:id>.",
                 )
-
-            # Create identity record if it doesn't exist
-            try:
-                registry = UserRegistry()
-                await registry.create_identity_if_not_exists(
-                    thread_id=thread_id,
-                    identity_id=identity_id,
-                    channel="http"
-                )
-            except Exception as e:
-                # Log but don't fail - user can still interact
-                ctx_identity = format_log_context("system", component="identity", channel="http", user=identity_id, conversation=conversation_id)
-                logger.warning(f'{ctx_identity} create_identity_failed error="{e}"')
 
             message = MessageFormat(
                 content=req.content,
@@ -348,9 +327,6 @@ class HttpChannel(BaseChannel):
         config = {"configurable": {"thread_id": thread_id}}
 
         set_thread_id(thread_id)
-        user_id_for_storage = sanitize_thread_id_to_user_id(thread_id)
-        clear_workspace_context()
-        set_workspace_user_id(user_id_for_storage)
 
         messages: list[HumanMessage] = []
         for idx, msg in enumerate(batch):
@@ -372,9 +348,12 @@ class HttpChannel(BaseChannel):
             "thread_model_call_count": 0,
             "thread_tool_call_count": {},
             "todos": [],
+            "thread_id": thread_id,
+            "conversation_id": batch[-1].conversation_id,
         }
 
-        async for event in self.agent.astream(state, config):
+        request_agent = await self._build_request_agent(batch[-1].content, batch[-1].conversation_id)
+        async for event in request_agent.astream(state, config):
             msgs = self._extract_messages_from_event(event)
             new_messages = self._get_new_ai_messages(msgs, last_message_id) if last_message_id else []
             for msg in new_messages:

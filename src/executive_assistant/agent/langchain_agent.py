@@ -13,6 +13,21 @@ from executive_assistant.config import settings
 from executive_assistant.agent.langchain_state import ExecutiveAssistantAgentState
 
 
+def _normalize_agent_tools(tools: list):
+    normalized = []
+    for tool in tools:
+        if isinstance(tool, BaseTool):
+            if getattr(tool, "coroutine", None):
+                normalized.append(tool.coroutine)
+                continue
+            if getattr(tool, "func", None):
+                normalized.append(tool.func)
+                continue
+        normalized.append(tool)
+    return normalized
+
+
+
 def _load_create_agent() -> Any:
     """Load LangChain create_agent with a clear error if unavailable."""
     try:
@@ -54,10 +69,17 @@ def _build_middleware(model: BaseChatModel, channel: Any = None) -> list[Any]:
     if settings.MW_STATUS_UPDATE_ENABLED and channel is not None:
         from executive_assistant.agent.status_middleware import StatusUpdateMiddleware
 
+
+
         middleware.append(StatusUpdateMiddleware(channel=channel))
 
     if settings.MW_TODO_LIST_ENABLED:
-        middleware.append(TodoListMiddleware())
+        middleware.append(
+            TodoListMiddleware(
+                system_prompt="Use write_todos for complex multi-step tasks.",
+                tool_description="Create or update the current todo list.",
+            )
+        )
 
         # Add todo display middleware to show todos via status updates
         if settings.MW_STATUS_UPDATE_ENABLED and channel is not None:
@@ -175,6 +197,7 @@ def create_langchain_agent(
         Compiled LangGraph agent runnable.
     """
     create_agent = _load_create_agent()
+    tools = _normalize_agent_tools(tools)
     middleware = _build_middleware(model, channel=channel)
 
     return create_agent(

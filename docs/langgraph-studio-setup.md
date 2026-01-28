@@ -52,7 +52,7 @@ Note: When you restart Executive Assistant for testing, also restart `langgraph 
 
 ### Runtime Selection
 
-Studio now respects `AGENT_RUNTIME` from `.env`:
+Studio now respects `AGENT_RUNTIME` from `docker/.env`:
 - `AGENT_RUNTIME=langchain` (default) shows the LangChain agent runtime
 - `AGENT_RUNTIME=custom` shows the existing custom LangGraph graph
 
@@ -117,7 +117,7 @@ Telegram is just the default if `EXECUTIVE_ASSISTANT_CHANNELS` is not set.
       "description": "Multi-channel ReAct agent with memory, KB, and tools"
     }
   },
-  "env": ".env"
+  "env": "docker/.env"
 }
 ```
 

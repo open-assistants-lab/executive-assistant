@@ -22,7 +22,7 @@ Task tracking helps you understand where your time and money go. This skill cove
 
 ```python
 # Create timesheet table
-create_db_table(
+create_tdb_table(
     "timesheets",
     columns="date,project,hours,description,tags"
 )
@@ -32,7 +32,7 @@ create_db_table(
 
 ```python
 # Log work
-insert_db_table(
+insert_tdb_table(
     "timesheets",
     '[{"date": "2025-01-19", "project": "Executive Assistant", "hours": 4, "description": "Skills implementation", "tags": "development"}]'
 )
@@ -42,7 +42,7 @@ insert_db_table(
 
 ```python
 # Weekly summary
-query_db("""
+query_tdb("""
     SELECT
         project,
         SUM(hours) as total_hours,
@@ -53,7 +53,7 @@ query_db("""
 """)
 
 # Daily breakdown
-query_db("""
+query_tdb("""
     SELECT
         date,
         SUM(hours) as total_hours
@@ -72,7 +72,7 @@ query_db("""
 
 ```python
 # Create habit tracker
-create_db_table(
+create_tdb_table(
     "habits",
     columns="date,habit,completed,notes,streak"
 )
@@ -82,7 +82,7 @@ create_db_table(
 
 ```python
 # Mark habits complete
-insert_db_table(
+insert_tdb_table(
     "habits",
     '[{"date": "2025-01-19", "habit": "exercise", "completed": true, "notes": "30min run", "streak": 5}]'
 )
@@ -92,7 +92,7 @@ insert_db_table(
 
 ```python
 # Calculate streaks
-query_db("""
+query_tdb("""
     WITH ranked AS (
         SELECT
             habit,
@@ -122,7 +122,7 @@ query_db("""
 
 ```python
 # Completion rate by habit
-query_db("""
+query_tdb("""
     SELECT
         habit,
         COUNT(*) as total_days,
@@ -141,7 +141,7 @@ query_db("""
 
 ```python
 # Create expense tracker
-create_db_table(
+create_tdb_table(
     "expenses",
     columns="date,category,amount,description,vendor"
 )
@@ -151,7 +151,7 @@ create_db_table(
 
 ```python
 # Log expenses
-insert_db_table(
+insert_tdb_table(
     "expenses",
     '[{"date": "2025-01-19", "category": "groceries", "amount": 45.50, "description": "Weekly shopping", "vendor": "Whole Foods"}]'
 )
@@ -161,7 +161,7 @@ insert_db_table(
 
 ```python
 # Spending by category
-query_db("""
+query_tdb("""
     SELECT
         category,
         SUM(amount) as total,
@@ -173,7 +173,7 @@ query_db("""
 """)
 
 # Monthly trend
-query_db("""
+query_tdb("""
     SELECT
         strftime('%Y-%m', date) as month,
         SUM(amount) as total_spent
@@ -188,7 +188,7 @@ query_db("""
 ```python
 # Compare to budget
 budget = 500  # Monthly budget
-actual = query_db("""
+actual = query_tdb("""
     SELECT SUM(amount) as total
     FROM expenses
     WHERE strftime('%Y-%m', date) = '2025-01'
@@ -209,7 +209,7 @@ if pct_used > 80:
 
 **Productive hours per day:**
 ```python
-query_db("""
+query_tdb("""
     SELECT
         date,
         SUM(hours) as total_hours
@@ -222,7 +222,7 @@ query_db("""
 
 **Project distribution:**
 ```python
-query_db("""
+query_tdb("""
     SELECT
         project,
         SUM(hours) as total_hours,
@@ -238,7 +238,7 @@ query_db("""
 
 **Best performing habits:**
 ```python
-query_db("""
+query_tdb("""
     SELECT
         habit,
         ROUND(AVG(CASE WHEN completed = 1 THEN 1 ELSE 0 END) * 100, 1) as success_rate
@@ -250,7 +250,7 @@ query_db("""
 
 **Habit streaks:**
 ```python
-query_db("""
+query_tdb("""
     SELECT
         habit,
         MAX(streak) as longest_streak
@@ -265,7 +265,7 @@ query_db("""
 
 **Biggest expenses:**
 ```python
-query_db("""
+query_tdb("""
     SELECT
         description,
         amount,
@@ -278,7 +278,7 @@ query_db("""
 
 **Spending trends:**
 ```python
-query_db("""
+query_tdb("""
     SELECT
         strftime('%Y-%m', date) as month,
         category,
@@ -297,23 +297,23 @@ query_db("""
 
 ```python
 # 1. Log timesheet entries
-insert_db_table("timesheets", '[...]')
+insert_tdb_table("timesheets", '[...]')
 
 # 2. Mark habits
-insert_db_table("habits", '[...]')
+insert_tdb_table("habits", '[...]')
 
 # 3. Log expenses
-insert_db_table("expenses", '[...]')
+insert_tdb_table("expenses", '[...]')
 
 # 4. Review progress
-query_db("SELECT * FROM timesheets WHERE date = '2025-01-19'")
+query_tdb("SELECT * FROM timesheets WHERE date = '2025-01-19'")
 ```
 
 ### Weekly Workflow
 
 ```python
 # 1. Generate weekly timesheet report
-timesheet_report = query_db("""
+timesheet_report = query_tdb("""
     SELECT project, SUM(hours) as hours
     FROM timesheets
     WHERE date >= '2025-01-13'
@@ -321,7 +321,7 @@ timesheet_report = query_db("""
 """)
 
 # 2. Check habit consistency
-habit_report = query_db("""
+habit_report = query_tdb("""
     SELECT
         habit,
         SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) * 1.0 / COUNT(*) as rate
@@ -331,7 +331,7 @@ habit_report = query_db("""
 """)
 
 # 3. Review spending
-expense_report = query_db("""
+expense_report = query_tdb("""
     SELECT category, SUM(amount) as total
     FROM expenses
     WHERE date >= '2025-01-13'
@@ -350,7 +350,7 @@ write_file("reports/weekly_review.md", format_review(timesheet_report, habit_rep
 
 - **Track daily** - Consistency is key
 - **Be specific** - Detailed descriptions help later
-- **Use categories** - Organize into meaningful groups
+- **Use categories** - Organize into meaningful sets
 - **Add tags** - Helps with filtering
 - **Review weekly** - Check progress regularly
 - **Set goals** - Track against targets
@@ -406,6 +406,6 @@ write_file("reports/weekly_review.md", format_review(timesheet_report, habit_rep
 - Review weekly/monthly for patterns
 - Set goals and track progress
 
-**Storage:** Always use DB for tracking (structured, queryable, aggregatable).
+**Storage:** Always use TDB for tracking (structured, queryable, aggregatable).
 
 What gets measured gets managed. Start tracking today.

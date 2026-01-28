@@ -1,6 +1,6 @@
 """Memory storage for embedded user memories and preferences.
 
-Each user/group has its own SQLite database (mem.db) with FTS5 indexing.
+Each user/thread has its own SQLite database (mem.db) with FTS5 indexing.
 Stores profile information, preferences, facts, constraints, style, and context
 extracted from conversations or explicitly added via /remember.
 """
@@ -16,6 +16,7 @@ from typing import Any
 
 from executive_assistant.config import settings
 from executive_assistant.storage.file_sandbox import get_thread_id
+from executive_assistant.storage.user_registry import register_mem_path_best_effort
 
 
 _ALLOWED_TYPES = {
@@ -41,48 +42,31 @@ def _utc_now() -> str:
 
 
 class MemoryStorage:
-    """Memory storage for user/group-scoped memories."""
+    """Memory storage for thread-scoped memories."""
 
     def __init__(self) -> None:
         pass
 
     def _get_db_path(self, thread_id: str | None = None) -> Path:
-        """Get the memory database path for a user/group context."""
-        storage_id = None
+        """Get the memory database path for the current thread context."""
+        from executive_assistant.storage.thread_storage import get_thread_id
 
-        # 1. user_id from context (individual mode)
-        from executive_assistant.storage.group_storage import get_user_id as get_user_id_from_context
-        user_id_val = get_user_id_from_context()
-        if user_id_val:
-            storage_id = user_id_val
-        else:
-            # 2. group_id from context (team mode)
-            from executive_assistant.storage.group_storage import get_workspace_id
-            group_id = get_workspace_id()
-            if group_id:
-                storage_id = group_id
+        if thread_id is None:
+            thread_id = get_thread_id()
 
-        # 3. Fall back to thread_id if no user_id or group_id
-        if storage_id is None:
-            if thread_id is None:
-                thread_id = get_thread_id()
-            if thread_id is None:
-                raise ValueError("No user_id, group_id, or thread_id provided/context")
-            from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
-            storage_id = sanitize_thread_id_to_user_id(thread_id)
+        if thread_id is None:
+            raise ValueError("No thread_id provided or in context")
 
-        if storage_id.startswith("group_"):
-            mem_path = settings.get_group_mem_path(storage_id)
-        else:
-            mem_path = settings.get_user_mem_path(storage_id)
-
+        mem_path = settings.get_thread_mem_path(thread_id)
         mem_path.parent.mkdir(parents=True, exist_ok=True)
         return mem_path
+
 
     def get_connection(self, thread_id: str | None = None) -> sqlite3.Connection:
         """Get a SQLite connection for the current context."""
         db_path = self._get_db_path(thread_id)
         db_path.parent.mkdir(parents=True, exist_ok=True)
+        register_mem_path_best_effort(thread_id or get_thread_id(), "unknown", str(db_path))
         try:
             conn = sqlite3.connect(str(db_path))
             conn.row_factory = sqlite3.Row

@@ -45,26 +45,59 @@ async def db_conn() -> AsyncGenerator[asyncpg.Connection, None]:
 async def clean_test_data(db_conn: asyncpg.Connection) -> AsyncGenerator[None, None]:
     """Clean up test data before and after each test.
 
-    This fixture deletes test data (users/groups starting with 'test_')
+    This fixture deletes test data (thread_id starting with 'test_')
     from relevant tables.
     """
+    # Ensure legacy user_id columns are removed for thread-only schema
+    try:
+        await db_conn.execute("ALTER TABLE scheduled_flows DROP COLUMN IF EXISTS user_id")
+    except Exception:
+        pass
+    try:
+        await db_conn.execute("ALTER TABLE reminders DROP COLUMN IF EXISTS user_id")
+    except Exception:
+        pass
+    # Ensure thread_id column exists on reminders (legacy schemas may lack it)
+    try:
+        await db_conn.execute(
+            """
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name = 'reminders'
+                      AND column_name = 'thread_id'
+                ) THEN
+                    ALTER TABLE reminders ADD COLUMN thread_id VARCHAR(255);
+                END IF;
+            END $$;
+            """
+        )
+    except Exception:
+        pass
+    # Ensure tdb_paths table exists for integration tests
+    try:
+        await db_conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS tdb_paths (
+                tdb_path TEXT NOT NULL,
+                thread_id VARCHAR(255) NOT NULL,
+                channel VARCHAR(50) NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+            """
+        )
+    except Exception:
+        pass
+
     # Clean up before test
-    await db_conn.execute("DELETE FROM user_aliases WHERE user_id LIKE 'test_%'")
-    await db_conn.execute("DELETE FROM group_members WHERE user_id LIKE 'test_%'")
-    await db_conn.execute("DELETE FROM groups WHERE group_id LIKE 'test_%'")
-    await db_conn.execute("DELETE FROM users WHERE user_id LIKE 'test_%'")
-    await db_conn.execute("DELETE FROM scheduled_flows WHERE user_id LIKE 'test_%'")
-    await db_conn.execute("DELETE FROM thread_groups WHERE thread_id LIKE 'test_%'")
+    await db_conn.execute("DELETE FROM scheduled_flows WHERE thread_id LIKE 'test_%'")
 
     yield
 
     # Clean up after test
-    await db_conn.execute("DELETE FROM user_aliases WHERE user_id LIKE 'test_%'")
-    await db_conn.execute("DELETE FROM group_members WHERE user_id LIKE 'test_%'")
-    await db_conn.execute("DELETE FROM groups WHERE group_id LIKE 'test_%'")
-    await db_conn.execute("DELETE FROM users WHERE user_id LIKE 'test_%'")
-    await db_conn.execute("DELETE FROM scheduled_flows WHERE user_id LIKE 'test_%'")
-    await db_conn.execute("DELETE FROM thread_groups WHERE thread_id LIKE 'test_%'")
+    await db_conn.execute("DELETE FROM scheduled_flows WHERE thread_id LIKE 'test_%'")
 
 
 # =============================================================================
@@ -85,15 +118,6 @@ def mock_conn() -> AsyncMock:
     return conn
 
 
-@pytest.fixture
-def mock_get_db_conn(mock_conn: AsyncMock) -> AsyncMock:
-    """Patch get_db_conn to return mock connection."""
-    from unittest.mock import patch
-
-    with patch("executive_assistant.storage.group_storage.get_db_conn", return_value=mock_conn):
-        yield mock_conn
-
-
 # =============================================================================
 # Temporary Directory Fixtures
 # =============================================================================
@@ -102,22 +126,6 @@ def mock_get_db_conn(mock_conn: AsyncMock) -> AsyncMock:
 def temp_root(tmp_path: Path) -> Path:
     """Create a temporary root directory for tests."""
     root = tmp_path / "data"
-    root.mkdir(parents=True, exist_ok=True)
-    return root
-
-
-@pytest.fixture
-def temp_groups_root(tmp_path: Path) -> Path:
-    """Create a temporary groups root for tests."""
-    root = tmp_path / "data" / "groups"
-    root.mkdir(parents=True, exist_ok=True)
-    return root
-
-
-@pytest.fixture
-def temp_kb_root(tmp_path: Path) -> Path:
-    """Create a temporary KB root for tests."""
-    root = tmp_path / "data" / "groups"
     root.mkdir(parents=True, exist_ok=True)
     return root
 
@@ -135,12 +143,8 @@ def temp_settings(tmp_path: Path):
     temp_root.mkdir(parents=True, exist_ok=True)
 
     patches = {
-        "GROUPS_ROOT": temp_root / "groups",
         "USERS_ROOT": temp_root / "users",
-        "FILES_ROOT": temp_root / "files",
-        "DB_ROOT": temp_root / "db",
-        "MEM_ROOT": temp_root / "mem",
-        "KB_ROOT": temp_root / "kb",
+        "SHARED_ROOT": temp_root / "shared",
     }
 
     # Create directories
@@ -158,20 +162,14 @@ def temp_settings(tmp_path: Path):
 @pytest.fixture(autouse=True)
 def clean_context() -> Generator[None, None, None]:
     """Clean up context variables before and after each test."""
-    from executive_assistant.storage.group_storage import (
-        set_group_id, clear_group_id,
-        set_user_id, clear_user_id,
-    )
-    from executive_assistant.storage.file_sandbox import set_thread_id
+    from executive_assistant.storage.thread_storage import clear_thread_id, set_thread_id
 
     # Clean before
-    clear_group_id()
-    clear_user_id()
+    clear_thread_id()
     set_thread_id("")
 
     yield
 
     # Clean after
-    clear_group_id()
-    clear_user_id()
+    clear_thread_id()
     set_thread_id("")

@@ -8,32 +8,11 @@ _pending_proposal: ContextVar[dict | None] = ContextVar("_pending_proposal", def
 
 
 @tool
-def confirmation_request(
+def confirm_request(
     action: str,
     details: str,
 ) -> str:
-    """
-    Request user confirmation before performing a large operation.
-
-    Use this tool when you're about to:
-    - Store more than 5 documents in KB
-    - Create database tables with many rows
-    - Perform operations on multiple files
-    - Any other significant operation
-
-    The user's response will be available in the next message.
-
-    Args:
-        action: Brief description of what you plan to do (e.g., "Store 12 documents in KB")
-        details: More detailed explanation of the operation
-
-    Returns:
-        Confirmation request message to show the user.
-
-    Examples:
-        >>> request_confirmation("Store 15 documents in KB", "Splitting MFA.txt by Article, covering all 19 articles with summaries and metadata")
-        "📋 Proposed Action: Store 15 documents in KB\\n\\nDetails: Splitting MFA.txt by Article...\\n\\nPlease confirm with 'yes' to proceed."
-    """
+    """Ask the user to confirm a potentially destructive or large action."""
     # Store the proposal for the next handler to check
     _pending_proposal.set({"action": action, "details": details})
 

@@ -32,22 +32,22 @@ def register_notification_handler(channel: str, handler):
 
     Args:
         channel: Channel name (e.g., 'telegram', 'http', 'email')
-        handler: Async function that takes (thread_ids, message) and sends notification
+        handler: Async function that takes (thread_id, message) and sends notification
     """
     _notification_handlers[channel] = handler
 
 
 
-async def send_notification(thread_ids: list[str], message: str, channel: str) -> bool:
+async def send_notification(thread_id: str, message: str, channel: str) -> bool:
     """Public wrapper for sending notifications via registered handlers."""
-    return await _send_notification(thread_ids, message, channel)
+    return await _send_notification(thread_id, message, channel)
 
 
-async def _send_notification(thread_ids: list[str], message: str, channel: str) -> bool:
+async def _send_notification(thread_id: str, message: str, channel: str) -> bool:
     """Send notification through the appropriate channel.
 
     Args:
-        thread_ids: List of thread IDs to notify
+        thread_id: Thread ID to notify
         message: Message to send
         channel: Channel to use for sending
 
@@ -58,7 +58,7 @@ async def _send_notification(thread_ids: list[str], message: str, channel: str) 
 
     if handler:
         try:
-            await handler(thread_ids, message)
+            await handler(thread_id, message)
             return True
         except Exception as e:
             logger.error(f"Failed to send notification via {channel}: {e}")
@@ -87,13 +87,13 @@ async def _process_pending_reminders():
 
         for reminder in pending:
             # Determine channel from thread_id (e.g., "telegram:123" -> "telegram")
-            if not reminder.thread_ids:
-                logger.warning(f"Reminder {reminder.id} has no thread_ids")
-                await storage.mark_failed(reminder.id, "No thread IDs")
+            if not reminder.thread_id:
+                logger.warning(f"Reminder {reminder.id} has no thread_id")
+                await storage.mark_failed(reminder.id, "No thread ID")
                 continue
 
             # Use the first thread_id to determine channel
-            thread_id = reminder.thread_ids[0]
+            thread_id = reminder.thread_id
             if ":" in thread_id:
                 channel = thread_id.split(":")[0]
             else:
@@ -102,7 +102,7 @@ async def _process_pending_reminders():
             try:
                 # Send notification
                 success = await _send_notification(
-                    reminder.thread_ids, reminder.message, channel
+                    thread_id, reminder.message, channel
                 )
             except Exception as e:
                 logger.error(
@@ -120,8 +120,7 @@ async def _process_pending_reminders():
                     try:
                         next_due = parse_cron_next(reminder.recurrence, now)
                         next_reminder = await storage.create(
-                            user_id=reminder.user_id,
-                            thread_ids=reminder.thread_ids,
+                            thread_id=reminder.thread_id,
                             message=reminder.message,
                             due_time=next_due,
                             recurrence=reminder.recurrence,

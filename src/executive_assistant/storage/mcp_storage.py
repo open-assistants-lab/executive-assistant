@@ -9,7 +9,7 @@ from executive_assistant.config import settings
 
 def get_admin_mcp_config_path() -> Path:
     """Get admin MCP config path."""
-    return settings.SHARED_ROOT.parent / "admins" / "mcp.json"
+    return settings.ADMINS_ROOT / "mcp.json"
 
 
 def load_mcp_config() -> dict[str, Any]:

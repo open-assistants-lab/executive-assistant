@@ -1,5 +1,6 @@
 """User registry for tracking ownership across threads, files, and database data."""
 
+import asyncio
 import json
 from dataclasses import dataclass
 from datetime import datetime
@@ -41,6 +42,14 @@ def sanitize_thread_id(thread_id: str) -> str:
     return thread_id
 
 
+def _schedule_async(coro: Any) -> None:
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        asyncio.run(coro)
+        return
+    loop.create_task(coro)
+
 @dataclass
 class MessageLog:
     """A logged message for audit purposes."""
@@ -60,7 +69,6 @@ class ConversationLog:
     """A conversation log entry."""
 
     conversation_id: str
-    user_id: str | None
     channel: str
     created_at: datetime
     updated_at: datetime
@@ -73,18 +81,43 @@ class FilePath:
     """A file path ownership record."""
 
     thread_id: str
-    user_id: str | None
     channel: str
     created_at: datetime
 
 
 @dataclass
-class DBPath:
-    """A database ownership record."""
+class TDBPath:
+    """A transactional database ownership record."""
 
     db_path: str
     thread_id: str
-    user_id: str | None
+    channel: str
+    created_at: datetime
+
+
+class VDBPath:
+    """A vector database ownership record."""
+
+    vs_path: str
+    thread_id: str
+    channel: str
+    created_at: datetime
+
+
+class MemPath:
+    """A memory DB ownership record."""
+
+    mem_path: str
+    thread_id: str
+    channel: str
+    created_at: datetime
+
+
+class ADBPath:
+    """An analytics DB ownership record."""
+
+    adb_path: str
+    thread_id: str
     channel: str
     created_at: datetime
 
@@ -96,9 +129,8 @@ class UserRegistry:
     Provides:
     - Message/conversation logging for audit
     - File path ownership tracking
-    - Database ownership tracking
-    - Merge operations (link threads to user)
-    - Remove operations (unlink threads)
+    - Transactional database ownership tracking
+    - Vector database ownership tracking
     """
 
     def __init__(self, conn_string: str | None = None):
@@ -148,7 +180,6 @@ class UserRegistry:
     async def log_message(
         self,
         conversation_id: str,
-        user_id: str,
         channel: str,
         message: BaseMessage,
         message_id: str | None = None,
@@ -159,7 +190,6 @@ class UserRegistry:
 
         Args:
             conversation_id: Thread/conversation identifier
-            user_id: User identifier
             channel: Channel name (telegram, http, etc.)
             message: The message to log
             message_id: Channel-specific message ID
@@ -190,10 +220,10 @@ class UserRegistry:
             async with conn.transaction():
                 # Ensure conversation exists
                 await conn.execute(
-                    """INSERT INTO conversations (conversation_id, user_id, channel)
-                       VALUES ($1, $2, $3)
+                    """INSERT INTO conversations (conversation_id, channel)
+                       VALUES ($1, $2)
                        ON CONFLICT (conversation_id) DO NOTHING""",
-                    conversation_id, user_id, channel
+                    conversation_id, channel
                 )
 
                 # Insert message (trigger handles conversation update)
@@ -252,48 +282,6 @@ class UserRegistry:
         finally:
             await conn.close()
 
-    async def get_user_conversations(
-        self,
-        user_id: str,
-        limit: int = 50,
-    ) -> list[ConversationLog]:
-        """
-        Get all conversations for a user.
-
-        Args:
-            user_id: User identifier
-            limit: Maximum number of conversations to return
-
-        Returns:
-            List of conversation logs
-        """
-        conn = await asyncpg.connect(self._conn_string)
-        try:
-            rows = await conn.fetch(
-                """SELECT conversation_id, user_id, channel, created_at, updated_at,
-                          message_count, status
-                   FROM conversations
-                   WHERE user_id = $1
-                   ORDER BY updated_at DESC
-                   LIMIT $2""",
-                user_id, limit
-            )
-
-            return [
-                ConversationLog(
-                    conversation_id=row["conversation_id"],
-                    user_id=row["user_id"],
-                    channel=row["channel"],
-                    created_at=row["created_at"],
-                    updated_at=row["updated_at"],
-                    message_count=row["message_count"],
-                    status=row["status"],
-                )
-                for row in rows
-            ]
-        finally:
-            await conn.close()
-
     async def get_conversation(self, conversation_id: str) -> ConversationLog | None:
         """
         Get conversation metadata.
@@ -307,7 +295,7 @@ class UserRegistry:
         conn = await asyncpg.connect(self._conn_string)
         try:
             row = await conn.fetchrow(
-                """SELECT conversation_id, user_id, channel, created_at, updated_at,
+                """SELECT conversation_id, channel, created_at, updated_at,
                           message_count, status
                    FROM conversations
                    WHERE conversation_id = $1""",
@@ -319,223 +307,11 @@ class UserRegistry:
 
             return ConversationLog(
                 conversation_id=row["conversation_id"],
-                user_id=row["user_id"],
                 channel=row["channel"],
                 created_at=row["created_at"],
                 updated_at=row["updated_at"],
                 message_count=row["message_count"],
                 status=row["status"],
-            )
-        finally:
-            await conn.close()
-
-    async def update_structured_summary(
-        self,
-        conversation_id: str,
-        structured_summary: dict[str, Any],
-    ) -> None:
-        """
-        Update the structured summary (JSONB) for a conversation.
-
-        Args:
-            conversation_id: Thread/conversation identifier
-            structured_summary: The structured summary dict
-        """
-        conn = await asyncpg.connect(self._conn_string)
-        try:
-            await conn.execute(
-                """UPDATE conversations
-                   SET structured_summary = $2::jsonb
-                   WHERE conversation_id = $1""",
-                conversation_id, json.dumps(structured_summary)
-            )
-        finally:
-            await conn.close()
-
-    async def update_active_request(
-        self,
-        conversation_id: str,
-        active_request: str,
-    ) -> None:
-        """
-        Update the active request (intent-first) for a conversation.
-
-        Args:
-            conversation_id: Thread/conversation identifier
-            active_request: The current user request text
-        """
-        conn = await asyncpg.connect(self._conn_string)
-        try:
-            await conn.execute(
-                """UPDATE conversations
-                   SET active_request = $2
-                   WHERE conversation_id = $1""",
-                conversation_id, active_request
-            )
-        finally:
-            await conn.close()
-
-    async def get_structured_summary(
-        self,
-        conversation_id: str,
-    ) -> dict[str, Any] | None:
-        """
-        Get the structured summary for a conversation.
-
-        Args:
-            conversation_id: Thread/conversation identifier
-
-        Returns:
-            Structured summary dict or None
-        """
-        conn = await asyncpg.connect(self._conn_string)
-        try:
-            row = await conn.fetchrow(
-                """SELECT structured_summary
-                   FROM conversations
-                   WHERE conversation_id = $1""",
-                conversation_id,
-            )
-
-            if not row or not row.get("structured_summary"):
-                return None
-
-            return row["structured_summary"]
-        finally:
-            await conn.close()
-
-    # ==================== Identity Management ====================
-
-    async def create_identity_if_not_exists(
-        self,
-        thread_id: str,
-        identity_id: str,
-        channel: str,
-    ) -> bool:
-        """
-        Create identity record if it doesn't exist.
-
-        Args:
-            thread_id: Thread identifier
-            identity_id: Auto-generated identity ID (anon_*)
-            channel: Channel type ('telegram', 'email', 'http')
-
-        Returns:
-            True if created, False if already existed
-        """
-        conn = await asyncpg.connect(self._conn_string)
-        try:
-            await conn.execute(
-                """INSERT INTO identities (identity_id, thread_id, channel)
-                   VALUES ($1, $2, $3)
-                   ON CONFLICT (thread_id) DO NOTHING""",
-                identity_id, thread_id, channel
-            )
-            return True
-        except Exception:
-            return False
-        finally:
-            await conn.close()
-
-    async def get_identity_by_thread_id(
-        self,
-        thread_id: str,
-    ) -> dict | None:
-        """
-        Get identity by thread_id.
-
-        Args:
-            thread_id: Thread identifier
-
-        Returns:
-            Identity dict or None if not found
-        """
-        conn = await asyncpg.connect(self._conn_string)
-        try:
-            row = await conn.fetchrow(
-                """SELECT * FROM identities WHERE thread_id = $1""",
-                thread_id
-            )
-
-            if not row:
-                return None
-
-            return dict(row)
-        finally:
-            await conn.close()
-
-    async def get_persistent_user_id(
-        self,
-        thread_id: str,
-    ) -> str | None:
-        """
-        Get persistent user_id for a thread_id.
-
-        Returns persistent_user_id if verified, otherwise returns identity_id.
-
-        Args:
-            thread_id: Thread identifier
-
-        Returns:
-            user_id string or None if not found
-        """
-        identity = await self.get_identity_by_thread_id(thread_id)
-        if not identity:
-            return None
-
-        # Return persistent_user_id if verified, else identity_id (anon_*)
-        return identity.get("persistent_user_id") or identity.get("identity_id")
-
-    async def update_identity_merge(
-        self,
-        identity_id: str,
-        persistent_user_id: str,
-        verification_status: str = "verified",
-    ) -> None:
-        """
-        Update identity after merge.
-
-        Args:
-            identity_id: Identity ID to update
-            persistent_user_id: New persistent user ID
-            verification_status: New verification status
-        """
-        conn = await asyncpg.connect(self._conn_string)
-        try:
-            await conn.execute(
-                """UPDATE identities
-                   SET persistent_user_id = $1,
-                       verification_status = $2,
-                       merged_at = NOW()
-                   WHERE identity_id = $3""",
-                persistent_user_id, verification_status, identity_id
-            )
-        finally:
-            await conn.close()
-
-    async def update_identity_pending(
-        self,
-        thread_id: str,
-        verification_method: str,
-        verification_contact: str,
-    ) -> None:
-        """
-        Update identity to pending verification status.
-
-        Args:
-            thread_id: Thread identifier
-            verification_method: Method ('email', 'phone', etc.)
-            verification_contact: Contact info (email, phone)
-        """
-        conn = await asyncpg.connect(self._conn_string)
-        try:
-            await conn.execute(
-                """UPDATE identities
-                   SET verification_status = 'pending',
-                       verification_method = $1,
-                       verification_contact = $2
-                   WHERE thread_id = $3""",
-                verification_method, verification_contact, thread_id
             )
         finally:
             await conn.close()
@@ -580,7 +356,7 @@ class UserRegistry:
         conn = await asyncpg.connect(self._conn_string)
         try:
             row = await conn.fetchrow(
-                """SELECT thread_id, user_id, channel, created_at
+                """SELECT thread_id, channel, created_at
                    FROM file_paths
                    WHERE thread_id = $1""",
                 thread_id,
@@ -591,55 +367,56 @@ class UserRegistry:
 
             return FilePath(
                 thread_id=row["thread_id"],
-                user_id=row["user_id"],
                 channel=row["channel"],
                 created_at=row["created_at"],
             )
         finally:
             await conn.close()
 
-    # ==================== Database Path Tracking ====================
+    # ==================== Transactional Database Path Tracking ====================
 
-    async def register_db_path(
+    async def register_tdb_path(
         self,
         thread_id: str,
         channel: str,
-        db_path: str,
+        tdb_path: str,
     ) -> None:
         """
-        Register a database for a thread (ownership tracking).
+        Register a transactional database for a thread (ownership tracking).
 
         Args:
             thread_id: Thread identifier
             channel: Channel name
-            db_path: Path to the database file
+            tdb_path: Path to the transactional database file
         """
         conn = await asyncpg.connect(self._conn_string)
         try:
             await conn.execute(
-                """INSERT INTO db_paths (db_path, thread_id, channel)
+                """INSERT INTO tdb_paths (tdb_path, thread_id, channel)
                    VALUES ($1, $2, $3)
-                   ON CONFLICT (thread_id) DO UPDATE SET db_path = EXCLUDED.db_path""",
-                db_path, thread_id, channel
+                   ON CONFLICT (thread_id) DO UPDATE SET tdb_path = EXCLUDED.tdb_path""",
+                tdb_path, thread_id, channel
             )
+        except asyncpg.UndefinedTableError:
+            return
         finally:
             await conn.close()
 
-    async def get_db_path(self, thread_id: str) -> DBPath | None:
+    async def get_tdb_path(self, thread_id: str) -> TDBPath | None:
         """
-        Get database path info for a thread.
+        Get transactional database path info for a thread.
 
         Args:
             thread_id: Thread identifier
 
         Returns:
-            DBPath record or None
+            TDBPath record or None
         """
         conn = await asyncpg.connect(self._conn_string)
         try:
             row = await conn.fetchrow(
-                """SELECT db_path, thread_id, user_id, channel, created_at
-                   FROM db_paths
+                """SELECT tdb_path, thread_id, channel, created_at
+                   FROM tdb_paths
                    WHERE thread_id = $1""",
                 thread_id,
             )
@@ -647,179 +424,56 @@ class UserRegistry:
             if not row:
                 return None
 
-            return DBPath(
-                db_path=row["db_path"],
+            return TDBPath(
+                tdb_path=row["tdb_path"],
                 thread_id=row["thread_id"],
-                user_id=row["user_id"],
                 channel=row["channel"],
                 created_at=row["created_at"],
             )
         finally:
             await conn.close()
 
-    # ==================== Merge Operations ====================
+    # ==================== Vector Database Path Tracking ====================
 
-    async def merge_threads(
-        self,
-        source_thread_ids: list[str],
-        target_user_id: str,
-    ) -> dict[str, Any]:
-        """
-        Merge multiple threads into a single user (ownership merge only).
-
-        This updates ownership records but does NOT migrate checkpoint state.
-        Conversations remain separate in LangGraph checkpoints.
-
-        Args:
-            source_thread_ids: List of thread IDs to merge
-            target_user_id: Target user ID for merged ownership
-
-        Returns:
-            Summary of merge operation
-        """
+    async def register_vdb_path(self, thread_id: str, channel: str, vdb_path: str) -> None:
         conn = await asyncpg.connect(self._conn_string)
         try:
-            async with conn.transaction():
-                # Log the merge operation to user_registry table
-                op_id = await conn.fetchval(
-                    """INSERT INTO user_registry (operation_type, source_thread_ids, target_user_id, status)
-                       VALUES ($1, $2, $3, 'in_progress')
-                       RETURNING id""",
-                    "merge", source_thread_ids, target_user_id
-                )
-
-                # Update conversations
-                conv_result = await conn.execute(
-                    """UPDATE conversations
-                       SET user_id = $1, updated_at = NOW()
-                       WHERE conversation_id = ANY($2)""",
-                    target_user_id, source_thread_ids
-                )
-
-                # Update file_paths
-                file_result = await conn.execute(
-                    """UPDATE file_paths
-                       SET user_id = $1
-                       WHERE thread_id = ANY($2)""",
-                    target_user_id, source_thread_ids
-                )
-
-                # Update db_paths
-                db_result = await conn.execute(
-                    """UPDATE db_paths
-                       SET user_id = $1
-                       WHERE thread_id = ANY($2)""",
-                    target_user_id, source_thread_ids
-                )
-
-                # Parse counts from results
-                conv_count = int(conv_result.split()[-1]) if conv_result else 0
-                file_count = int(file_result.split()[-1]) if file_result else 0
-                db_count = int(db_result.split()[-1]) if db_result else 0
-
-                # Mark operation as completed
-                await conn.execute(
-                    """UPDATE user_registry
-                       SET status = 'completed', completed_at = NOW()
-                       WHERE id = $1""",
-                    op_id
-                )
-
-                return {
-                    "operation_id": op_id,
-                    "target_user_id": target_user_id,
-                    "source_thread_ids": source_thread_ids,
-                    "conversations_updated": conv_count,
-                    "file_paths_updated": file_count,
-                    "db_paths_updated": db_count,
-                }
-        except Exception as e:
-            # Mark operation as failed
-            try:
-                await conn.execute(
-                    """UPDATE user_registry
-                       SET status = 'failed', error_message = $1, completed_at = NOW()
-                       WHERE id = (SELECT id FROM user_registry ORDER BY created_at DESC LIMIT 1)""",
-                    str(e)
-                )
-            except Exception:
-                pass
-            raise
+            await conn.execute(
+                """INSERT INTO vdb_paths (vdb_path, thread_id, channel)
+                   VALUES ($1, $2, $3)
+                   ON CONFLICT (thread_id) DO UPDATE SET vdb_path = EXCLUDED.vdb_path""",
+                vdb_path, thread_id, channel
+            )
+        except asyncpg.UndefinedTableError:
+            return
         finally:
             await conn.close()
 
-    async def remove_thread(self, thread_id: str) -> dict[str, Any]:
-        """
-        Remove a thread (unlink from user, mark as removed).
-
-        This removes ownership records but keeps audit history.
-
-        Args:
-            thread_id: Thread ID to remove
-
-        Returns:
-            Summary of removal operation
-        """
+    async def register_mem_path(self, thread_id: str, channel: str, mem_path: str) -> None:
         conn = await asyncpg.connect(self._conn_string)
         try:
-            async with conn.transaction():
-                # Log the remove operation to user_registry table
-                op_id = await conn.fetchval(
-                    """INSERT INTO user_registry (operation_type, source_thread_ids, status)
-                       VALUES ($1, $2, 'in_progress')
-                       RETURNING id""",
-                    "remove", [thread_id]
-                )
+            await conn.execute(
+                """INSERT INTO mem_paths (mem_path, thread_id, channel)
+                   VALUES ($1, $2, $3)
+                   ON CONFLICT (thread_id) DO UPDATE SET mem_path = EXCLUDED.mem_path""",
+                mem_path, thread_id, channel
+            )
+        except asyncpg.UndefinedTableError:
+            return
+        finally:
+            await conn.close()
 
-                # Update conversation status
-                conv_result = await conn.execute(
-                    """UPDATE conversations
-                       SET status = 'removed', user_id = NULL, updated_at = NOW()
-                       WHERE conversation_id = $1""",
-                    thread_id
-                )
-
-                # Remove from file_paths
-                file_result = await conn.execute(
-                    """DELETE FROM file_paths
-                       WHERE thread_id = $1""",
-                    thread_id
-                )
-
-                # Remove from db_paths
-                db_result = await conn.execute(
-                    """DELETE FROM db_paths
-                       WHERE thread_id = $1""",
-                    thread_id
-                )
-
-                # Mark operation as completed
-                await conn.execute(
-                    """UPDATE user_registry
-                       SET status = 'completed', completed_at = NOW()
-                       WHERE id = $1""",
-                    op_id
-                )
-
-                return {
-                    "operation_id": op_id,
-                    "thread_id": thread_id,
-                    "conversations_updated": int(conv_result.split()[-1]) if conv_result else 0,
-                    "file_paths_deleted": int(file_result.split()[-1]) if file_result else 0,
-                    "db_paths_deleted": int(db_result.split()[-1]) if db_result else 0,
-                }
-        except Exception as e:
-            # Mark operation as failed
-            try:
-                await conn.execute(
-                    """UPDATE user_registry
-                       SET status = 'failed', error_message = $1, completed_at = NOW()
-                       WHERE id = (SELECT id FROM user_registry ORDER BY created_at DESC LIMIT 1)""",
-                    str(e)
-                )
-            except Exception:
-                pass
-            raise
+    async def register_adb_path(self, thread_id: str, channel: str, adb_path: str) -> None:
+        conn = await asyncpg.connect(self._conn_string)
+        try:
+            await conn.execute(
+                """INSERT INTO adb_paths (adb_path, thread_id, channel)
+                   VALUES ($1, $2, $3)
+                   ON CONFLICT (thread_id) DO UPDATE SET adb_path = EXCLUDED.adb_path""",
+                adb_path, thread_id, channel
+            )
+        except asyncpg.UndefinedTableError:
+            return
         finally:
             await conn.close()
 
@@ -827,7 +481,6 @@ class UserRegistry:
 
     async def get_message_count(
         self,
-        user_id: str | None = None,
         channel: str | None = None,
         start_date: datetime | None = None,
         end_date: datetime | None = None,
@@ -836,7 +489,6 @@ class UserRegistry:
         Get message count with optional filters.
 
         Args:
-            user_id: Filter by user ID
             channel: Filter by channel
             start_date: Filter messages after this date
             end_date: Filter messages before this date
@@ -847,11 +499,6 @@ class UserRegistry:
         conditions = []
         params = []
         param_count = 0
-
-        if user_id:
-            param_count += 1
-            conditions.append(f"c.user_id = ${param_count}")
-            params.append(user_id)
 
         if channel:
             param_count += 1
@@ -882,67 +529,32 @@ class UserRegistry:
         finally:
             await conn.close()
 
-    async def get_user_files(self, user_id: str) -> list[FilePath]:
-        """
-        Get all file paths owned by a user.
+def register_vdb_path_best_effort(thread_id: str | None, channel: str, vdb_path: str) -> None:
+    if not thread_id:
+        return
+    registry = UserRegistry()
+    _schedule_async(registry.register_vdb_path(thread_id, channel, vdb_path))
 
-        Args:
-            user_id: User identifier
+def register_mem_path_best_effort(thread_id: str | None, channel: str, mem_path: str) -> None:
+    if not thread_id:
+        return
+    registry = UserRegistry()
+    _schedule_async(registry.register_mem_path(thread_id, channel, mem_path))
 
-        Returns:
-            List of FilePath records
-        """
-        conn = await asyncpg.connect(self._conn_string)
-        try:
-            rows = await conn.fetch(
-                """SELECT thread_id, user_id, channel, created_at
-                   FROM file_paths
-                   WHERE user_id = $1
-                   ORDER BY created_at DESC""",
-                user_id
-            )
+def register_adb_path_best_effort(thread_id: str | None, channel: str, adb_path: str) -> None:
+    if not thread_id:
+        return
+    registry = UserRegistry()
+    _schedule_async(registry.register_adb_path(thread_id, channel, adb_path))
 
-            return [
-                FilePath(
-                    thread_id=row["thread_id"],
-                    user_id=row["user_id"],
-                    channel=row["channel"],
-                    created_at=row["created_at"],
-                )
-                for row in rows
-            ]
-        finally:
-            await conn.close()
+def register_file_path_best_effort(thread_id: str | None, channel: str, file_path: str) -> None:
+    if not thread_id:
+        return
+    registry = UserRegistry()
+    _schedule_async(registry.register_file_path(thread_id, channel, file_path))
 
-    async def get_user_dbs(self, user_id: str) -> list[DBPath]:
-        """
-        Get all databases owned by a user.
-
-        Args:
-            user_id: User identifier
-
-        Returns:
-            List of DBPath records
-        """
-        conn = await asyncpg.connect(self._conn_string)
-        try:
-            rows = await conn.fetch(
-                """SELECT db_path, thread_id, user_id, channel, created_at
-                   FROM db_paths
-                   WHERE user_id = $1
-                   ORDER BY created_at DESC""",
-                user_id
-            )
-
-            return [
-                DBPath(
-                    db_path=row["db_path"],
-                    thread_id=row["thread_id"],
-                    user_id=row["user_id"],
-                    channel=row["channel"],
-                    created_at=row["created_at"],
-                )
-                for row in rows
-            ]
-        finally:
-            await conn.close()
+def register_tdb_path_best_effort(thread_id: str | None, channel: str, tdb_path: str) -> None:
+    if not thread_id:
+        return
+    registry = UserRegistry()
+    _schedule_async(registry.register_tdb_path(thread_id, channel, tdb_path))

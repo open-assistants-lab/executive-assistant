@@ -22,10 +22,14 @@ from langchain.messages import ToolMessage
 from langgraph.types import Command
 
 from executive_assistant.config import settings
-from executive_assistant.storage.file_sandbox import get_thread_id
+from executive_assistant.storage.thread_storage import get_thread_id, set_thread_id
 from executive_assistant.agent.middleware_debug import MiddlewareDebug, RetryTracker
+from executive_assistant.agent.flow_mode import (
+    is_flow_mode_active,
+    is_flow_mode_enabled,
+    set_flow_mode_active,
+)
 from executive_assistant.logging import format_log_context, truncate_log_text
-from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
 
 if TYPE_CHECKING:
     from executive_assistant.channels.base import BaseChannel
@@ -154,12 +158,14 @@ class StatusUpdateMiddleware(AgentMiddleware):
         conv_id = conversation_id or self.current_conversation_id
         thread_id = get_thread_id()
         channel = thread_id.split(":")[0] if thread_id and ":" in thread_id else None
-        user_id = sanitize_thread_id_to_user_id(thread_id) if thread_id else None
+        user_id = thread_id if thread_id else None
         ctx = format_log_context("message", channel=channel, user=user_id, conversation=conv_id, type="status")
         if not conv_id:
             logger.warning(f"{ctx} send status skipped: no conversation_id")
             return
 
+        if is_flow_mode_active() and message.startswith("🤔"):
+            message = message.replace("🤔", "🧐", 1)
         try:
             logger.debug(f'{ctx} send status text="{truncate_log_text(message)}"')
             await self.channel.send_status(
@@ -194,18 +200,31 @@ class StatusUpdateMiddleware(AgentMiddleware):
         self.start_time = time.time()
         self.last_status_time = None
 
-        # Prefer ContextVar thread_id; fall back to runtime config (tests/mocked)
+        # Prefer ContextVar thread_id; fall back to state/runtime config (tests/mocked)
         thread_id = get_thread_id()
+        if not thread_id and isinstance(state, dict):
+            thread_id = state.get("thread_id") or state.get("conversation_id")
         if not thread_id:
-            thread_id = (
-                runtime.get("config", {})
-                .get("configurable", {})
-                .get("thread_id")
-            )
+            if isinstance(runtime, dict):
+                thread_id = runtime.get("config", {}).get("configurable", {}).get("thread_id")
+            else:
+                config = getattr(runtime, "config", None)
+                configurable = getattr(runtime, "configurable", None)
+                if isinstance(configurable, dict):
+                    thread_id = configurable.get("thread_id")
+                elif isinstance(config, dict):
+                    thread_id = config.get("configurable", {}).get("thread_id")
+                else:
+                    thread_id = None
+
+        if thread_id and not get_thread_id():
+            set_thread_id(thread_id)
 
         if thread_id:
-            # Extract conversation_id from thread_id (e.g., "TelegramChannel:123" -> "123")
+            # Extract conversation_id from thread_id (e.g., "telegram:123" -> "123")
             self.current_conversation_id = thread_id.split(":")[-1] if ":" in thread_id else thread_id
+            # Sync flow mode ContextVar for this run (set at conversation scope)
+            set_flow_mode_active(is_flow_mode_enabled(self.current_conversation_id))
             self._log_debug("start")
 
             # Initialize middleware debug tracking for this run (only if ContextVar is set)
@@ -220,8 +239,15 @@ class StatusUpdateMiddleware(AgentMiddleware):
                 self.middleware_debug = None
                 self.retry_tracker = None
         else:
-            logger.warning("StatusMiddleware: No thread_id in context")
-            self.current_conversation_id = None
+            # Fallback to conversation_id if provided in state
+            conversation_id = None
+            if isinstance(state, dict):
+                conversation_id = state.get("conversation_id")
+            if conversation_id:
+                self.current_conversation_id = conversation_id
+            else:
+                logger.warning("StatusMiddleware: No thread_id in context")
+                self.current_conversation_id = None
             self.middleware_debug = None
             self.retry_tracker = None
 
@@ -258,6 +284,18 @@ class StatusUpdateMiddleware(AgentMiddleware):
         # Check for summarization
         summary_result = self.middleware_debug.detect_summarization()
         if summary_result:
+            summary_payload = {
+                "type": "middleware",
+                "name": "StatusUpdateMiddleware",
+                "event": "summarization",
+                "thread_id": get_thread_id(),
+                "conversation_id": self.current_conversation_id,
+                "messages_before": summary_result["messages_before"],
+                "messages_after": summary_result["messages_after"],
+                "tokens_before": summary_result["tokens_before"],
+                "tokens_after": summary_result["tokens_after"],
+                "reduction_pct": summary_result["reduction_pct"],
+            }
             self._log_debug(
                 "summarization",
                 messages_before=summary_result["messages_before"],
@@ -271,15 +309,65 @@ class StatusUpdateMiddleware(AgentMiddleware):
                 trigger=settings.MW_SUMMARIZATION_MAX_TOKENS,
                 target=settings.MW_SUMMARIZATION_TARGET_TOKENS,
             )
+            if settings.MW_DEBUG_SUMMARIZATION:
+                logger.info(json.dumps(summary_payload, separators=(",", ":")))
+        elif settings.MW_DEBUG_SUMMARIZATION:
+            logger.info(
+                json.dumps(
+                    {
+                        "type": "middleware",
+                        "name": "StatusUpdateMiddleware",
+                        "event": "summarization",
+                        "thread_id": get_thread_id(),
+                        "conversation_id": self.current_conversation_id,
+                        "messages_before": self.middleware_debug.messages_before,
+                        "messages_after": self.middleware_debug.messages_after,
+                        "tokens_before": self.middleware_debug.tokens_before,
+                        "tokens_after": self.middleware_debug.tokens_after,
+                        "reduction_pct": 0.0,
+                        "note": "not_triggered",
+                    },
+                    separators=(",", ":"),
+                )
+            )
 
         # Check for context editing
         context_result = self.middleware_debug.detect_context_editing()
         if context_result:
+            context_payload = {
+                "type": "middleware",
+                "name": "StatusUpdateMiddleware",
+                "event": "context_editing",
+                "thread_id": get_thread_id(),
+                "conversation_id": self.current_conversation_id,
+                "tool_uses_before": context_result["tool_uses_before"],
+                "tool_uses_after": context_result["tool_uses_after"],
+                "reduction_pct": context_result["reduction_pct"],
+            }
             self._log_debug(
                 "context_editing",
                 tool_uses_before=context_result["tool_uses_before"],
                 tool_uses_after=context_result["tool_uses_after"],
                 reduction_pct=context_result["reduction_pct"],
+            )
+            if settings.MW_DEBUG_CONTEXT_EDITING:
+                logger.info(json.dumps(context_payload, separators=(",", ":")))
+        elif settings.MW_DEBUG_CONTEXT_EDITING:
+            logger.info(
+                json.dumps(
+                    {
+                        "type": "middleware",
+                        "name": "StatusUpdateMiddleware",
+                        "event": "context_editing",
+                        "thread_id": get_thread_id(),
+                        "conversation_id": self.current_conversation_id,
+                        "tool_uses_before": self.middleware_debug.tool_uses_before,
+                        "tool_uses_after": self.middleware_debug.tool_uses_after,
+                        "reduction_pct": 0.0,
+                        "note": "not_triggered",
+                    },
+                    separators=(",", ":"),
+                )
             )
 
         return None
@@ -304,7 +392,7 @@ class StatusUpdateMiddleware(AgentMiddleware):
         self._log_debug("tool_start", tool_name=tool_name)
 
         # Build status message
-        status_msg = f"🛠️ Tool[{self.tool_count}]: {tool_name}"
+        status_msg = f"🛠️ {self.tool_count}: {tool_name}"
         if self.show_tool_args and tool_args:
             status_msg = f"{status_msg} {self._sanitize_args(tool_args)}"
         await self._send_status(status_msg)
@@ -379,7 +467,7 @@ class StatusUpdateMiddleware(AgentMiddleware):
 
         # Log call limit messages if present in state.
         self._log_call_limit_messages(state)
-        if self._state_has_error(state):
+        if self._state_has_error(state) and settings.LOG_LEVEL.upper() == "DEBUG":
             self._log_debug("state_dump", messages=self._serialize_messages(state.get("messages", [])))
 
         try:

@@ -1,0 +1,215 @@
+# Executive Assistant Default Configuration
+# This file contains application default settings.
+# For secrets and environment-specific overrides, use .env file.
+
+# ============================================================================
+# LLM Configuration
+# ============================================================================
+
+llm:
+  # Default LLM provider: anthropic, openai, zhipu, ollama
+  # default_provider: openai
+  default_provider: ollama
+
+  # Global fallback models (used when provider-specific model not set)
+  default_model: null # Use provider-specific default
+  fast_model: null # Use provider-specific fast model
+
+  # Provider-specific model configurations
+  anthropic:
+    default_model: claude-haiku-4-5-20251001 # Uses claude-sonnet-4-20250514 by default
+    fast_model: claude-haiku-4-5-20251001 # Uses claude-haiku-4-20250514 by default
+
+  openai:
+    default_model: gpt-5.2-2025-12-11 # Uses gpt-4o by default
+    fast_model: gpt-5-mini-2025-08-07 # Uses gpt-4o-mini by default
+
+  zhipu:
+    default_model: glm-4-plus
+    fast_model: glm-4-flash
+
+  ollama:
+    default_model: gpt-oss:20b-cloud
+    fast_model: gpt-oss:20b-cloud
+    mode: cloud # cloud or local
+    cloud_url: "https://ollama.com"
+    local_url: "http://localhost:11434"
+
+# ============================================================================
+# Storage Configuration
+# ============================================================================
+
+storage:
+  # Checkpoint storage backend: postgres, memory
+  checkpoint: postgres
+
+  # PostgreSQL connection settings
+  postgres:
+    host: localhost
+    port: 5432
+    user: executive_assistant
+    db: executive_assistant_db
+    # password should be in .env
+
+  # Storage paths (relative to project root)
+  paths:
+    # 3-level storage hierarchy
+    shared_root: "./data/shared"
+    groups_root: "./data/groups"
+    users_root: "./data/users"
+
+  # Security settings
+  max_file_size_mb: 10
+
+# ============================================================================
+# Agent Configuration
+# ============================================================================
+
+agent:
+  # Agent display name - customize this for your deployment
+  name: "Executive Assistant"
+
+# ============================================================================
+# LangChain Middleware Configuration
+# ============================================================================
+
+middleware:
+  # Summarization Middleware - reduces context size when it gets too large
+  summarization:
+    enabled: true
+    max_tokens: 5000 # Trigger summarization at this token count
+    target_tokens: 1000 # Target size after summarization
+  debug_summarization: true
+
+  # Call Limits - prevent runaway agent execution (per-message limits)
+  model_call_limit: 50 # Max 50 LLM calls per message (prevents infinite loops)
+  tool_call_limit: 100 # Max 100 tool calls per message
+
+  # Retry Middleware - retry failed calls
+  tool_retry_enabled: true
+  model_retry_enabled: true
+
+  # Human-in-the-Loop (not yet implemented)
+  hitl_enabled: false
+
+  # Todo List Middleware
+  todo_list_enabled: true
+
+  # Context Editing Middleware
+  context_editing:
+    enabled: false
+    trigger_tokens: 5000
+    keep_tool_uses: 10
+  debug_context_editing: true
+
+  # Status Update Middleware - real-time progress feedback
+  status_updates:
+    enabled: true
+    show_tool_args: false # Show tool arguments (security risk if true)
+    update_interval: 1 # Minimum seconds between status updates
+
+  # Todo List Display Middleware - shows planned tasks to users
+  todo_list_display:
+    max_display: 10 # Maximum number of todos to show in status
+    update_interval: 0.5 # Minimum seconds between todo list updates
+    show_progress_bar: false # Use progress bar format instead of list
+
+# ============================================================================
+# Vector Store Configuration
+# ============================================================================
+
+vector_store:
+  # Sentence-transformers model for embeddings
+  embedding_model: "all-MiniLM-L6-v2"
+  embedding_dimension: 384
+  chunk_size: 3000 # Default chunk size in characters
+
+# ============================================================================
+# Memory (Embedded User Memories)
+# ============================================================================
+
+memory:
+  auto_extract: true # Auto-extract memories from each message
+  confidence_min: 0.6 # Minimum confidence to save a memory
+  max_per_turn: 3 # Max memories to extract per turn
+  extract_model: fast # Model variant: "default", "fast", or specific model
+  extract_provider: null # Override provider for extraction
+  extract_temperature: 0.0
+
+# ============================================================================
+# Logging
+# ============================================================================
+
+logging:
+  level: INFO # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  file: logs/executive_assistant.log # Optional log file path
+
+# ============================================================================
+# OCR (Text Extraction from Images/PDFs)
+# ============================================================================
+
+ocr:
+  engine: surya # paddleocr or tesseract
+  lang: eng
+  use_gpu: false
+  max_file_mb: 10
+  max_pages: 100
+  pdf_dpi: 200
+  pdf_min_text_chars: 5
+  timeout_seconds: 30
+  structured_model: fast
+  structured_provider: null
+  structured_max_retries: 2
+
+# ============================================================================
+# Allowed File Extensions
+# ============================================================================
+
+allowed_file_extensions:
+  - .txt
+  - .md
+  - .py
+  - .js
+  - .ts
+  - .json
+  - .yaml
+  - .yml
+  - .csv
+  - .xml
+  - .html
+  - .css
+  - .sh
+  - .bash
+  - .log
+  - .pdf
+  - .png
+  - .jpg
+  - .jpeg
+  - .webp
+  - .tiff
+  - .tif
+  - .bmp
+  - .gif
+
+# ============================================================================
+# Admin Access Control
+# ============================================================================
+
+admin:
+  user_ids: [] # Comma-separated list of admin user IDs
+  thread_ids: [telegram:6282871705] # Comma-separated list of admin thread IDs
+
+# ============================================================================
+# Channels Configuration
+# ============================================================================
+
+channels:
+  telegram:
+    # webhook_url and webhook_secret should be in .env
+
+  http:
+    host: "0.0.0.0"
+    port: 8000
+
+storage_paths:
+  admins_root: ./data/admins

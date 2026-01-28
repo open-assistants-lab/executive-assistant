@@ -68,7 +68,7 @@ agent = create_agent(
 
 Pause agent execution for human approval, editing, or rejection of tool calls before they execute. Human-in-the-loop is useful for the following:
 
-- High-stakes operations requiring human approval (e.g. database writes, financial transactions).
+- High-stakes operations requiring human approval (e.g. transactional database writes, financial transactions).
 - Compliance workflows where human oversight is mandatory.
 - Long-running conversations where human feedback guides the agent.
 
@@ -135,7 +135,7 @@ agent = create_agent(
 Control agent execution by limiting the number of tool calls, either globally across all tools or for specific tools. Tool call limits are useful for the following:
 
 - Preventing excessive calls to expensive external APIs.
-- Limiting web searches or database queries.
+- Limiting web searches or transactional database queries.
 - Enforcing rate limits on specific tool usage.
 - Protecting against runaway agent loops.
 
@@ -383,7 +383,7 @@ agent = create_agent(
     tools=[search_tool],
     middleware=[
         ShellToolMiddleware(
-            workspace_root="/workspace/",
+            thread_root="/thread/",
             execution_policy=HostExecutionPolicy(),
         ),
     ],
@@ -410,7 +410,7 @@ agent = create_agent(
     tools=[],
     middleware=[
         FilesystemFileSearchMiddleware(
-            root_path="/workspace/",
+            root_path="/thread/",
             use_ripgrep=True,
         ),
     ],

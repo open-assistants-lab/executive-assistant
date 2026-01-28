@@ -329,7 +329,7 @@ def learn_from_feedback(state: MessagesState, config: dict, store: BaseStore):
 
 ## Replacing mem_db with Store
 
-If migrating from a custom memory database:
+If migrating from a custom memory transactional database:
 
 ```python
 # Old: custom mem_db

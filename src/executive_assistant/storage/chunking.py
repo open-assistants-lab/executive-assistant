@@ -1,4 +1,4 @@
-"""Document chunking utilities for VS ingestion.
+"""Document chunking utilities for VDB ingestion.
 
 Chunks documents by paragraph, page, or fixed size while preserving metadata.
 """
@@ -29,7 +29,7 @@ def _get_embedding_model():
     """Get the sentence-transformers model (cached)."""
     from sentence_transformers import SentenceTransformer
     from executive_assistant.config import settings
-    return SentenceTransformer(settings.VS_EMBEDDING_MODEL)
+    return SentenceTransformer(settings.VDB_EMBEDDING_MODEL)
 
 
 def get_embeddings(texts: list[str]) -> list[list[float]]:
@@ -273,14 +273,14 @@ def chunk_from_file(
 
 
 # =============================================================================
-# Document Processing for VS
+# Document Processing for VDB
 # =============================================================================
 
-def prepare_documents_for_vs(
+def prepare_documents_for_vdb(
     documents: list[dict[str, Any]],
     auto_chunk: bool = True,
 ) -> list[Chunk]:
-    """Prepare documents for VS ingestion with optional auto-chunking.
+    """Prepare documents for VDB ingestion with optional auto-chunking.
 
     Args:
         documents: List of document dicts with 'content' and optional 'metadata'.

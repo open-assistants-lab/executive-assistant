@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Validate LanceDB VS functionality by testing the storage layer directly.
+Validate LanceDB VDB functionality by testing the storage layer directly.
 
 Tests:
-1. Create a VS collection
+1. Create a VDB collection
 2. Add documents to collection
 3. Search the collection
 4. List all collections
@@ -23,19 +23,19 @@ from executive_assistant.storage.lancedb_storage import (
 )
 
 
-def test_vs_functionality():
-    """Test LanceDB VS storage layer."""
+def test_vdb_functionality():
+    """Test LanceDB VDB storage layer."""
 
     storage_id = "telegram_6282871705"  # From the running Executive Assistant instance
     collection_name = "validation_test"
     embedding_dimension = 384
 
     print("=" * 60)
-    print("LanceDB VS Validation Test")
+    print("LanceDB VDB Validation Test")
     print("=" * 60)
 
     # Test 1: Create collection
-    print("\n[1/4] Creating VS collection...")
+    print("\n[1/4] Creating VDB collection...")
 
     test_documents = [
         {
@@ -124,13 +124,13 @@ def test_vs_functionality():
         raise AssertionError(f"Failed to delete collection: {e}") from e
 
     print("\n" + "=" * 60)
-    print("✅ All VS validation tests passed!")
+    print("✅ All VDB validation tests passed!")
     print("=" * 60)
 
 
 if __name__ == "__main__":
     try:
-        test_vs_functionality()
+        test_vdb_functionality()
     except AssertionError as exc:
         print(f"\n❌ Test failed: {exc}")
         sys.exit(1)

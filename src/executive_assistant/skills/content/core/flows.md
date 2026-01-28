@@ -1,3 +1,5 @@
+# Flows & Agent Builder Guide
+
 # Flows (Scheduled/Immediate Multi-Step Runs)
 
 Use flows when you want the assistant to execute a structured sequence of steps now or on a schedule. Flows do **not** require MCP.
@@ -9,13 +11,18 @@ Use flows when you want the assistant to execute a structured sequence of steps 
 - `cancel_flow(flow_id)`
 - `delete_flow(flow_id)`
 
+Note: If a user asks to list/see flows, always call `list_flows` and report its output (do not infer from memory).
+
+## Flow mode (same feature as flows)
+Flow mode is the same flows feature, but it puts the assistant into build/test mode for agents + flows. Trigger it with `/flow on` or prefix `FLOW MODE:`.
+
 ## Create agents first
 Use `create_agent` to register mini agents per user. Flows reference them by `agent_ids`.
 
 ## Input payloads
 Flows can pass an `flow_input` (a JSON object) into the **first agent**. If the first agent’s prompt
-includes `$flow_input`, it will be replaced with the JSON payload. Subsequent agents only receive
-`$previous_output` from the immediately prior agent.
+includes `$input`, it will be replaced with the JSON payload. Subsequent agents only receive
+`$output` from the immediately prior agent.
 
 Note:
 - If `schedule_type` is `immediate` or `scheduled`, omit `cron_expression`.
@@ -28,7 +35,7 @@ Example: input payload + prompt usage
   "agent_id": "news_scraper",
   "description": "Scrape article",
   "tools": ["firecrawl_scrape"],
-  "system_prompt": "Use firecrawl_scrape on $flow_input.url and return only the markdown."
+  "system_prompt": "You will receive $input as JSON. Parse it and call firecrawl_scrape with its url field. Return only markdown."
 }
 ```
 
@@ -41,27 +48,33 @@ When you define a mini‑agent, write its system prompt in a strict, tool‑call
 
 **Template (minimal):**
 - State **exactly** which tool to call and which input fields to use.
-- Use `$flow_input.<field>` **only if** the agent needs flow input (typically the first agent).
-- Use `$previous_output` **only if** the agent needs the prior agent’s output.
+- `$input` and `$output` are **JSON strings** (no dot‑notation interpolation).
+- Tell the agent to **parse JSON** and extract fields it needs.
 - Return **only** what the next agent needs (no extra text).
 
 Example:
 ```
 You are the crawl agent.
-Call firecrawl_crawl with url=$flow_input.url.
+Parse $input JSON and call firecrawl_crawl with its url field.
 Return only the raw JSON response.
 ```
 
 Example with chaining:
 ```
 You are the summary agent.
-Summarize $previous_output in 3 bullets.
+Parse $output JSON and summarize its text in 3 bullets.
 Return only the bullets.
+```
+
+**Short input/output example (non‑file):**
+```
+$input example: {"url":"https://example.com"}
+$output example: {"markdown":"# Title\nContent..."}
 ```
 
 **Common mistakes (avoid):**
 - Writing descriptive prompts without an explicit tool call.
-- Using `{url}` instead of `$flow_input.url`.
+- Using `{url}` instead of `$input.url`.
 - Returning prose plus tool output.
 
  (required fields)
@@ -73,8 +86,8 @@ Each agent must include all required fields:
 
 Constraints:
 - Mini agents should use **≤5 tools**, hard cap **10 tools**.
-- Use `$flow_input` in the first agent prompt to consume `flow_input`.
-- Use `$previous_output` to consume the prior agent’s output.
+- Use `$input` in the first agent prompt to consume `flow_input`.
+- Use `$output` to consume the prior agent’s output.
 - If you need structured outputs, define `output_schema` in the agent and the flow runner will enforce JSON output.
 
 ## Minimal example (immediate)
@@ -100,6 +113,35 @@ Constraints:
   "run_mode": "normal"
 }
 ```
+
+
+## Execute‑Python prompt checklist (quick)
+Use this when a mini‑agent uses `execute_python` so it’s deterministic and returns the right thing.
+
+**Template:**
+```
+You are a Python execution agent. Use only the execute_python tool.
+Goal: <what must be produced>
+Inputs: $input.<field>, $output (if needed)
+Outputs: Print ONLY <exact output>
+Constraints: <no extra text / no network / must write to output/...>
+Success: <single pass/fail criterion>
+Do: <required steps>
+Don’t: <forbidden steps>
+```
+
+**Example:**
+```
+You are a Python execution agent. Use only the execute_python tool.
+Goal: Download PDF from $input.url to output/invoice.pdf
+Outputs: Print ONLY output/invoice.pdf
+Constraints: No extra text. Ensure output/ exists.
+Success: output/invoice.pdf exists and is >0 bytes.
+```
+
+**Deterministic option:**
+- If you need maximum reliability, embed a concrete code block and instruct:
+  "Call execute_python with exactly this code (no edits)."
 
 ## Important
 - You must **create agents first** (using `create_agent`).
@@ -153,14 +195,14 @@ Constraints:
 ```json
 {
   "name": "summary_and_report",
-  "description": "Summarize DB data and write a report",
+  "description": "Summarize TDB data and write a report",
   "schedule_type": "immediate",
   "agent_ids": ["summarizer", "writer"],
   "run_mode": "normal"
 }
 ```
 
-### 4) Multi-step with web + VS + file output
+### 4) Multi-step with web + VDB + file output
 ```json
 {
   "name": "weekly_market_watch",
@@ -193,18 +235,18 @@ Example:
 
 
 ## Flow Project Workspace
-During flow research/design/dev, create a hidden workspace to store artifacts:
-- `create_flow_project_workspace("project-name")`
-- This creates `./data/{user_id}/.{project}/` with:
+During flow research/design/dev, create a hidden flow project to store artifacts:
+- `create_flow_project("project-name")`
+- This creates `./data/{thread_id}/.{project}/` with:
   - `research.md`
   - `plan.md`
   - `progress.md`
   - `tests.md`
 
 
-### Example: Create workspace
+### Example: Create flow project
 ```
-create_flow_project_workspace("weekly-brief")
+create_flow_project("weekly-brief")
 ```
 
 ## Flow/Agent Design Framework (progressive)
@@ -230,3 +272,142 @@ create_flow_project_workspace("weekly-brief")
 5) **Test‑Driven Build** — design tests per stage; run tools to verify each stage.
 6) **Validate & Handoff** — enforce schema checks between stages.
 7) **Fallbacks** — if blocked, propose alternatives or a simplified path.
+
+---
+
+# Flow + Agent Builder Guide
+
+This skill teaches how to design **mini‑agents** and **flows** that actually run tools, return structured outputs, and pass clean inputs between steps. Use this when creating agents or troubleshooting flow failures.
+
+## Available tools (common)
+Web:
+- `search_web` (search results)
+- `firecrawl_scrape` (single page → markdown)
+- `firecrawl_crawl` (site crawl → job id)
+- `firecrawl_check_status` (poll crawl)
+- `playwright_scrape` (JS-heavy pages; requires Playwright install)
+
+Files/TDB/VDB:
+- `write_file`, `read_file`, `list_files`
+- `query_tdb`, `create_tdb_table`, `list_tdb_tables`
+- `create_vdb_collection`, `add_vdb_documents`, `search_vdb`
+
+## Flow mode (same feature as flows)
+Use `/flow on` or prefix `FLOW MODE:` to enter flow mode. This is the same flows feature, but it puts the assistant into build/test mode for agents + flows.
+
+## Quick test (single agent)
+Use `run_agent` to test a mini‑agent without creating a flow:
+```
+run_agent(agent_id="web_crawl_agent", flow_input={"url":"https://example.com"})
+```
+
+## Level 1 — Minimal working flow
+**Goal:** single agent that calls one tool and returns a single value.
+
+**Mini‑agent prompt template:**
+```
+You are the crawl agent.
+Call firecrawl_scrape with url=$input.url.
+Return only the markdown string.
+```
+
+**Flow requirements:**
+- `flow_input` must include required fields (e.g., `url`).
+- First agent prompt must reference `$input` if you pass `flow_input`.
+
+## Level 2 — Structured output + chaining
+**Goal:** multi‑agent flow with defined JSON outputs.
+
+**AgentSpec rules:**
+- `output_schema` must describe the JSON keys you return.
+- Prompt must say “Return JSON matching output_schema.”
+- Use `$output` only when needed.
+
+**Example (extract → summarize):**
+```
+You are the summary agent.
+Summarize $output in 3 bullets.
+Return JSON matching output_schema with key `summary`.
+```
+
+
+## Execute‑Python prompt checklist (use for `execute_python` agents)
+Use this template for Python agents so they reliably run code and return the right output.
+
+**Template:**
+```
+You are a Python execution agent. Use only the execute_python tool.
+
+Goal:
+- <what must be produced>
+
+Inputs:
+- $input.<field> = <meaning>
+- $output = <meaning> (if needed)
+
+Outputs:
+- Print ONLY: <exact string or JSON to print>
+
+Constraints:
+- <no extra text / no network / must write to output/...>
+
+Success:
+- <single pass/fail criterion>
+
+Do:
+- <required steps>
+
+Don’t:
+- <forbidden steps>
+```
+
+**Example:**
+```
+You are a Python execution agent. Use only the execute_python tool.
+
+Goal:
+- Download a PDF from $input.url and save it to output/invoice.pdf.
+
+Inputs:
+- $input.url = PDF URL
+
+Outputs:
+- Print ONLY the file path: output/invoice.pdf
+
+Constraints:
+- No extra text.
+- Create output/ if missing.
+
+Success:
+- output/invoice.pdf exists and is > 0 bytes.
+
+Do:
+- Use urllib.request.urlretrieve.
+- Ensure output folder exists.
+
+Don’t:
+- Print anything else.
+```
+
+## Level 3 — Test‑driven flow design (framework)
+Use this framework for complex flows:
+1) Clarify & recap goal, scope, constraints, success criteria.
+2) Research unknowns (use tools) before designing.
+3) Decompose into stages with explicit inputs/outputs.
+4) Propose 1–3 designs; recommend one.
+5) Define output_schema + small test cases per stage.
+6) Validate each stage output before chaining.
+7) If blocked, suggest alternatives or simplified path.
+
+## Common failures + fixes
+- **Unknown tool(s):** use tool names exactly as registered (see list above).
+- **Empty outputs:** prompt did not explicitly call a tool.
+- **Recursion limit:** model kept “thinking” without tool call → fix prompt.
+- **Wrong inputs:** use `$input.<field>` not `{field}`.
+
+## Quick checklist (before running)
+- Agent tools list ≤ 5 (max 10).
+- Prompt contains explicit tool call.
+- First agent uses `$input` if payload provided.
+- Later agents use `$output` if needed.
+- output_schema is defined and referenced.

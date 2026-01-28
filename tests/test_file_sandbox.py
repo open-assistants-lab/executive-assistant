@@ -11,11 +11,8 @@ from executive_assistant.storage.file_sandbox import (
     set_thread_id,
     get_thread_id,
     clear_thread_id,
-    set_user_id,
-    get_user_id,
     get_sandbox,
 )
-from executive_assistant.storage.group_storage import set_group_id, clear_group_id
 
 
 # =============================================================================
@@ -167,57 +164,32 @@ class TestFileSandbox:
 class TestGetSandbox:
     """Test get_sandbox function with different routing strategies."""
 
-    def test_get_sandbox_with_user_id(self, tmp_path):
-        """Test get_sandbox with explicit user_id."""
+    def test_get_sandbox_with_thread_id(self, tmp_path):
+        """Test get_sandbox with explicit thread_id."""
         expected = tmp_path / "files" / "test_user"
         mock_settings = MagicMock()
-        mock_settings.get_user_files_path.return_value = expected
+        mock_settings.get_thread_files_path.return_value = expected
         mock_settings.ALLOWED_FILE_EXTENSIONS = {".txt", ".md"}
         mock_settings.MAX_FILE_SIZE_MB = 10
 
         with patch("executive_assistant.storage.file_sandbox.settings", mock_settings):
-            sandbox = get_sandbox(user_id="test_user")
+            sandbox = get_sandbox(thread_id="test_user")
             assert sandbox.root == expected.resolve()
             assert sandbox.root.exists()
-
-    def test_get_sandbox_with_group_id_context(self, tmp_path):
-        """Test get_sandbox with group_id from context."""
-        # Create expected directory structure
-        groups_root = tmp_path / "data" / "groups"
-        groups_root.mkdir(parents=True, exist_ok=True)
-        expected = groups_root / "test_group" / "files"
-        expected.mkdir(parents=True, exist_ok=True)
-
-        mock_settings = MagicMock()
-        mock_settings.get_group_files_path.return_value = expected
-        mock_settings.ALLOWED_FILE_EXTENSIONS = {".txt", ".md"}
-        mock_settings.MAX_FILE_SIZE_MB = 10
-        mock_settings.get_user_files_path.return_value = tmp_path / "files"
-
-        with patch("executive_assistant.storage.file_sandbox.settings", mock_settings):
-            # Set group_id context
-            from executive_assistant.storage.group_storage import set_group_id
-            set_group_id("test_group")
-            try:
-                sandbox = get_sandbox()
-                assert sandbox.root == expected.resolve()
-            finally:
-                # Clear context to avoid affecting other tests
-                set_group_id("")
 
     def test_get_sandbox_with_thread_id_context(self, tmp_path):
         """Test get_sandbox with thread_id from context."""
         users_root = tmp_path / "data" / "users"
         users_root.mkdir(parents=True, exist_ok=True)
-        expected = users_root / "anon_telegram_user123" / "files"
+        expected = users_root / "telegram_user123" / "files"
         expected.mkdir(parents=True, exist_ok=True)
 
         # Use MagicMock for settings
         mock_settings = MagicMock()
-        mock_settings.get_user_files_path.return_value = expected
+        mock_settings.get_thread_files_path.return_value = expected
         mock_settings.ALLOWED_FILE_EXTENSIONS = {".txt", ".md"}
         mock_settings.MAX_FILE_SIZE_MB = 10
-        mock_settings.get_user_files_path.return_value = expected
+        mock_settings.get_thread_files_path.return_value = expected
 
         with patch("executive_assistant.storage.file_sandbox.settings", mock_settings):
             # Set thread_id context
@@ -229,26 +201,20 @@ class TestGetSandbox:
                 # Clear context
                 clear_thread_id()
 
-    def test_get_sandbox_fallback_to_global(self):
-        """Test get_sandbox falls back to global sandbox when no context is set."""
-        # Clear any existing context
-        from executive_assistant.storage.group_storage import clear_group_id
-        clear_group_id()
-        clear_thread_id()
-
-        # Mock context functions to return empty/None
-        with patch("executive_assistant.storage.file_sandbox.get_workspace_id", return_value=""):
-            with patch("executive_assistant.storage.file_sandbox.get_thread_id", return_value=""):
-                with pytest.raises(ValueError, match="requires user_id"):
-                    get_sandbox()
-
-
 # =============================================================================
 # Tool Function Tests (with permission mocking)
 # =============================================================================
 
 class TestFileTools:
     """Test file tool functions."""
+
+    @pytest.fixture(autouse=True)
+    def _thread_context(self):
+        set_thread_id("test_thread")
+        try:
+            yield
+        finally:
+            clear_thread_id()
 
     @pytest.fixture
     def temp_root(self, tmp_path):
@@ -266,17 +232,8 @@ class TestFileTools:
             max_file_size_mb=10
         )
 
-        # Set up group context and mock permission check
-        from executive_assistant.storage.group_storage import set_group_id
-        set_group_id("test_group")
-
         with patch("executive_assistant.storage.file_sandbox.get_sandbox", return_value=sandbox):
-            # Mock the permission check to bypass group storage requirements
-            with patch("executive_assistant.storage.group_storage._check_permission_async"):
-                yield sandbox
-
-        # Clean up
-        set_group_id("")
+            yield sandbox
 
     def test_read_file_not_found(self, mock_sandbox):
         """Test reading a non-existent file."""
@@ -321,10 +278,8 @@ class TestFileTools:
         small_sandbox.max_bytes = 0
 
         with patch("executive_assistant.storage.file_sandbox.get_sandbox", return_value=small_sandbox):
-            # Also mock permission check for this inner patch
-            with patch("executive_assistant.storage.group_storage._check_permission_async"):
-                result = write_file.invoke({"file_path": "test.txt", "content": "x" * 1000})
-                assert "Security error" in result or "exceeds limit" in result or "Error" in result
+            result = write_file.invoke({"file_path": "test.txt", "content": "x" * 1000})
+            assert "Security error" in result or "exceeds limit" in result or "Error" in result
 
     def test_write_file_extension_blocked(self, mock_sandbox):
         """Test writing a file with blocked extension."""

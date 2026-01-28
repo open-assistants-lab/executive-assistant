@@ -31,7 +31,7 @@ This skill teaches **information synthesis**: combining multiple sources to crea
 │       ▼              ▼               ▼            ▼      │
 │  Multiple       Key Points      Organize      Summary   │
 │  Sources        Patterns        Structure     Insight   │
-│  DB/VS/Files    Themes          Connect       Report    │
+│  TDB/VDB/Files    Themes          Connect       Report    │
 │  Search/Read    Commonalities   Prioritize    Action    │
 │                                                               │
 └─────────────────────────────────────────────────────────────┘
@@ -45,20 +45,20 @@ This skill teaches **information synthesis**: combining multiple sources to crea
 
 ### Source Types
 
-**Structured Data (DB):**
+**Structured Data (TDB):**
 ```python
 # Query structured data
-timesheets = query_db("SELECT * FROM timesheets WHERE date >= '2025-01-01'")
-expenses = query_db("SELECT * FROM expenses WHERE date >= '2025-01-01'")
-tasks = query_db("SELECT * FROM tasks WHERE status = 'complete'")
+timesheets = query_tdb("SELECT * FROM timesheets WHERE date >= '2025-01-01'")
+expenses = query_tdb("SELECT * FROM expenses WHERE date >= '2025-01-01'")
+tasks = query_tdb("SELECT * FROM tasks WHERE status = 'complete'")
 ```
 
-**Qualitative Knowledge (VS):**
+**Qualitative Knowledge (VDB):**
 ```python
 # Search for related information
-meeting_notes = search_vs("project planning milestones", "meetings")
-documentation = search_vs("technical architecture design", "docs")
-decisions = search_vs("roadmap priorities strategy", "strategy")
+meeting_notes = search_vdb("project planning milestones", "meetings")
+documentation = search_vdb("technical architecture design", "docs")
+decisions = search_vdb("roadmap priorities strategy", "strategy")
 ```
 
 **Files and References:**
@@ -84,8 +84,8 @@ research = search_web("industry best practices project tracking")
 
 **Structured Extraction:**
 ```python
-# Extract patterns from DB
-query_db("""
+# Extract patterns from TDB
+query_tdb("""
     SELECT
         project,
         SUM(hours) as total_hours,
@@ -99,10 +99,10 @@ query_db("""
 
 **Keyword Extraction:**
 ```python
-# Search VS for key themes
-search_vs("challenges blockers obstacles", "meetings")
-search_vs("successes achievements wins", "journal")
-search_vs("decisions choices commitments", "strategy")
+# Search VDB for key themes
+search_vdb("challenges blockers obstacles", "meetings")
+search_vdb("successes achievements wins", "journal")
+search_vdb("decisions choices commitments", "strategy")
 ```
 
 **Pattern Extraction:**
@@ -134,7 +134,7 @@ patterns = {
 **Chronological:**
 ```python
 # Organize by timeline
-events = query_db("""
+events = query_tdb("""
     SELECT date, type, description
     FROM project_events
     ORDER BY date ASC
@@ -145,15 +145,15 @@ events = query_db("""
 **Thematic:**
 ```python
 # Group by themes
-search_vs("technical architecture", "meetings")  # Technical discussions
-search_vs("budget costs financial", "meetings")   # Financial discussions
-search_vs("timeline schedule planning", "meetings")  # Planning discussions
+search_vdb("technical architecture", "meetings")  # Technical discussions
+search_vdb("budget costs financial", "meetings")   # Financial discussions
+search_vdb("timeline schedule planning", "meetings")  # Planning discussions
 ```
 
 **Priority-Based:**
 ```python
 # Organize by importance
-query_db("""
+query_tdb("""
     SELECT *
     FROM tasks
     ORDER BY priority DESC, due_date ASC
@@ -163,7 +163,7 @@ query_db("""
 **Hierarchical:**
 ```python
 # Organize by category
-query_db("""
+query_tdb("""
     SELECT
         category,
         subcategory,
@@ -235,8 +235,8 @@ actions = []
 for meeting in meetings:
     actions.extend(extract_actions(meeting))
 
-# From tasks DB
-tasks = query_db("SELECT * FROM tasks WHERE status = 'pending'")
+# From tasks TDB
+tasks = query_tdb("SELECT * FROM tasks WHERE status = 'pending'")
 
 # Prioritize and deduplicate
 unique_actions = prioritize_actions(actions)
@@ -251,9 +251,9 @@ unique_actions = prioritize_actions(actions)
 
 **Gather:**
 ```python
-timesheets = query_db("SELECT project, SUM(hours) FROM timesheets GROUP BY project")
-tasks = query_db("SELECT * FROM tasks WHERE status = 'pending'")
-meetings = search_vs("project progress update", "meetings")
+timesheets = query_tdb("SELECT project, SUM(hours) FROM timesheets GROUP BY project")
+tasks = query_tdb("SELECT * FROM tasks WHERE status = 'pending'")
+meetings = search_vdb("project progress update", "meetings")
 ```
 
 **Extract:**
@@ -265,7 +265,7 @@ top_projects = sorted(timesheets, key=lambda x: x['total'], reverse=True)[:3]
 critical_tasks = [t for t in tasks if t['priority'] == 'high']
 
 # Recent decisions
-decisions = search_vs("decisions commitments", "meetings")
+decisions = search_vdb("decisions commitments", "meetings")
 ```
 
 **Integrate:**
@@ -297,8 +297,8 @@ write_file(f"reports/weekly_status_{date.today()}.md", status_report)
 ```python
 # Multiple research sources
 web_research = search_web("best practices agile project management")
-internal_docs = search_vs("project management methodology", "docs")
-team_notes = search_vs("lessons learned retrospectives", "meetings")
+internal_docs = search_vdb("project management methodology", "docs")
+team_notes = search_vdb("lessons learned retrospectives", "meetings")
 ```
 
 **Extract:**
@@ -336,12 +336,12 @@ synthesis = f"""
 **Gather:**
 ```python
 # Quantitative metrics
-performance = query_db("SELECT * FROM kpis WHERE period = 'Q1'")
-productivity = query_db("SELECT * FROM productivity WHERE date >= '2025-01-01'")
+performance = query_tdb("SELECT * FROM kpis WHERE period = 'Q1'")
+productivity = query_tdb("SELECT * FROM productivity WHERE date >= '2025-01-01'")
 
 # Qualitative feedback
-feedback = search_vs("performance feedback review", "meetings")
-achievements = search_vs("successes wins accomplishments", "journal")
+feedback = search_vdb("performance feedback review", "meetings")
+achievements = search_vdb("successes wins accomplishments", "journal")
 ```
 
 **Extract:**
@@ -409,8 +409,8 @@ review = f"""
 
 ```python
 # Compare different sources
-source_a = search_vs("technical approach architecture", "docs")
-source_b = search_vs("business strategy roadmap", "strategy")
+source_a = search_vdb("technical approach architecture", "docs")
+source_b = search_vdb("business strategy roadmap", "strategy")
 
 comparison = f"""
 # Technical vs Strategic Approach
@@ -435,11 +435,11 @@ comparison = f"""
 # Build chronological narrative
 events = []
 
-# From DB
-events.extend(query_db("SELECT date, event FROM milestones ORDER BY date"))
+# From TDB
+events.extend(query_tdb("SELECT date, event FROM milestones ORDER BY date"))
 
-# From VS
-events.extend(search_vs("important dates deadlines", "meetings"))
+# From VDB
+events.extend(search_vdb("important dates deadlines", "meetings"))
 
 # From files
 events.extend(extract_dates(read_file("project_timeline.md")))
@@ -454,9 +454,9 @@ timeline = format_timeline(chronological)
 ```python
 # Find common themes across sources
 sources = [
-    search_vs("challenges problems", "meetings"),
-    search_vs("blockers obstacles", "journal"),
-    query_db("SELECT * FROM issues WHERE status = 'open'")
+    search_vdb("challenges problems", "meetings"),
+    search_vdb("blockers obstacles", "journal"),
+    query_tdb("SELECT * FROM issues WHERE status = 'open'")
 ]
 
 # Extract themes
@@ -482,9 +482,9 @@ synthesis = organize_by_theme(themes)
 - **Planning:** Past data + Future goals → Extract constraints → Strategy → Actions
 
 **Source Combinations:**
-- **DB + VS:** Quantitative + Qualitative = Complete picture
-- **Multiple VS searches:** Different topics = Thematic synthesis
-- **Files + DB:** Context + Data = Evidence-based analysis
+- **TDB + VDB:** Quantitative + Qualitative = Complete picture
+- **Multiple VDB searches:** Different topics = Thematic synthesis
+- **Files + TDB:** Context + Data = Evidence-based analysis
 - **External + Internal:** Research + Experience = Practical recommendations
 
 ---
@@ -492,7 +492,7 @@ synthesis = organize_by_theme(themes)
 ## Summary
 
 **Synthesis Process:**
-1. **Gather** - Multiple sources (DB, VS, Files, Search)
+1. **Gather** - Multiple sources (TDB, VDB, Files, Search)
 2. **Extract** - Key points, patterns, themes
 3. **Integrate** - Organize and connect information
 4. **Output** - Coherent summary, insights, actions

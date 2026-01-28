@@ -18,16 +18,16 @@ from executive_assistant.storage.user_registry import (
     MessageLog,
     ConversationLog,
     FilePath,
-    DBPath,
+    TDBPath,
     sanitize_thread_id,
 )
 from executive_assistant.storage.db_storage import (
     DBStorage,
     get_db_storage,
 )
-from executive_assistant.storage.shared_db_storage import (
-    SharedDBStorage,
-    get_shared_db_storage,
+from executive_assistant.storage.shared_tdb_storage import (
+    SharedTDBStorage,
+    get_shared_tdb_storage,
 )
 
 __all__ = [
@@ -44,10 +44,10 @@ __all__ = [
     "MessageLog",
     "ConversationLog",
     "FilePath",
-    "DBPath",
+    "TDBPath",
     "sanitize_thread_id",
     "DBStorage",
     "get_db_storage",
-    "SharedDBStorage",
-    "get_shared_db_storage",
+    "SharedTDBStorage",
+    "get_shared_tdb_storage",
 ]

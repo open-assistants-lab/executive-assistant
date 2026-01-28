@@ -41,3 +41,10 @@ htmlcov/
 .DS_Store
 .DS_Store
 .DS_Store
+
+# Logs
+logs/
+.env
+.DS_Store
+.DS_Store
+docker/.env

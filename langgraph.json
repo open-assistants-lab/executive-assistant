@@ -7,5 +7,5 @@
       "description": "Multi-channel ReAct agent with memory, KB, and tools"
     }
   },
-  "env": ".env"
+  "env": "docker/.env"
 }

@@ -79,9 +79,7 @@ async def test_execute_flow_persists_results(monkeypatch):
 
     flow = runner.ScheduledFlow(
         id=1,
-        user_id="anon",
         thread_id="telegram:1",
-        worker_id=None,
         name="flow",
         task="flow",
         flow=flow_spec.model_dump_json(),
@@ -165,9 +163,7 @@ async def test_execute_flow_creates_next_instance(monkeypatch):
 
     flow = runner.ScheduledFlow(
         id=2,
-        user_id="anon",
         thread_id="telegram:1",
-        worker_id=None,
         name="flow",
         task="flow",
         flow=flow_spec.model_dump_json(),

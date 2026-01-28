@@ -12,7 +12,6 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 
 from executive_assistant.agent.state import AgentState
-from executive_assistant.agent.router import should_continue
 from executive_assistant.agent.nodes import call_model, call_tools
 
 
@@ -54,59 +53,6 @@ class TestAgentState:
 
         assert state["structured_summary"] == summary
         assert len(state["structured_summary"]["topics"]) == 1
-
-
-# =============================================================================
-# Router Tests
-# =============================================================================
-
-class TestShouldContinue:
-    """Test should_continue routing logic."""
-
-    def test_continue_with_tool_calls(self):
-        """Test routing to tools when AI message has tool calls."""
-        from langchain_core.messages.tool import ToolCall
-
-        tool_call = ToolCall(name="test_tool", args={}, id="1", type="tool_call")
-        ai_msg = AIMessage(content="", tool_calls=[tool_call])
-
-        state = AgentState(
-            messages=[ai_msg],
-            structured_summary=None,
-            user_id="test_user",
-            channel="test",
-        )
-
-        result = should_continue(state)
-        assert result == "tools"
-
-    def test_continue_without_tool_calls(self):
-        """Test continuing to next step when no tool calls."""
-        ai_msg = AIMessage(content="I'm done")
-
-        state = AgentState(
-            messages=[ai_msg],
-            structured_summary=None,
-            user_id="test_user",
-            channel="test",
-        )
-
-        result = should_continue(state)
-        assert result == "continue"
-
-    def test_continue_with_human_message(self):
-        """Test that human message doesn't route to tools."""
-        human_msg = HumanMessage(content="Hello")
-
-        state = AgentState(
-            messages=[human_msg],
-            structured_summary=None,
-            user_id="test_user",
-            channel="test",
-        )
-
-        result = should_continue(state)
-        assert result == "continue"
 
 
 # =============================================================================
@@ -297,56 +243,6 @@ class TestCallTools:
 
 
 # =============================================================================
-# Graph Creation Tests
-# =============================================================================
-
-class TestGraphCreation:
-    """Test graph creation functions."""
-
-    def test_create_graph_imports(self):
-        """Test that create_graph can be imported."""
-        from executive_assistant.agent.graph import create_graph
-        assert create_graph is not None
-
-    def test_create_react_graph_imports(self):
-        """Test that create_react_graph can be imported."""
-        from executive_assistant.agent.graph import create_react_graph
-        assert create_react_graph is not None
-
-
-# =============================================================================
-# Topic Classifier Tests
-# =============================================================================
-
-class TestTopicClassifier:
-    """Test topic classifier components."""
-
-    def test_topic_classifier_imports(self):
-        """Test that topic classifier can be imported."""
-        from executive_assistant.agent.topic_classifier import StructuredSummaryBuilder
-        assert StructuredSummaryBuilder is not None
-
-    def test_structured_summary_builder_render(self):
-        """Test rendering structured summary for prompt."""
-        from executive_assistant.agent.topic_classifier import StructuredSummaryBuilder
-
-        summary = {
-            "topics": [
-                {"topic_id": "Weather", "status": "active", "summary": "User asked about weather"},
-                {"topic_id": "Sports", "status": "inactive", "summary": "Previous discussion"},
-            ],
-            "active_request": {"text": "What's the weather like?"},
-        }
-
-        rendered = StructuredSummaryBuilder.render_for_prompt(summary)
-
-        # Only active topic should be rendered
-        assert "Weather" in rendered
-        assert "active" in rendered.lower()
-        assert "What's the weather" in rendered
-
-
-# =============================================================================
 # Prompts Tests
 # =============================================================================
 
@@ -404,12 +300,9 @@ class TestAgentIntegration:
 
         expected_exports = [
             "AgentState",
-            "create_graph",
-            "create_react_graph",
             "create_langchain_agent",
             "call_model",
             "call_tools",
-            "should_continue",
         ]
 
         for export in expected_exports:

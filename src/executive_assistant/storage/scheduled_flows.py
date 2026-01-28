@@ -1,6 +1,6 @@
 """Scheduled flows storage and management.
 
-Handles storage and retrieval of scheduled flows that execute worker agents.
+Handles storage and retrieval of scheduled flows that execute flow agents.
 Supports cron expressions for recurring flows.
 """
 
@@ -16,9 +16,7 @@ class ScheduledFlow:
     """A scheduled flow record."""
 
     id: int
-    user_id: str
     thread_id: str
-    worker_id: int | None
     name: str | None
     task: str
     flow: str
@@ -75,9 +73,7 @@ class ScheduledFlowStorage:
             """
             CREATE TABLE IF NOT EXISTS scheduled_flows (
                 id SERIAL PRIMARY KEY,
-                user_id VARCHAR(255) NOT NULL,
                 thread_id VARCHAR(255) NOT NULL,
-                worker_id INTEGER REFERENCES workers(id) ON DELETE SET NULL,
                 name VARCHAR(255),
                 task TEXT NOT NULL,
                 flow TEXT NOT NULL,
@@ -92,37 +88,45 @@ class ScheduledFlowStorage:
             );
             """,
             "CREATE INDEX IF NOT EXISTS idx_scheduled_flows_due_time ON scheduled_flows(due_time) WHERE status = 'pending';",
-            "CREATE INDEX IF NOT EXISTS idx_scheduled_flows_user_id ON scheduled_flows(user_id);",
             "CREATE INDEX IF NOT EXISTS idx_scheduled_flows_thread_id ON scheduled_flows(thread_id);",
-            "CREATE INDEX IF NOT EXISTS idx_scheduled_flows_worker_id ON scheduled_flows(worker_id);",
             "CREATE INDEX IF NOT EXISTS idx_scheduled_flows_status ON scheduled_flows(status);",
         ]
 
         for statement in statements:
             await conn.execute(statement)
 
+        # Backward-compat cleanup: drop legacy user_id column if present
+        has_user_id = await conn.fetchval(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_name = 'scheduled_flows'
+                  AND column_name = 'user_id'
+            )
+            """
+        )
+        if has_user_id:
+            await conn.execute("ALTER TABLE scheduled_flows DROP COLUMN IF EXISTS user_id;")
+
         self._schema_ready = True
 
     async def create(
         self,
-        user_id: str,
         thread_id: str,
         task: str,
         flow: str,
         due_time: datetime,
-        worker_id: int | None = None,
         name: str | None = None,
         cron: str | None = None,
     ) -> ScheduledFlow:
         """Create a new scheduled flow.
 
         Args:
-            user_id: User who owns this flow
             thread_id: Thread where flow was created
             task: Concrete task description
             flow: Execution flow with conditions/loops
             due_time: When to execute the flow
-            worker_id: Optional worker ID to execute the flow
             name: Optional name for the flow
             cron: Optional cron expression for recurring flows
 
@@ -135,14 +139,12 @@ class ScheduledFlowStorage:
             row = await conn.fetchrow(
                 """
                 INSERT INTO scheduled_flows (
-                    user_id, thread_id, worker_id, name, task, flow, due_time, cron
+                    thread_id, name, task, flow, due_time, cron
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                VALUES ($1, $2, $3, $4, $5, $6)
                 RETURNING *
                 """,
-                user_id,
                 thread_id,
-                worker_id,
                 name,
                 task,
                 flow,
@@ -195,45 +197,6 @@ class ScheduledFlowStorage:
                 """,
                 before,
             )
-        finally:
-            await conn.close()
-
-        return [self._row_to_flow(row) for row in rows]
-
-    async def list_by_user(
-        self, user_id: str, status: str | None = None
-    ) -> list[ScheduledFlow]:
-        """List flows for a user, optionally filtered by status.
-
-        Args:
-            user_id: User ID to filter by
-            status: Optional status filter
-
-        Returns:
-            List of ScheduledFlow instances
-        """
-        conn = await asyncpg.connect(self._conn_string)
-        await self._ensure_schema(conn)
-        try:
-            if status:
-                rows = await conn.fetch(
-                    """
-                    SELECT * FROM scheduled_flows
-                    WHERE user_id = $1 AND status = $2
-                    ORDER BY created_at DESC
-                    """,
-                    user_id,
-                    status,
-                )
-            else:
-                rows = await conn.fetch(
-                    """
-                    SELECT * FROM scheduled_flows
-                    WHERE user_id = $1
-                    ORDER BY created_at DESC
-                    """,
-                    user_id,
-                )
         finally:
             await conn.close()
 
@@ -433,12 +396,10 @@ class ScheduledFlowStorage:
             return None
 
         return await self.create(
-            user_id=parent_flow.user_id,
             thread_id=parent_flow.thread_id,
             task=parent_flow.task,
             flow=parent_flow.flow,
             due_time=next_due_time,
-            worker_id=parent_flow.worker_id,
             name=parent_flow.name,
             cron=parent_flow.cron,
         )
@@ -448,9 +409,7 @@ class ScheduledFlowStorage:
         """Convert database row to ScheduledFlow object."""
         return ScheduledFlow(
             id=row["id"],
-            user_id=row["user_id"],
             thread_id=row["thread_id"],
-            worker_id=row["worker_id"],
             name=row["name"],
             task=row["task"],
             flow=row["flow"],

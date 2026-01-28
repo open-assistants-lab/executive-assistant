@@ -7,9 +7,8 @@ from typing import Any
 import duckdb
 
 from executive_assistant.config import settings
-from executive_assistant.storage.file_sandbox import get_thread_id
 from executive_assistant.storage.user_registry import sanitize_thread_id
-from executive_assistant.storage.group_storage import get_workspace_id
+from executive_assistant.storage.thread_storage import get_thread_id
 
 
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -29,8 +28,8 @@ class DBStorage:
     """
     Database storage for tabular data.
 
-    Each group has its own isolated database file.
-    Supports group/thread/user separation and merge/remove operations.
+    Each thread has its own isolated database file.
+    Supports per-thread storage (no groups).
     """
 
     def __init__(self, root: Path) -> None:
@@ -42,23 +41,16 @@ class DBStorage:
         """
         self.root = Path(root).resolve()
 
-    def _get_db_path(
-        self,
-        thread_id: str | None = None,
-        workspace_id: str | None = None,
-    ) -> Path:
+    def _get_db_path(self, thread_id: str | None = None) -> Path:
         """
-        Get the database path for a thread or group.
+        Get the database path for a thread.
 
         Priority:
-        1. workspace_id if provided (new group-based routing)
-        2. workspace_id from context (new group-based routing)
-        3. thread_id if provided (legacy thread-based routing)
-        4. thread_id from context (legacy thread-based routing)
+        1. thread_id if provided
+        2. thread_id from context
 
         Args:
-            thread_id: Thread identifier (legacy).
-            workspace_id: Group identifier (new).
+            thread_id: Thread identifier.
 
         Returns:
             Path to the database file.
@@ -69,26 +61,13 @@ class DBStorage:
             db_path.parent.mkdir(parents=True, exist_ok=True)
             return db_path
 
-        # Check group_id first
-        if workspace_id is None:
-            workspace_id = get_workspace_id()
-
-        if workspace_id:
-            db_path = settings.get_workspace_db_path(workspace_id)
-            db_path.parent.mkdir(parents=True, exist_ok=True)
-            return db_path
-
-        # Fall back to thread_id
         if thread_id is None:
             thread_id = get_thread_id()
 
         if thread_id is None:
-            raise ValueError("No thread_id/workspace_id provided and none in context")
+            raise ValueError("No thread_id provided and none in context")
 
-        safe_thread_id = sanitize_thread_id(thread_id)
-
-        # Use new path structure (data/users/{thread_id}/db/db.sqlite)
-        db_path = settings.get_thread_db_path(thread_id)
+        db_path = settings.get_thread_tdb_path(thread_id)
         db_path.parent.mkdir(parents=True, exist_ok=True)
         return db_path
 
@@ -408,69 +387,33 @@ class DBStorage:
         }
 
 
-# Cache DBStorage instances per context (user/group)
+# Cache DBStorage instances per context (thread)
 _db_storage_by_context: dict[str, DBStorage] = {}
 
 
 def get_db_storage() -> DBStorage:
     """
-    Get a database storage instance scoped to the current context.
-
-    Priority:
-    1. user_id from context (individual mode)
-    2. group_id from context (team mode)
-    3. thread_id from context (converted to user_id)
+    Get a database storage instance scoped to the current thread context.
 
     Returns:
-        A DBStorage instance scoped to the current user/group.
+        A DBStorage instance scoped to the current thread.
 
     Raises:
-        ValueError: If no user_id, group_id, or thread_id context is available.
+        ValueError: If no thread_id context is available.
     """
-    # 1. user_id from context (individual mode)
-    from executive_assistant.storage.group_storage import get_user_id as get_user_id_from_context
-    user_id_val = get_user_id_from_context()
-    if user_id_val:
-        cache_key = f"user:{user_id_val}"
-        cached = _db_storage_by_context.get(cache_key)
-        if cached:
-            return cached
-        db_path = settings.get_user_db_path(user_id_val)
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        storage = DBStorage(root=db_path.parent)
-        _db_storage_by_context[cache_key] = storage
-        return storage
-
-    # 2. group_id from context (team mode)
-    group_id = get_workspace_id()
-    if group_id:
-        cache_key = f"group:{group_id}"
-        cached = _db_storage_by_context.get(cache_key)
-        if cached:
-            return cached
-        db_path = settings.get_group_db_path(group_id)
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        storage = DBStorage(root=db_path.parent)
-        _db_storage_by_context[cache_key] = storage
-        return storage
-
-    # 3. thread_id from context (convert to user_id)
-    # This ensures all storage is user-based, not thread-based
     thread_id = get_thread_id()
     if thread_id:
-        from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
-        user_id_from_thread = sanitize_thread_id_to_user_id(thread_id)
-        cache_key = f"user:{user_id_from_thread}"
+        cache_key = f"thread:{thread_id}"
         cached = _db_storage_by_context.get(cache_key)
         if cached:
             return cached
-        db_path = settings.get_user_db_path(user_id_from_thread)
+        db_path = settings.get_thread_tdb_path(thread_id)
         db_path.parent.mkdir(parents=True, exist_ok=True)
         storage = DBStorage(root=db_path.parent)
         _db_storage_by_context[cache_key] = storage
         return storage
 
     raise ValueError(
-        "DBStorage requires user_id, group_id, or thread_id context. "
+        "DBStorage requires thread_id context. "
         "Ensure context is set before calling get_db_storage()."
     )

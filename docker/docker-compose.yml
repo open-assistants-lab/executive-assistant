@@ -1,0 +1,52 @@
+services:
+  executive_assistant:
+    image: eddyatmc/executive_assistant:latest
+    restart: unless-stopped
+    environment:
+      EXECUTIVE_ASSISTANT_CHANNELS: ${EXECUTIVE_ASSISTANT_CHANNELS:-http}
+      CHECKPOINT_STORAGE: ${CHECKPOINT_STORAGE:-postgres}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-executive_assistant_db}
+      POSTGRES_USER: ${POSTGRES_USER:-executive_assistant}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-executive_assistant_password}
+      TZ: ${TZ:-UTC}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ZHIPUAI_API_KEY: ${ZHIPUAI_API_KEY}
+      OLLAMA_CLOUD_API_KEY: ${OLLAMA_CLOUD_API_KEY}
+      AGENT_NAME: ${AGENT_NAME}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      SEARXNG_HOST: ${SEARXNG_HOST}
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY}
+      FIRECRAWL_API_URL: ${FIRECRAWL_API_URL}
+    volumes:
+      - executive_assistant_data:/app/data
+      - ./data/admins:/app/data/admins
+    ports:
+      - "${EXECUTIVE_ASSISTANT_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:18-alpine
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-executive_assistant_password}
+      POSTGRES_DB: ${POSTGRES_DB:-executive_assistant_db}
+      POSTGRES_USER: ${POSTGRES_USER:-executive_assistant}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-executive_assistant} -d ${POSTGRES_DB:-executive_assistant_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
+  executive_assistant_data:

@@ -64,34 +64,17 @@ def _get_thread_root() -> Path:
     """Get the context-specific root directory for file operations.
 
     Priority:
-    1. group_id context -> data/groups/{group_id}/files/
-    2. user_id context -> data/users/{user_id}/files/
-    3. thread_id context -> data/users/anon_{channel}_{id}/files/
+    1. thread_id context -> data/users/{thread_id}/files/
     """
-    from executive_assistant.storage.group_storage import get_workspace_id, get_user_id as get_user_id_from_context
-    from executive_assistant.storage.file_sandbox import get_thread_id
-    from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
-
-    group_id = get_workspace_id()
-    if group_id:
-        thread_root = settings.get_group_files_path(group_id)
-        thread_root.mkdir(parents=True, exist_ok=True)
-        return thread_root
-
-    user_id = get_user_id_from_context()
-    if user_id:
-        thread_root = settings.get_user_files_path(user_id)
-        thread_root.mkdir(parents=True, exist_ok=True)
-        return thread_root
+    from executive_assistant.storage.thread_storage import get_thread_id
 
     thread_id = get_thread_id()
     if thread_id:
-        user_id_from_thread = sanitize_thread_id_to_user_id(thread_id)
-        thread_root = settings.get_user_files_path(user_id_from_thread)
+        thread_root = settings.get_thread_files_path(thread_id)
         thread_root.mkdir(parents=True, exist_ok=True)
         return thread_root
 
-    raise ValueError("No group_id, user_id, or thread_id context available for Python tool file access")
+    raise ValueError("No thread_id context available for Python tool file access")
 
 
 def _validate_path(path: str | Path) -> Path:

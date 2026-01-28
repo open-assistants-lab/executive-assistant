@@ -189,6 +189,7 @@ class TestBeforeAgent:
     @pytest.mark.asyncio
     async def test_before_agent_extracts_conversation_id(self, middleware):
         """Test conversation_id extraction from various formats."""
+        from executive_assistant.storage.thread_storage import clear_thread_id
         test_cases = [
             ("TelegramChannel:123", "123"),
             ("http:test_conv", "test_conv"),
@@ -196,6 +197,8 @@ class TestBeforeAgent:
         ]
 
         for thread_id, expected_conv_id in test_cases:
+            clear_thread_id()
+            middleware.current_conversation_id = None
             runtime = {
                 "config": {
                     "configurable": {
@@ -281,7 +284,7 @@ class TestWrapToolCall:
 
         assert middleware.channel.send_status.call_count == 1
         first_call = middleware.channel.send_status.call_args_list[0]
-        assert "🛠️ Tool[1]: test_tool" in first_call[1]["message"]
+        assert "🛠️ 1: test_tool" in first_call[1]["message"]
 
     @pytest.mark.asyncio
     async def test_wrap_tool_call_sends_status_after_success(self, middleware, tool_call_request, mock_handler):

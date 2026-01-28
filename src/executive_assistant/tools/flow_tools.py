@@ -12,7 +12,6 @@ from langchain_core.tools import tool
 from executive_assistant.flows.spec import FlowSpec, FlowMiddlewareConfig
 from executive_assistant.flows.runner import build_flow_payload, run_flow_by_id
 from executive_assistant.storage.file_sandbox import get_thread_id
-from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
 from executive_assistant.storage.agent_registry import get_agent_registry
 from executive_assistant.storage.scheduled_flows import get_scheduled_flow_storage
 from executive_assistant.tools.reminder_tools import _parse_time_expression
@@ -47,7 +46,7 @@ async def create_flow(
     if not thread_id:
         return "No thread context available to create a flow."
 
-    owner = sanitize_thread_id_to_user_id(thread_id)
+    owner = thread_id
     flow_id = str(uuid.uuid4())
 
     schedule_type = schedule_type or "immediate"
@@ -89,10 +88,10 @@ async def create_flow(
         if agent and len(agent.tools) > 5:
             warnings.append(f"{agent_id} uses {len(agent.tools)} tools (recommended <=5)")
 
-    # Validate first agent uses $flow_input when flow_input is provided
+    # Validate first agent uses $input when flow_input is provided
     first_agent = registry.get_agent(agent_ids[0]) if agent_ids else None
-    if flow_input is not None and first_agent and "$flow_input" not in first_agent.system_prompt:
-        return "Error: first agent system_prompt must include $flow_input when flow_input is provided."
+    if flow_input is not None and first_agent and "$input" not in first_agent.system_prompt:
+        return "Error: first agent system_prompt must include $input when flow_input is provided."
 
     # Require flow_input for the first agent to avoid empty context
     if flow_input is None:
@@ -157,7 +156,6 @@ async def create_flow(
     storage = await get_scheduled_flow_storage()
     payload = build_flow_payload(spec)
     flow = await storage.create(
-        user_id=owner,
         thread_id=thread_id,
         task=description,
         flow=payload,
@@ -174,14 +172,18 @@ async def create_flow(
 
 @tool
 async def list_flows(status: str | None = None) -> str:
-    """List flows for the current user."""
+    """List flows for the current thread."""
     thread_id = get_thread_id()
     if not thread_id:
         return "No thread context available to list flows."
 
-    owner = sanitize_thread_id_to_user_id(thread_id)
+    if status is not None:
+        status = status.strip().lower()
+        if status in {"all", "any", "*", ""}:
+            status = None
+
     storage = await get_scheduled_flow_storage()
-    flows = await storage.list_by_user(owner, status=status)
+    flows = await storage.list_by_thread(thread_id, status=status)
 
     if not flows:
         return "No flows found."

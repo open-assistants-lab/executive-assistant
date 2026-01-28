@@ -1,7 +1,6 @@
-"""User-scoped system metadata registry.
+"""Thread-scoped system metadata registry.
 
-Stores lightweight inventory info in data/users/{user_id}/meta.json.
-User_id is automatically derived from thread_id (anon_* format or user_* after merge).
+Stores lightweight inventory info in data/users/{thread_id}/meta.json.
 """
 
 from __future__ import annotations
@@ -25,26 +24,17 @@ def _now_iso() -> str:
 
 def _meta_path(thread_id: str) -> Path:
     """
-    Get the path to meta.json for a user (converted from thread_id).
+    Get the path to meta.json for a thread.
 
     Args:
-        thread_id: Thread identifier (will be converted to user_id for path)
+        thread_id: Thread identifier
 
     Returns:
-        Path to meta.json file in user-based directory.
+        Path to meta.json file in thread-based directory.
     """
-    # Convert thread_id to user_id for user-based storage
-    # If the id is already a user id (anon_/user_), use it directly.
-    if ":" in thread_id:
-        from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
-        user_id = sanitize_thread_id_to_user_id(thread_id)
-    else:
-        user_id = thread_id
-
-    # Use user-based path
-    user_root = settings.get_user_root(user_id)
-    user_root.mkdir(parents=True, exist_ok=True)
-    return user_root / "meta.json"
+    thread_root = settings.get_thread_root(thread_id)
+    thread_root.mkdir(parents=True, exist_ok=True)
+    return thread_root / "meta.json"
 
 
 def _normalize_rel_path(path: str) -> str:
@@ -60,8 +50,8 @@ def _default_meta(thread_id: str) -> dict[str, Any]:
         "thread_id": thread_id,
         "updated_at": now,
         "files": {"paths": [], "count": 0, "last_updated": None},
-        "vs": {"collections": [], "last_updated": None},
-        "db": {"path": None, "tables": [], "files": [], "last_updated": None},
+        "vdb": {"collections": [], "last_updated": None},
+        "tdb": {"path": None, "tables": [], "files": [], "last_updated": None},
         "reminders": {"count": 0, "items": [], "last_updated": None},
     }
 
@@ -80,15 +70,31 @@ def load_meta(thread_id: str) -> dict[str, Any]:
     data.setdefault("thread_id", thread_id)
     data.setdefault("files", {"paths": [], "count": 0, "last_updated": None})
     vs = data.get("vs")
-    if isinstance(vs, dict) and "collections" not in vs and "tables" in vs:
-        vs["collections"] = vs.pop("tables") or []
+    if isinstance(vs, dict):
+        data.setdefault("vdb", {"collections": [], "last_updated": None})
+        if "collections" in vs:
+            data["vdb"]["collections"] = vs.get("collections") or []
+        elif "tables" in vs:
+            data["vdb"]["collections"] = vs.get("tables") or []
+        if "last_updated" in vs:
+            data["vdb"]["last_updated"] = vs.get("last_updated")
+        data.pop("vs", None)
         migrated = True
-    data.setdefault("vs", {"collections": [], "last_updated": None})
+    data.setdefault("vdb", {"collections": [], "last_updated": None})
     db = data.get("db")
-    if isinstance(db, dict) and "files" not in db:
-        db["files"] = []
+    if isinstance(db, dict):
+        data.setdefault("tdb", {"path": None, "tables": [], "files": [], "last_updated": None})
+        if "path" in db:
+            data["tdb"]["path"] = db.get("path")
+        if "tables" in db:
+            data["tdb"]["tables"] = db.get("tables") or []
+        if "files" in db:
+            data["tdb"]["files"] = db.get("files") or []
+        if "last_updated" in db:
+            data["tdb"]["last_updated"] = db.get("last_updated")
+        data.pop("db", None)
         migrated = True
-    data.setdefault("db", {"path": None, "tables": [], "files": [], "last_updated": None})
+    data.setdefault("tdb", {"path": None, "tables": [], "files": [], "last_updated": None})
     reminders = data.get("reminders")
     if isinstance(reminders, dict) and "items" not in reminders:
         reminders["items"] = []
@@ -112,6 +118,7 @@ def format_meta(
     max_items: int = 20,
 ) -> str:
     """Format meta registry data for display."""
+
     def fmt_code(value: str) -> str:
         return f"`{value}`" if markdown else value
 
@@ -136,22 +143,22 @@ def format_meta(
         if file_count > len(shown):
             lines.append(f"... {file_count - len(shown)} more")
 
-    vs = meta.get("vs", {})
-    vs_collections = [t for t in vs.get("collections", []) if isinstance(t, str)]
-    lines.append(f"VS collections: {len(vs_collections)}")
-    if vs_collections:
-        lines.append(", ".join(fmt_code(t) for t in vs_collections[:max_items]))
+    vdb = meta.get("vdb", {})
+    vdb_collections = [t for t in vdb.get("collections", []) if isinstance(t, str)]
+    lines.append(f"VDB collections: {len(vdb_collections)}")
+    if vdb_collections:
+        lines.append(", ".join(fmt_code(t) for t in vdb_collections[:max_items]))
 
-    db = meta.get("db", {})
+    db = meta.get("tdb", {})
     db_path = db.get("path")
     db_tables = [t for t in db.get("tables", []) if isinstance(t, str)]
     db_files = [t for t in db.get("files", []) if isinstance(t, str)]
     if db_path:
-        lines.append(f"DB path: {fmt_code(str(db_path))}")
+        lines.append(f"TDB path: {fmt_code(str(db_path))}")
     if db_files:
-        lines.append(f"DB files: {len(db_files)}")
+        lines.append(f"TDB files: {len(db_files)}")
         lines.append(", ".join(fmt_code(t) for t in db_files[:max_items]))
-    lines.append(f"DB tables: {len(db_tables)}")
+    lines.append(f"TDB tables: {len(db_tables)}")
     if db_tables:
         lines.append(", ".join(fmt_code(t) for t in db_tables[:max_items]))
 
@@ -174,32 +181,27 @@ def format_meta(
 
 async def refresh_meta(thread_id: str) -> dict[str, Any]:
     """Rebuild meta.json by scanning files/KB/DB/reminders."""
-    from executive_assistant.storage.group_storage import get_workspace_id
+    from executive_assistant.storage.thread_storage import get_thread_id
+    from executive_assistant.storage.user_registry import (
+        register_file_path_best_effort,
+        register_tdb_path_best_effort,
+        register_vdb_path_best_effort,
+        register_mem_path_best_effort,
+        register_adb_path_best_effort,
+    )
 
     meta = _default_meta(thread_id)
     now = _now_iso()
     meta["updated_at"] = now
 
-    # Priority: user_id (individual) > group_id (team) > thread_id (fallback)
-    from executive_assistant.storage.group_storage import get_user_id
-    user_id = get_user_id()
-    group_id = get_workspace_id()
+    thread_id = get_thread_id()
+    if not thread_id:
+        thread_id = "unknown"
 
-    if user_id:
-        storage_id = user_id
-        is_group = False
-    elif group_id:
-        storage_id = group_id
-        is_group = True
-    else:
-        storage_id = thread_id
-        is_group = False
+    storage_id = thread_id
 
-    # Files inventory - use group/user path based on context
-    if is_group:
-        files_root = settings.get_group_files_path(storage_id)
-    else:
-        files_root = settings.get_user_files_path(storage_id)
+    # Files inventory - thread-only storage
+    files_root = settings.get_thread_files_path(storage_id)
 
     file_paths: list[str] = []
     total_files = 0
@@ -221,27 +223,23 @@ async def refresh_meta(thread_id: str) -> dict[str, Any]:
         "last_updated": now,
     }
 
-    # VS tables (LanceDB)
-    vs_collections: list[str] = []
+    # VDB tables (LanceDB)
+    vdb_collections: list[str] = []
     try:
         from executive_assistant.storage.lancedb_storage import list_lancedb_collections
 
-        vs_collections = list_lancedb_collections(storage_id=storage_id)
+        vdb_collections = list_lancedb_collections(storage_id=storage_id)
     except Exception:
-        vs_collections = []
+        vdb_collections = []
 
-    meta["vs"] = {
-        "collections": sorted(vs_collections)[:MAX_TRACKED_TABLES],
+    meta["vdb"] = {
+        "collections": sorted(vdb_collections)[:MAX_TRACKED_TABLES],
         "last_updated": now,
     }
 
-    # DB tables - SQLite
-    if is_group:
-        db_path = settings.get_group_db_path(storage_id, "default")
-        db_root = settings.get_group_root(storage_id)
-    else:
-        db_path = settings.get_user_db_path(storage_id, "default")
-        db_root = settings.get_user_root(storage_id)
+    # TDB tables - SQLite
+    db_path = settings.get_thread_tdb_path(storage_id, "default")
+    db_root = settings.get_thread_root(storage_id)
 
     db_tables: list[str] = []
     db_path_value: str | None = None
@@ -269,13 +267,14 @@ async def refresh_meta(thread_id: str) -> dict[str, Any]:
     if db_path.parent.exists():
         try:
             db_files = sorted(
-                p.name for p in db_path.parent.iterdir()
+                p.name
+                for p in db_path.parent.iterdir()
                 if p.is_file() and p.suffix == ".sqlite"
             )[:MAX_TRACKED_TABLES]
         except Exception:
             db_files = []
 
-    meta["db"] = {
+    meta["tdb"] = {
         "path": db_path_value,
         "tables": sorted(db_tables)[:MAX_TRACKED_TABLES],
         "files": db_files,
@@ -289,7 +288,7 @@ async def refresh_meta(thread_id: str) -> dict[str, Any]:
         from executive_assistant.storage.reminder import get_reminder_storage
 
         storage = await get_reminder_storage()
-        reminders = await storage.list_by_user(thread_id, None)
+        reminders = await storage.list_by_thread(thread_id, None)
         reminder_count = len(reminders)
         reminder_items = [
             {
@@ -321,13 +320,16 @@ def record_file_written(thread_id: str | None, relative_path: str) -> None:
     try:
         meta = load_meta(thread_id)
         files = meta["files"]
-        paths = {_normalize_rel_path(p) for p in files.get("paths", []) if isinstance(p, str)}
+        paths = {
+            _normalize_rel_path(p) for p in files.get("paths", []) if isinstance(p, str)
+        }
         paths.add(_normalize_rel_path(relative_path))
         files["paths"] = sorted(paths)[:MAX_TRACKED_FILES]
         files["count"] = len(files["paths"])
         files["last_updated"] = _now_iso()
         meta["updated_at"] = files["last_updated"]
         save_meta(thread_id, meta)
+        register_file_path_best_effort(thread_id, "unknown", relative_path)
     except Exception:
         return
 
@@ -339,7 +341,9 @@ def record_file_removed(thread_id: str | None, relative_path: str) -> None:
         meta = load_meta(thread_id)
         files = meta["files"]
         target = _normalize_rel_path(relative_path)
-        paths = {_normalize_rel_path(p) for p in files.get("paths", []) if isinstance(p, str)}
+        paths = {
+            _normalize_rel_path(p) for p in files.get("paths", []) if isinstance(p, str)
+        }
         if target in paths:
             paths.remove(target)
         files["paths"] = sorted(paths)[:MAX_TRACKED_FILES]
@@ -347,6 +351,8 @@ def record_file_removed(thread_id: str | None, relative_path: str) -> None:
         files["last_updated"] = _now_iso()
         meta["updated_at"] = files["last_updated"]
         save_meta(thread_id, meta)
+        vdb_dir = settings.get_thread_vdb_path(thread_id)
+        register_vdb_path_best_effort(thread_id, "unknown", str(vdb_dir))
     except Exception:
         return
 
@@ -360,12 +366,11 @@ def record_files_removed_by_prefix(thread_id: str | None, prefix: str) -> None:
         normalized_prefix = _normalize_rel_path(prefix)
         prefix_with_sep = normalized_prefix + "/"
         paths = [
-            _normalize_rel_path(p)
-            for p in files.get("paths", [])
-            if isinstance(p, str)
+            _normalize_rel_path(p) for p in files.get("paths", []) if isinstance(p, str)
         ]
         kept = [
-            p for p in paths
+            p
+            for p in paths
             if p != normalized_prefix and not p.startswith(prefix_with_sep)
         ]
         files["paths"] = sorted(set(kept))[:MAX_TRACKED_FILES]
@@ -383,7 +388,9 @@ def record_file_moved(thread_id: str | None, source: str, destination: str) -> N
     try:
         meta = load_meta(thread_id)
         files = meta["files"]
-        paths = {_normalize_rel_path(p) for p in files.get("paths", []) if isinstance(p, str)}
+        paths = {
+            _normalize_rel_path(p) for p in files.get("paths", []) if isinstance(p, str)
+        }
         source_norm = _normalize_rel_path(source)
         dest_norm = _normalize_rel_path(destination)
         if source_norm in paths:
@@ -398,7 +405,9 @@ def record_file_moved(thread_id: str | None, source: str, destination: str) -> N
         return
 
 
-def record_folder_renamed(thread_id: str | None, old_prefix: str, new_prefix: str) -> None:
+def record_folder_renamed(
+    thread_id: str | None, old_prefix: str, new_prefix: str
+) -> None:
     if not thread_id:
         return
     try:
@@ -416,7 +425,9 @@ def record_folder_renamed(thread_id: str | None, old_prefix: str, new_prefix: st
             if normalized == old_norm:
                 normalized = new_norm
             elif normalized.startswith(old_prefix_with_sep):
-                normalized = new_prefix_with_sep + normalized[len(old_prefix_with_sep):]
+                normalized = (
+                    new_prefix_with_sep + normalized[len(old_prefix_with_sep) :]
+                )
             updated.append(normalized)
         files["paths"] = sorted(set(updated))[:MAX_TRACKED_FILES]
         files["count"] = len(files["paths"])
@@ -427,45 +438,47 @@ def record_folder_renamed(thread_id: str | None, old_prefix: str, new_prefix: st
         return
 
 
-def record_vs_table_added(thread_id: str | None, table_name: str) -> None:
+def record_vdb_table_added(thread_id: str | None, table_name: str) -> None:
     if not thread_id:
         return
     try:
         meta = load_meta(thread_id)
-        vs = meta["vs"]
-        collections = {t for t in vs.get("collections", []) if isinstance(t, str)}
+        vdb = meta["vdb"]
+        collections = {t for t in vdb.get("collections", []) if isinstance(t, str)}
         collections.add(table_name)
-        vs["collections"] = sorted(collections)[:MAX_TRACKED_TABLES]
-        vs["last_updated"] = _now_iso()
-        meta["updated_at"] = vs["last_updated"]
+        vdb["collections"] = sorted(collections)[:MAX_TRACKED_TABLES]
+        vdb["last_updated"] = _now_iso()
+        meta["updated_at"] = vdb["last_updated"]
         save_meta(thread_id, meta)
+        vdb_dir = settings.get_thread_vdb_path(thread_id)
+        register_vdb_path_best_effort(thread_id, "unknown", str(vdb_dir))
     except Exception:
         return
 
 
-def record_vs_table_removed(thread_id: str | None, table_name: str) -> None:
+def record_vdb_table_removed(thread_id: str | None, table_name: str) -> None:
     if not thread_id:
         return
     try:
         meta = load_meta(thread_id)
-        vs = meta["vs"]
-        collections = {t for t in vs.get("collections", []) if isinstance(t, str)}
+        vdb = meta["vdb"]
+        collections = {t for t in vdb.get("collections", []) if isinstance(t, str)}
         if table_name in collections:
             collections.remove(table_name)
-        vs["collections"] = sorted(collections)[:MAX_TRACKED_TABLES]
-        vs["last_updated"] = _now_iso()
-        meta["updated_at"] = vs["last_updated"]
+        vdb["collections"] = sorted(collections)[:MAX_TRACKED_TABLES]
+        vdb["last_updated"] = _now_iso()
+        meta["updated_at"] = vdb["last_updated"]
         save_meta(thread_id, meta)
     except Exception:
         return
 
 
-def record_db_table_added(thread_id: str | None, table_name: str) -> None:
+def record_tdb_table_added(thread_id: str | None, table_name: str) -> None:
     if not thread_id:
         return
     try:
         meta = load_meta(thread_id)
-        db = meta["db"]
+        db = meta["tdb"]
         tables = {t for t in db.get("tables", []) if isinstance(t, str)}
         tables.add(table_name)
         db["tables"] = sorted(tables)[:MAX_TRACKED_TABLES]
@@ -476,12 +489,12 @@ def record_db_table_added(thread_id: str | None, table_name: str) -> None:
         return
 
 
-def record_db_table_removed(thread_id: str | None, table_name: str) -> None:
+def record_tdb_table_removed(thread_id: str | None, table_name: str) -> None:
     if not thread_id:
         return
     try:
         meta = load_meta(thread_id)
-        db = meta["db"]
+        db = meta["tdb"]
         tables = {t for t in db.get("tables", []) if isinstance(t, str)}
         if table_name in tables:
             tables.remove(table_name)
@@ -493,12 +506,12 @@ def record_db_table_removed(thread_id: str | None, table_name: str) -> None:
         return
 
 
-def record_db_path(thread_id: str | None, db_path: Path) -> None:
+def record_tdb_path(thread_id: str | None, db_path: Path) -> None:
     if not thread_id:
         return
     try:
         meta = load_meta(thread_id)
-        db = meta["db"]
+        db = meta["tdb"]
         thread_root = settings.get_thread_root(thread_id)
         try:
             rel_path = db_path.relative_to(thread_root)

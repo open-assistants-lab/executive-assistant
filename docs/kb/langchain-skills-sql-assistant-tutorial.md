@@ -9,13 +9,13 @@ This tutorial shows how to use __progressive disclosure__ - a context management
 
 ## Use case
 
-Imagine building an agent to help write SQL queries across different business verticals in a large enterprise. Your organization might have separate datastores for each vertical, or a single monolithic database with thousands of tables. Either way, loading all schemas upfront would overwhelm the context window. Progressive disclosure solves this by loading only the relevant schema when needed.
+Imagine building an agent to help write SQL queries across different business verticals in a large enterprise. Your organization might have separate datastores for each vertical, or a single monolithic transactional database with thousands of tables. Either way, loading all schemas upfront would overwhelm the context window. Progressive disclosure solves this by loading only the relevant schema when needed.
 
 This architecture also enables different product owners and stakeholders to independently contribute and maintain skills for their specific business verticals.
 
 ## What you'll build
 
-A SQL query assistant with two skills (sales analytics and inventory management). The agent sees lightweight skill descriptions in its system prompt, then loads full database schemas and business logic through tool calls only when relevant to the user's query.
+A SQL query assistant with two skills (sales analytics and inventory management). The agent sees lightweight skill descriptions in its system prompt, then loads full transactional database schemas and business logic through tool calls only when relevant to the user's query.
 
 ## How it works
 
@@ -29,7 +29,6 @@ A SQL query assistant with two skills (sales analytics and inventory management)
 ### Why progressive disclosure?
 
 - **Reduces context usage** - load only the 2-3 skills needed for a task, not all available skills
-- **Enables team autonomy** - different teams can develop specialized skills independently (similar to other multi-agent architectures)
 - **Scales efficiently** - add dozens or hundreds of skills without overwhelming context
 - **Simplifies conversation history** - single agent with one conversation thread
 
@@ -62,7 +61,7 @@ Example skill structure:
 SKILLS: list[Skill] = [
     {
         "name": "sales_analytics",
-        "description": "Database schema and business logic for sales data analysis including customers, orders, and revenue.",
+        "description": "Transactional Database schema and business logic for sales data analysis including customers, orders, and revenue.",
         "content": """# Sales Analytics Schema
 
 ## Tables
@@ -96,7 +95,7 @@ SKILLS: list[Skill] = [
     },
     {
         "name": "inventory_management",
-        "description": "Database schema and business logic for inventory tracking including products, warehouses, and stock levels.",
+        "description": "Transactional Database schema and business logic for inventory tracking including products, warehouses, and stock levels.",
         "content": """# Inventory Management Schema
 
 ## Tables

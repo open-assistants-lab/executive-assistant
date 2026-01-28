@@ -1,6 +1,7 @@
 """Abstract base class for messaging channels."""
 
 from abc import ABC, abstractmethod
+import asyncio
 from typing import Any
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
@@ -9,20 +10,18 @@ from langgraph.types import Runnable
 from executive_assistant.config import settings
 from executive_assistant.logging import get_logger, format_log_context, truncate_log_text
 from executive_assistant.storage.file_sandbox import (
-    set_thread_id,
-    clear_thread_id,
-    set_user_id,
-    clear_user_id,
     read_file,
     write_file,
 )
 from executive_assistant.storage.user_registry import UserRegistry
-from executive_assistant.storage.group_storage import (
-    ensure_thread_group,
-    set_group_id as set_workspace_context,
-    set_user_id as set_workspace_user_id,
-    clear_group_id as clear_workspace_context,
-    clear_user_id as clear_workspace_user_id,
+from executive_assistant.storage.thread_storage import (
+    set_thread_id,
+    set_channel,
+    set_chat_type,
+)
+from executive_assistant.agent.flow_mode import (
+    set_flow_mode_active,
+    is_flow_mode_enabled,
 )
 
 logger = get_logger(__name__)
@@ -34,7 +33,7 @@ class MessageFormat(dict):
 
     Attributes:
         content: Text content of the message.
-        user_id: Unique identifier for the user.
+        user_id: Thread identifier (channel + channel user id).
         conversation_id: Unique identifier for the conversation.
         message_id: Unique identifier for this message.
         attachments: List of file attachments (images, documents, etc.).
@@ -88,6 +87,17 @@ class BaseChannel(ABC):
     ) -> None:
         self.agent = agent
         self.registry = registry  # Optional UserRegistry instance
+        self._active_tasks: dict[str, Any] = {}
+        self._interrupted_chats: set[str] = set()
+
+
+    def cancel_active_task(self, conversation_id: str) -> bool:
+        task = self._active_tasks.get(str(conversation_id))
+        if task and not task.done():
+            task.cancel()
+            self._interrupted_chats.add(str(conversation_id))
+            return True
+        return False
 
     def get_channel_name(self) -> str:
         """Get the channel name (e.g., 'telegram', 'http', 'slack')."""
@@ -95,7 +105,7 @@ class BaseChannel(ABC):
 
     def format_user_id(self, raw_user_id: str) -> str:
         """
-        Format user_id with channel prefix for unique identification.
+        Format user_id (thread identifier) with channel prefix for unique identification.
 
         Args:
             raw_user_id: The raw user ID from the channel (e.g., '123456')
@@ -104,6 +114,71 @@ class BaseChannel(ABC):
             User ID with channel prefix (e.g., 'telegram:123456')
         """
         return f"{self.get_channel_name()}:{raw_user_id}"
+
+    def _is_planning_only(self, text: str) -> bool:
+        if not text:
+            return False
+        lowered = text.lower()
+        planning_keywords = (
+            "plan",
+            "planning",
+            "roadmap",
+            "outline",
+            "strategy",
+            "breakdown",
+            "estimate",
+        )
+        tool_keywords = (
+            "file",
+            "folder",
+            "database",
+            "tdb",
+            "vdb",
+            "adb",
+            "flow",
+            "agent",
+            "scrape",
+            "crawl",
+            "search",
+            "web",
+            "python",
+            "reminder",
+            "memory",
+        )
+        return any(k in lowered for k in planning_keywords) and not any(
+            k in lowered for k in tool_keywords
+        )
+
+    async def _build_request_agent(self, message_text: str, conversation_id: str) -> Runnable:
+        from executive_assistant.agent.langchain_agent import create_langchain_agent
+        from executive_assistant.config import create_model
+        from executive_assistant.tools.registry import get_tools_for_request
+        from executive_assistant.storage.checkpoint import get_async_checkpointer
+        from executive_assistant.agent.prompts import get_system_prompt
+
+        flow_mode = is_flow_mode_enabled(conversation_id)
+        tools = await get_tools_for_request(message_text, flow_mode=flow_mode)
+        tool_names = [
+            getattr(tool, "name", None) or getattr(tool, "__name__", None)
+            for tool in tools
+        ]
+        logger.debug(
+            "Request tool selection: count=%s tools=%s",
+            len(tool_names),
+            ", ".join([n for n in tool_names if n]),
+        )
+        model_variant = "fast" if self._is_planning_only(message_text) else "default"
+        model = create_model(model=model_variant)
+        checkpointer = await get_async_checkpointer()
+        system_prompt = get_system_prompt(self.get_channel_name())
+
+        return create_langchain_agent(
+            model=model,
+            tools=tools,
+            checkpointer=checkpointer,
+            system_prompt=system_prompt,
+            channel=self,
+        )
 
     async def initialize_agent_with_channel(self) -> None:
         """
@@ -114,13 +189,13 @@ class BaseChannel(ABC):
         """
         from executive_assistant.agent.langchain_agent import create_langchain_agent
         from executive_assistant.config import create_model
-        from executive_assistant.tools.registry import get_all_tools
+        from executive_assistant.tools.registry import get_tools_for_request
         from executive_assistant.storage.checkpoint import get_async_checkpointer
         from executive_assistant.agent.prompts import get_system_prompt
 
         # Get the same configuration used to create the original agent
         model = create_model()
-        tools = await get_all_tools()
+        tools = await get_tools_for_request("", flow_mode=False)
         checkpointer = await get_async_checkpointer()
         system_prompt = get_system_prompt(self.__class__.__name__.replace("Channel", "").lower())
 
@@ -221,29 +296,29 @@ class BaseChannel(ABC):
             # Set thread_id context for file sandbox operations
             set_thread_id(thread_id)
 
-            # Convert thread_id to user_id (identity_id) for storage and permission checks
-            from executive_assistant.storage.helpers import sanitize_thread_id_to_user_id
-            user_id_for_storage = sanitize_thread_id_to_user_id(thread_id)
-
-            ctx = format_log_context("message", channel=channel, user=user_id_for_storage, conversation=message.conversation_id, type="text")
+            # Thread-only storage (thread_id is the storage identifier)
+            ctx = format_log_context("message", channel=channel, user=thread_id, conversation=message.conversation_id, type="text")
             logger.info(f'{ctx} recv text="{truncate_log_text(message.content)}"')
 
-            # Ensure group exists and set group_id context
-            group_id = await ensure_thread_group(thread_id, user_id_for_storage)
-            set_workspace_context(group_id)
+            # Thread-only context
+            set_thread_id(thread_id)
+            set_channel(channel)
+            set_chat_type("private")
+            set_flow_mode_active(is_flow_mode_enabled(message.conversation_id))
 
-            ctx_system = format_log_context("system", component="context", channel=channel, user=user_id_for_storage, conversation=message.conversation_id)
-            logger.info(f"{ctx_system} set user_id context from thread_id")
-            set_workspace_user_id(user_id_for_storage)
-
-            # Verify it was set
-            from executive_assistant.storage.group_storage import get_user_id as check_user_id
-            verified_id = check_user_id()
-            logger.debug(f"{ctx_system} verified user_id")
+            ctx_system = format_log_context("system", component="context", channel=channel, user=thread_id, conversation=message.conversation_id)
+            logger.info(f"{ctx_system} set thread_id context")
 
             # Retrieve relevant memories and inject into message
             memories = self._get_relevant_memories(thread_id, message.content)
             enhanced_content = self._inject_memories(message.content, memories)
+            if message.conversation_id in self._interrupted_chats:
+                enhanced_content = (
+                    "[Note] The previous run in this conversation was interrupted by the user.\n"
+                    + enhanced_content
+                )
+                self._interrupted_chats.discard(message.conversation_id)
+
 
             # Build state with only the new message
             state = {
@@ -258,24 +333,27 @@ class BaseChannel(ABC):
                 "thread_model_call_count": 0,
                 "thread_tool_call_count": {},
                 "todos": [],
+                "thread_id": thread_id,
+                "conversation_id": message.conversation_id,
             }
 
             # Log incoming message if audit is enabled
             if self.registry:
                 await self.registry.log_message(
                     conversation_id=thread_id,
-                    user_id=message.user_id,
                     channel=channel,
                     message=HumanMessage(content=enhanced_content),
                     message_id=message.message_id,
                     metadata=message.metadata,
                 )
 
+            self._active_tasks[message.conversation_id] = asyncio.current_task()
             # Stream agent responses and send IMMEDIATELY (no batching)
             import time
             agent_start = time.time()
             event_count = 0
-            async for event in self.agent.astream(state, config):
+            request_agent = await self._build_request_agent(enhanced_content, message.conversation_id)
+            async for event in request_agent.astream(state, config):
                 event_count += 1
                 if event_count <= 10:
                     logger.opt(lazy=True).debug(
@@ -296,13 +374,19 @@ class BaseChannel(ABC):
                     if self.registry and (hasattr(msg, 'content') and msg.content or (hasattr(msg, 'tool_calls') and msg.tool_calls)):
                         await self.registry.log_message(
                             conversation_id=thread_id,
-                            user_id=message.user_id,
                             channel=channel,
                             message=msg,
                         )
 
             agent_elapsed = time.time() - agent_start
             logger.info(f"{ctx_system} agent processing elapsed={agent_elapsed:.2f}s events={event_count}")
+            self._active_tasks.pop(message.conversation_id, None)
+
+        except asyncio.CancelledError:
+            ctx_cancel = format_log_context("system", component="agent", channel=self.get_channel_name(), user=message.user_id, conversation=message.conversation_id)
+            logger.info(f"{ctx_cancel} cancelled")
+            self._active_tasks.pop(message.conversation_id, None)
+            return
 
         except Exception as e:
             ctx_error = format_log_context("system", component="agent", channel=self.get_channel_name(), user=message.user_id, conversation=message.conversation_id)
