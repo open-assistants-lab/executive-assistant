@@ -18,6 +18,26 @@ from executive_assistant.storage.sqlite_db_storage import SQLiteDatabase, get_sq
 from executive_assistant.storage.thread_storage import require_permission
 
 
+def _validate_scope(scope: str) -> Literal["context", "shared"]:
+    """Validate and normalize scope parameter.
+    
+    Args:
+        scope: The scope value to validate.
+        
+    Returns:
+        Validated scope value.
+        
+    Raises:
+        ValueError: If scope is not 'context' or 'shared'.
+    """
+    if scope not in ("context", "shared"):
+        raise ValueError(
+            f"Invalid scope '{scope}'. Must be exactly 'context' or 'shared'. "
+            f"Use 'context' (default) for thread-scoped data, 'shared' for organization-wide."
+        )
+    return scope  # type: ignore
+
+
 # Context variable for thread_id - shared with file_sandbox
 # We import get_thread_id from file_sandbox to maintain single source of truth
 
@@ -119,9 +139,8 @@ def create_tdb_table(
 
     Args:
         table_name: Name for the new table (letters, numbers, underscore).
-        data: List of dictionaries (e.g., [{"name": "Alice", "age": 30}])
-               OR JSON string (e.g., '[{"name": "Alice", "age": 30}]')
-               Leave empty to create empty table structure.
+        data: JSON string '[{"name": "Alice", "age": 30}]' OR list of dicts.
+              Leave empty to create empty table structure.
         columns: Comma-separated column names (e.g., "name,email,phone").
                Required when creating empty table; optional with data.
         scope: "context" (default) for thread-scoped storage,
@@ -160,7 +179,7 @@ def create_tdb_table(
         except Exception as e:
             return f"Error creating table: {str(e)}"
 
-    # Parse data - convert list if needed
+    # Parse data - accept both JSON string and list
     if isinstance(data, list):
         parsed_data = data
     elif isinstance(data, str):
@@ -169,7 +188,7 @@ def create_tdb_table(
         except json.JSONDecodeError as e:
             return f'Error: Invalid JSON data - {str(e)}. Expected format: \'[{{"name": "Alice", "age": 30}}]\''
     else:
-        return "Error: data must be a list or JSON string"
+        return "Error: data must be a JSON string or list of dicts"
 
     # Determine column names
     column_list = None
@@ -207,8 +226,7 @@ def insert_tdb_table(
 
     Args:
         table_name: Name of the table to insert into.
-        data: List of dictionaries (e.g., [{"name": "Alice", "age": 30}])
-               OR JSON string (e.g., '[{"name": "Alice", "age": 30}]')
+        data: JSON string '[{"name": "Alice", "age": 30}]' OR list of dicts.
         scope: "context" (default) for thread-scoped storage,
                "shared" for organization-wide shared storage (admin-only writes).
 
@@ -217,16 +235,16 @@ def insert_tdb_table(
     """
     import json
 
-    # Convert list to JSON string if needed
+    # Parse data - accept both JSON string and list
     if isinstance(data, list):
         parsed_data = data
     elif isinstance(data, str):
         try:
             parsed_data = json.loads(data)
         except json.JSONDecodeError as e:
-            return f"Error: Invalid JSON data - {str(e)}"
+            return f"Error: Invalid JSON data - {str(e)}. Expected format: '[{{\"name\": \"Alice\", \"age\": 30}}]'"
     else:
-        return "Error: data must be a list or JSON string"
+        return "Error: data must be a JSON string or list of dicts"
 
     if not isinstance(parsed_data, list):
         return "Error: data must be a JSON array"
@@ -512,16 +530,21 @@ def drop_tdb_column(
 
     USE THIS WHEN: You need to remove a column from a table schema.
 
+    Examples:
+        drop_tdb_column("users", "email")  # Removes 'email' column from 'users' table
+        drop_tdb_column("sales", "temp_col", scope="context")
+
     Args:
-        table_name: Name of the table to alter.
-        column_name: Column name to remove.
-        scope: "context" (default) for thread-scoped storage,
-               "shared" for organization-wide shared storage (admin-only writes).
+        table_name: Name of the table to alter (e.g., "users", "orders").
+        column_name: Name of the column to remove (e.g., "email", "temp_field").
+        scope: Must be exactly "context" (default) or "shared".
 
     Returns:
-        Success message or error.
+        Success message or error details.
     """
     try:
+        # Validate scope explicitly with helpful error
+        _validate_scope(scope)
         validate_identifier(table_name)
         validate_identifier(column_name)
         db = _get_db_with_scope(scope)
@@ -639,16 +662,22 @@ def import_tdb_table(
 
     USE THIS WHEN: You have CSV data in your files directory that you want to query or analyze with SQL.
 
+    Examples:
+        import_tdb_table("users", "users.csv")  # scope defaults to "context"
+        import_tdb_table("sales", "sales_2024.csv", scope="context")
+
     Args:
-        table_name: Name for the new table.
-        filename: Name of the CSV file (must exist in files directory).
-        scope: "context" (default) for thread-scoped storage,
-               "shared" for organization-wide shared storage (admin-only writes).
+        table_name: Name for the new table (e.g., "users", "sales_data").
+        filename: Name of the CSV file in files directory (e.g., "data.csv").
+        scope: Must be exactly "context" (default) or "shared".
+               Use "context" for thread-scoped data, "shared" for organization-wide (admin-only).
 
     Returns:
         Success message with row count.
     """
     try:
+        # Validate scope explicitly with helpful error
+        _validate_scope(scope)
         validate_identifier(table_name)
 
         # Get file path for current context

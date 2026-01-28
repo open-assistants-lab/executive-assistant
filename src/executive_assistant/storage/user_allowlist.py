@@ -53,10 +53,21 @@ def is_admin_entry(entry: str) -> bool:
 
 
 def is_authorized(thread_id: str | None) -> bool:
+    """
+    Check if a thread_id is authorized to use the assistant.
+
+    HTTP channels are always authorized (auth is handled by frontend).
+    Other channels (Telegram, etc.) require allowlist membership.
+    """
     if thread_id is None:
         return False
     if is_admin(thread_id):
         return True
+
+    # HTTP channels don't require allowlist - auth handled by frontend
+    if thread_id.startswith("http:"):
+        return True
+
     return is_allowed(thread_id)
 
 

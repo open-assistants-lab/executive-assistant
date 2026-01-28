@@ -2,6 +2,7 @@
 
 from abc import ABC, abstractmethod
 import asyncio
+import contextvars
 from typing import Any
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
@@ -152,21 +153,12 @@ class BaseChannel(ABC):
     async def _build_request_agent(self, message_text: str, conversation_id: str) -> Runnable:
         from executive_assistant.agent.langchain_agent import create_langchain_agent
         from executive_assistant.config import create_model
-        from executive_assistant.tools.registry import get_tools_for_request
+        from executive_assistant.tools.registry import get_all_tools
         from executive_assistant.storage.checkpoint import get_async_checkpointer
         from executive_assistant.agent.prompts import get_system_prompt
 
-        flow_mode = is_flow_mode_enabled(conversation_id)
-        tools = await get_tools_for_request(message_text, flow_mode=flow_mode)
-        tool_names = [
-            getattr(tool, "name", None) or getattr(tool, "__name__", None)
-            for tool in tools
-        ]
-        logger.debug(
-            "Request tool selection: count=%s tools=%s",
-            len(tool_names),
-            ", ".join([n for n in tool_names if n]),
-        )
+        tools = await get_all_tools()
+        logger.debug("Building agent with all tools: count=%s", len(tools))
         model_variant = "fast" if self._is_planning_only(message_text) else "default"
         model = create_model(model=model_variant)
         checkpointer = await get_async_checkpointer()
@@ -189,13 +181,13 @@ class BaseChannel(ABC):
         """
         from executive_assistant.agent.langchain_agent import create_langchain_agent
         from executive_assistant.config import create_model
-        from executive_assistant.tools.registry import get_tools_for_request
+        from executive_assistant.tools.registry import get_all_tools
         from executive_assistant.storage.checkpoint import get_async_checkpointer
         from executive_assistant.agent.prompts import get_system_prompt
 
         # Get the same configuration used to create the original agent
         model = create_model()
-        tools = await get_tools_for_request("", flow_mode=False)
+        tools = await get_all_tools()
         checkpointer = await get_async_checkpointer()
         system_prompt = get_system_prompt(self.__class__.__name__.replace("Channel", "").lower())
 
@@ -352,23 +344,51 @@ class BaseChannel(ABC):
             import time
             agent_start = time.time()
             event_count = 0
+            messages_sent = 0
+            total_input_tokens = 0
+            total_output_tokens = 0
             request_agent = await self._build_request_agent(enhanced_content, message.conversation_id)
             async for event in request_agent.astream(state, config):
                 event_count += 1
-                if event_count <= 10:
-                    logger.opt(lazy=True).debug(
-                        "Stream event {idx}: {event_type}",
-                        idx=event_count,
-                        event_type=lambda: type(event).__name__,
-                    )
+                if event_count <= 20:
+                    logger.debug(f"Stream event {event_count}: {type(event).__name__}")
+                    if isinstance(event, dict):
+                        logger.debug(f"  Event keys: {list(event.keys())}")
+                        if "messages" in event:
+                            logger.debug(f"  Messages count: {len(event['messages'])}")
+                        if "model" in event:
+                            logger.debug(f"  Model event: {type(event['model']).__name__ if event['model'] else 'None'}")
+
+                # Extract token usage from event if available
+                if isinstance(event, dict):
+                    # Check for usage metadata in various event formats
+                    usage = event.get('usage_metadata') or event.get('usage')
+                    if usage:
+                        input_tok = usage.get('input_tokens') or usage.get('prompt_tokens')
+                        output_tok = usage.get('output_tokens') or usage.get('completion_tokens')
+                        if input_tok:
+                            total_input_tokens += input_tok
+                        if output_tok:
+                            total_output_tokens += output_tok
 
                 # Extract and send messages immediately as they arrive
                 messages = self._extract_messages_from_event(event)
                 new_messages = self._get_new_ai_messages(messages, message.message_id)
                 for msg in new_messages:
+                    # Extract token usage from message if available
+                    if hasattr(msg, 'usage_metadata') and msg.usage_metadata:
+                        usage = msg.usage_metadata
+                        input_tok = usage.get('input_tokens') or usage.get('prompt_tokens')
+                        output_tok = usage.get('output_tokens') or usage.get('completion_tokens')
+                        if input_tok:
+                            total_input_tokens += input_tok
+                        if output_tok:
+                            total_output_tokens += output_tok
+
                     # Send immediately, don't accumulate!
                     if isinstance(msg, AIMessage) and hasattr(msg, "content") and msg.content:
                         await self.send_message(message.conversation_id, msg.content)
+                        messages_sent += 1
 
                     # Log message if audit is enabled
                     if self.registry and (hasattr(msg, 'content') and msg.content or (hasattr(msg, 'tool_calls') and msg.tool_calls)):
@@ -379,7 +399,34 @@ class BaseChannel(ABC):
                         )
 
             agent_elapsed = time.time() - agent_start
-            logger.info(f"{ctx_system} agent processing elapsed={agent_elapsed:.2f}s events={event_count}")
+            total_tokens = total_input_tokens + total_output_tokens
+            
+            # Note: Agent should always generate a final response after tool calls
+            # If no response is received, check the LLM/model configuration
+            
+            # Try to get final state for token usage (some checkpointers store this)
+            if total_tokens == 0:
+                try:
+                    final_state = await request_agent.aget_state(config)
+                    if final_state and hasattr(final_state, 'values'):
+                        messages = final_state.values.get('messages', [])
+                        for msg in messages:
+                            if hasattr(msg, 'usage_metadata') and msg.usage_metadata:
+                                usage = msg.usage_metadata
+                                input_tok = usage.get('input_tokens') or usage.get('prompt_tokens')
+                                output_tok = usage.get('output_tokens') or usage.get('completion_tokens')
+                                if input_tok:
+                                    total_input_tokens += input_tok
+                                if output_tok:
+                                    total_output_tokens += output_tok
+                        total_tokens = total_input_tokens + total_output_tokens
+                except Exception:
+                    pass  # Ignore errors in token extraction
+            
+            if total_tokens > 0:
+                logger.info(f"{ctx_system} agent processing elapsed={agent_elapsed:.2f}s events={event_count} messages={messages_sent} tokens={total_input_tokens}+{total_output_tokens}={total_tokens}")
+            else:
+                logger.info(f"{ctx_system} agent processing elapsed={agent_elapsed:.2f}s events={event_count} messages={messages_sent}")
             self._active_tasks.pop(message.conversation_id, None)
 
         except asyncio.CancelledError:

@@ -4,6 +4,13 @@
 **Last Updated:** January 21, 2026
 **Project:** Executive Assistant - Multi-channel AI Agent Platform
 
+**Recent Updates (January 2026):**
+- ✅ Fixed progressive disclosure bug (all 83 tools now available by default)
+- ✅ Added ThreadContextMiddleware for async context propagation
+- ✅ Enhanced error logging with comprehensive tracebacks
+- ✅ Fixed HTTP channel non-streaming endpoint
+- ✅ HTTP channel now bypasses allowlist (frontend auth pattern)
+
 ---
 
 ## Table of Contents
@@ -300,13 +307,24 @@ executive_assistant/
 - `todo_display.py`: Todo list display formatting
 
 **Middleware Stack (via LangChain):**
-1. **SummarizationMiddleware**: Token-based conversation summarization
-2. **CallLimitMiddleware**: Prevents runaway execution (max 30 model calls, 50 tool calls per message)
-3. **RetryMiddleware**: Automatic retry on transient failures
-4. **TodoListMiddleware**: Tracks planned tasks
-5. **ContextEditingMiddleware**: Edits context for efficiency
-6. **StatusUpdateMiddleware**: Streams progress updates to user
-7. **TodoListDisplayMiddleware**: Displays planned tasks during execution
+1. **StatusUpdateMiddleware**: Real-time progress tracking (if channel enabled)
+2. **ThreadContextMiddleware**: Ensures thread_id ContextVar propagates to tool execution
+3. **TodoListMiddleware**: Tracks planned tasks
+4. **TodoListDisplayMiddleware**: Displays planned tasks during execution (if channel enabled)
+5. **SummarizationMiddleware**: Token-based conversation summarization
+6. **ContextEditingMiddleware**: Edits context for efficiency
+7. **CallLimitMiddleware**: Prevents runaway execution (max 50 model calls, 100 tool calls per message)
+8. **ToolRetryMiddleware**: Automatic retry on tool failures
+9. **ModelRetryMiddleware**: Automatic retry on model failures
+
+**ThreadContextMiddleware (Custom):**
+- **Purpose**: Fix Python ContextVar not propagating across LangGraph async task boundaries
+- **Implementation**: Wraps tool execution via `awrap_tool_call()`
+- **Functionality**:
+  - Captures current `thread_id` from ContextVar before tool call
+  - Restores `thread_id` immediately before tool execution
+  - Logs all tool errors with full traceback at DEBUG level
+- **Critical for**: FileSandbox, TDB, VDB, and all thread-scoped storage operations
 
 ### 2. Channels Layer (`src/executive_assistant/channels/`)
 
@@ -334,13 +352,16 @@ Abstract base class defining channel interface:
 #### HttpChannel (`http.py`)
 - Built with FastAPI v0.115.0+
 - Endpoints:
-  - `POST /message`: Send message (supports SSE streaming)
+  - `POST /message`: Send message (supports SSE streaming with `stream: true`)
   - `GET /conversations/{id}`: Get conversation history
   - `GET /health`: Health check
 - Features:
   - Server-sent events (SSE) for real-time streaming
   - JSON request/response models (Pydantic)
-  - CORS support for web integrations
+  - **Open access** - authentication handled by frontend application
+  - **Non-streaming endpoint** - collects all messages and returns as JSON array
+- Thread ID: Format `http:{conversation_id}`
+- Authorization: Bypasses allowlist (frontend auth pattern)
 
 ### 3. Storage Layer (`src/executive_assistant/storage/`)
 
@@ -435,6 +456,19 @@ data/
   - `adb_paths`: Analytics DB ownership per thread
 - **Operations**: Track all create/delete operations
 
+**User Allowlist (`user_allowlist.py`)**
+- **Purpose**: Channel-based access control
+- **Implementation**:
+  - HTTP channels: **Always authorized** (authentication handled by frontend)
+  - Telegram channels: **Require allowlist** (anyone can message the bot)
+  - Admin thread IDs: Always authorized (from `docker/config.yaml`)
+- **File**: `data/admins/user_allowlist.json`
+- **Format**: `{"users": ["telegram:123456", "telegram:789012"]}`
+- **Rationale**:
+  - HTTP: Frontend application handles authentication (JWT sessions, OAuth, etc.)
+  - Telegram: Public platform, need allowlist to prevent unauthorized access
+- **Pattern**: Follows LangGraph Studio dev/up model - auth is frontend responsibility
+
 **Reminder (`reminder.py`, `scheduled_flows.py`)**
 - **Purpose**: Scheduled notification system
 - **Backend**: APScheduler (in-memory) + PostgreSQL persistence
@@ -456,19 +490,30 @@ data/
 **Purpose:** LangChain tool implementations that the agent can invoke.
 
 **Tool Registry (`registry.py`)**
-- `get_all_tools()`: Aggregates all tool categories
+- `get_all_tools()`: Aggregates all tool categories (83 total tools)
+- **All tools available by default** - No progressive disclosure filtering
+  - Token overhead: ~937 tokens (0.5% of 200K context)
+  - Prevents multi-step workflow breakage
+  - Removed: `get_tools_for_request()` (deprecated, caused tool loss mid-conversation)
 - Categories:
-  - File tools (9 tools): File operations
-  - TDB tools (8 tools): Database operations
+  - File tools (11 tools): File operations
+  - TDB tools (10 tools): Database operations
+  - ADB tools (5 tools): Analytics database operations
+  - VDB tools (7 tools): Vector database operations
   - Time tools (3 tools): Timezone queries
-  - Reminder tools (CRUD): Reminder management
+  - Reminder tools (4 tools): Reminder management
   - Python tools (2 tools): Code execution
-  - Search tools (1 tool): Web search via SearXNG
+  - Search tools (2 tools): Web search via SearXNG
+  - Browser tools (1 tool): Playwright scraping
   - OCR tools (2 tools): Image/PDF text extraction
-  - Firecrawl tools: Web scraping
-  - Identity tools: User management
-  - Memory tools: Memory extraction
-  - Meta tools: System metadata
+  - Firecrawl tools (3 tools): Web scraping
+  - Agent tools (6 tools): Mini-agent creation and management
+  - Flow tools (5 tools): Workflow automation
+  - Memory tools (6 tools): Memory extraction and search
+  - Meta tools (3 tools): System metadata
+  - MCP tools: Configurable MCP server integration
+  - Confirmation tool (1 tool): Large operation confirmation
+  - Skills tool (1 tool): Dynamic skill loading
 
 **Python Tool (`python_tool.py`)**
 - **Purpose**: Safe Python code execution for data processing
@@ -630,9 +675,15 @@ data/
 [Agent calls tool]
     │
     ↓
+[ThreadContextMiddleware.awrap_tool_call()]
+    │  • Capture thread_id from ContextVar
+    │  • Set thread_id again (ensure propagation)
+    │  • Log any errors with full traceback
+    │
+    ↓
 [Tool function executes]
     │
-    ├─→ Read ContextVars (_thread_id)
+    ├─→ Read ContextVars (_thread_id) ✓ (now works!)
     │
     ├─→ Build scoped path:
     │      • if scope="shared" → data/shared/
@@ -1078,7 +1129,26 @@ This enables:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.1.0 | 2026-01-28 | Added ThreadContextMiddleware, HTTP auth bypass, error logging enhancements |
 | 1.0.0 | 2026-01-21 | Initial technical architecture documentation |
+
+### Key Changes in v1.1.0
+
+**Bug Fixes:**
+- Fixed progressive disclosure bug causing tool loss mid-conversation
+- Fixed thread_id ContextVar not propagating to tool execution
+- Fixed HTTP channel non-streaming endpoint (missing `stream_agent_response` method)
+- Enhanced error logging with full tracebacks at DEBUG level
+
+**Architecture Improvements:**
+- All 83 tools now available by default (~937 tokens = 0.5% of 200K context)
+- HTTP channel bypasses allowlist (frontend authentication pattern)
+- ThreadContextMiddleware ensures context propagation across async boundaries
+- Removed deprecated `get_tools_for_request()` function
+
+**New Components:**
+- `src/executive_assistant/agent/thread_context_middleware.py` - Context propagation middleware
+- Enhanced `is_authorized()` in `user_allowlist.py` - Channel-specific authorization
 
 ---
 

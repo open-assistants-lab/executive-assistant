@@ -22,7 +22,7 @@ from executive_assistant.agent.langchain_agent import create_langchain_agent
 from executive_assistant.skills import SkillsBuilder
 from executive_assistant.agent.prompts import get_default_prompt, get_channel_prompt, load_admin_prompt
 from executive_assistant.scheduler import start_scheduler, stop_scheduler, register_notification_handler
-from executive_assistant.skills import load_skills_from_directory, get_skills_registry
+from executive_assistant.skills import load_and_register_skills, get_skills_registry
 
 logger = logging.getLogger(__name__)
 
@@ -146,16 +146,20 @@ async def main() -> None:
     # Load skills from content directory
     registry = get_skills_registry()
     skills_dir = Path(__file__).parent / "skills" / "content"
-    system_skills = load_skills_from_directory(skills_dir)
-    for skill in system_skills:
-        registry.register(skill)
-    print(f" Loaded {len(system_skills)} skills")
+    startup_count, on_demand_count = load_and_register_skills(skills_dir)
+    print(f" Loaded {startup_count} startup skills, {on_demand_count} on-demand skills")
+    
+    # Load admin skills (treat as startup skills)
     admin_skills_dir = settings.ADMINS_ROOT / "skills"
-    admin_skills = load_skills_from_directory(admin_skills_dir)
-    for skill in admin_skills:
-        registry.register(skill)
-    if admin_skills:
-        print(f" Loaded {len(admin_skills)} admin skills")
+    if admin_skills_dir.exists():
+        from executive_assistant.skills.loader import load_skills_from_directory
+        admin_result = load_skills_from_directory(admin_skills_dir)
+        # Register all admin skills as startup
+        for skill in admin_result.startup + admin_result.on_demand:
+            registry.register(skill)
+        admin_total = len(admin_result.startup) + len(admin_result.on_demand)
+        if admin_total > 0:
+            print(f" Loaded {admin_total} admin skills")
 
     # Load tools (includes load_skill tool)
     tools = await get_all_tools()
@@ -180,8 +184,8 @@ async def main() -> None:
             admin_prompt = load_admin_prompt()
             if admin_prompt:
                 base_prompt = f"{admin_prompt}\n\n{base_prompt}"
-            ordered_skills = admin_skills + system_skills
-            system_prompt = skills_builder.build_prompt(base_prompt, ordered_skills=ordered_skills)
+            # Skills are loaded from registry by the builder (includes startup + admin skills)
+            system_prompt = skills_builder.build_prompt(base_prompt)
             channel_prompt = get_channel_prompt(channel_name)
             if channel_prompt:
                 system_prompt = f"{system_prompt}\n\n{channel_prompt}"

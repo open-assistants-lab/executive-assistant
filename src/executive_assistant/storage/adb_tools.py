@@ -136,7 +136,7 @@ def describe_adb_table(table_name: str, scope: Scope = "context") -> str:
 @require_permission("write")
 def create_adb_table(
     table_name: str,
-    data: str | None = None,
+    data: str | list[dict] | None = None,
     csv_file: str | None = None,
     json_file: str | None = None,
     scope: Scope = "context"
@@ -145,9 +145,14 @@ def create_adb_table(
 
     USE THIS WHEN: You need to create a new table for analytics.
 
+    Examples:
+        create_adb_table("users", data=[{"id": 1, "name": "Alice"}])
+        create_adb_table("users", data='[{"id": 1, "name": "Alice"}]')
+        create_adb_table("sales", csv_file="sales.csv")
+
     Args:
         table_name: Name for the new table.
-        data: JSON string with array of objects (optional).
+        data: List of dicts OR JSON string (e.g., [{"id": 1, "name": "Alice"}]).
         csv_file: Path to CSV file to import (optional).
         json_file: Path to JSON file to import (optional).
         scope: "context" (default) for thread-scoped ADB.
@@ -175,8 +180,17 @@ def create_adb_table(
             return f"Created table '{table_name}' from JSON with {count} rows"
         
         elif data:
-            # Import from JSON string
-            records = json.loads(data)
+            # Import from data - handle both list and JSON string
+            if isinstance(data, list):
+                records = data
+            elif isinstance(data, str):
+                try:
+                    records = json.loads(data)
+                except json.JSONDecodeError as e:
+                    return f"Error: Invalid JSON data - {str(e)}"
+            else:
+                return "Error: data must be a list or JSON string"
+            
             if not records:
                 return "Error: No data provided"
             

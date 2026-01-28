@@ -94,17 +94,22 @@ def _format_doc_line(doc_id: str, content: str, metadata: dict | None, score: fl
     return f"{score_str}(id: {doc_id}) {content[:200]}{'...' if len(content) > 200 else ''}{meta_str}"
 
 
-def _parse_documents(documents_str: str) -> list[dict] | str:
-    """Parse documents JSON string.
+def _parse_documents(documents: str | list[dict]) -> list[dict] | str:
+    """Parse documents from JSON string or list.
 
     Returns:
         List of document dicts or error message string.
     """
-    if not documents_str:
+    if not documents:
         return []
+    
+    # If already a list, return as-is
+    if isinstance(documents, list):
+        return documents
 
+    # Parse JSON string
     try:
-        parsed = json.loads(documents_str)
+        parsed = json.loads(documents)
     except json.JSONDecodeError as exc:
         return f"Error: Invalid JSON data - {exc}"
 
@@ -125,10 +130,23 @@ def _parse_documents(documents_str: str) -> list[dict] | str:
 def create_vdb_collection(
     collection_name: str,
     content: str = "",
-    documents: str = "",
+    documents: str | list[dict] = "",
     scope: Literal["context", "shared"] = "context",
 ) -> str:
-    """Create a VDB collection and optionally add documents."""
+    """Create a VDB collection and optionally add documents.
+
+    Examples:
+        create_vdb_collection("meetings")  # Empty collection
+        create_vdb_collection("meetings", content="Meeting notes about Q1 goals")
+        create_vdb_collection("docs", documents=[{"content": "Doc 1"}])
+        create_vdb_collection("docs", documents='[{"content": "Doc 1"}]')
+
+    Args:
+        collection_name: Name for the collection.
+        content: Single document text (plain string, optional).
+        documents: List of dicts OR JSON string (e.g., [{"content": "text", "metadata": {}}]).
+        scope: "context" (default) or "shared".
+    """
     # Validate collection name
     try:
         validate_identifier(collection_name)
@@ -139,11 +157,16 @@ def create_vdb_collection(
     if content and content.strip():
         # Convert single content to document format
         parsed = [{"content": content, "metadata": {}}]
-    elif documents and documents.strip():
-        # Parse documents JSON
-        parsed = _parse_documents(documents)
-        if isinstance(parsed, str):
-            return parsed
+    elif documents:
+        # Handle documents - can be list or JSON string
+        if isinstance(documents, list):
+            parsed = documents
+        elif isinstance(documents, str) and documents.strip():
+            parsed = _parse_documents(documents)
+            if isinstance(parsed, str):
+                return parsed
+        else:
+            parsed = []
     else:
         # Create empty collection
         parsed = []
@@ -322,21 +345,38 @@ def drop_vdb_collection(collection_name: str, scope: Literal["context", "shared"
 def add_vdb_documents(
     collection_name: str,
     content: str = "",
-    documents: str = "",
+    documents: str | list[dict] = "",
     scope: Literal["context", "shared"] = "context",
 ) -> str:
-    """Add documents to a VDB collection."""
+    """Add documents to a VDB collection.
+
+    Examples:
+        add_vdb_documents("meetings", content="New meeting notes")
+        add_vdb_documents("docs", documents=[{"content": "Doc 1"}])
+        add_vdb_documents("docs", documents='[{"content": "Doc 1"}]')
+
+    Args:
+        collection_name: Name of the collection.
+        content: Single document text (plain string, optional).
+        documents: List of dicts OR JSON string (e.g., [{"content": "text"}]).
+        scope: "context" (default) or "shared".
+    """
     validate_identifier(collection_name)
 
     # Handle content parameter (single document)
     if content and content.strip():
         # Convert single content to document format
         parsed = [{"content": content, "metadata": {}}]
-    elif documents and documents.strip():
-        # Parse documents JSON
-        parsed = _parse_documents(documents)
-        if isinstance(parsed, str):
-            return parsed
+    elif documents:
+        # Handle documents - can be list or JSON string
+        if isinstance(documents, list):
+            parsed = documents
+        elif isinstance(documents, str) and documents.strip():
+            parsed = _parse_documents(documents)
+            if isinstance(parsed, str):
+                return parsed
+        else:
+            return "Error: Either content or documents must be provided"
     else:
         return "Error: Either content or documents must be provided"
 

@@ -100,8 +100,10 @@ async def call_model(
     # Record LLM timing for status middleware (shows in verbose mode)
     record_llm_call(llm_elapsed, token_dict)
 
-    # Also log slow calls at INFO level (visible without DEBUG mode)
-    if llm_elapsed > 5:
+    # Log all LLM calls with token usage at INFO level (visible without DEBUG mode)
+    if token_dict:
+        logger.info(f"🤖 LLM_USAGE: {llm_elapsed:.2f}s | tokens: in={token_dict['in']} out={token_dict['out']} total={token_dict['total']}")
+    elif llm_elapsed > 5:
         logger.warning(f"⚠️ SLOW_LLM: {llm_elapsed:.2f}s (threshold: 5s){token_info}")
     elif llm_elapsed > 2:
         logger.info(f"🤖 LLM_CALL: {llm_elapsed:.2f}s{token_info}")

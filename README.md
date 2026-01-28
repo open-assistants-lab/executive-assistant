@@ -64,6 +64,7 @@ Executive Assistant works where you work:
 - Integrate Executive Assistant into your applications
 - REST endpoints for messaging and conversation history
 - SSE streaming for real-time responses
+- **Open access** (authentication handled by your frontend)
 - Ideal for workflows, webhooks, and custom integrations
 
 ## Storage That Respects Your Privacy
@@ -151,13 +152,18 @@ EXECUTIVE_ASSISTANT_CHANNELS=telegram,http uv run executive_assistant
 - **Skills system**: Progressive disclosure of advanced patterns (load with `load_skill`)
 - **Privacy-first**: Thread isolation by design, merge only when you request it
 - **Multi-channel**: Same agent works on Telegram, HTTP, and more (planned: Email, Slack)
+- **All tools available**: No progressive disclosure tool filtering - all 83 tools available in every conversation (token cost ~937 tokens = 0.5% of 200K context)
+- **Robust error handling**: Comprehensive error logging with full tracebacks at DEBUG level
+- **Frontend auth**: HTTP channel delegates authentication to your application layer
 
 ### Production-Ready Features
-- **Admin customization**: BYO prompt/skills/MCP via `data/admins/` + user allowlist
-- **Middleware stack**: Summarization, retry logic, call limits, todo tracking, context editing
+- **Admin customization**: BYO prompt/skills/MCP via `data/admins/` + user allowlist (Telegram only)
+- **Middleware stack**: Summarization, retry logic, call limits, todo tracking, context editing, thread context propagation
 - **High-precision logging**: Millisecond timestamps for performance analysis
 - **Debug mode**: Toggle verbose status updates to understand agent behavior
 - **Status updates**: Real-time progress feedback during long-running tasks
+- **Thread context middleware**: Ensures thread isolation across async boundaries
+- **Enhanced error logging**: All tool errors logged with full traceback at DEBUG level
 
 ## Example Workflows
 
@@ -256,22 +262,33 @@ Example verbose output:
 When `EXECUTIVE_ASSISTANT_CHANNELS=http`, a FastAPI server starts on port 8000:
 
 ```bash
-# Send message
+# Send message (streaming)
 curl -X POST http://localhost:8000/message \
   -H "Content-Type: application/json" \
-  -d '{"content": "hello", "user_id": "user123", "stream": false}'
+  -d '{"content": "hello", "user_id": "user123", "conversation_id": "myconv", "stream": true}'
+
+# Send message (non-streaming)
+curl -X POST http://localhost:8000/message \
+  -H "Content-Type: application/json" \
+  -d '{"content": "hello", "user_id": "user123", "conversation_id": "myconv", "stream": false}'
 
 # Get conversation history
-curl http://localhost:8000/conversations/http_user123
+curl http://localhost:8000/conversations/myconv
 
 # Health check
 curl http://localhost:8000/health
 ```
 
 **Endpoints:**
-- `POST /message` - Send message (supports SSE streaming)
+- `POST /message` - Send message (supports SSE streaming with `stream: true`)
 - `GET /conversations/{id}` - Get conversation history
 - `GET /health` - Health check
+
+**Authentication:**
+- HTTP channel has **open access** - your frontend handles authentication
+- Provide any `user_id` and `conversation_id` to identify the session
+- Data isolation is enforced per-thread via unique conversation IDs
+- Telegram channel uses allowlist (managed via `/user` command)
 
 ## Tool Capabilities
 

@@ -1,10 +1,18 @@
-"""Load skills from markdown files."""
+"""Load skills from markdown files with support for on-demand loading."""
 
 from __future__ import annotations
 
 from pathlib import Path
+from typing import NamedTuple
 
 from executive_assistant.skills.registry import Skill
+
+
+class SkillLoadResult(NamedTuple):
+    """Result of loading skills from a directory."""
+    
+    startup: list[Skill]  # Skills to load at startup (on_start/)
+    on_demand: list[Skill]  # Skills available for on-demand loading (on_demand/*/)
 
 
 def _parse_skill_file(file_path: Path) -> Skill:
@@ -83,46 +91,81 @@ def _parse_skill_file(file_path: Path) -> Skill:
     )
 
 
-def load_skills_from_directory(directory: Path | str) -> list[Skill]:
-    """Load all skill files from a directory.
+def load_skills_from_directory(directory: Path | str) -> SkillLoadResult:
+    """Load skills from directory with on_start/on_demand separation.
+
+    Directory structure:
+        content/
+        ├── on_start/          # Always loaded at startup
+        │   └── *.md
+        └── on_demand/         # Available for on-demand loading
+            ├── analytics/
+            ├── storage/
+            ├── flows/
+            └── ...
 
     Args:
-        directory: Path to directory containing skill markdown files.
+        directory: Path to skills content directory.
 
     Returns:
-        List of loaded Skill objects.
+        SkillLoadResult with startup and on_demand skills.
     """
     dir_path = Path(directory)
     if not dir_path.exists():
-        return []
+        return SkillLoadResult(startup=[], on_demand=[])
 
-    skills = []
-    for md_file in dir_path.rglob("*.md"):
-        try:
-            skill = _parse_skill_file(md_file)
-            skills.append(skill)
-        except Exception as exc:
-            # Log but don't fail on individual file errors
-            print(f"Warning: Failed to load skill from {md_file}: {exc}")
+    startup_skills: list[Skill] = []
+    on_demand_skills: list[Skill] = []
 
-    return skills
+    # Load on_start skills (always included)
+    on_start_dir = dir_path / "on_start"
+    if on_start_dir.exists():
+        for md_file in on_start_dir.rglob("*.md"):
+            try:
+                skill = _parse_skill_file(md_file)
+                startup_skills.append(skill)
+            except Exception as exc:
+                print(f"Warning: Failed to load skill from {md_file}: {exc}")
+
+    # Load on_demand skills (available but not in prompt)
+    on_demand_dir = dir_path / "on_demand"
+    if on_demand_dir.exists():
+        for md_file in on_demand_dir.rglob("*.md"):
+            try:
+                skill = _parse_skill_file(md_file)
+                on_demand_skills.append(skill)
+            except Exception as exc:
+                print(f"Warning: Failed to load skill from {md_file}: {exc}")
+
+    return SkillLoadResult(startup=startup_skills, on_demand=on_demand_skills)
 
 
-def load_and_register_skills(directory: Path | str) -> int:
+def load_and_register_skills(directory: Path | str) -> tuple[int, int]:
     """Load skills from directory and register them in the global registry.
 
+    Startup skills are registered for immediate use (added to system prompt).
+    On-demand skills are registered but marked as available for lazy loading.
+
     Args:
-        directory: Path to directory containing skill markdown files.
+        directory: Path to skills content directory.
 
     Returns:
-        Number of skills loaded.
+        Tuple of (startup_count, on_demand_count).
     """
     from executive_assistant.skills.registry import get_skills_registry
 
-    skills = load_skills_from_directory(directory)
+    result = load_skills_from_directory(directory)
     registry = get_skills_registry()
 
-    for skill in skills:
+    # Register startup skills (will be in system prompt)
+    for skill in result.startup:
         registry.register(skill)
 
-    return len(skills)
+    # Register on-demand skills (available but not in prompt)
+    for skill in result.on_demand:
+        # Mark as on-demand by adding a tag
+        if "on_demand" not in skill.tags:
+            skill.tags.append("on_demand")
+        registry.register(skill)
+
+    return len(result.startup), len(result.on_demand)

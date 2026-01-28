@@ -20,17 +20,32 @@ from executive_assistant.utils.cron import parse_cron_next
 FLOW_TOOL_NAMES = {"create_flow", "list_flows", "run_flow", "cancel_flow", "delete_flow"}
 
 
+def _parse_agent_ids(agent_ids: list[str] | str) -> list[str]:
+    """Parse agent_ids from list or JSON string."""
+    if isinstance(agent_ids, list):
+        return agent_ids
+    if isinstance(agent_ids, str):
+        try:
+            parsed = json.loads(agent_ids)
+            if isinstance(parsed, list):
+                return parsed
+        except json.JSONDecodeError:
+            # Try comma-separated
+            return [t.strip() for t in agent_ids.split(",") if t.strip()]
+    return []
+
+
 @tool
 async def create_flow(
     name: str,
     description: str,
-    agent_ids: list[str],
+    agent_ids: list[str] | str,
     schedule_type: str = "immediate",
     schedule_time: str | None = None,
     cron_expression: str | None = None,
     notify_on_complete: bool = False,
     notify_on_failure: bool = True,
-    notification_channels: list[str] | None = None,
+    notification_channels: list[str] | str | None = None,
     run_mode: str = "normal",
     flow_input: dict[str, Any] | None = None,
     middleware: dict[str, Any] | None = None,
@@ -57,16 +72,23 @@ async def create_flow(
         schedule_type = "recurring"
 
     due_time = datetime.now()
-    # Validate agent_ids and load agent registry
-    if not agent_ids:
+    
+    # Parse agent_ids (handle both list and JSON string)
+    parsed_agent_ids = _parse_agent_ids(agent_ids)
+    if not parsed_agent_ids:
         return "Flow creation requires at least one agent_id."
+    
+    # Parse notification_channels if provided
+    parsed_channels = None
+    if notification_channels:
+        parsed_channels = _parse_agent_ids(notification_channels)  # Same parsing logic
 
     registry = get_agent_registry(owner)
-    missing = [agent_id for agent_id in agent_ids if not registry.get_agent(agent_id)]
+    missing = [agent_id for agent_id in parsed_agent_ids if not registry.get_agent(agent_id)]
     if missing:
         return f"Error: Agent(s) not found: {missing}. Create them first with create_agent."
 
-    agent_records = [registry.get_agent(agent_id) for agent_id in agent_ids]
+    agent_records = [registry.get_agent(agent_id) for agent_id in parsed_agent_ids]
     agents_snapshot = []
     for record in agent_records:
         if not record:
@@ -83,13 +105,13 @@ async def create_flow(
         )
 
     warnings = []
-    for agent_id in agent_ids:
+    for agent_id in parsed_agent_ids:
         agent = registry.get_agent(agent_id)
         if agent and len(agent.tools) > 5:
             warnings.append(f"{agent_id} uses {len(agent.tools)} tools (recommended <=5)")
 
     # Validate first agent uses $input when flow_input is provided
-    first_agent = registry.get_agent(agent_ids[0]) if agent_ids else None
+    first_agent = registry.get_agent(parsed_agent_ids[0]) if parsed_agent_ids else None
     if flow_input is not None and first_agent and "$input" not in first_agent.system_prompt:
         return "Error: first agent system_prompt must include $input when flow_input is provided."
 
@@ -119,7 +141,7 @@ async def create_flow(
         return "schedule_type must be immediate, scheduled, or recurring."
 
     forbidden = []
-    for agent_id in agent_ids:
+    for agent_id in parsed_agent_ids:
         agent = registry.get_agent(agent_id)
         if not agent:
             continue
@@ -140,14 +162,14 @@ async def create_flow(
         name=name,
         description=description,
         owner=owner,
-        agent_ids=agent_ids,
+        agent_ids=parsed_agent_ids,
         agents=agents_snapshot,
         schedule_type=schedule_type,
         schedule_time=due_time if schedule_type == "scheduled" else None,
         cron_expression=cron_expression,
         notify_on_complete=notify_on_complete,
         notify_on_failure=notify_on_failure,
-        notification_channels=notification_channels or [thread_id.split(":")[0]],
+        notification_channels=parsed_channels or [thread_id.split(":")[0]],
         run_mode=run_mode,
         middleware=middleware_config,
         flow_input=flow_input,

@@ -259,7 +259,8 @@ async def get_all_tools() -> list[BaseTool]:
     all_tools.extend(await get_memory_tools())
     all_tools.extend(await get_time_tools())
     all_tools.extend(await get_reminder_tools())
-    all_tools.extend(await get_flow_tools())
+    # DISABLED: Flow tools - not production-ready yet
+    # all_tools.extend(await get_flow_tools())
     all_tools.extend(await get_meta_tools())
     all_tools.extend(await get_python_tools())
     all_tools.extend(await get_search_tools())
@@ -270,18 +271,20 @@ async def get_all_tools() -> list[BaseTool]:
     from executive_assistant.tools.firecrawl_tool import get_firecrawl_tools
     all_tools.extend(get_firecrawl_tools())
 
-    from executive_assistant.tools.agent_tools import (
-        create_agent,
-        list_agents,
-        get_agent,
-        update_agent,
-        delete_agent,
-        run_agent,
-    )
-    all_tools.extend([create_agent, list_agents, get_agent, update_agent, delete_agent, run_agent])
+    # DISABLED: Agent tools - not production-ready yet
+    # from executive_assistant.tools.agent_tools import (
+    #     create_agent,
+    #     list_agents,
+    #     get_agent,
+    #     update_agent,
+    #     delete_agent,
+    #     run_agent,
+    # )
+    # all_tools.extend([create_agent, list_agents, get_agent, update_agent, delete_agent, run_agent])
 
-    from executive_assistant.tools.flow_project_tools import create_flow_project
-    all_tools.append(create_flow_project)
+    # DISABLED: Flow project tools - not production-ready yet
+    # from executive_assistant.tools.flow_project_tools import create_flow_project
+    # all_tools.append(create_flow_project)
 
     from executive_assistant.tools.mcp_tools import get_mcp_config_tools
     all_tools.extend(get_mcp_config_tools())
@@ -315,7 +318,18 @@ async def get_tools_for_request(
     *,
     flow_mode: bool = False,
 ) -> list[BaseTool]:
-    """Return a minimized tool list based on the user message."""
+    """
+    Return a minimized tool list based on the user message.
+
+    .. deprecated::
+        This function is deprecated in favor of always using :func:`get_all_tools`.
+        Progressive disclosure based on message keywords caused broken multi-step
+        workflows. With modern LLMs (200K context), the token overhead of all tools
+        (~937 tokens) is negligible (0.5% of context) compared to the reliability
+        improvement of having all tools available.
+
+    Use :func:`get_all_tools` instead.
+    """
     tools: list[BaseTool] = []
 
     # Always allow skills + confirmations.

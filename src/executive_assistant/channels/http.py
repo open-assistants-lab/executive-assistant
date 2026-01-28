@@ -8,7 +8,7 @@ from typing import Any, AsyncIterator
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 
 from executive_assistant.channels.base import BaseChannel, MessageFormat
 from executive_assistant.config import settings
@@ -318,6 +318,56 @@ class HttpChannel(BaseChannel):
             return False
         queue.put_nowait({"role": role, "content": content})
         return True
+
+    async def stream_agent_response(self, message: MessageFormat) -> list[BaseMessage]:
+        """
+        Run the agent and collect all response messages.
+
+        Used by the non-streaming endpoint to collect all messages
+        before returning them as JSON.
+
+        Args:
+            message: The incoming message
+
+        Returns:
+            List of AI messages from the agent
+        """
+        thread_id = self.get_thread_id(message)
+
+        # Build state
+        memories = self._get_relevant_memories(thread_id, message.content)
+        enhanced_content = self._inject_memories(message.content, memories)
+        message_id = message.message_id or f"http_{int(time.time() * 1000)}"
+
+        state = {
+            "messages": [
+                HumanMessage(
+                    content=enhanced_content,
+                    additional_kwargs={"executive_assistant_message_id": message_id},
+                )
+            ],
+            "run_model_call_count": 0,
+            "run_tool_call_count": {},
+            "thread_model_call_count": 0,
+            "thread_tool_call_count": {},
+            "todos": [],
+            "thread_id": thread_id,
+            "conversation_id": message.conversation_id,
+        }
+
+        config = {"configurable": {"thread_id": thread_id}}
+        set_thread_id(thread_id)
+
+        # Collect all messages from stream
+        all_messages: list[BaseMessage] = []
+        request_agent = await self._build_request_agent(message.content, message.conversation_id)
+
+        async for event in request_agent.astream(state, config):
+            messages = self._extract_messages_from_event(event)
+            new_messages = self._get_new_ai_messages(messages, message_id)
+            all_messages.extend(new_messages)
+
+        return all_messages
 
     async def _run_agent_stream(
         self,

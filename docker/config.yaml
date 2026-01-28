@@ -30,6 +30,7 @@ llm:
 
   ollama:
     default_model: gpt-oss:20b-cloud
+    # default_model: qwen3-next:80b-cloud
     fast_model: gpt-oss:20b-cloud
     mode: cloud # cloud or local
     cloud_url: "https://ollama.com"
@@ -141,7 +142,7 @@ memory:
 # ============================================================================
 
 logging:
-  level: INFO # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: DEBUG # DEBUG, INFO, WARNING, ERROR, CRITICAL
   file: logs/executive_assistant.log # Optional log file path
 
 # ============================================================================

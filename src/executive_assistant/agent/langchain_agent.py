@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from langchain_core.language_models import BaseChatModel
@@ -11,6 +12,9 @@ from langgraph.types import Runnable
 
 from executive_assistant.config import settings
 from executive_assistant.agent.langchain_state import ExecutiveAssistantAgentState
+from executive_assistant.agent.token_callbacks import TokenUsageCallback
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_agent_tools(tools: list):
@@ -68,10 +72,11 @@ def _build_middleware(model: BaseChatModel, channel: Any = None) -> list[Any]:
     # Status update middleware (first to capture all events)
     if settings.MW_STATUS_UPDATE_ENABLED and channel is not None:
         from executive_assistant.agent.status_middleware import StatusUpdateMiddleware
-
-
-
         middleware.append(StatusUpdateMiddleware(channel=channel))
+
+    # Thread context middleware (ensure ContextVars propagate to tools)
+    from executive_assistant.agent.thread_context_middleware import ThreadContextMiddleware
+    middleware.append(ThreadContextMiddleware())
 
     if settings.MW_TODO_LIST_ENABLED:
         middleware.append(
@@ -80,50 +85,39 @@ def _build_middleware(model: BaseChatModel, channel: Any = None) -> list[Any]:
                 tool_description="Create or update the current todo list.",
             )
         )
-
-        # Add todo display middleware to show todos via status updates
         if settings.MW_STATUS_UPDATE_ENABLED and channel is not None:
             from executive_assistant.agent.todo_display import TodoDisplayMiddleware
-
             middleware.append(TodoDisplayMiddleware(channel=channel))
 
     if settings.MW_SUMMARIZATION_ENABLED:
         summary_prompt = """<role>
 Context Extraction Assistant
 </role>
-
 <primary_objective>
 Your sole objective in this task is to extract the highest quality/most relevant context from the conversation history below.
 </primary_objective>
-
 <objective_information>
 You're nearing the total number of input tokens you can accept, so you must extract the highest quality/most relevant pieces of information from your conversation history.
 This context will then overwrite the conversation history presented below. Because of this, ensure the context you extract is only the most important information to your overall goal.
 </objective_information>
-
 <instructions>
 The conversation history below will be replaced with the context you extract in this step. Because of this, you must do your very best to extract and record all of the most important context from the conversation history.
 You want to ensure that you don't repeat any actions you've already completed, so the context you extract from the conversation history should be focused on the most important information to your overall goal.
 </instructions>
-
 <include_only>
 - User goals, preferences, and constraints
 - Decisions and outcomes
 - Outstanding tasks or next steps
 </include_only>
-
 <exclude>
 - Tool call limits, model call limits, or middleware events
 - Tool error messages or retries
 - Raw tool outputs or logs
 - Debug or system/internal details
 </exclude>
-
 The user will message you with the full message history you'll be extracting context from, to then replace. Carefully read over it all, and think deeply about what information is most important to your overall goal that should be saved:
-
 With all of this in mind, please carefully read over the entire conversation history, and extract the most important and relevant context to replace it so that you can free up space in the conversation history.
 Respond ONLY with the extracted context. Do not include any additional information, or text before or after the extracted context.
-
 <messages>
 Messages to summarize:
 {messages}
@@ -140,7 +134,6 @@ Messages to summarize:
 
     if settings.MW_CONTEXT_EDITING_ENABLED:
         from langchain.agents.middleware import ClearToolUsesEdit
-
         middleware.append(
             ContextEditingMiddleware(
                 edits=[
@@ -153,25 +146,16 @@ Messages to summarize:
         )
 
     if settings.MW_MODEL_CALL_LIMIT and settings.MW_MODEL_CALL_LIMIT > 0:
-        middleware.append(
-            ModelCallLimitMiddleware(run_limit=settings.MW_MODEL_CALL_LIMIT)
-        )
+        middleware.append(ModelCallLimitMiddleware(run_limit=settings.MW_MODEL_CALL_LIMIT))
 
     if settings.MW_TOOL_CALL_LIMIT and settings.MW_TOOL_CALL_LIMIT > 0:
-        middleware.append(
-            ToolCallLimitMiddleware(run_limit=settings.MW_TOOL_CALL_LIMIT)
-        )
+        middleware.append(ToolCallLimitMiddleware(run_limit=settings.MW_TOOL_CALL_LIMIT))
 
     if settings.MW_TOOL_RETRY_ENABLED:
         middleware.append(ToolRetryMiddleware())
 
     if settings.MW_MODEL_RETRY_ENABLED:
         middleware.append(ModelRetryMiddleware())
-
-    if settings.MW_HITL_ENABLED:
-        raise ValueError(
-            "MW_HITL_ENABLED is set but no HITL policy/configuration is defined."
-        )
 
     return middleware
 
