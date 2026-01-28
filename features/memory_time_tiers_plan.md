@@ -71,6 +71,10 @@ Optional:
   2) Highest confidence
   3) Matching memory_type (preference/constraint/style)
 
+## Observer → Evolve Integration
+- Memory updates can be treated as **observations** feeding the instincts pipeline.
+- Evolve periodically promotes stable patterns into **skills** and **user prompts** (with HITL approval).
+
 ## Implementation Checklist
 1) Migration: add `memory_rollups` table + indexes
 2) Add rollup worker (cron or scheduled job)

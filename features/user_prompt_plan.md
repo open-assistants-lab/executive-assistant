@@ -30,6 +30,11 @@ Allow each user to set a private system prompt that is applied without restart a
 - Cache per thread with mtime check (optional)
 - If missing or empty, skip entirely
 
+## Observer → Evolve Integration
+- Observer can flag repeated prompt-level preferences (tone, format, safety style).
+- Evolve can propose a draft user prompt update.
+- Require explicit user approval (HITL) before applying any prompt change.
+
 ## Safety
 - Don’t allow user prompt to override system safety policies
 - Add lint step (strip null bytes, normalize whitespace)

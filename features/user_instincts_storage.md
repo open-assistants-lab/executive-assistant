@@ -75,6 +75,12 @@ Example:
 - `/instincts export` returns snapshot JSON
 - `/instincts import` appends `create` events with `source="import"`
 
+## Observer → Evolve Pipeline
+- **Observer** records instinct events from sessions (corrections, repeated workflows, tool-use patterns).\n- **Evolve** periodically clusters related instincts into a draft user skill.\n- **Approval** step confirms the draft skill before saving it to the user skills directory.
+- **Approval (HITL)** step confirms the draft skill before saving it to the user skills directory.
+
+This keeps instincts small and noisy, while skills remain stable and curated.
+
 ## Success Criteria
 - Single file per user is sufficient for daily use
 - Fast reads via snapshot + delta replay

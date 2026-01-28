@@ -37,6 +37,14 @@ Enhance `load_skill` to:
 
 Optional: file mtime cache per thread to avoid repeated reads.
 
+### 4) Observer → Evolve Pipeline (from Instincts)
+Introduce a pipeline that turns user instincts into stable, reusable skills:
+- **Observer** captures atomic behavior patterns (instincts) during sessions.
+- **Evolve** clusters related instincts into a draft user skill.
+- **Approve (HITL)** user reviews and explicitly confirms the new skill before saving.
+
+This keeps skills curated and reduces noise from raw observations.
+
 ## Implementation Plan
 
 ### A) Storage + Parsing
@@ -56,6 +64,11 @@ Optional: file mtime cache per thread to avoid repeated reads.
 ### D) (Optional) Management Commands
 - `/skill list` for user skills
 - `/skill create` for admin/debug usage
+
+### E) Evolve Integration (from Instincts)
+- Add a periodic or on-demand evolve job.
+- Cluster instincts by domain/trigger similarity.
+- Generate a draft skill and require confirmation before write.
 
 ## Safety + Validation
 - Validate identifiers and filenames (no path traversal)
