@@ -238,8 +238,14 @@ def read_file(file_path: str, scope: Literal["context", "shared"] = "context") -
         return f"Security error: {e}"
     except FileNotFoundError:
         return f"File not found: {file_path}"
-    except Exception as e:
-        return f"Error reading file: {e}"
+    except PermissionError:
+        return f"Permission denied: {file_path}"
+    except IsADirectoryError:
+        return f"Path is a directory, not a file: {file_path}"
+    except UnicodeDecodeError:
+        return f"File encoding error (not valid UTF-8): {file_path}"
+    except OSError as e:
+        return f"OS error reading file: {e}"
 
 
 @tool
@@ -260,8 +266,10 @@ def write_file(
         return f"File written: {file_path} ({len(content)} bytes)"
     except SecurityError as e:
         return f"Security error: {e}"
-    except Exception as e:
-        return f"Error writing file: {e}"
+    except PermissionError:
+        return f"Permission denied writing file: {file_path}"
+    except OSError as e:
+        return f"OS error writing file: {e}"
 
 
 @tool
@@ -309,8 +317,10 @@ def list_files(
         return f"Files in {directory or 'files'}:\n" + "\n".join(items)
     except SecurityError as e:
         return f"Security error: {e}"
-    except Exception as e:
-        return f"Error listing files: {e}"
+    except PermissionError:
+        return f"Permission denied accessing directory: {directory}"
+    except OSError as e:
+        return f"OS error listing files: {e}"
 
 
 @tool
@@ -326,8 +336,12 @@ def create_folder(
         return f"Folder created: {folder_path}/"
     except SecurityError as e:
         return f"Security error: {e}"
-    except Exception as e:
-        return f"Error creating folder: {e}"
+    except PermissionError:
+        return f"Permission denied creating folder: {folder_path}"
+    except FileExistsError:
+        return f"Folder already exists: {folder_path}"
+    except OSError as e:
+        return f"OS error creating folder: {e}"
 
 
 @tool
@@ -355,8 +369,10 @@ def delete_folder(
         return f"Folder deleted: {folder_path}/"
     except SecurityError as e:
         return f"Security error: {e}"
-    except Exception as e:
-        return f"Error deleting folder: {e}"
+    except PermissionError:
+        return f"Permission denied deleting folder: {folder_path}"
+    except OSError as e:
+        return f"OS error deleting folder: {e}"
 
 
 @tool
@@ -388,8 +404,10 @@ def rename_folder(
         return f"Folder renamed: {old_path}/ -> {new_path}/"
     except SecurityError as e:
         return f"Security error: {e}"
-    except Exception as e:
-        return f"Error renaming folder: {e}"
+    except PermissionError:
+        return f"Permission denied renaming folder: {old_path}"
+    except OSError as e:
+        return f"OS error renaming folder: {e}"
 
 
 @tool
@@ -405,8 +423,12 @@ def delete_file(file_path: str, scope: Literal["context", "shared"] = "context")
         return f"Deleted file: {file_path}"
     except SecurityError as e:
         return f"Security error: {e}"
-    except Exception as e:
-        return f"Error deleting file: {e}"
+    except PermissionError:
+        return f"Permission denied deleting file: {file_path}"
+    except IsADirectoryError:
+        return f"Path is a directory, not a file: {file_path}"
+    except OSError as e:
+        return f"OS error deleting file: {e}"
 def move_file(
     source: str, destination: str, scope: Literal["context", "shared"] = "context"
 ) -> str:
@@ -434,8 +456,10 @@ def move_file(
         return f"File moved: {source} -> {destination}"
     except SecurityError as e:
         return f"Security error: {e}"
-    except Exception as e:
-        return f"Error moving file: {e}"
+    except PermissionError:
+        return f"Permission denied moving file: {source}"
+    except OSError as e:
+        return f"OS error moving file: {e}"
 
 
 @tool
@@ -484,8 +508,10 @@ def glob_files(
         )
     except SecurityError as e:
         return f"Security error: {e}"
-    except Exception as e:
-        return f"Error globbing files: {e}"
+    except PermissionError:
+        return f"Permission denied accessing directory: {directory}"
+    except OSError as e:
+        return f"OS error searching files: {e}"
 
 
 @tool
@@ -578,7 +604,7 @@ def grep_files(
                     try:
                         full_content = (sandbox.root / path).read_text(encoding="utf-8")
                         all_lines = full_content.splitlines()
-                    except:
+                    except (UnicodeDecodeError, PermissionError, OSError):
                         continue
 
                     for i in range(
@@ -592,8 +618,12 @@ def grep_files(
 
     except SecurityError as e:
         return f"Security error: {e}"
-    except Exception as e:
-        return f"Error grepping files: {e}"
+    except re.error as e:
+        return f"Regex error: {e}"
+    except PermissionError:
+        return f"Permission denied searching files in: {directory}"
+    except OSError as e:
+        return f"OS error searching files: {e}"
 
 
 @tool
@@ -697,5 +727,9 @@ def find_files_fuzzy(
 
     except SecurityError as e:
         return f"Security error: {e}"
-    except Exception as e:
-        return f"Error in fuzzy file search: {e}"
+    except ImportError:
+        return "Error: rapidfuzz not installed. Run: uv add rapidfuzz"
+    except PermissionError:
+        return f"Permission denied searching files in: {directory}"
+    except OSError as e:
+        return f"OS error searching files: {e}"

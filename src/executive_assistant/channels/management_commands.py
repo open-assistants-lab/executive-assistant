@@ -24,6 +24,8 @@ from executive_assistant.storage.mem_storage import get_mem_storage
 from executive_assistant.storage.sqlite_db_storage import get_sqlite_db
 from executive_assistant.storage.shared_tdb_storage import get_shared_tdb_storage
 from executive_assistant.storage.adb_tools import list_adb_tables, query_adb
+from executive_assistant.storage.adb_storage import get_adb
+from executive_assistant.storage.db_storage import validate_identifier
 from executive_assistant.storage.meta_registry import load_meta, refresh_meta, format_meta
 from executive_assistant.storage.user_allowlist import (
     add_user,
@@ -787,11 +789,248 @@ async def _adb_overview(update: Update, thread_id: str, scope: str) -> None:
             f"Tables: {total}\n\n"
             "Commands:\n"
             "• <code>/adb list</code>\n"
-            "• <code>/adb query &lt;sql&gt;</code>"
+            "• <code>/adb create &lt;table&gt; &lt;json&gt;</code>\n"
+            "• <code>/adb insert &lt;table&gt; &lt;json&gt;</code>\n"
+            "• <code>/adb query &lt;sql&gt;</code>\n"
+            "• <code>/adb describe &lt;table&gt;</code>\n"
+            "• <code>/adb drop &lt;table&gt;</code>\n"
+            "• <code>/adb export &lt;table&gt; &lt;filename&gt; [csv|parquet|json]</code>"
         )
         await update.message.reply_text(help_text, parse_mode="HTML")
     except Exception as e:
         await update.message.reply_text(f"Error reading ADB: {e}")
+    finally:
+        _clear_context()
+
+
+def _normalize_json_rows(raw_json: str) -> list[dict]:
+    parsed = json.loads(raw_json)
+    if isinstance(parsed, dict):
+        rows = [parsed]
+    elif isinstance(parsed, list):
+        rows = parsed
+    else:
+        raise ValueError("JSON must be an object or an array of objects.")
+
+    if not all(isinstance(row, dict) for row in rows):
+        raise ValueError("JSON must be an object or an array of objects.")
+    return rows
+
+
+def _infer_duckdb_type(values: list[object]) -> str:
+    non_null = [v for v in values if v is not None]
+    if not non_null:
+        return "VARCHAR"
+    if all(isinstance(v, bool) for v in non_null):
+        return "BOOLEAN"
+    if all(isinstance(v, int) and not isinstance(v, bool) for v in non_null):
+        return "BIGINT"
+    if all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in non_null):
+        return "DOUBLE"
+    return "VARCHAR"
+
+
+def _infer_schema(rows: list[dict]) -> tuple[list[str], dict[str, str]]:
+    columns: list[str] = []
+    for row in rows:
+        for key in row.keys():
+            if key not in columns:
+                columns.append(key)
+
+    if not columns:
+        raise ValueError("No columns found in JSON payload.")
+
+    for col in columns:
+        validate_identifier(col)
+
+    types = {
+        col: _infer_duckdb_type([row.get(col) for row in rows])
+        for col in columns
+    }
+    return columns, types
+
+
+def _safe_filename(name: str) -> str:
+    cleaned = name.strip()
+    if not cleaned:
+        raise ValueError("Filename is required.")
+    if Path(cleaned).name != cleaned:
+        raise ValueError("Filename must not include directories.")
+    return cleaned
+
+
+def _resolve_export_format(filename: str, format_arg: str | None) -> tuple[str, str]:
+    allowed = {"csv": ".csv", "parquet": ".parquet", "json": ".json"}
+    if format_arg:
+        fmt = format_arg.lower().lstrip(".")
+        if fmt not in allowed:
+            raise ValueError("Format must be csv, parquet, or json.")
+        ext = Path(filename).suffix.lower()
+        if ext != allowed[fmt]:
+            filename = f"{Path(filename).stem}{allowed[fmt]}" if ext else f"{filename}{allowed[fmt]}"
+        return filename, fmt
+
+    ext = Path(filename).suffix.lower()
+    if ext in allowed.values():
+        fmt = {v: k for k, v in allowed.items()}[ext]
+        return filename, fmt
+
+    return f"{filename}.csv", "csv"
+
+
+async def _adb_list(update: Update, thread_id: str, scope: str) -> None:
+    """List ADB tables."""
+    await _set_context(thread_id, _get_chat_type(update))
+    try:
+        result = list_adb_tables.invoke({"scope": scope})
+        await update.message.reply_text(result)
+    except Exception as e:
+        await update.message.reply_text(f"Error listing ADB tables: {e}")
+    finally:
+        _clear_context()
+
+
+async def _adb_query(update: Update, thread_id: str, sql: str, scope: str) -> None:
+    """Run SQL query (ADB)."""
+    await _set_context(thread_id, _get_chat_type(update))
+    try:
+        result = query_adb.invoke({"sql": sql, "scope": scope})
+        await update.message.reply_text(result)
+    except Exception as e:
+        await update.message.reply_text(f"Error running ADB query: {e}")
+    finally:
+        _clear_context()
+
+
+async def _adb_create(update: Update, thread_id: str, table_name: str, data: str, scope: str) -> None:
+    """Create ADB table from JSON rows."""
+    await _set_context(thread_id, _get_chat_type(update))
+    try:
+        validate_identifier(table_name)
+        rows = _normalize_json_rows(data)
+        columns, types = _infer_schema(rows)
+        conn = get_adb(scope)
+        col_defs = ", ".join(f"{col} {types[col]}" for col in columns)
+        conn.execute(f"CREATE TABLE IF NOT EXISTS {table_name} ({col_defs})")
+
+        placeholders = ", ".join(["?"] * len(columns))
+        col_names = ", ".join(columns)
+        values = [[row.get(col) for col in columns] for row in rows]
+        if values:
+            conn.executemany(
+                f"INSERT INTO {table_name} ({col_names}) VALUES ({placeholders})",
+                values,
+            )
+        await update.message.reply_text(
+            f"✅ Table '{table_name}' created with {len(values)} row(s)"
+        )
+    except Exception as e:
+        await update.message.reply_text(f"Error creating ADB table: {e}")
+    finally:
+        _clear_context()
+
+
+async def _adb_insert(update: Update, thread_id: str, table_name: str, data: str, scope: str) -> None:
+    """Insert JSON rows into ADB table."""
+    await _set_context(thread_id, _get_chat_type(update))
+    try:
+        validate_identifier(table_name)
+        rows = _normalize_json_rows(data)
+        if not rows:
+            await update.message.reply_text("No rows to insert.")
+            return
+        columns = list(rows[0].keys())
+        for col in columns:
+            validate_identifier(col)
+
+        conn = get_adb(scope)
+        placeholders = ", ".join(["?"] * len(columns))
+        col_names = ", ".join(columns)
+        values = [[row.get(col) for col in columns] for row in rows]
+        conn.executemany(
+            f"INSERT INTO {table_name} ({col_names}) VALUES ({placeholders})",
+            values,
+        )
+        await update.message.reply_text(
+            f"✅ Inserted {len(values)} row(s) into '{table_name}'"
+        )
+    except Exception as e:
+        await update.message.reply_text(f"Error inserting into ADB: {e}")
+    finally:
+        _clear_context()
+
+
+async def _adb_describe(update: Update, thread_id: str, table_name: str, scope: str) -> None:
+    """Describe ADB table."""
+    await _set_context(thread_id, _get_chat_type(update))
+    try:
+        validate_identifier(table_name)
+        conn = get_adb(scope)
+        rows = conn.execute(f"PRAGMA table_info('{table_name}')").fetchall()
+        if not rows:
+            await update.message.reply_text(f"❌ Table '{table_name}' not found.")
+            return
+        safe_name = html.escape(table_name)
+        lines = [f"📈 <b>Table '{safe_name}'</b>\n"]
+        for row in rows:
+            name = html.escape(str(row[1]))
+            col_type = html.escape(str(row[2]))
+            notnull = "NOT NULL" if row[3] else "NULL"
+            dflt = html.escape(str(row[4])) if row[4] is not None else "NULL"
+            pk = " PK" if row[5] else ""
+            lines.append(f"• {name} — {col_type} {notnull} DEFAULT {dflt}{pk}")
+        await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+    except Exception as e:
+        await update.message.reply_text(f"Error describing ADB table: {e}")
+    finally:
+        _clear_context()
+
+
+async def _adb_drop(update: Update, thread_id: str, table_name: str, scope: str) -> None:
+    """Drop ADB table."""
+    await _set_context(thread_id, _get_chat_type(update))
+    try:
+        validate_identifier(table_name)
+        conn = get_adb(scope)
+        conn.execute(f"DROP TABLE IF EXISTS {table_name}")
+        await update.message.reply_text(f"✅ Dropped table '{table_name}'")
+    except Exception as e:
+        await update.message.reply_text(f"Error dropping ADB table: {e}")
+    finally:
+        _clear_context()
+
+
+async def _adb_export(
+    update: Update,
+    thread_id: str,
+    table_name: str,
+    filename: str,
+    format_arg: str | None,
+    scope: str,
+) -> None:
+    """Export ADB table to a file in thread files."""
+    await _set_context(thread_id, _get_chat_type(update))
+    try:
+        validate_identifier(table_name)
+        final_name, fmt = _resolve_export_format(filename, format_arg)
+        safe_name = _safe_filename(final_name)
+        output_dir = _get_thread_files_path(thread_id)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        output_path = output_dir / safe_name
+
+        conn = get_adb(scope)
+        if fmt == "parquet":
+            conn.execute(f"COPY {table_name} TO '{output_path}' (FORMAT 'parquet')")
+        elif fmt == "json":
+            conn.execute(f"COPY {table_name} TO '{output_path}' (FORMAT 'json')")
+        else:
+            conn.execute(f"COPY {table_name} TO '{output_path}' (HEADER, DELIMITER ',')")
+        await update.message.reply_text(f"✅ Exported to {output_path}")
+    except Exception as e:
+        await update.message.reply_text(f"Error exporting ADB table: {e}")
+    finally:
+        _clear_context()
 
 
 async def adb_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -800,7 +1039,12 @@ async def adb_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     Usage:
         /adb               - Show counts and commands
         /adb list          - List tables
+        /adb create <table> <json> - Create table from JSON rows
+        /adb insert <table> <json> - Insert JSON rows
         /adb query <sql>   - Run SQL query
+        /adb describe <table> - Describe table
+        /adb drop <table> - Drop table
+        /adb export <table> <filename> [format] - Export to file
     """
     if not update.message:
         return
@@ -825,9 +1069,25 @@ async def adb_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={thread_id} | command /adb action={action} args={args[1:]}")
 
     if action in {"list", "tables"}:
-        await _set_context(thread_id, _get_chat_type(update))
-        result = list_adb_tables.invoke({"scope": scope})
-        await update.message.reply_text(result)
+        await _adb_list(update, thread_id, scope)
+        return
+
+    if action == "create":
+        if len(args) < 3:
+            await update.message.reply_text("Usage: /adb create <table> <json>")
+            return
+        table_name = args[1]
+        data = " ".join(args[2:])
+        await _adb_create(update, thread_id, table_name, data, scope)
+        return
+
+    if action == "insert":
+        if len(args) < 3:
+            await update.message.reply_text("Usage: /adb insert <table> <json>")
+            return
+        table_name = args[1]
+        data = " ".join(args[2:])
+        await _adb_insert(update, thread_id, table_name, data, scope)
         return
 
     if action == "query":
@@ -835,12 +1095,36 @@ async def adb_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         if not sql.strip():
             await update.message.reply_text("Usage: /adb query <sql>")
             return
-        await _set_context(thread_id, _get_chat_type(update))
-        result = query_adb.invoke({"sql": sql, "scope": scope})
-        await update.message.reply_text(result)
+        await _adb_query(update, thread_id, sql, scope)
         return
 
-    await update.message.reply_text("Usage: /adb list | /adb query <sql>")
+    if action == "describe":
+        if len(args) < 2:
+            await update.message.reply_text("Usage: /adb describe <table>")
+            return
+        await _adb_describe(update, thread_id, args[1], scope)
+        return
+
+    if action == "drop":
+        if len(args) < 2:
+            await update.message.reply_text("Usage: /adb drop <table>")
+            return
+        await _adb_drop(update, thread_id, args[1], scope)
+        return
+
+    if action == "export":
+        if len(args) < 3:
+            await update.message.reply_text("Usage: /adb export <table> <filename> [csv|parquet|json]")
+            return
+        format_arg = args[3] if len(args) > 3 else None
+        await _adb_export(update, thread_id, args[1], args[2], format_arg, scope)
+        return
+
+    await update.message.reply_text(
+        "Usage: /adb list | /adb create <table> <json> | /adb insert <table> <json> | "
+        "/adb query <sql> | /adb describe <table> | /adb drop <table> | "
+        "/adb export <table> <filename> [csv|parquet|json]"
+    )
 
 
 async def tdb_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

@@ -293,13 +293,23 @@ async def main() -> None:
         logger.info(f'{format_log_context("system", component="startup")} channel_started index={i+1}')
 
     logger.info(f'{format_log_context("system", component="startup")} channels_ready')
+    
+    # Import cleanup module
+    from executive_assistant.storage.cleanup import cleanup_all
+    
     try:
         print(f" Bot is running. Channels: {', '.join(enabled_channels)}. Press Ctrl+C to stop.", flush=True)
         await shutdown_event.wait()
     finally:
+        print("\nShutting down...")
+        logger.info(f'{format_log_context("system", component="shutdown")} stopping_channels')
         for channel in active_channels:
             await channel.stop()
+        logger.info(f'{format_log_context("system", component="shutdown")} stopping_scheduler')
         await stop_scheduler()
+        logger.info(f'{format_log_context("system", component="shutdown")} cleaning_up_resources')
+        cleanup_all()
+        logger.info(f'{format_log_context("system", component="shutdown")} complete')
         print(" Bot stopped")
 
 

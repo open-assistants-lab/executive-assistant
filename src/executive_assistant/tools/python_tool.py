@@ -7,9 +7,9 @@ and file operations within a sandboxed environment.
 import builtins
 import io
 import os
-import signal
 import sys
 from pathlib import Path
+from typing import Any
 
 from langchain_core.tools import tool
 
@@ -25,6 +25,9 @@ ALLOWED_FILE_EXTENSIONS = {
 
 # Maximum file size for Python sandbox (10MB default)
 MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
+
+# Execution timeout in seconds
+EXECUTION_TIMEOUT_SECONDS = 30
 
 
 # Safe built-ins (whitelist)
@@ -233,16 +236,6 @@ def sandboxed_open(path: str | Path, mode: str = 'r', encoding: str = 'utf-8', *
     return SandboxedFile(path, mode, encoding, newline)
 
 
-class _TimeoutError(Exception):
-    """Timeout exception for code execution."""
-    pass
-
-
-def _timeout_handler(signum, frame):
-    """Signal handler for timeout."""
-    raise _TimeoutError("Code execution exceeded 30 second timeout")
-
-
 def _import_safe_module(name: str):
     """Import a module if it's in the whitelist."""
     # Handle dotted modules like urllib.request
@@ -324,6 +317,70 @@ def _setup_safe_globals():
     return safe_globals
 
 
+def _execute_code_in_subprocess(code: str, safe_globals: dict, timeout: int) -> tuple[bool, str]:
+    """Execute code in a subprocess for cross-platform timeout support.
+    
+    Args:
+        code: Python code to execute
+        safe_globals: Safe globals dictionary
+        timeout: Timeout in seconds
+        
+    Returns:
+        Tuple of (success: bool, output_or_error: str)
+    """
+    import multiprocessing
+    import pickle
+    
+    def target(code_str: str, globals_dict: dict, result_queue: multiprocessing.Queue):
+        """Target function to run in subprocess."""
+        import io
+        import sys
+        
+        old_stdout = sys.stdout
+        sys.stdout = io.StringIO()
+        
+        try:
+            # Reconstruct safe globals (can't pickle modules)
+            exec(code_str, globals_dict)
+            output = sys.stdout.getvalue()
+            result_queue.put((True, output))
+        except Exception as e:
+            error_msg = f"{type(e).__name__}: {e}"
+            result_queue.put((False, error_msg))
+        finally:
+            sys.stdout = old_stdout
+    
+    # Use a queue to get results from subprocess
+    result_queue = multiprocessing.Queue()
+    
+    # Create and start subprocess
+    process = multiprocessing.Process(
+        target=target,
+        args=(code, safe_globals, result_queue)
+    )
+    
+    process.start()
+    process.join(timeout=timeout)
+    
+    if process.is_alive():
+        process.terminate()
+        process.join(timeout=1)
+        if process.is_alive():
+            process.kill()
+            process.join()
+        return False, f"Timeout: Code execution exceeded {timeout} second timeout"
+    
+    if process.exitcode != 0:
+        return False, f"Process exited with code {process.exitcode}"
+    
+    # Get result from queue
+    try:
+        success, output = result_queue.get_nowait()
+        return success, output
+    except Exception:
+        return False, "Failed to get execution result"
+
+
 @tool
 def execute_python(code: str) -> str:
     """Execute Python code in a sandboxed environment.
@@ -381,45 +438,78 @@ def execute_python(code: str) -> str:
     # Prepare safe globals
     safe_globals = _setup_safe_globals()
 
+    # Determine execution strategy based on platform
+    use_subprocess = False
     try:
-        # Set timeout using multiprocessing or threading (signals don't work in threads)
-        # For threaded environments, skip signal-based timeout
-        timeout_enabled = False
-        try:
-            old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
-            signal.alarm(30)
-            timeout_enabled = True
-        except (AttributeError, OSError, ValueError):
-            # SIGALRM not available: Windows, threads, or restricted environments
-            pass
+        # Test if signal-based timeout works
+        import signal
+        signal.signal(signal.SIGALRM, lambda signum, frame: None)
+        signal.signal(signal.SIGALRM, signal.SIG_DFL)
+    except (AttributeError, OSError, ValueError):
+        # SIGALRM not available: Windows or restricted environment
+        use_subprocess = True
 
-        # Execute code
-        cwd = None
-        try:
+    try:
+        if use_subprocess:
+            # Use subprocess for Windows compatibility
+            success, result = _execute_code_in_subprocess(
+                code, safe_globals, EXECUTION_TIMEOUT_SECONDS
+            )
+            return result if result else "Code executed successfully (no output)"
+        else:
+            # Use signal-based timeout (Unix/Linux/Mac)
+            import signal
+            
+            class TimeoutError(Exception):
+                pass
+            
+            def timeout_handler(signum, frame):
+                raise TimeoutError(f"Code execution exceeded {EXECUTION_TIMEOUT_SECONDS} second timeout")
+            
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(EXECUTION_TIMEOUT_SECONDS)
+            
             try:
-                from executive_assistant.storage.file_sandbox import get_sandbox
-                sandbox = get_sandbox()
-                cwd = Path.cwd()
-                os.chdir(sandbox.root)
-            except Exception:
+                # Execute code with thread root as working directory
                 cwd = None
-            exec(code, safe_globals)
-        finally:
-            if cwd is not None:
-                os.chdir(cwd)
-            # Clear timeout
-            if timeout_enabled:
-                signal.alarm(0)
-                signal.signal(signal.SIGALRM, old_handler)
+                try:
+                    thread_root = _get_thread_root()
+                    cwd = Path.cwd()
+                    os.chdir(thread_root)
+                except (ValueError, OSError):
+                    cwd = None
+                
+                try:
+                    exec(code, safe_globals)
+                finally:
+                    if cwd is not None:
+                        os.chdir(cwd)
+                    signal.alarm(0)
+                    signal.signal(signal.SIGALRM, old_handler)
+                
+                # Get output
+                output = sys.stdout.getvalue()
+                return output if output else "Code executed successfully (no output)"
+                
+            except TimeoutError as e:
+                return f"Timeout: {e}"
+            except SyntaxError as e:
+                return f"Syntax Error: {e}"
+            except ImportError as e:
+                return f"Import Error: {e}"
+            except NameError as e:
+                return f"Name Error: {e}"
+            except TypeError as e:
+                return f"Type Error: {e}"
+            except ValueError as e:
+                return f"Value Error: {e}"
+            except ZeroDivisionError as e:
+                return f"Zero Division Error: {e}"
+            except (OSError, IOError) as e:
+                return f"IO Error: {e}"
+            except SecurityError as e:
+                return f"Security Error: {e}"
 
-        # Get output
-        output = sys.stdout.getvalue()
-        return output if output else "Code executed successfully (no output)"
-
-    except _TimeoutError as e:
-        return f"Timeout: {e}"
-    except Exception as e:
-        return f"Error: {type(e).__name__}: {e}"
     finally:
         sys.stdout = old_stdout
 

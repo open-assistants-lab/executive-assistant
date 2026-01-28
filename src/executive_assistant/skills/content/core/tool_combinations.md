@@ -19,7 +19,7 @@ Use the smallest set of tools that can solve the task. Prefer thread‑scoped da
 - **Files:** `write_file`, `read_file`, `list_files`, `create_folder`, `delete_file`, `delete_folder`, `move_file`, `rename_folder`, `glob_files`, `grep_files`
 - **TDB (transactional):** `create_tdb_table`, `insert_tdb_table`, `query_tdb`, `list_tdb_tables`, `describe_tdb_table`, `delete_tdb_table`, `add_tdb_column`, `drop_tdb_column`, `import_tdb_table`, `export_tdb_table`
 - **VDB (semantic):** `create_vdb_collection`, `add_vdb_documents`, `add_file_to_vdb`, `search_vdb`, `describe_vdb_collection`, `vdb_list`, `update_vdb_document`, `delete_vdb_documents`, `drop_vdb_collection`
-- **ADB (analytics / DuckDB):** `list_adb_tables`, `query_adb`
+- **ADB (analytics / DuckDB):** `list_adb_tables`, `describe_adb_table`, `show_adb_schema`, `query_adb`, `create_adb_table`, `import_adb_csv`, `export_adb_table`, `drop_adb_table`, `optimize_adb`
 - **Flows / agents:** `create_agent`, `update_agent`, `create_flow`, `run_flow`, `list_flows`, `cancel_flow`, `delete_flow`, `create_flow_project`
 - **Web:** `search_web`, `firecrawl_scrape`, `firecrawl_crawl`, `firecrawl_check_status`, `playwright_scrape`
 - **OCR:** `ocr_extract_text`, `ocr_extract_structured`, `extract_from_image`

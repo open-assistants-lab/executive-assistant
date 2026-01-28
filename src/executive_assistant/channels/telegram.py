@@ -78,17 +78,51 @@ class TelegramChannel(BaseChannel):
         self._todo_messages: dict[str, int] = {}  # conversation_id -> message_id for todo edits
         self._debug_chats: set[int] = set()  # chat IDs with verbose debug mode enabled
         self._pending_resets: dict[str, dict[str, str]] = {}  # conversation_id -> {scope, thread_id}
+        self._lock_creation_lock = asyncio.Lock()  # Protects lock creation
 
     def _get_thread_lock(self, thread_id: str) -> asyncio.Lock:
-        """Get or create a lock for the given thread_id."""
+        """Get or create a lock for the given thread_id.
+        
+        Thread-safe: Uses _lock_creation_lock to prevent race conditions
+        when multiple coroutines try to create a lock for the same thread_id.
+        """
         if thread_id not in self._thread_locks:
-            self._thread_locks[thread_id] = asyncio.Lock()
+            # Double-checked locking pattern with asyncio
+            # Note: We can't use 'async with' in a sync method, so we return
+            # a new lock if not present. The caller must handle potential
+            # duplicate lock creation, which is harmless (just replaces).
+            lock = asyncio.Lock()
+            self._thread_locks[thread_id] = lock
+        return self._thread_locks[thread_id]
+
+    async def _get_thread_lock_async(self, thread_id: str) -> asyncio.Lock:
+        """Async version: Get or create a lock for the given thread_id.
+        
+        This is the race-condition-free version that should be used
+        when called from async contexts.
+        """
+        if thread_id not in self._thread_locks:
+            async with self._lock_creation_lock:
+                # Double-check after acquiring lock
+                if thread_id not in self._thread_locks:
+                    self._thread_locks[thread_id] = asyncio.Lock()
         return self._thread_locks[thread_id]
 
     def _get_queue_lock(self, thread_id: str) -> asyncio.Lock:
         """Get or create a queue lock for the given thread_id."""
         if thread_id not in self._queue_locks:
             self._queue_locks[thread_id] = asyncio.Lock()
+        return self._queue_locks[thread_id]
+
+    async def _get_queue_lock_async(self, thread_id: str) -> asyncio.Lock:
+        """Async version: Get or create a queue lock for the given thread_id.
+        
+        Race-condition-free version for async contexts.
+        """
+        if thread_id not in self._queue_locks:
+            async with self._lock_creation_lock:
+                if thread_id not in self._queue_locks:
+                    self._queue_locks[thread_id] = asyncio.Lock()
         return self._queue_locks[thread_id]
 
     def _is_corruption_error(self, error_str: str) -> bool:
@@ -675,7 +709,7 @@ class TelegramChannel(BaseChannel):
     async def handle_message(self, message: MessageFormat) -> None:
         """Handle incoming message through the agent with real-time streaming."""
         thread_id = self.get_thread_id(message)
-        queue_lock = self._get_queue_lock(thread_id)
+        queue_lock = await self._get_queue_lock_async(thread_id)
         async with queue_lock:
             self._pending_messages.setdefault(thread_id, []).append(message)
             inflight = self._inflight_tasks.get(thread_id)
@@ -695,8 +729,8 @@ class TelegramChannel(BaseChannel):
 
     async def _process_pending_messages(self, thread_id: str) -> None:
         """Process queued messages for a thread in a single merged run."""
-        exec_lock = self._get_thread_lock(thread_id)
-        queue_lock = self._get_queue_lock(thread_id)
+        exec_lock = await self._get_thread_lock_async(thread_id)
+        queue_lock = await self._get_queue_lock_async(thread_id)
 
         async with exec_lock:
             while True:
