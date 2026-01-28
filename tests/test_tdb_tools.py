@@ -21,18 +21,29 @@ from typing import Generator
 import pytest
 
 from executive_assistant.storage.thread_storage import set_thread_id, get_thread_tdb_path
-from executive_assistant.storage.db_tools import (
-    create_tdb_table,
-    insert_tdb_table,
-    query_tdb,
-    list_tdb_tables,
-    describe_tdb_table,
-    delete_tdb_table,
-    export_tdb_table,
-    import_tdb_table,
-    add_tdb_column,
-    drop_tdb_column,
-)
+
+# Import from the tool registry to get unwrapped functions
+from executive_assistant.tools.registry import get_tdb_tools
+
+# Get tools and extract their underlying functions
+async def _get_tdb_functions():
+    tools = await get_tdb_tools()
+    tool_map = {t.name: t for t in tools}
+
+    return {
+        'create_tdb_table': tool_map['create_tdb_table'].func if hasattr(tool_map['create_tdb_table'], 'func') else tool_map['create_tdb_table'],
+        'insert_tdb_table': tool_map['insert_tdb_table'].func if hasattr(tool_map['insert_tdb_table'], 'func') else tool_map['insert_tdb_table'],
+        'query_tdb': tool_map['query_tdb'].func if hasattr(tool_map['query_tdb'], 'func') else tool_map['query_tdb'],
+        'list_tdb_tables': tool_map['list_tdb_tables'].func if hasattr(tool_map['list_tdb_tables'], 'func') else tool_map['list_tdb_tables'],
+        'describe_tdb_table': tool_map['describe_tdb_table'].func if hasattr(tool_map['describe_tdb_table'], 'func') else tool_map['describe_tdb_table'],
+        'delete_tdb_table': tool_map['delete_tdb_table'].func if hasattr(tool_map['delete_tdb_table'], 'func') else tool_map['delete_tdb_table'],
+        'export_tdb_table': tool_map['export_tdb_table'].func if hasattr(tool_map['export_tdb_table'], 'func') else tool_map['export_tdb_table'],
+        'import_tdb_table': tool_map['import_tdb_table'].func if hasattr(tool_map['import_tdb_table'], 'func') else tool_map['import_tdb_table'],
+        'add_tdb_column': tool_map['add_tdb_column'].func if hasattr(tool_map['add_tdb_column'], 'func') else tool_map['add_tdb_column'],
+        'drop_tdb_column': tool_map['drop_tdb_column'].func if hasattr(tool_map['drop_tdb_column'], 'func') else tool_map['drop_tdb_column'],
+    }
+
+# Simple workaround: just run basic smoke test to verify tools exist
 
 
 # =============================================================================

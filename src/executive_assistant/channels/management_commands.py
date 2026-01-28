@@ -651,7 +651,7 @@ async def _vdb_overview(update: Update, thread_id: str, scope: str) -> None:
     """Show VDB summary and commands."""
     await _set_context(thread_id, _get_chat_type(update))
     try:
-        from executive_assistant.storage.vs_tools import vdb_list
+        from executive_assistant.storage.vdb_tools import vdb_list
 
         tables_text = vdb_list.invoke({"scope": scope})
         total = 0
@@ -679,7 +679,7 @@ async def _vdb_list(update: Update, thread_id: str, scope: str) -> None:
     """List VDB tables."""
     await _set_context(thread_id, _get_chat_type(update))
     try:
-        from executive_assistant.storage.vs_tools import vdb_list
+        from executive_assistant.storage.vdb_tools import vdb_list
 
         result = vdb_list.invoke({"scope": scope})
         await update.message.reply_text(result)
@@ -692,7 +692,7 @@ async def _vdb_store(update: Update, thread_id: str, table_name: str, documents:
     """Store documents in VDB."""
     await _set_context(thread_id, _get_chat_type(update))
     try:
-        from executive_assistant.storage.vs_tools import create_vdb_collection
+        from executive_assistant.storage.vdb_tools import create_vdb_collection
 
         result = create_vdb_collection.invoke({"collection_name": table_name, "documents": documents, "scope": scope})
         await update.message.reply_text(result)
@@ -705,7 +705,7 @@ async def _vdb_search(update: Update, thread_id: str, query: str, table_name: st
     """Search VDB."""
     await _set_context(thread_id, _get_chat_type(update))
     try:
-        from executive_assistant.storage.vs_tools import search_vdb
+        from executive_assistant.storage.vdb_tools import search_vdb
 
         result = search_vdb.invoke({"query": query, "collection_name": table_name, "limit": 5, "scope": scope})
         await update.message.reply_text(result)
@@ -718,7 +718,7 @@ async def _vdb_describe(update: Update, thread_id: str, table_name: str, scope: 
     """Describe VDB table."""
     await _set_context(thread_id, _get_chat_type(update))
     try:
-        from executive_assistant.storage.vs_tools import describe_vdb_collection
+        from executive_assistant.storage.vdb_tools import describe_vdb_collection
 
         result = describe_vdb_collection.invoke({"collection_name": table_name, "scope": scope})
         await update.message.reply_text(result)
@@ -731,7 +731,7 @@ async def _vdb_delete(update: Update, thread_id: str, table_name: str, scope: st
     """Delete VDB table."""
     await _set_context(thread_id, _get_chat_type(update))
     try:
-        from executive_assistant.storage.vs_tools import drop_vdb_collection
+        from executive_assistant.storage.vdb_tools import drop_vdb_collection
 
         result = drop_vdb_collection.invoke({"collection_name": table_name, "scope": scope})
         await update.message.reply_text(result)
