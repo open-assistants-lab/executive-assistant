@@ -14,7 +14,7 @@ import pytest
 from typing import Generator
 
 from executive_assistant.storage.thread_storage import set_thread_id
-from executive_assistant.storage.vs_tools import (
+from executive_assistant.storage.vdb_tools import (
     create_vdb_collection,
     add_vdb_documents,
     search_vdb,

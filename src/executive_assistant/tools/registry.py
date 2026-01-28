@@ -77,7 +77,7 @@ async def get_file_tools() -> list[BaseTool]:
 
 async def get_tdb_tools() -> list[BaseTool]:
     """Get transactional database (TDB) tools (thread-scoped)."""
-    from executive_assistant.storage.db_tools import (
+    from executive_assistant.storage.tdb_tools import (
         create_tdb_table,
         insert_tdb_table,
         query_tdb,
@@ -159,7 +159,7 @@ async def get_skills_tools() -> list[BaseTool]:
 
 async def get_vdb_tools() -> list[BaseTool]:
     """Get Vector Database (VDB) tools backed by LanceDB for vector search."""
-    from executive_assistant.storage.vs_tools import get_vdb_tools as _get
+    from executive_assistant.storage.vdb_tools import get_vdb_tools as _get
     return await _get()
 
 

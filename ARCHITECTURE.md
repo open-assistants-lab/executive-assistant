@@ -65,7 +65,7 @@ Executive Assistant is a **multi-channel AI agent platform** built on LangGraph 
 |------|-----------|---------|
 | **State/Checkpoint** | PostgreSQL (via asyncpg) | Conversation persistence |
 | **Vector Database** | LanceDB | Semantic search/knowledge base |
-| **Tabular Data** | SQLite (sqlite_db_storage.py, db_tools.py) | Transactional, permanent data (timesheets, CRM, tasks) |
+| **Tabular Data** | SQLite (sqlite_db_storage.py, tdb_tools.py) | Transactional, permanent data (timesheets, CRM, tasks) |
 | **Memories** | SQLite + FTS5 (mem_storage.py) | Embedded memories with full-text search |
 | **File Storage** | Local filesystem | Document/file storage |
 | **Metadata Registry** | PostgreSQL | File/DB ownership tracking |
@@ -194,9 +194,9 @@ executive_assistant/
 │   │   ├── checkpoint.py        # LangGraph PostgreSQL checkpointer
 │   │   ├── file_sandbox.py      # Secure file operations (thread-scoped)
 │   │   ├── db_storage.py        # Legacy DuckDB TDB storage (deprecated)
-│   │   ├── db_tools.py          # SQLite TDB tool implementations
+│   │   ├── tdb_tools.py         # SQLite TDB tool implementations
 │   │   ├── sqlite_db_storage.py # SQLite backend (context + shared)
-│   │   ├── vs_tools.py          # Vector database tool implementations
+│   │   ├── vdb_tools.py         # Vector database tool implementations
 │   │   ├── lancedb_storage.py   # LanceDB vector database backend
 │   │   ├── user_registry.py     # Conversation logs & ownership tracking
 │   │   ├── meta_registry.py     # Metadata/ownership tracking
@@ -406,7 +406,7 @@ data/
   - `glob_files`: Pattern matching (`*.py`, `**/*.json`)
   - `grep_files`: Regex content search
 
-**TDBStorage (`sqlite_db_storage.py`, `db_tools.py`)**
+**TDBStorage (`sqlite_db_storage.py`, `tdb_tools.py`)**
 - **Backend**: SQLite (context + shared)
 - **Purpose**: Structured/tabular data storage
 - **Use Cases**: Timesheets, logs, analysis datasets
@@ -417,7 +417,7 @@ data/
   - `export_tdb_table`, `import_tdb_table`: Data portability (CSV, JSON, Parquet)
 - **Legacy**: `db_storage.py` retains DuckDB utilities (deprecated)
 
-**Vector Database (`lancedb_storage.py`, `vs_tools.py`)**
+**Vector Database (`lancedb_storage.py`, `vdb_tools.py`)**
 - **Backend**: LanceDB with sentence-transformers embeddings
 - **Model**: `all-MiniLM-L6-v2` (384 dimensions)
 - **Purpose**: Long-term knowledge retrieval
