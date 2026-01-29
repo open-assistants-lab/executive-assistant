@@ -48,3 +48,5 @@ logs/
 .DS_Store
 .DS_Store
 docker/.env
+docs/.DS_Store
+.DS_Store
