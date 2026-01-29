@@ -8,6 +8,12 @@
         "FIRECRAWL_API_KEY": "fc-your-api-key-if-required"
       }
     },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest"
+      ]
+    },
     "chrome-devtools": {
       "command": "npx",
       "args": ["-y", "chrome-devtools-mcp@latest"]
