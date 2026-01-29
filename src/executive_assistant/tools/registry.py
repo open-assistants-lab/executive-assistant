@@ -152,9 +152,13 @@ async def get_ocr_tools() -> list[BaseTool]:
 
 
 async def get_skills_tools() -> list[BaseTool]:
-    """Get skills tools for on-demand skill loading."""
+    """Get skills tools for on-demand skill loading and user skill creation."""
     from executive_assistant.skills.tool import load_skill
-    return [load_skill]
+    from executive_assistant.skills.user_tools import get_user_skill_tools
+
+    tools = [load_skill]
+    tools.extend(get_user_skill_tools())
+    return tools
 
 
 async def get_vdb_tools() -> list[BaseTool]:

@@ -1684,3 +1684,108 @@ async def flow_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             await update.message.reply_text("Unknown action. Use /flow list|run|cancel|delete")
     finally:
         _clear_context()
+
+# ==================== /prompt COMMAND ====================
+
+async def prompt_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /prompt command for user prompt management.
+
+    Usage:
+        /prompt                    - Show current prompt
+        /prompt show              - Show current prompt
+        /prompt set <text>        - Set user prompt
+        /prompt append <text>     - Append to user prompt
+        /prompt clear             - Clear user prompt
+    """
+    thread_id = _get_thread_id(update)
+    chat_type = _get_chat_type(update)
+
+    # Extract args
+    args = context.args if context.args else []
+
+    if not args:
+        # Default: show current prompt
+        action = "show"
+    else:
+        action = args[0].lower()
+
+    logger.info(f"CH=telegram CONV={update.effective_chat.id} USER={thread_id} | command /prompt action={action}")
+
+    await _set_context(thread_id, chat_type)
+    try:
+        if action == "show":
+            from executive_assistant.agent.prompts import load_user_prompt
+            from executive_assistant.storage.user_storage import UserPaths
+
+            prompt_path = UserPaths.get_prompt_path(thread_id)
+            if not prompt_path.exists():
+                await update.message.reply_text("No custom prompt set. Using default system prompt.")
+                return
+
+            prompt = load_user_prompt(thread_id)
+            if not prompt:
+                await update.message.reply_text("No custom prompt set. Using default system prompt.")
+                return
+
+            # Show prompt with character count
+            char_count = len(prompt)
+            preview = prompt[:500] + "..." if len(prompt) > 500 else prompt
+            await update.message.reply_text(
+                f"📝 Your current prompt ({char_count} chars):\n\n{preview}"
+            )
+            return
+
+        if action == "set":
+            if len(args) < 2:
+                await update.message.reply_text("Usage: /prompt set <your prompt text>")
+                return
+
+            # Join all args after "set" as the prompt text
+            prompt_text = " ".join(args[1:])
+
+            from executive_assistant.agent.prompts import save_user_prompt
+
+            success, message = save_user_prompt(thread_id, prompt_text)
+            if success:
+                await update.message.reply_text(f"✅ {message}\n\nYour prompt will be applied to your next message.")
+            else:
+                await update.message.reply_text(f"❌ {message}")
+            return
+
+        if action == "append":
+            if len(args) < 2:
+                await update.message.reply_text("Usage: /prompt append <text to append>")
+                return
+
+            # Get existing prompt
+            from executive_assistant.agent.prompts import load_user_prompt, save_user_prompt
+
+            existing = load_user_prompt(thread_id)
+            to_append = " ".join(args[1:])
+
+            # Combine with newline
+            new_prompt = f"{existing}\n\n{to_append}" if existing else to_append
+
+            success, message = save_user_prompt(thread_id, new_prompt)
+            if success:
+                await update.message.reply_text(f"✅ {message}")
+            else:
+                await update.message.reply_text(f"❌ {message}")
+            return
+
+        if action == "clear":
+            from executive_assistant.agent.prompts import delete_user_prompt
+
+            success, message = delete_user_prompt(thread_id)
+            if success:
+                await update.message.reply_text(f"✅ {message}")
+            else:
+                await update.message.reply_text(f"ℹ️ {message}")
+            return
+
+        # Unknown action
+        await update.message.reply_text(
+            "Unknown action. Use: /prompt show | /prompt set <text> | /prompt append <text> | /prompt clear"
+        )
+    finally:
+        _clear_context()

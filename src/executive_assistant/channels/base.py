@@ -150,7 +150,7 @@ class BaseChannel(ABC):
             k in lowered for k in tool_keywords
         )
 
-    async def _build_request_agent(self, message_text: str, conversation_id: str) -> Runnable:
+    async def _build_request_agent(self, message_text: str, conversation_id: str, thread_id: str | None = None) -> Runnable:
         from executive_assistant.agent.langchain_agent import create_langchain_agent
         from executive_assistant.config import create_model
         from executive_assistant.tools.registry import get_all_tools
@@ -162,7 +162,7 @@ class BaseChannel(ABC):
         model_variant = "fast" if self._is_planning_only(message_text) else "default"
         model = create_model(model=model_variant)
         checkpointer = await get_async_checkpointer()
-        system_prompt = get_system_prompt(self.get_channel_name())
+        system_prompt = get_system_prompt(self.get_channel_name(), thread_id=thread_id)
 
         return create_langchain_agent(
             model=model,
@@ -347,7 +347,7 @@ class BaseChannel(ABC):
             messages_sent = 0
             total_input_tokens = 0
             total_output_tokens = 0
-            request_agent = await self._build_request_agent(enhanced_content, message.conversation_id)
+            request_agent = await self._build_request_agent(enhanced_content, message.conversation_id, thread_id)
             async for event in request_agent.astream(state, config):
                 event_count += 1
                 if event_count <= 20:

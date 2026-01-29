@@ -33,6 +33,7 @@ from executive_assistant.channels.management_commands import (
     meta_command,
     user_command,
     flow_command,
+    prompt_command,
 )
 from executive_assistant.config.settings import settings
 from executive_assistant.logging import format_log_context, truncate_log_text
@@ -161,6 +162,7 @@ class TelegramChannel(BaseChannel):
         self.application.add_handler(CommandHandler("meta", meta_command))
         self.application.add_handler(CommandHandler("user", user_command))
         self.application.add_handler(CommandHandler("flow", flow_command))
+        self.application.add_handler(CommandHandler("prompt", prompt_command))
         self.application.add_handler(
             MessageHandler(filters.TEXT & ~filters.COMMAND, self._message_handler)
         )
