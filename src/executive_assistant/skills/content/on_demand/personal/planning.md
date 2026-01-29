@@ -15,7 +15,65 @@ Planning transforms vague goals into actionable steps. This skill covers:
 
 **Key Principle:** Good planning prevents surprises. Invest time upfront to save time later.
 
-**When to use todos:** Use `write_todos` only when it helps manage complex multi-step work.
+---
+
+## ⚠️ Important: Agent Todos vs User Todos
+
+**There are TWO types of todos - don't confuse them!**
+
+### 1. Agent Todos (write_todos)
+- **Purpose:** Track the agent's internal execution steps
+- **Storage:** Ephemeral state during agent run (cleared after completion)
+- **Example:** "Step 1: Search web", "Step 2: Create table", "Step 3: Insert data"
+- **Tool:** `write_todos` (built-in LangChain tool)
+- **When to use:** ONLY for tracking complex multi-step agent workflows
+
+### 2. User Todos (TDB)
+- **Purpose:** Store the user's personal tasks and todo lists
+- **Storage:** Persistent TDB (SQLite) tables
+- **Example:** "meert ZK", "create companies for Steve", "call mom"
+- **Tools:** `create_tdb_table`, `insert_tdb_table`, `query_tdb_table`, `update_tdb_table`
+- **When to use:** When the user asks to "track my todos", "add to my todo list", etc.
+
+### Quick Decision Tree
+
+```
+User asks: "track my todos" or "add this to my todo list"
+  ↓
+Use TDB (create todos table, insert records)
+
+Agent needs to track multi-step execution plan
+  ↓
+Use write_todos (shows progress to user)
+```
+
+### User Todo Pattern (TDB)
+
+```python
+# Create todos table
+create_tdb_table(
+    "todos",
+    columns="task,status,priority,due_date,notes"
+)
+
+# Add user's todos
+insert_tdb_table("todos", [
+    {"task": "meert ZK", "status": "pending", "priority": "high"},
+    {"task": "create companies for Steve", "status": "pending", "priority": "medium"}
+])
+
+# Query pending todos
+query_tdb("SELECT * FROM todos WHERE status = 'pending' ORDER BY priority DESC")
+
+# Mark as complete
+update_tdb_table(
+    "todos",
+    '{"status": "completed"}',
+    where="id = 1"
+)
+```
+
+---
 
 ---
 

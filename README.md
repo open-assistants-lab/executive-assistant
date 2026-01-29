@@ -152,7 +152,7 @@ EXECUTIVE_ASSISTANT_CHANNELS=telegram,http uv run executive_assistant
 - **Skills system**: Progressive disclosure of advanced patterns (load with `load_skill`)
 - **Privacy-first**: Thread isolation by design, merge only when you request it
 - **Multi-channel**: Same agent works on Telegram, HTTP, and more (planned: Email, Slack)
-- **All tools available**: No progressive disclosure tool filtering - all 83 tools available in every conversation (token cost ~937 tokens = 0.5% of 200K context)
+- **All tools available**: All 71 tools available in every conversation
 - **Robust error handling**: Comprehensive error logging with full tracebacks at DEBUG level
 - **Frontend auth**: HTTP channel delegates authentication to your application layer
 
@@ -329,15 +329,33 @@ curl http://localhost:8000/health
 - **Structured extraction**: OCR + LLM for JSON output
 - **Use case**: Extract data from screenshots, scans, receipts
 
+## Token Usage & Cost Monitoring
+
+Executive Assistant tracks token usage automatically when using supported LLM providers (OpenAI, Anthropic):
+
+```
+CH=http CONV=http_user123 TYPE=token_usage | message tokens=7581+19=7600
+```
+
+**Note**: Token tracking depends on LLM provider support:
+- **OpenAI/Anthropic**: ✅ Full tracking (input + output + total)
+- **Ollama**: ❌ No metadata provided (usage not tracked)
+
+**Token Breakdown** (typical conversation):
+- System prompt + 71 tools: ~7,500 tokens (fixed overhead)
+- Conversation messages: Grows with each turn
+- Total input = overhead + messages (e.g., 8,000 tokens by turn 5)
+
 ## Architecture Overview
 
-Executive Assistant uses a **ReAct agent pattern** with LangGraph:
+Executive Assistant uses a **LangChain agent** with middleware stack:
 
 1. **User message** → Channel (Telegram/HTTP)
-2. **Channel** → Agent with state (messages, iterations, summary)
-3. **Agent** → ReAct loop (Think → Act → Observe)
-4. **Tools** → Storage (files, TDB, VDB), external APIs
-5. **Response** → Channel → User
+2. **Channel** → LangChain agent with middleware stack
+3. **Middleware** → Status updates, summarization, retry logic, call limits
+4. **Agent** → ReAct loop (Think → Act → Observe)
+5. **Tools** → Storage (files, TDB, VDB), external APIs
+6. **Response** → Channel → User
 
 ### Storage Hierarchy
 
@@ -396,12 +414,12 @@ executive_assistant/
 │   ├── channels/       # Telegram, HTTP
 │   ├── storage/        # File sandbox, TDB, VDB, reminders
 │   ├── tools/          # LangChain tools (file, TDB, time, Python, search, OCR)
-│   ├── agent/          # Agent runtimes (custom graph + LangChain)
+│   ├── agent/          # LangChain agent runtime + middleware
 │   ├── scheduler.py    # APScheduler integration
 │   └── config/         # Settings
 ├── migrations/         # SQL migrations
 ├── tests/              # Unit tests
-├── discussions/        # Design docs and plans
+├── features/           # Feature tests
 ├── scripts/            # Utility scripts
 ├── pyproject.toml
 ├── TODO.md

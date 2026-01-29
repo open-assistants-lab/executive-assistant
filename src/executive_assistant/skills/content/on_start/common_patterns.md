@@ -79,7 +79,39 @@ create_flow(
 )
 ```
 
-## Pattern 5: Remember User Preferences
+## Pattern 5: Track User Todos
+
+**⚠️ CRITICAL: When user asks to "track my todos", "add to my todo list", or "remember these tasks"**
+
+```python
+# WRONG - This tracks AGENT tasks, not user tasks
+# write_todos([{"task": "meert ZK"}])  ❌ DON'T DO THIS
+
+# RIGHT - Use TDB for user's persistent todos
+# 1. Create todos table
+create_tdb_table(
+    "todos",
+    columns="task,status,priority,due_date,notes,created_at"
+)
+
+# 2. Add user's todos
+insert_tdb_table("todos", [
+    {"task": "meert ZK", "status": "pending", "priority": "high"},
+    {"task": "create companies for Steve", "status": "pending", "priority": "medium"}
+])
+
+# 3. Query todos
+query_tdb("SELECT * FROM todos WHERE status = 'pending' ORDER BY priority DESC")
+
+# 4. Mark complete
+update_tdb_table("todos", '{"status": "completed"}', where="id = 1")
+```
+
+**Key difference:**
+- `write_todos()` → Agent's internal execution plan (ephemeral, cleared after each run)
+- TDB → User's persistent data (remains across sessions)
+
+## Pattern 6: Remember User Preferences
 
 ```python
 # Store preference
@@ -94,6 +126,7 @@ get_memory_by_key("style")
 
 | Goal | Tools |
 |------|-------|
+| **Track user todos** | `create_tdb_table` → `insert_tdb_table` → `query_tdb` (NOT write_todos!) |
 | Track & analyze | `create_tdb_table` → `insert_tdb_table` → `query_tdb` |
 | Research & save | `search_web` → `write_file` → `add_vdb_documents` |
 | Report generation | `query_tdb`/`query_adb` → `execute_python` → `write_file` |
