@@ -80,8 +80,35 @@ def _build_middleware(model: BaseChatModel, channel: Any = None) -> list[Any]:
     if settings.MW_TODO_LIST_ENABLED:
         middleware.append(
             TodoListMiddleware(
-                system_prompt="Use write_todos for complex multi-step tasks.",
-                tool_description="Create or update the current todo list.",
+                system_prompt="""Use write_todos ONLY for tracking the agent's internal execution steps during a task.
+
+CRITICAL: USER TODOS vs AGENT TODOS - Don't confuse them!
+
+**When user wants to track THEIR personal tasks (USER todos):**
+Use TDB tools for persistent storage:
+- create_tdb_table("todos", columns="task,status,priority")
+- insert_tdb_table("todos", [{"task": "...", "status": "pending"}])
+- query_tdb("SELECT * FROM todos WHERE status = 'pending'")
+- update_tdb_table("todos", '{"status": "completed"}', where="id = 1")
+
+User phrases that mean USER todos (use TDB):
+- "track my todos" / "track todo for me"
+- "add to my todo list" / "add to my todos"
+- "add [task] to my todo" / "put [task] on my todo"
+- "add [task] onto my todo" / "add [task] to my todos"
+- "remember this todo" / "remember this task"
+- "add [task]" (when context is todo list, NOT scheduling)
+
+**When agent needs to track ITS execution steps (AGENT todos):**
+Use write_todos for complex multi-step workflows to show progress.
+
+Signs it's an AGENT todo:
+- Multi-step tool execution plan
+- Breaking down complex tasks
+- Showing progress during a single run
+
+NEVER use write_todos for storing user's personal tasks - those belong in TDB.""",
+                tool_description="Create or update the agent's internal execution task list (NOT for user todos - use TDB for user's persistent todos).",
             )
         )
         if settings.MW_STATUS_UPDATE_ENABLED and channel is not None:
