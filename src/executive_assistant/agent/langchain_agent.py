@@ -12,7 +12,6 @@ from langgraph.types import Runnable
 
 from executive_assistant.config import settings
 from executive_assistant.agent.langchain_state import ExecutiveAssistantAgentState
-from executive_assistant.agent.token_callbacks import TokenUsageCallback
 
 logger = logging.getLogger(__name__)
 

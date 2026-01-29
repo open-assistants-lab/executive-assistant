@@ -8,8 +8,8 @@
 
 llm:
   # Default LLM provider: anthropic, openai, zhipu, ollama
-  # default_provider: openai
-  default_provider: ollama
+  default_provider: openai
+  # default_provider: ollama
 
   # Global fallback models (used when provider-specific model not set)
   default_model: null # Use provider-specific default

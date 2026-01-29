@@ -403,10 +403,24 @@ class HttpChannel(BaseChannel):
         }
 
         request_agent = await self._build_request_agent(batch[-1].content, batch[-1].conversation_id)
+
+        # Token tracking
+        total_input_tokens = 0
+        total_output_tokens = 0
+
         async for event in request_agent.astream(state, config):
             msgs = self._extract_messages_from_event(event)
             new_messages = self._get_new_ai_messages(msgs, last_message_id) if last_message_id else []
             for msg in new_messages:
+                # Extract token usage from message if available
+                if hasattr(msg, 'usage_metadata') and msg.usage_metadata:
+                    usage = msg.usage_metadata
+                    input_tok = usage.get('input_tokens') or usage.get('prompt_tokens')
+                    output_tok = usage.get('output_tokens') or usage.get('completion_tokens')
+                    if input_tok:
+                        total_input_tokens += input_tok
+                    if output_tok:
+                        total_output_tokens += output_tok
                 if hasattr(msg, "content") and msg.content:
                     chunk = MessageChunk(
                         content=msg.content,
@@ -425,6 +439,15 @@ class HttpChannel(BaseChannel):
                         done=False,
                     )
                     yield f"data: {chunk.model_dump_json()}\n\n"
+
+        # Log total tokens (this executes when stream ends)
+        total_tokens = total_input_tokens + total_output_tokens
+        thread_id = batch[-1].conversation_id if batch else "unknown"
+        ctx = format_log_context("message", channel="http", conversation=thread_id, type="token_usage")
+        if total_tokens > 0:
+            logger.info(f"{ctx} tokens={total_input_tokens}+{total_output_tokens}={total_tokens}")
+        else:
+            logger.debug(f"{ctx} no_token_metadata found total_input={total_input_tokens} total_output={total_output_tokens}")
 
     @staticmethod
     def get_thread_id(message: MessageFormat) -> str:

@@ -1,11 +1,14 @@
 # Executive Assistant Technical Architecture Documentation
 
-**Version:** 1.0.0
-**Last Updated:** January 21, 2026
+**Version:** 1.1.0
+**Last Updated:** January 29, 2026
 **Project:** Executive Assistant - Multi-channel AI Agent Platform
 
 **Recent Updates (January 2026):**
-- ✅ Fixed progressive disclosure bug (all 83 tools now available by default)
+- ✅ Migrated to LangChain agent runtime (removed custom nodes.py)
+- ✅ Implemented token usage tracking for HTTP channel (OpenAI/Anthropic)
+- ✅ Added comprehensive middleware stack (summarization, retry, status updates)
+- ✅ Fixed progressive disclosure bug (all 71 tools now available by default)
 - ✅ Added ThreadContextMiddleware for async context propagation
 - ✅ Enhanced error logging with comprehensive tracebacks
 - ✅ Fixed HTTP channel non-streaming endpoint
@@ -34,12 +37,14 @@
 Executive Assistant is a **multi-channel AI agent platform** built on LangGraph that implements a ReAct (Reasoning + Acting) agent pattern. It provides intelligent task execution across multiple communication channels (Telegram, HTTP) with persistent state management, privacy-first multi-tenant storage, and a comprehensive toolkit for data operations.
 
 **Key Characteristics:**
-- **ReAct Agent Architecture**: Reasoning → Action → Observation cycle
-- **Multi-Channel Support**: Telegram bot and HTTP REST API
+- **LangChain Agent Runtime**: High-level agent creation with middleware stack
+- **ReAct Agent Pattern**: Reasoning → Action → Observation cycle
+- **Multi-Channel Support**: Telegram bot and HTTP REST API with SSE streaming
 - **Privacy-First Storage**: Thread-only context with per-thread data isolation
-- **Tool-Based Intelligence**: Dynamic tool selection based on context
+- **Tool-Based Intelligence**: All 71 tools available in every conversation
 - **State Persistence**: PostgreSQL-backed checkpointing for conversation memory
-- **Production-Ready**: Middleware stack with rate limiting, retry logic, and monitoring
+- **Token Tracking**: Automatic usage monitoring for cost control (provider-dependent)
+- **Production-Ready**: Middleware stack with summarization, retry logic, status updates, and call limits
 
 ---
 
@@ -302,20 +307,22 @@ executive_assistant/
   - `structured_summary`: Topic-based conversation summary
   - `todos`: Task tracking list
 - `prompts.py`: System prompts for LLM reasoning
-- `langchain_agent.py`: Alternative LangChain prebuilt agent runtime
+- `langchain_agent.py`: LangChain agent runtime builder with middleware stack
 - `status_middleware.py`: Real-time progress tracking with millisecond timing
 - `todo_display.py`: Todo list display formatting
+- `token_callbacks.py`: Token usage tracking (experimental, unused)
 
 **Middleware Stack (via LangChain):**
-1. **StatusUpdateMiddleware**: Real-time progress tracking (if channel enabled)
+1. **StatusUpdateMiddleware**: Real-time progress tracking with emoji indicators (🤔 Thinking, 🛠️ Tool N:, ✅ Done)
 2. **ThreadContextMiddleware**: Ensures thread_id ContextVar propagates to tool execution
-3. **TodoListMiddleware**: Tracks planned tasks
+3. **TodoListMiddleware**: Tracks planned tasks for multi-step operations
 4. **TodoListDisplayMiddleware**: Displays planned tasks during execution (if channel enabled)
-5. **SummarizationMiddleware**: Token-based conversation summarization
-6. **ContextEditingMiddleware**: Edits context for efficiency
-7. **CallLimitMiddleware**: Prevents runaway execution (max 50 model calls, 100 tool calls per message)
-8. **ToolRetryMiddleware**: Automatic retry on tool failures
-9. **ModelRetryMiddleware**: Automatic retry on model failures
+5. **SummarizationMiddleware**: Token-based conversation summarization (trigger: 5,000 / target: 1,000)
+6. **ContextEditingMiddleware**: Edits context by clearing old tool uses (disabled by default)
+7. **ModelCallLimitMiddleware**: Max 50 LLM calls per message (prevents infinite loops)
+8. **ToolCallLimitMiddleware**: Max 100 tool calls per message (prevents runaway execution)
+9. **ToolRetryMiddleware**: Automatic retry on tool failures with exponential backoff
+10. **ModelRetryMiddleware**: Automatic retry on model failures with exponential backoff
 
 **ThreadContextMiddleware (Custom):**
 - **Purpose**: Fix Python ContextVar not propagating across LangGraph async task boundaries
@@ -948,6 +955,69 @@ model = create_model()  # Returns BaseChatModel
 - `openai`: GPT models
 - `zhipu`: GLM-4 models
 - `ollama`: Local/Cloud models
+
+---
+
+## Token Usage Tracking
+
+Executive Assistant monitors token consumption to control costs and understand usage patterns:
+
+### Implementation
+
+**HTTP Channel Token Tracking** (`channels/http.py`):
+- Extracts `usage_metadata` from AIMessage objects in the event stream
+- Logs input/output/total tokens per conversation: `tokens={input}+{output}={total}`
+- **Provider Support**:
+  - ✅ OpenAI: Full token tracking (input + output + total)
+  - ✅ Anthropic: Full token tracking
+  - ❌ Ollama: No metadata provided (usage not tracked)
+
+### Token Breakdown
+
+Typical token usage for a conversation:
+
+| Component | Token Count | Notes |
+|-----------|-------------|-------|
+| System prompt | ~50 tokens | "You are Jen, a personal AI assistant..." |
+| Tools (71 tools) | ~7,500 tokens | Tool names, descriptions, JSON schemas |
+| Conversation messages | Variable | Grows with each turn (±30-80 tokens per round) |
+| **Total (Round 1)** | ~7,550 tokens | System + tools + first user message |
+| **Total (Round 5)** | ~8,000 tokens | +450 tokens from 4 conversation turns |
+
+### Example Log Output
+
+```bash
+CH=http CONV=http_user123 TYPE=token_usage | message tokens=7581+19=7600
+CH=http CONV=http_user123 TYPE=token_usage | message tokens=7900+808=8708
+CH=http CONV=http_user123 TYPE=token_usage | message tokens=8726+803=9529
+```
+
+**Interpretation**:
+- Input tokens grow as conversation context is preserved
+- Output tokens vary based on response complexity
+- Cache hits (OpenAI) reduce effective token cost significantly
+
+### Summarization Middleware
+
+**Configuration** (`docker/config.yaml`):
+```yaml
+middleware:
+  summarization:
+    enabled: true
+    max_tokens: 5000     # Trigger: 5,000 conversation messages
+    target_tokens: 1000  # Target: 1,000 messages after summarization
+```
+
+**Important Notes**:
+- Threshold applies to **conversation messages only**, not total LLM input
+- Does NOT count the ~7,500 token system prompt + tools overhead
+- With 128K context window (GPT-OSS 20B), 5,000 messages is very conservative
+- Summarization calls the LLM to compress older messages into a summary
+
+**When to Adjust**:
+- **Lower threshold** (500-1,000): For faster summarization, more aggressive compression
+- **Higher threshold** (10,000+): For longer conversations before summarization
+- **Use fractional triggering**: `trigger: 0.4` (40% of model context window)
 
 ---
 
