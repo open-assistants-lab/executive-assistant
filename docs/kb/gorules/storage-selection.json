@@ -1,0 +1,229 @@
+{
+  "name": "storage-selection",
+  "nodes": [
+    {
+      "id": "input",
+      "type": "inputNode",
+      "name": "Input",
+      "position": { "x": 0, "y": 100 },
+      "content": {
+        "schema": ""
+      }
+    },
+    {
+      "id": "decision-table",
+      "type": "decisionTableNode",
+      "name": "Storage Decision",
+      "position": { "x": 200, "y": 100 },
+      "content": {
+        "hitPolicy": "first",
+        "inputs": [
+          { "id": "i1", "name": "Data Type", "field": "input.dataType" },
+          { "id": "i2", "name": "Complex Analytics", "field": "input.complexAnalytics" },
+          { "id": "i3", "name": "Needs Joins", "field": "input.needsJoins" },
+          { "id": "i4", "name": "Window Functions", "field": "input.windowFunctions" },
+          { "id": "i5", "name": "Semantic Search", "field": "input.semanticSearch" },
+          { "id": "i6", "name": "Search By Meaning", "field": "input.searchByMeaning" }
+        ],
+        "outputs": [
+          { "id": "o1", "name": "Storage", "field": "storage" },
+          { "id": "o2", "name": "Tools", "field": "tools" },
+          { "id": "o3", "name": "Reasoning", "field": "reasoning" }
+        ],
+        "rules": [
+          {
+            "_id": "r1",
+            "i1": "\"preference\", \"personal_fact\"",
+            "i2": "",
+            "i3": "",
+            "i4": "",
+            "i5": "",
+            "i6": "",
+            "o1": "[\"memory\"]",
+            "o2": "[\"create_memory\", \"get_memory_by_key\", \"list_memories\"]",
+            "o3": "\"User preferences and personal facts stored in Memory for fast key-value lookup. Use when storing user preferences, timezone, email, or short-lived facts.\""
+          },
+          {
+            "_id": "r2",
+            "i1": "\"structured\", \"numeric\", \"tabular\"",
+            "i2": "true",
+            "i3": "",
+            "i4": "",
+            "i5": "true",
+            "i6": "",
+            "o1": "[\"tdb\", \"adb\", \"vdb\"]",
+            "o2": "[\"create_tdb_table\", \"query_tdb\", \"list_adb_tables\", \"query_adb\", \"create_adb_table\", \"search_vdb\", \"add_vdb_documents\"]",
+            "o3": "\"Complex multi-storage workflow: Track in TDB, analyze with ADB, and search related context in VDB. Use when you need structured tracking, complex analytics, and semantic search all together.\""
+          },
+          {
+            "_id": "r3",
+            "i1": "\"structured\", \"numeric\", \"tabular\"",
+            "i2": "",
+            "i3": "",
+            "i4": "",
+            "i5": "true",
+            "i6": "true",
+            "o1": "[\"tdb\", \"vdb\"]",
+            "o2": "[\"create_tdb_table\", \"insert_tdb_table\", \"query_tdb\", \"create_vdb_collection\", \"search_vdb\", \"add_vdb_documents\"]",
+            "o3": "\"Multi-storage workflow: Track in TDB and search semantically in VDB. Use when you need structured tracking with semantic search capabilities.\""
+          },
+          {
+            "_id": "r3b",
+            "i1": "\"structured\", \"numeric\", \"tabular\"",
+            "i2": "",
+            "i3": "",
+            "i4": "",
+            "i5": "true",
+            "i6": "",
+            "o1": "[\"tdb\", \"vdb\"]",
+            "o2": "[\"create_tdb_table\", \"insert_tdb_table\", \"query_tdb\", \"create_vdb_collection\", \"search_vdb\", \"add_vdb_documents\"]",
+            "o3": "\"Multi-storage workflow: Track in TDB and search semantically in VDB. Use when you need structured tracking with semantic search capabilities.\""
+          },
+          {
+            "_id": "r5",
+            "i1": "\"structured\", \"numeric\", \"tabular\"",
+            "i2": "true",
+            "i3": "",
+            "i4": "",
+            "i5": "",
+            "i6": "",
+            "o1": "[\"adb\"]",
+            "o2": "[\"list_adb_tables\", \"describe_adb_table\", \"show_adb_schema\", \"query_adb\", \"create_adb_table\", \"import_adb_csv\", \"export_adb_table\", \"drop_adb_table\", \"optimize_adb\"]",
+            "o3": "\"Complex analytics (joins, window functions, aggregations) use Analytics DB (DuckDB). Use for analyzing large datasets, monthly reports, time-series analysis, or complex SQL operations.\""
+          },
+          {
+            "_id": "r6",
+            "i1": "\"structured\", \"numeric\", \"tabular\"",
+            "i2": "",
+            "i3": "true",
+            "i4": "",
+            "i5": "",
+            "i6": "",
+            "o1": "[\"adb\"]",
+            "o2": "[\"list_adb_tables\", \"describe_adb_table\", \"show_adb_schema\", \"query_adb\", \"create_adb_table\", \"import_adb_csv\", \"export_adb_table\", \"drop_adb_table\", \"optimize_adb\"]",
+            "o3": "\"Table joins require Analytics DB (DuckDB) for relational queries. Use for combining data from multiple tables with complex relationships.\""
+          },
+          {
+            "_id": "r7",
+            "i1": "\"structured\", \"numeric\", \"tabular\"",
+            "i2": "",
+            "i3": "",
+            "i4": "true",
+            "i5": "",
+            "i6": "",
+            "o1": "[\"adb\"]",
+            "o2": "[\"list_adb_tables\", \"describe_adb_table\", \"show_adb_schema\", \"query_adb\", \"create_adb_table\", \"import_adb_csv\", \"export_adb_table\", \"drop_adb_table\", \"optimize_adb\"]",
+            "o3": "\"Window functions (running totals, moving averages) require Analytics DB (DuckDB). Use for time-series analysis, rankings, and sliding window calculations.\""
+          },
+          {
+            "_id": "r8",
+            "i1": "\"structured\", \"numeric\", \"tabular\"",
+            "i2": "",
+            "i3": "",
+            "i4": "",
+            "i5": "",
+            "i6": "",
+            "o1": "[\"tdb\"]",
+            "o2": "[\"create_tdb_table\", \"insert_tdb_table\", \"query_tdb\", \"list_tdb_tables\", \"describe_tdb_table\", \"delete_tdb_table\", \"export_tdb_table\", \"import_tdb_table\", \"add_tdb_column\", \"drop_tdb_column\"]",
+            "o3": "\"Simple structured data with CRUD operations uses Transactional DB (SQLite). Use for daily tracking: timesheets, expenses, habits, todos, customer lists, or any structured data with frequent updates.\""
+          },
+          {
+            "_id": "r9",
+            "i1": "",
+            "i2": "",
+            "i3": "",
+            "i4": "",
+            "i5": "true",
+            "i6": "",
+            "o1": "[\"vdb\"]",
+            "o2": "[\"create_vdb_collection\", \"search_vdb\", \"add_vdb_documents\", \"add_file_to_vdb\", \"describe_vdb_collection\", \"vdb_list\", \"update_vdb_document\", \"delete_vdb_documents\", \"drop_vdb_collection\"]",
+            "o3": "\"Semantic search requires Vector DB for finding content by meaning, not just keywords. Use when storing documents, meeting notes, knowledge base, or need to search by context/similarity.\""
+          },
+          {
+            "_id": "r10",
+            "i1": "",
+            "i2": "",
+            "i3": "",
+            "i4": "",
+            "i5": "",
+            "i6": "true",
+            "o1": "[\"vdb\"]",
+            "o2": "[\"create_vdb_collection\", \"search_vdb\", \"add_vdb_documents\", \"add_file_to_vdb\", \"describe_vdb_collection\", \"vdb_list\", \"update_vdb_document\", \"delete_vdb_documents\", \"drop_vdb_collection\"]",
+            "o3": "\"Search by meaning requires Vector DB for finding content by similarity. Use when storing documents, meeting notes, knowledge base, or need to search by context.\""
+          },
+          {
+            "_id": "r10b",
+            "i1": "\"unstructured\", \"report\"",
+            "i2": "true",
+            "i3": "",
+            "i4": "",
+            "i5": "",
+            "i6": "",
+            "o1": "[\"files\", \"adb\"]",
+            "o2": "[\"write_file\", \"read_file\", \"list_adb_tables\", \"query_adb\", \"create_adb_table\"]",
+            "o3": "\"Multi-storage workflow: Export to files and analyze with ADB. Use for generating reports and performing analytics on the data.\""
+          },
+          {
+            "_id": "r11",
+            "i1": "\"unstructured\", \"report\"",
+            "i2": "",
+            "i3": "",
+            "i4": "",
+            "i5": "",
+            "i6": "",
+            "o1": "[\"files\"]",
+            "o2": "[\"write_file\", \"read_file\", \"list_files\", \"create_folder\", \"delete_folder\", \"delete_file\", \"rename_folder\", \"move_file\", \"glob_files\", \"grep_files\"]",
+            "o3": "\"Unstructured files (reports, exports, code) stored as files. Use for generated reports, CSV exports, markdown documents, configuration files, code snippets, or any static content.\""
+          },
+          {
+            "_id": "r-default",
+            "i1": "",
+            "i2": "",
+            "i3": "",
+            "i4": "",
+            "i5": "",
+            "i6": "",
+            "o1": "[\"files\"]",
+            "o2": "[\"write_file\", \"read_file\", \"list_files\"]",
+            "o3": "\"Default to files for unstructured content.\""
+          }
+        ],
+        "passThrough": true,
+        "inputField": null,
+        "outputPath": null,
+        "executionMode": "single"
+      }
+    },
+    {
+      "id": "output",
+      "type": "outputNode",
+      "name": "Output",
+      "position": { "x": 600, "y": 100 },
+      "content": {
+        "schema": ""
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "input",
+      "targetId": "decision-table",
+      "sourceHandle": null,
+      "type": "edge"
+    },
+    {
+      "id": "e2",
+      "sourceId": "decision-table",
+      "targetId": "output",
+      "sourceHandle": null,
+      "type": "edge"
+    }
+  ],
+  "metadata": {
+    "version": "2.0",
+    "author": "Executive Assistant Team",
+    "description": "Storage selection decision engine using GoRules Zen with JDM format",
+    "tags": ["storage", "decision", "tdb", "adb", "vdb", "memory", "files"]
+  }
+}

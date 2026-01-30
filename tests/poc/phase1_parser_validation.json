@@ -1,0 +1,1479 @@
+{
+  "approach": "regex_parser",
+  "phase": "1",
+  "timestamp": 0,
+  "metrics": {
+    "overall_accuracy": 0.54,
+    "dataType_accuracy": 0.62,
+    "complexAnalytics_accuracy": 0.96,
+    "needsJoins_accuracy": 0.96,
+    "windowFunctions_accuracy": 1.0,
+    "semanticSearch_accuracy": 1.0,
+    "searchByMeaning_accuracy": 0.92,
+    "total_tests": 50,
+    "correct": 27,
+    "error_rate": 0.0
+  },
+  "by_category": {
+    "memory": 1.0,
+    "tdb": 0.6,
+    "adb": 0.0,
+    "vdb": 0.6,
+    "files": 0.7,
+    "multi": 0.6
+  },
+  "total_tests": 50,
+  "errors": [],
+  "test_details": [
+    {
+      "request": "Remember that I prefer dark mode",
+      "category": "memory",
+      "expected": {
+        "dataType": "preference",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "preference",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "I live in Australia timezone",
+      "category": "memory",
+      "expected": {
+        "dataType": "personal_fact",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "personal_fact",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "My email is john@example.com",
+      "category": "memory",
+      "expected": {
+        "dataType": "personal_fact",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "personal_fact",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "I prefer concise responses",
+      "category": "memory",
+      "expected": {
+        "dataType": "preference",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "preference",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Remember I'm a vegetarian",
+      "category": "memory",
+      "expected": {
+        "dataType": "personal_fact",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "personal_fact",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Track my daily expenses",
+      "category": "tdb",
+      "expected": {
+        "dataType": "structured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "numeric",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": false,
+      "per_field": {
+        "dataType": false,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "I need a timesheet table",
+      "category": "tdb",
+      "expected": {
+        "dataType": "structured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "tabular",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": false,
+      "per_field": {
+        "dataType": false,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Create todo list",
+      "category": "tdb",
+      "expected": {
+        "dataType": "structured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "report",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": false,
+      "per_field": {
+        "dataType": false,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Add task to my todos",
+      "category": "tdb",
+      "expected": {
+        "dataType": "structured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "structured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Track project milestones",
+      "category": "tdb",
+      "expected": {
+        "dataType": "structured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "structured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Maintain customer list",
+      "category": "tdb",
+      "expected": {
+        "dataType": "structured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "structured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Keep inventory records",
+      "category": "tdb",
+      "expected": {
+        "dataType": "numeric",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "structured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": false,
+      "per_field": {
+        "dataType": false,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Store user preferences",
+      "category": "tdb",
+      "expected": {
+        "dataType": "preference",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "preference",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Track habits",
+      "category": "tdb",
+      "expected": {
+        "dataType": "structured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "structured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Monitor daily tasks",
+      "category": "tdb",
+      "expected": {
+        "dataType": "structured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "structured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Analyze monthly spending trends",
+      "category": "adb",
+      "expected": {
+        "dataType": "structured",
+        "complexAnalytics": true,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "unknown",
+        "complexAnalytics": true,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": false,
+      "per_field": {
+        "dataType": false,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Join sales and expenses tables",
+      "category": "adb",
+      "expected": {
+        "dataType": "structured",
+        "complexAnalytics": false,
+        "needsJoins": true,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "numeric",
+        "complexAnalytics": false,
+        "needsJoins": true,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": false,
+      "per_field": {
+        "dataType": false,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Calculate running totals",
+      "category": "adb",
+      "expected": {
+        "dataType": "structured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": true,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "unknown",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": true,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": false,
+      "per_field": {
+        "dataType": false,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Aggregate data by month",
+      "category": "adb",
+      "expected": {
+        "dataType": "structured",
+        "complexAnalytics": true,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "unknown",
+        "complexAnalytics": true,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": false,
+      "per_field": {
+        "dataType": false,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Compare year-over-year metrics",
+      "category": "adb",
+      "expected": {
+        "dataType": "numeric",
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "numeric",
+        "complexAnalytics": true,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": false,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": false,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Perform complex analytics",
+      "category": "adb",
+      "expected": {
+        "dataType": "structured",
+        "complexAnalytics": true,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "unknown",
+        "complexAnalytics": true,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": false,
+      "per_field": {
+        "dataType": false,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Use window functions",
+      "category": "adb",
+      "expected": {
+        "dataType": "structured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": true,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "unknown",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": true,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": false,
+      "per_field": {
+        "dataType": false,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Create pivot tables",
+      "category": "adb",
+      "expected": {
+        "dataType": "tabular",
+        "complexAnalytics": true,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "report",
+        "complexAnalytics": true,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": false,
+      "per_field": {
+        "dataType": false,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Calculate moving averages",
+      "category": "adb",
+      "expected": {
+        "dataType": "numeric",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": true,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "unknown",
+        "complexAnalytics": true,
+        "needsJoins": false,
+        "windowFunctions": true,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": false,
+      "per_field": {
+        "dataType": false,
+        "complexAnalytics": false,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Rank items by score",
+      "category": "adb",
+      "expected": {
+        "dataType": "structured",
+        "complexAnalytics": true,
+        "needsJoins": false,
+        "windowFunctions": true,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "unknown",
+        "complexAnalytics": true,
+        "needsJoins": false,
+        "windowFunctions": true,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": false,
+      "per_field": {
+        "dataType": false,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Search meeting notes by meaning",
+      "category": "vdb",
+      "expected": {
+        "dataType": "document",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": true,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "document",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      },
+      "correct": false,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": false
+      }
+    },
+    {
+      "request": "Find documentation about APIs",
+      "category": "vdb",
+      "expected": {
+        "dataType": "document",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": true
+      },
+      "actual": {
+        "dataType": "document",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": true
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Look for similar content",
+      "category": "vdb",
+      "expected": {
+        "dataType": "document",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": true
+      },
+      "actual": {
+        "dataType": "document",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": true
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Semantic search in documents",
+      "category": "vdb",
+      "expected": {
+        "dataType": "document",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": true,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "document",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": true,
+        "searchByMeaning": false
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Find related notes",
+      "category": "vdb",
+      "expected": {
+        "dataType": "document",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": true
+      },
+      "actual": {
+        "dataType": "document",
+        "complexAnalytics": false,
+        "needsJoins": true,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": true
+      },
+      "correct": false,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": false,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Search by context not keywords",
+      "category": "vdb",
+      "expected": {
+        "dataType": "document",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": true,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "unknown",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      },
+      "correct": false,
+      "per_field": {
+        "dataType": false,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": false
+      }
+    },
+    {
+      "request": "Find discussions about topic",
+      "category": "vdb",
+      "expected": {
+        "dataType": "document",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": true
+      },
+      "actual": {
+        "dataType": "document",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": true
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Retrieve relevant documentation",
+      "category": "vdb",
+      "expected": {
+        "dataType": "document",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": true
+      },
+      "actual": {
+        "dataType": "document",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": true
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Search knowledge base",
+      "category": "vdb",
+      "expected": {
+        "dataType": "document",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": true
+      },
+      "actual": {
+        "dataType": "document",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": false,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": false
+      }
+    },
+    {
+      "request": "Find articles about concept",
+      "category": "vdb",
+      "expected": {
+        "dataType": "document",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": true
+      },
+      "actual": {
+        "dataType": "document",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": true
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Generate a PDF report",
+      "category": "files",
+      "expected": {
+        "dataType": "report",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "unstructured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": false,
+      "per_field": {
+        "dataType": false,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Export data to CSV",
+      "category": "files",
+      "expected": {
+        "dataType": "unstructured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "unstructured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Save markdown document",
+      "category": "files",
+      "expected": {
+        "dataType": "unstructured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "document",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": false,
+      "per_field": {
+        "dataType": false,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Write configuration file",
+      "category": "files",
+      "expected": {
+        "dataType": "unstructured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "unstructured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Create log file",
+      "category": "files",
+      "expected": {
+        "dataType": "unstructured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "unstructured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Save code snippet",
+      "category": "files",
+      "expected": {
+        "dataType": "unstructured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "unstructured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Export to Excel",
+      "category": "files",
+      "expected": {
+        "dataType": "unstructured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "unstructured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Generate summary document",
+      "category": "files",
+      "expected": {
+        "dataType": "unstructured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "document",
+        "complexAnalytics": true,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": false,
+      "per_field": {
+        "dataType": false,
+        "complexAnalytics": false,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Save chart as image",
+      "category": "files",
+      "expected": {
+        "dataType": "unstructured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "unstructured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Write JSON output",
+      "category": "files",
+      "expected": {
+        "dataType": "unstructured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "unstructured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Track expenses and analyze trends",
+      "category": "multi",
+      "expected": {
+        "dataType": "structured",
+        "complexAnalytics": true,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "numeric",
+        "complexAnalytics": true,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": false,
+      "per_field": {
+        "dataType": false,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Track data but also search it semantically",
+      "category": "multi",
+      "expected": {
+        "dataType": "structured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": true,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "structured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": true,
+        "searchByMeaning": false
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Export report and analyze it",
+      "category": "multi",
+      "expected": {
+        "dataType": "unstructured",
+        "complexAnalytics": true,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "unstructured",
+        "complexAnalytics": true,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Save preferences and also query them",
+      "category": "multi",
+      "expected": {
+        "dataType": "preference",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "actual": {
+        "dataType": "preference",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": true,
+      "per_field": {
+        "dataType": true,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": true
+      }
+    },
+    {
+      "request": "Generate report from search results",
+      "category": "multi",
+      "expected": {
+        "dataType": "document",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": true
+      },
+      "actual": {
+        "dataType": "unstructured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false,
+        "searchByMeaning": false
+      },
+      "correct": false,
+      "per_field": {
+        "dataType": false,
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true,
+        "semanticSearch": true,
+        "searchByMeaning": false
+      }
+    }
+  ]
+}

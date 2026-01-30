@@ -1,0 +1,917 @@
+{
+  "approach": "gorules_structured_input",
+  "phase": "0",
+  "timestamp": 1769688339.098075,
+  "metrics": {
+    "accuracy": 0.92,
+    "correct": 46,
+    "total": 50,
+    "consistency": 1.0,
+    "avg_response_time": 0.00011847972869873047,
+    "error_rate": 0.0
+  },
+  "by_category": {
+    "memory": 1.0,
+    "tdb": 1.0,
+    "adb": 1.0,
+    "vdb": 0.9,
+    "files": 1.0,
+    "multi": 0.4
+  },
+  "total_tests": 50,
+  "errors": [],
+  "test_details": [
+    {
+      "test_name": "Memory: User preference",
+      "category": "memory",
+      "input": {
+        "dataType": "preference"
+      },
+      "expected": [
+        "memory"
+      ],
+      "actual": [
+        "memory"
+      ],
+      "correct": true,
+      "response_time_ms": 0.9799003601074219,
+      "reasoning": "User preferences and personal facts stored in Memory for fast key-value lookup. Use when storing user preferences, timezone, email, or short-lived facts."
+    },
+    {
+      "test_name": "Memory: Personal fact",
+      "category": "memory",
+      "input": {
+        "dataType": "personal_fact"
+      },
+      "expected": [
+        "memory"
+      ],
+      "actual": [
+        "memory"
+      ],
+      "correct": true,
+      "response_time_ms": 0.11706352233886719,
+      "reasoning": "User preferences and personal facts stored in Memory for fast key-value lookup. Use when storing user preferences, timezone, email, or short-lived facts."
+    },
+    {
+      "test_name": "Memory: Timezone",
+      "category": "memory",
+      "input": {
+        "dataType": "preference",
+        "semanticSearch": false
+      },
+      "expected": [
+        "memory"
+      ],
+      "actual": [
+        "memory"
+      ],
+      "correct": true,
+      "response_time_ms": 0.14019012451171875,
+      "reasoning": "User preferences and personal facts stored in Memory for fast key-value lookup. Use when storing user preferences, timezone, email, or short-lived facts."
+    },
+    {
+      "test_name": "Memory: Email",
+      "category": "memory",
+      "input": {
+        "dataType": "preference",
+        "complexAnalytics": false
+      },
+      "expected": [
+        "memory"
+      ],
+      "actual": [
+        "memory"
+      ],
+      "correct": true,
+      "response_time_ms": 0.1010894775390625,
+      "reasoning": "User preferences and personal facts stored in Memory for fast key-value lookup. Use when storing user preferences, timezone, email, or short-lived facts."
+    },
+    {
+      "test_name": "Memory: User setting",
+      "category": "memory",
+      "input": {
+        "dataType": "preference",
+        "complexAnalytics": false,
+        "semanticSearch": false
+      },
+      "expected": [
+        "memory"
+      ],
+      "actual": [
+        "memory"
+      ],
+      "correct": true,
+      "response_time_ms": 0.12421607971191406,
+      "reasoning": "User preferences and personal facts stored in Memory for fast key-value lookup. Use when storing user preferences, timezone, email, or short-lived facts."
+    },
+    {
+      "test_name": "TDB: Structured data",
+      "category": "tdb",
+      "input": {
+        "dataType": "structured",
+        "complexAnalytics": false,
+        "semanticSearch": false
+      },
+      "expected": [
+        "tdb"
+      ],
+      "actual": [
+        "tdb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.12803077697753906,
+      "reasoning": "Simple structured data with CRUD operations uses Transactional DB (SQLite). Use for daily tracking: timesheets, expenses, habits, todos, customer lists, or any structured data with frequent updates."
+    },
+    {
+      "test_name": "TDB: Numeric tracking",
+      "category": "tdb",
+      "input": {
+        "dataType": "numeric",
+        "complexAnalytics": false,
+        "semanticSearch": false
+      },
+      "expected": [
+        "tdb"
+      ],
+      "actual": [
+        "tdb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.1049041748046875,
+      "reasoning": "Simple structured data with CRUD operations uses Transactional DB (SQLite). Use for daily tracking: timesheets, expenses, habits, todos, customer lists, or any structured data with frequent updates."
+    },
+    {
+      "test_name": "TDB: Tabular data",
+      "category": "tdb",
+      "input": {
+        "dataType": "tabular",
+        "complexAnalytics": false,
+        "semanticSearch": false
+      },
+      "expected": [
+        "tdb"
+      ],
+      "actual": [
+        "tdb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.08869171142578125,
+      "reasoning": "Simple structured data with CRUD operations uses Transactional DB (SQLite). Use for daily tracking: timesheets, expenses, habits, todos, customer lists, or any structured data with frequent updates."
+    },
+    {
+      "test_name": "TDB: Daily expenses",
+      "category": "tdb",
+      "input": {
+        "dataType": "structured",
+        "complexAnalytics": false
+      },
+      "expected": [
+        "tdb"
+      ],
+      "actual": [
+        "tdb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.08702278137207031,
+      "reasoning": "Simple structured data with CRUD operations uses Transactional DB (SQLite). Use for daily tracking: timesheets, expenses, habits, todos, customer lists, or any structured data with frequent updates."
+    },
+    {
+      "test_name": "TDB: Timesheet tracking",
+      "category": "tdb",
+      "input": {
+        "dataType": "numeric"
+      },
+      "expected": [
+        "tdb"
+      ],
+      "actual": [
+        "tdb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.09679794311523438,
+      "reasoning": "Simple structured data with CRUD operations uses Transactional DB (SQLite). Use for daily tracking: timesheets, expenses, habits, todos, customer lists, or any structured data with frequent updates."
+    },
+    {
+      "test_name": "TDB: Todo list",
+      "category": "tdb",
+      "input": {
+        "dataType": "structured",
+        "complexAnalytics": false,
+        "semanticSearch": false,
+        "needsJoins": false
+      },
+      "expected": [
+        "tdb"
+      ],
+      "actual": [
+        "tdb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.0858306884765625,
+      "reasoning": "Simple structured data with CRUD operations uses Transactional DB (SQLite). Use for daily tracking: timesheets, expenses, habits, todos, customer lists, or any structured data with frequent updates."
+    },
+    {
+      "test_name": "TDB: Customer list",
+      "category": "tdb",
+      "input": {
+        "dataType": "structured",
+        "windowFunctions": false
+      },
+      "expected": [
+        "tdb"
+      ],
+      "actual": [
+        "tdb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.08606910705566406,
+      "reasoning": "Simple structured data with CRUD operations uses Transactional DB (SQLite). Use for daily tracking: timesheets, expenses, habits, todos, customer lists, or any structured data with frequent updates."
+    },
+    {
+      "test_name": "TDB: Inventory",
+      "category": "tdb",
+      "input": {
+        "dataType": "numeric",
+        "complexAnalytics": false,
+        "semanticSearch": false
+      },
+      "expected": [
+        "tdb"
+      ],
+      "actual": [
+        "tdb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.08392333984375,
+      "reasoning": "Simple structured data with CRUD operations uses Transactional DB (SQLite). Use for daily tracking: timesheets, expenses, habits, todos, customer lists, or any structured data with frequent updates."
+    },
+    {
+      "test_name": "TDB: Habit tracking",
+      "category": "tdb",
+      "input": {
+        "dataType": "structured"
+      },
+      "expected": [
+        "tdb"
+      ],
+      "actual": [
+        "tdb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.09226799011230469,
+      "reasoning": "Simple structured data with CRUD operations uses Transactional DB (SQLite). Use for daily tracking: timesheets, expenses, habits, todos, customer lists, or any structured data with frequent updates."
+    },
+    {
+      "test_name": "TDB: Configuration data",
+      "category": "tdb",
+      "input": {
+        "dataType": "structured",
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false
+      },
+      "expected": [
+        "tdb"
+      ],
+      "actual": [
+        "tdb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.09775161743164062,
+      "reasoning": "Simple structured data with CRUD operations uses Transactional DB (SQLite). Use for daily tracking: timesheets, expenses, habits, todos, customer lists, or any structured data with frequent updates."
+    },
+    {
+      "test_name": "ADB: Complex analytics",
+      "category": "adb",
+      "input": {
+        "dataType": "structured",
+        "complexAnalytics": true,
+        "semanticSearch": false
+      },
+      "expected": [
+        "adb"
+      ],
+      "actual": [
+        "adb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.08296966552734375,
+      "reasoning": "Complex analytics (joins, window functions, aggregations) use Analytics DB (DuckDB). Use for analyzing large datasets, monthly reports, time-series analysis, or complex SQL operations."
+    },
+    {
+      "test_name": "ADB: Join tables",
+      "category": "adb",
+      "input": {
+        "dataType": "structured",
+        "needsJoins": true,
+        "semanticSearch": false
+      },
+      "expected": [
+        "adb"
+      ],
+      "actual": [
+        "adb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.10013580322265625,
+      "reasoning": "Table joins require Analytics DB (DuckDB) for relational queries. Use for combining data from multiple tables with complex relationships."
+    },
+    {
+      "test_name": "ADB: Window functions",
+      "category": "adb",
+      "input": {
+        "dataType": "structured",
+        "windowFunctions": true,
+        "semanticSearch": false
+      },
+      "expected": [
+        "adb"
+      ],
+      "actual": [
+        "adb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.10323524475097656,
+      "reasoning": "Window functions (running totals, moving averages) require Analytics DB (DuckDB). Use for time-series analysis, rankings, and sliding window calculations."
+    },
+    {
+      "test_name": "ADB: Monthly trends",
+      "category": "adb",
+      "input": {
+        "dataType": "structured",
+        "complexAnalytics": true
+      },
+      "expected": [
+        "adb"
+      ],
+      "actual": [
+        "adb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.15497207641601562,
+      "reasoning": "Complex analytics (joins, window functions, aggregations) use Analytics DB (DuckDB). Use for analyzing large datasets, monthly reports, time-series analysis, or complex SQL operations."
+    },
+    {
+      "test_name": "ADB: Year-over-year",
+      "category": "adb",
+      "input": {
+        "dataType": "numeric",
+        "complexAnalytics": true,
+        "needsJoins": true
+      },
+      "expected": [
+        "adb"
+      ],
+      "actual": [
+        "adb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.08678436279296875,
+      "reasoning": "Complex analytics (joins, window functions, aggregations) use Analytics DB (DuckDB). Use for analyzing large datasets, monthly reports, time-series analysis, or complex SQL operations."
+    },
+    {
+      "test_name": "ADB: Pivot tables",
+      "category": "adb",
+      "input": {
+        "dataType": "tabular",
+        "complexAnalytics": true
+      },
+      "expected": [
+        "adb"
+      ],
+      "actual": [
+        "adb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.08797645568847656,
+      "reasoning": "Complex analytics (joins, window functions, aggregations) use Analytics DB (DuckDB). Use for analyzing large datasets, monthly reports, time-series analysis, or complex SQL operations."
+    },
+    {
+      "test_name": "ADB: Running totals",
+      "category": "adb",
+      "input": {
+        "dataType": "structured",
+        "windowFunctions": true
+      },
+      "expected": [
+        "adb"
+      ],
+      "actual": [
+        "adb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.09083747863769531,
+      "reasoning": "Window functions (running totals, moving averages) require Analytics DB (DuckDB). Use for time-series analysis, rankings, and sliding window calculations."
+    },
+    {
+      "test_name": "ADB: Moving averages",
+      "category": "adb",
+      "input": {
+        "dataType": "numeric",
+        "windowFunctions": true,
+        "semanticSearch": false
+      },
+      "expected": [
+        "adb"
+      ],
+      "actual": [
+        "adb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.08296966552734375,
+      "reasoning": "Window functions (running totals, moving averages) require Analytics DB (DuckDB). Use for time-series analysis, rankings, and sliding window calculations."
+    },
+    {
+      "test_name": "ADB: Rank operations",
+      "category": "adb",
+      "input": {
+        "dataType": "structured",
+        "complexAnalytics": true,
+        "needsJoins": true,
+        "windowFunctions": true
+      },
+      "expected": [
+        "adb"
+      ],
+      "actual": [
+        "adb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.0858306884765625,
+      "reasoning": "Complex analytics (joins, window functions, aggregations) use Analytics DB (DuckDB). Use for analyzing large datasets, monthly reports, time-series analysis, or complex SQL operations."
+    },
+    {
+      "test_name": "ADB: Large dataset aggregation",
+      "category": "adb",
+      "input": {
+        "dataType": "structured",
+        "complexAnalytics": true,
+        "needsJoins": false,
+        "windowFunctions": false,
+        "semanticSearch": false
+      },
+      "expected": [
+        "adb"
+      ],
+      "actual": [
+        "adb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.08821487426757812,
+      "reasoning": "Complex analytics (joins, window functions, aggregations) use Analytics DB (DuckDB). Use for analyzing large datasets, monthly reports, time-series analysis, or complex SQL operations."
+    },
+    {
+      "test_name": "VDB: Semantic search",
+      "category": "vdb",
+      "input": {
+        "dataType": "document",
+        "semanticSearch": true
+      },
+      "expected": [
+        "vdb"
+      ],
+      "actual": [
+        "vdb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.08797645568847656,
+      "reasoning": "Semantic search requires Vector DB for finding content by meaning, not just keywords. Use when storing documents, meeting notes, knowledge base, or need to search by context/similarity."
+    },
+    {
+      "test_name": "VDB: Search by meaning",
+      "category": "vdb",
+      "input": {
+        "dataType": "structured",
+        "searchByMeaning": true
+      },
+      "expected": [
+        "vdb"
+      ],
+      "actual": [
+        "tdb"
+      ],
+      "correct": false,
+      "response_time_ms": 0.09799003601074219,
+      "reasoning": "Simple structured data with CRUD operations uses Transactional DB (SQLite). Use for daily tracking: timesheets, expenses, habits, todos, customer lists, or any structured data with frequent updates."
+    },
+    {
+      "test_name": "VDB: Meeting notes",
+      "category": "vdb",
+      "input": {
+        "dataType": "document",
+        "semanticSearch": true,
+        "complexAnalytics": false
+      },
+      "expected": [
+        "vdb"
+      ],
+      "actual": [
+        "vdb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.23889541625976562,
+      "reasoning": "Semantic search requires Vector DB for finding content by meaning, not just keywords. Use when storing documents, meeting notes, knowledge base, or need to search by context/similarity."
+    },
+    {
+      "test_name": "VDB: Knowledge base",
+      "category": "vdb",
+      "input": {
+        "dataType": "document",
+        "searchByMeaning": true
+      },
+      "expected": [
+        "vdb"
+      ],
+      "actual": [
+        "vdb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.10085105895996094,
+      "reasoning": "Search by meaning requires Vector DB for finding content by similarity. Use when storing documents, meeting notes, knowledge base, or need to search by context."
+    },
+    {
+      "test_name": "VDB: Document search",
+      "category": "vdb",
+      "input": {
+        "semanticSearch": true
+      },
+      "expected": [
+        "vdb"
+      ],
+      "actual": [
+        "vdb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.08296966552734375,
+      "reasoning": "Semantic search requires Vector DB for finding content by meaning, not just keywords. Use when storing documents, meeting notes, knowledge base, or need to search by context/similarity."
+    },
+    {
+      "test_name": "VDB: Find similar content",
+      "category": "vdb",
+      "input": {
+        "dataType": "structured",
+        "semanticSearch": true,
+        "complexAnalytics": false
+      },
+      "expected": [
+        "vdb"
+      ],
+      "actual": [
+        "vdb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.08821487426757812,
+      "reasoning": "Structured data with semantic search uses Vector DB for finding content by meaning."
+    },
+    {
+      "test_name": "VDB: Research documents",
+      "category": "vdb",
+      "input": {
+        "dataType": "document",
+        "searchByMeaning": true,
+        "needsJoins": false
+      },
+      "expected": [
+        "vdb"
+      ],
+      "actual": [
+        "vdb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.08416175842285156,
+      "reasoning": "Search by meaning requires Vector DB for finding content by similarity. Use when storing documents, meeting notes, knowledge base, or need to search by context."
+    },
+    {
+      "test_name": "VDB: Context search",
+      "category": "vdb",
+      "input": {
+        "semanticSearch": true,
+        "complexAnalytics": false
+      },
+      "expected": [
+        "vdb"
+      ],
+      "actual": [
+        "vdb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.08440017700195312,
+      "reasoning": "Semantic search requires Vector DB for finding content by meaning, not just keywords. Use when storing documents, meeting notes, knowledge base, or need to search by context/similarity."
+    },
+    {
+      "test_name": "VDB: Discussion search",
+      "category": "vdb",
+      "input": {
+        "dataType": "document",
+        "semanticSearch": true,
+        "windowFunctions": false
+      },
+      "expected": [
+        "vdb"
+      ],
+      "actual": [
+        "vdb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.17213821411132812,
+      "reasoning": "Semantic search requires Vector DB for finding content by meaning, not just keywords. Use when storing documents, meeting notes, knowledge base, or need to search by context/similarity."
+    },
+    {
+      "test_name": "VDB: Article retrieval",
+      "category": "vdb",
+      "input": {
+        "searchByMeaning": true,
+        "dataType": "document"
+      },
+      "expected": [
+        "vdb"
+      ],
+      "actual": [
+        "vdb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.11897087097167969,
+      "reasoning": "Search by meaning requires Vector DB for finding content by similarity. Use when storing documents, meeting notes, knowledge base, or need to search by context."
+    },
+    {
+      "test_name": "Files: Unstructured data",
+      "category": "files",
+      "input": {
+        "dataType": "unstructured",
+        "semanticSearch": false,
+        "complexAnalytics": false
+      },
+      "expected": [
+        "files"
+      ],
+      "actual": [
+        "files"
+      ],
+      "correct": true,
+      "response_time_ms": 0.09775161743164062,
+      "reasoning": "Unstructured files (reports, exports, code) stored as files. Use for generated reports, CSV exports, markdown documents, configuration files, code snippets, or any static content."
+    },
+    {
+      "test_name": "Files: Report generation",
+      "category": "files",
+      "input": {
+        "dataType": "report"
+      },
+      "expected": [
+        "files"
+      ],
+      "actual": [
+        "files"
+      ],
+      "correct": true,
+      "response_time_ms": 0.07915496826171875,
+      "reasoning": "Unstructured files (reports, exports, code) stored as files. Use for generated reports, CSV exports, markdown documents, configuration files, code snippets, or any static content."
+    },
+    {
+      "test_name": "Files: CSV export",
+      "category": "files",
+      "input": {
+        "dataType": "unstructured",
+        "semanticSearch": false
+      },
+      "expected": [
+        "files"
+      ],
+      "actual": [
+        "files"
+      ],
+      "correct": true,
+      "response_time_ms": 0.12421607971191406,
+      "reasoning": "Unstructured files (reports, exports, code) stored as files. Use for generated reports, CSV exports, markdown documents, configuration files, code snippets, or any static content."
+    },
+    {
+      "test_name": "Files: Markdown doc",
+      "category": "files",
+      "input": {
+        "dataType": "document",
+        "semanticSearch": false,
+        "complexAnalytics": false
+      },
+      "expected": [
+        "files"
+      ],
+      "actual": [
+        "files"
+      ],
+      "correct": true,
+      "response_time_ms": 0.10275840759277344,
+      "reasoning": "Default to files for unstructured content."
+    },
+    {
+      "test_name": "Files: Configuration",
+      "category": "files",
+      "input": {
+        "dataType": "unstructured"
+      },
+      "expected": [
+        "files"
+      ],
+      "actual": [
+        "files"
+      ],
+      "correct": true,
+      "response_time_ms": 0.08296966552734375,
+      "reasoning": "Unstructured files (reports, exports, code) stored as files. Use for generated reports, CSV exports, markdown documents, configuration files, code snippets, or any static content."
+    },
+    {
+      "test_name": "Files: Code snippet",
+      "category": "files",
+      "input": {
+        "dataType": "unstructured",
+        "complexAnalytics": false,
+        "semanticSearch": false,
+        "needsJoins": false
+      },
+      "expected": [
+        "files"
+      ],
+      "actual": [
+        "files"
+      ],
+      "correct": true,
+      "response_time_ms": 0.09274482727050781,
+      "reasoning": "Unstructured files (reports, exports, code) stored as files. Use for generated reports, CSV exports, markdown documents, configuration files, code snippets, or any static content."
+    },
+    {
+      "test_name": "Files: Log file",
+      "category": "files",
+      "input": {
+        "dataType": "unstructured",
+        "windowFunctions": false
+      },
+      "expected": [
+        "files"
+      ],
+      "actual": [
+        "files"
+      ],
+      "correct": true,
+      "response_time_ms": 0.08296966552734375,
+      "reasoning": "Unstructured files (reports, exports, code) stored as files. Use for generated reports, CSV exports, markdown documents, configuration files, code snippets, or any static content."
+    },
+    {
+      "test_name": "Files: Static content",
+      "category": "files",
+      "input": {
+        "dataType": "unstructured",
+        "semanticSearch": false,
+        "complexAnalytics": false,
+        "needsJoins": false,
+        "windowFunctions": false
+      },
+      "expected": [
+        "files"
+      ],
+      "actual": [
+        "files"
+      ],
+      "correct": true,
+      "response_time_ms": 0.09799003601074219,
+      "reasoning": "Unstructured files (reports, exports, code) stored as files. Use for generated reports, CSV exports, markdown documents, configuration files, code snippets, or any static content."
+    },
+    {
+      "test_name": "Files: PDF export",
+      "category": "files",
+      "input": {
+        "dataType": "report",
+        "semanticSearch": false
+      },
+      "expected": [
+        "files"
+      ],
+      "actual": [
+        "files"
+      ],
+      "correct": true,
+      "response_time_ms": 0.08320808410644531,
+      "reasoning": "Unstructured files (reports, exports, code) stored as files. Use for generated reports, CSV exports, markdown documents, configuration files, code snippets, or any static content."
+    },
+    {
+      "test_name": "Files: Excel export",
+      "category": "files",
+      "input": {
+        "dataType": "unstructured",
+        "semanticSearch": false,
+        "complexAnalytics": false
+      },
+      "expected": [
+        "files"
+      ],
+      "actual": [
+        "files"
+      ],
+      "correct": true,
+      "response_time_ms": 0.10204315185546875,
+      "reasoning": "Unstructured files (reports, exports, code) stored as files. Use for generated reports, CSV exports, markdown documents, configuration files, code snippets, or any static content."
+    },
+    {
+      "test_name": "Multi: TDB + ADB (track + analyze)",
+      "category": "multi",
+      "input": {
+        "dataType": "structured",
+        "complexAnalytics": true,
+        "semanticSearch": false
+      },
+      "expected": [
+        "tdb",
+        "adb"
+      ],
+      "actual": [
+        "adb"
+      ],
+      "correct": false,
+      "response_time_ms": 0.09298324584960938,
+      "reasoning": "Complex analytics (joins, window functions, aggregations) use Analytics DB (DuckDB). Use for analyzing large datasets, monthly reports, time-series analysis, or complex SQL operations."
+    },
+    {
+      "test_name": "Multi: TDB + VDB (track + search)",
+      "category": "multi",
+      "input": {
+        "dataType": "structured",
+        "complexAnalytics": false,
+        "semanticSearch": true
+      },
+      "expected": [
+        "tdb",
+        "vdb"
+      ],
+      "actual": [
+        "vdb"
+      ],
+      "correct": false,
+      "response_time_ms": 0.08797645568847656,
+      "reasoning": "Structured data with semantic search uses Vector DB for finding content by meaning."
+    },
+    {
+      "test_name": "Multi: All three (complex workflow)",
+      "category": "multi",
+      "input": {
+        "dataType": "structured",
+        "complexAnalytics": true,
+        "semanticSearch": true
+      },
+      "expected": [
+        "tdb",
+        "adb",
+        "vdb"
+      ],
+      "actual": [
+        "tdb",
+        "adb",
+        "vdb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.09489059448242188,
+      "reasoning": "Complex multi-storage workflow: Track in TDB, analyze with ADB, and search related context in VDB. Use when you need structured tracking, complex analytics, and semantic search all together."
+    },
+    {
+      "test_name": "Multi: ADB + VDB (analyze + search)",
+      "category": "multi",
+      "input": {
+        "dataType": "structured",
+        "complexAnalytics": true,
+        "searchByMeaning": true
+      },
+      "expected": [
+        "tdb",
+        "adb",
+        "vdb"
+      ],
+      "actual": [
+        "adb"
+      ],
+      "correct": false,
+      "response_time_ms": 0.08797645568847656,
+      "reasoning": "Complex analytics (joins, window functions, aggregations) use Analytics DB (DuckDB). Use for analyzing large datasets, monthly reports, time-series analysis, or complex SQL operations."
+    },
+    {
+      "test_name": "Multi: Track + trend + context",
+      "category": "multi",
+      "input": {
+        "dataType": "numeric",
+        "complexAnalytics": true,
+        "semanticSearch": true
+      },
+      "expected": [
+        "tdb",
+        "adb",
+        "vdb"
+      ],
+      "actual": [
+        "tdb",
+        "adb",
+        "vdb"
+      ],
+      "correct": true,
+      "response_time_ms": 0.080108642578125,
+      "reasoning": "Complex multi-storage workflow: Track in TDB, analyze with ADB, and search related context in VDB. Use when you need structured tracking, complex analytics, and semantic search all together."
+    }
+  ]
+}

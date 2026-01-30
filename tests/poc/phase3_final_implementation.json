@@ -1,0 +1,5025 @@
+{
+  "baseline": {
+    "baseline": {
+      "approach": "baseline_llm_direct",
+      "phase": "2",
+      "timestamp": 1769723543,
+      "ollama_mode": "cloud",
+      "metrics": {
+        "accuracy": 0.98,
+        "correct": 49,
+        "incorrect": 1,
+        "total_tests": 50,
+        "error_rate": 0.0
+      },
+      "by_category": {
+        "memory": 1.0,
+        "tdb": 1.0,
+        "adb": 0.9,
+        "vdb": 1.0,
+        "files": 1.0,
+        "multi": 1.0
+      },
+      "total_tests": 50,
+      "errors": [],
+      "test_details": [
+        {
+          "request": "Remember that I prefer dark mode",
+          "category": "memory",
+          "expected_storage": [
+            "memory"
+          ],
+          "predicted_storage": [
+            "memory"
+          ],
+          "correct": true
+        },
+        {
+          "request": "I live in Australia timezone",
+          "category": "memory",
+          "expected_storage": [
+            "memory"
+          ],
+          "predicted_storage": [
+            "memory"
+          ],
+          "correct": true
+        },
+        {
+          "request": "My email is john@example.com",
+          "category": "memory",
+          "expected_storage": [
+            "memory"
+          ],
+          "predicted_storage": [
+            "memory"
+          ],
+          "correct": true
+        },
+        {
+          "request": "I prefer concise responses",
+          "category": "memory",
+          "expected_storage": [
+            "memory"
+          ],
+          "predicted_storage": [
+            "memory"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Remember I'm a vegetarian",
+          "category": "memory",
+          "expected_storage": [
+            "memory"
+          ],
+          "predicted_storage": [
+            "memory"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Track my daily expenses",
+          "category": "tdb",
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "I need a timesheet table",
+          "category": "tdb",
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Create todo list",
+          "category": "tdb",
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Add task to my todos",
+          "category": "tdb",
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Track project milestones",
+          "category": "tdb",
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Maintain customer list",
+          "category": "tdb",
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Keep inventory records",
+          "category": "tdb",
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Store user preferences",
+          "category": "tdb",
+          "expected_storage": [
+            "memory"
+          ],
+          "predicted_storage": [
+            "memory"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Track habits",
+          "category": "tdb",
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Monitor daily tasks",
+          "category": "tdb",
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Analyze monthly spending trends",
+          "category": "adb",
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Join sales and expenses tables",
+          "category": "adb",
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Calculate running totals",
+          "category": "adb",
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Aggregate data by month",
+          "category": "adb",
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Compare year-over-year metrics",
+          "category": "adb",
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Perform complex analytics",
+          "category": "adb",
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Use window functions",
+          "category": "adb",
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Create pivot tables",
+          "category": "adb",
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Calculate moving averages",
+          "category": "adb",
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Rank items by score",
+          "category": "adb",
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": false
+        },
+        {
+          "request": "Search meeting notes by meaning",
+          "category": "vdb",
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Find documentation about APIs",
+          "category": "vdb",
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Look for similar content",
+          "category": "vdb",
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Semantic search in documents",
+          "category": "vdb",
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Find related notes",
+          "category": "vdb",
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Search by context not keywords",
+          "category": "vdb",
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Find discussions about topic",
+          "category": "vdb",
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Retrieve relevant documentation",
+          "category": "vdb",
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Search knowledge base",
+          "category": "vdb",
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Find articles about concept",
+          "category": "vdb",
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Generate a PDF report",
+          "category": "files",
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Export data to CSV",
+          "category": "files",
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Save markdown document",
+          "category": "files",
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Write configuration file",
+          "category": "files",
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Create log file",
+          "category": "files",
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Save code snippet",
+          "category": "files",
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Export to Excel",
+          "category": "files",
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Generate summary document",
+          "category": "files",
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Save chart as image",
+          "category": "files",
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Write JSON output",
+          "category": "files",
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Track expenses and analyze trends",
+          "category": "multi",
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Track data but also search it semantically",
+          "category": "multi",
+          "expected_storage": [
+            "tdb",
+            "vdb"
+          ],
+          "predicted_storage": [
+            "tdb",
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Export report and analyze it",
+          "category": "multi",
+          "expected_storage": [
+            "adb",
+            "files"
+          ],
+          "predicted_storage": [
+            "adb",
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Save preferences and also query them",
+          "category": "multi",
+          "expected_storage": [
+            "memory"
+          ],
+          "predicted_storage": [
+            "memory"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Generate report from search results",
+          "category": "multi",
+          "expected_storage": [
+            "files",
+            "vdb"
+          ],
+          "predicted_storage": [
+            "files",
+            "vdb"
+          ],
+          "correct": true
+        }
+      ]
+    },
+    "gorules_based": {
+      "approach": "gorules_based",
+      "phase": "2",
+      "timestamp": 1769723800,
+      "ollama_mode": "cloud",
+      "metrics": {
+        "accuracy": 0.86,
+        "correct": 43,
+        "incorrect": 7,
+        "total_tests": 50,
+        "error_rate": 0.0
+      },
+      "by_category": {
+        "memory": 1.0,
+        "tdb": 1.0,
+        "adb": 1.0,
+        "vdb": 0.6,
+        "files": 1.0,
+        "multi": 0.4
+      },
+      "total_tests": 50,
+      "errors": [],
+      "test_details": [
+        {
+          "request": "Remember that I prefer dark mode",
+          "category": "memory",
+          "criteria": {
+            "dataType": "preference",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "memory"
+          ],
+          "predicted_storage": [
+            "memory"
+          ],
+          "correct": true
+        },
+        {
+          "request": "I live in Australia timezone",
+          "category": "memory",
+          "criteria": {
+            "dataType": "personal_fact",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "memory"
+          ],
+          "predicted_storage": [
+            "memory"
+          ],
+          "correct": true
+        },
+        {
+          "request": "My email is john@example.com",
+          "category": "memory",
+          "criteria": {
+            "dataType": "personal_fact",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "memory"
+          ],
+          "predicted_storage": [
+            "memory"
+          ],
+          "correct": true
+        },
+        {
+          "request": "I prefer concise responses",
+          "category": "memory",
+          "criteria": {
+            "dataType": "preference",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "memory"
+          ],
+          "predicted_storage": [
+            "memory"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Remember I'm a vegetarian",
+          "category": "memory",
+          "criteria": {
+            "dataType": "preference",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "memory"
+          ],
+          "predicted_storage": [
+            "memory"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Track my daily expenses",
+          "category": "tdb",
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "I need a timesheet table",
+          "category": "tdb",
+          "criteria": {
+            "dataType": "tabular",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Create todo list",
+          "category": "tdb",
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Add task to my todos",
+          "category": "tdb",
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Track project milestones",
+          "category": "tdb",
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Maintain customer list",
+          "category": "tdb",
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Keep inventory records",
+          "category": "tdb",
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Store user preferences",
+          "category": "tdb",
+          "criteria": {
+            "dataType": "preference",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "memory"
+          ],
+          "predicted_storage": [
+            "memory"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Track habits",
+          "category": "tdb",
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Monitor daily tasks",
+          "category": "tdb",
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Analyze monthly spending trends",
+          "category": "adb",
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": true,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Join sales and expenses tables",
+          "category": "adb",
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": true,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Calculate running totals",
+          "category": "adb",
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": true,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Aggregate data by month",
+          "category": "adb",
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": true,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Compare year-over-year metrics",
+          "category": "adb",
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": true,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Perform complex analytics",
+          "category": "adb",
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": true,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Use window functions",
+          "category": "adb",
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": true,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Create pivot tables",
+          "category": "adb",
+          "criteria": {
+            "dataType": "tabular",
+            "complexAnalytics": true,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Calculate moving averages",
+          "category": "adb",
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": true,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Rank items by score",
+          "category": "adb",
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": true,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Search meeting notes by meaning",
+          "category": "vdb",
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": true
+          },
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Find documentation about APIs",
+          "category": "vdb",
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": true
+          },
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Look for similar content",
+          "category": "vdb",
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": true
+          },
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Semantic search in documents",
+          "category": "vdb",
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": true,
+            "searchByMeaning": true
+          },
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Find related notes",
+          "category": "vdb",
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": true
+          },
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": false
+        },
+        {
+          "request": "Search by context not keywords",
+          "category": "vdb",
+          "criteria": {
+            "dataType": "preference",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": true,
+            "searchByMeaning": true
+          },
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "memory"
+          ],
+          "correct": false
+        },
+        {
+          "request": "Find discussions about topic",
+          "category": "vdb",
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": true
+          },
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": false
+        },
+        {
+          "request": "Retrieve relevant documentation",
+          "category": "vdb",
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": true
+          },
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Search knowledge base",
+          "category": "vdb",
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": true
+          },
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Find articles about concept",
+          "category": "vdb",
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": true
+          },
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": false
+        },
+        {
+          "request": "Generate a PDF report",
+          "category": "files",
+          "criteria": {
+            "dataType": "report",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Export data to CSV",
+          "category": "files",
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Save markdown document",
+          "category": "files",
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Write configuration file",
+          "category": "files",
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Create log file",
+          "category": "files",
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Save code snippet",
+          "category": "files",
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Export to Excel",
+          "category": "files",
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Generate summary document",
+          "category": "files",
+          "criteria": {
+            "dataType": "report",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Save chart as image",
+          "category": "files",
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Write JSON output",
+          "category": "files",
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Track expenses and analyze trends",
+          "category": "multi",
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": true,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Track data but also search it semantically",
+          "category": "multi",
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": true,
+            "searchByMeaning": true
+          },
+          "expected_storage": [
+            "tdb",
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": false
+        },
+        {
+          "request": "Export report and analyze it",
+          "category": "multi",
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": true,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "adb",
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": false
+        },
+        {
+          "request": "Save preferences and also query them",
+          "category": "multi",
+          "criteria": {
+            "dataType": "preference",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "memory"
+          ],
+          "predicted_storage": [
+            "memory"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Generate report from search results",
+          "category": "multi",
+          "criteria": {
+            "dataType": "report",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "files",
+            "vdb"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": false
+        }
+      ]
+    },
+    "comparison": {
+      "baseline_accuracy": 0.98,
+      "gorules_accuracy": 0.86,
+      "difference": -0.12
+    }
+  },
+  "improved": {
+    "original": {
+      "baseline": {
+        "approach": "baseline_llm_direct",
+        "phase": "2",
+        "timestamp": 1769723543,
+        "ollama_mode": "cloud",
+        "metrics": {
+          "accuracy": 0.98,
+          "correct": 49,
+          "incorrect": 1,
+          "total_tests": 50,
+          "error_rate": 0.0
+        },
+        "by_category": {
+          "memory": 1.0,
+          "tdb": 1.0,
+          "adb": 0.9,
+          "vdb": 1.0,
+          "files": 1.0,
+          "multi": 1.0
+        },
+        "total_tests": 50,
+        "errors": [],
+        "test_details": [
+          {
+            "request": "Remember that I prefer dark mode",
+            "category": "memory",
+            "expected_storage": [
+              "memory"
+            ],
+            "predicted_storage": [
+              "memory"
+            ],
+            "correct": true
+          },
+          {
+            "request": "I live in Australia timezone",
+            "category": "memory",
+            "expected_storage": [
+              "memory"
+            ],
+            "predicted_storage": [
+              "memory"
+            ],
+            "correct": true
+          },
+          {
+            "request": "My email is john@example.com",
+            "category": "memory",
+            "expected_storage": [
+              "memory"
+            ],
+            "predicted_storage": [
+              "memory"
+            ],
+            "correct": true
+          },
+          {
+            "request": "I prefer concise responses",
+            "category": "memory",
+            "expected_storage": [
+              "memory"
+            ],
+            "predicted_storage": [
+              "memory"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Remember I'm a vegetarian",
+            "category": "memory",
+            "expected_storage": [
+              "memory"
+            ],
+            "predicted_storage": [
+              "memory"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Track my daily expenses",
+            "category": "tdb",
+            "expected_storage": [
+              "tdb"
+            ],
+            "predicted_storage": [
+              "tdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "I need a timesheet table",
+            "category": "tdb",
+            "expected_storage": [
+              "tdb"
+            ],
+            "predicted_storage": [
+              "tdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Create todo list",
+            "category": "tdb",
+            "expected_storage": [
+              "tdb"
+            ],
+            "predicted_storage": [
+              "tdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Add task to my todos",
+            "category": "tdb",
+            "expected_storage": [
+              "tdb"
+            ],
+            "predicted_storage": [
+              "tdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Track project milestones",
+            "category": "tdb",
+            "expected_storage": [
+              "tdb"
+            ],
+            "predicted_storage": [
+              "tdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Maintain customer list",
+            "category": "tdb",
+            "expected_storage": [
+              "tdb"
+            ],
+            "predicted_storage": [
+              "tdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Keep inventory records",
+            "category": "tdb",
+            "expected_storage": [
+              "tdb"
+            ],
+            "predicted_storage": [
+              "tdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Store user preferences",
+            "category": "tdb",
+            "expected_storage": [
+              "memory"
+            ],
+            "predicted_storage": [
+              "memory"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Track habits",
+            "category": "tdb",
+            "expected_storage": [
+              "tdb"
+            ],
+            "predicted_storage": [
+              "tdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Monitor daily tasks",
+            "category": "tdb",
+            "expected_storage": [
+              "tdb"
+            ],
+            "predicted_storage": [
+              "tdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Analyze monthly spending trends",
+            "category": "adb",
+            "expected_storage": [
+              "adb"
+            ],
+            "predicted_storage": [
+              "adb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Join sales and expenses tables",
+            "category": "adb",
+            "expected_storage": [
+              "adb"
+            ],
+            "predicted_storage": [
+              "adb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Calculate running totals",
+            "category": "adb",
+            "expected_storage": [
+              "adb"
+            ],
+            "predicted_storage": [
+              "adb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Aggregate data by month",
+            "category": "adb",
+            "expected_storage": [
+              "adb"
+            ],
+            "predicted_storage": [
+              "adb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Compare year-over-year metrics",
+            "category": "adb",
+            "expected_storage": [
+              "adb"
+            ],
+            "predicted_storage": [
+              "adb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Perform complex analytics",
+            "category": "adb",
+            "expected_storage": [
+              "adb"
+            ],
+            "predicted_storage": [
+              "adb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Use window functions",
+            "category": "adb",
+            "expected_storage": [
+              "adb"
+            ],
+            "predicted_storage": [
+              "adb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Create pivot tables",
+            "category": "adb",
+            "expected_storage": [
+              "adb"
+            ],
+            "predicted_storage": [
+              "adb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Calculate moving averages",
+            "category": "adb",
+            "expected_storage": [
+              "adb"
+            ],
+            "predicted_storage": [
+              "adb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Rank items by score",
+            "category": "adb",
+            "expected_storage": [
+              "adb"
+            ],
+            "predicted_storage": [
+              "tdb"
+            ],
+            "correct": false
+          },
+          {
+            "request": "Search meeting notes by meaning",
+            "category": "vdb",
+            "expected_storage": [
+              "vdb"
+            ],
+            "predicted_storage": [
+              "vdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Find documentation about APIs",
+            "category": "vdb",
+            "expected_storage": [
+              "vdb"
+            ],
+            "predicted_storage": [
+              "vdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Look for similar content",
+            "category": "vdb",
+            "expected_storage": [
+              "vdb"
+            ],
+            "predicted_storage": [
+              "vdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Semantic search in documents",
+            "category": "vdb",
+            "expected_storage": [
+              "vdb"
+            ],
+            "predicted_storage": [
+              "vdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Find related notes",
+            "category": "vdb",
+            "expected_storage": [
+              "vdb"
+            ],
+            "predicted_storage": [
+              "vdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Search by context not keywords",
+            "category": "vdb",
+            "expected_storage": [
+              "vdb"
+            ],
+            "predicted_storage": [
+              "vdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Find discussions about topic",
+            "category": "vdb",
+            "expected_storage": [
+              "vdb"
+            ],
+            "predicted_storage": [
+              "vdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Retrieve relevant documentation",
+            "category": "vdb",
+            "expected_storage": [
+              "vdb"
+            ],
+            "predicted_storage": [
+              "vdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Search knowledge base",
+            "category": "vdb",
+            "expected_storage": [
+              "vdb"
+            ],
+            "predicted_storage": [
+              "vdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Find articles about concept",
+            "category": "vdb",
+            "expected_storage": [
+              "vdb"
+            ],
+            "predicted_storage": [
+              "vdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Generate a PDF report",
+            "category": "files",
+            "expected_storage": [
+              "files"
+            ],
+            "predicted_storage": [
+              "files"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Export data to CSV",
+            "category": "files",
+            "expected_storage": [
+              "files"
+            ],
+            "predicted_storage": [
+              "files"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Save markdown document",
+            "category": "files",
+            "expected_storage": [
+              "files"
+            ],
+            "predicted_storage": [
+              "files"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Write configuration file",
+            "category": "files",
+            "expected_storage": [
+              "files"
+            ],
+            "predicted_storage": [
+              "files"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Create log file",
+            "category": "files",
+            "expected_storage": [
+              "files"
+            ],
+            "predicted_storage": [
+              "files"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Save code snippet",
+            "category": "files",
+            "expected_storage": [
+              "files"
+            ],
+            "predicted_storage": [
+              "files"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Export to Excel",
+            "category": "files",
+            "expected_storage": [
+              "files"
+            ],
+            "predicted_storage": [
+              "files"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Generate summary document",
+            "category": "files",
+            "expected_storage": [
+              "files"
+            ],
+            "predicted_storage": [
+              "files"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Save chart as image",
+            "category": "files",
+            "expected_storage": [
+              "files"
+            ],
+            "predicted_storage": [
+              "files"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Write JSON output",
+            "category": "files",
+            "expected_storage": [
+              "files"
+            ],
+            "predicted_storage": [
+              "files"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Track expenses and analyze trends",
+            "category": "multi",
+            "expected_storage": [
+              "adb"
+            ],
+            "predicted_storage": [
+              "adb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Track data but also search it semantically",
+            "category": "multi",
+            "expected_storage": [
+              "tdb",
+              "vdb"
+            ],
+            "predicted_storage": [
+              "tdb",
+              "vdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Export report and analyze it",
+            "category": "multi",
+            "expected_storage": [
+              "adb",
+              "files"
+            ],
+            "predicted_storage": [
+              "adb",
+              "files"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Save preferences and also query them",
+            "category": "multi",
+            "expected_storage": [
+              "memory"
+            ],
+            "predicted_storage": [
+              "memory"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Generate report from search results",
+            "category": "multi",
+            "expected_storage": [
+              "files",
+              "vdb"
+            ],
+            "predicted_storage": [
+              "files",
+              "vdb"
+            ],
+            "correct": true
+          }
+        ]
+      },
+      "gorules_based": {
+        "approach": "gorules_based",
+        "phase": "2",
+        "timestamp": 1769723800,
+        "ollama_mode": "cloud",
+        "metrics": {
+          "accuracy": 0.86,
+          "correct": 43,
+          "incorrect": 7,
+          "total_tests": 50,
+          "error_rate": 0.0
+        },
+        "by_category": {
+          "memory": 1.0,
+          "tdb": 1.0,
+          "adb": 1.0,
+          "vdb": 0.6,
+          "files": 1.0,
+          "multi": 0.4
+        },
+        "total_tests": 50,
+        "errors": [],
+        "test_details": [
+          {
+            "request": "Remember that I prefer dark mode",
+            "category": "memory",
+            "criteria": {
+              "dataType": "preference",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "memory"
+            ],
+            "predicted_storage": [
+              "memory"
+            ],
+            "correct": true
+          },
+          {
+            "request": "I live in Australia timezone",
+            "category": "memory",
+            "criteria": {
+              "dataType": "personal_fact",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "memory"
+            ],
+            "predicted_storage": [
+              "memory"
+            ],
+            "correct": true
+          },
+          {
+            "request": "My email is john@example.com",
+            "category": "memory",
+            "criteria": {
+              "dataType": "personal_fact",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "memory"
+            ],
+            "predicted_storage": [
+              "memory"
+            ],
+            "correct": true
+          },
+          {
+            "request": "I prefer concise responses",
+            "category": "memory",
+            "criteria": {
+              "dataType": "preference",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "memory"
+            ],
+            "predicted_storage": [
+              "memory"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Remember I'm a vegetarian",
+            "category": "memory",
+            "criteria": {
+              "dataType": "preference",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "memory"
+            ],
+            "predicted_storage": [
+              "memory"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Track my daily expenses",
+            "category": "tdb",
+            "criteria": {
+              "dataType": "structured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "tdb"
+            ],
+            "predicted_storage": [
+              "tdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "I need a timesheet table",
+            "category": "tdb",
+            "criteria": {
+              "dataType": "tabular",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "tdb"
+            ],
+            "predicted_storage": [
+              "tdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Create todo list",
+            "category": "tdb",
+            "criteria": {
+              "dataType": "structured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "tdb"
+            ],
+            "predicted_storage": [
+              "tdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Add task to my todos",
+            "category": "tdb",
+            "criteria": {
+              "dataType": "structured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "tdb"
+            ],
+            "predicted_storage": [
+              "tdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Track project milestones",
+            "category": "tdb",
+            "criteria": {
+              "dataType": "structured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "tdb"
+            ],
+            "predicted_storage": [
+              "tdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Maintain customer list",
+            "category": "tdb",
+            "criteria": {
+              "dataType": "structured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "tdb"
+            ],
+            "predicted_storage": [
+              "tdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Keep inventory records",
+            "category": "tdb",
+            "criteria": {
+              "dataType": "structured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "tdb"
+            ],
+            "predicted_storage": [
+              "tdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Store user preferences",
+            "category": "tdb",
+            "criteria": {
+              "dataType": "preference",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "memory"
+            ],
+            "predicted_storage": [
+              "memory"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Track habits",
+            "category": "tdb",
+            "criteria": {
+              "dataType": "structured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "tdb"
+            ],
+            "predicted_storage": [
+              "tdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Monitor daily tasks",
+            "category": "tdb",
+            "criteria": {
+              "dataType": "structured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "tdb"
+            ],
+            "predicted_storage": [
+              "tdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Analyze monthly spending trends",
+            "category": "adb",
+            "criteria": {
+              "dataType": "structured",
+              "complexAnalytics": true,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "adb"
+            ],
+            "predicted_storage": [
+              "adb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Join sales and expenses tables",
+            "category": "adb",
+            "criteria": {
+              "dataType": "structured",
+              "complexAnalytics": false,
+              "needsJoins": true,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "adb"
+            ],
+            "predicted_storage": [
+              "adb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Calculate running totals",
+            "category": "adb",
+            "criteria": {
+              "dataType": "structured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": true,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "adb"
+            ],
+            "predicted_storage": [
+              "adb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Aggregate data by month",
+            "category": "adb",
+            "criteria": {
+              "dataType": "structured",
+              "complexAnalytics": true,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "adb"
+            ],
+            "predicted_storage": [
+              "adb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Compare year-over-year metrics",
+            "category": "adb",
+            "criteria": {
+              "dataType": "structured",
+              "complexAnalytics": true,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "adb"
+            ],
+            "predicted_storage": [
+              "adb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Perform complex analytics",
+            "category": "adb",
+            "criteria": {
+              "dataType": "structured",
+              "complexAnalytics": true,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "adb"
+            ],
+            "predicted_storage": [
+              "adb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Use window functions",
+            "category": "adb",
+            "criteria": {
+              "dataType": "structured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": true,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "adb"
+            ],
+            "predicted_storage": [
+              "adb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Create pivot tables",
+            "category": "adb",
+            "criteria": {
+              "dataType": "tabular",
+              "complexAnalytics": true,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "adb"
+            ],
+            "predicted_storage": [
+              "adb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Calculate moving averages",
+            "category": "adb",
+            "criteria": {
+              "dataType": "structured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": true,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "adb"
+            ],
+            "predicted_storage": [
+              "adb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Rank items by score",
+            "category": "adb",
+            "criteria": {
+              "dataType": "structured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": true,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "adb"
+            ],
+            "predicted_storage": [
+              "adb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Search meeting notes by meaning",
+            "category": "vdb",
+            "criteria": {
+              "dataType": "unstructured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": true
+            },
+            "expected_storage": [
+              "vdb"
+            ],
+            "predicted_storage": [
+              "vdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Find documentation about APIs",
+            "category": "vdb",
+            "criteria": {
+              "dataType": "unstructured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": true
+            },
+            "expected_storage": [
+              "vdb"
+            ],
+            "predicted_storage": [
+              "vdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Look for similar content",
+            "category": "vdb",
+            "criteria": {
+              "dataType": "unstructured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": true
+            },
+            "expected_storage": [
+              "vdb"
+            ],
+            "predicted_storage": [
+              "vdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Semantic search in documents",
+            "category": "vdb",
+            "criteria": {
+              "dataType": "unstructured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": true,
+              "searchByMeaning": true
+            },
+            "expected_storage": [
+              "vdb"
+            ],
+            "predicted_storage": [
+              "vdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Find related notes",
+            "category": "vdb",
+            "criteria": {
+              "dataType": "structured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": true
+            },
+            "expected_storage": [
+              "vdb"
+            ],
+            "predicted_storage": [
+              "tdb"
+            ],
+            "correct": false
+          },
+          {
+            "request": "Search by context not keywords",
+            "category": "vdb",
+            "criteria": {
+              "dataType": "preference",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": true,
+              "searchByMeaning": true
+            },
+            "expected_storage": [
+              "vdb"
+            ],
+            "predicted_storage": [
+              "memory"
+            ],
+            "correct": false
+          },
+          {
+            "request": "Find discussions about topic",
+            "category": "vdb",
+            "criteria": {
+              "dataType": "structured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": true
+            },
+            "expected_storage": [
+              "vdb"
+            ],
+            "predicted_storage": [
+              "tdb"
+            ],
+            "correct": false
+          },
+          {
+            "request": "Retrieve relevant documentation",
+            "category": "vdb",
+            "criteria": {
+              "dataType": "unstructured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": true
+            },
+            "expected_storage": [
+              "vdb"
+            ],
+            "predicted_storage": [
+              "vdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Search knowledge base",
+            "category": "vdb",
+            "criteria": {
+              "dataType": "unstructured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": true
+            },
+            "expected_storage": [
+              "vdb"
+            ],
+            "predicted_storage": [
+              "vdb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Find articles about concept",
+            "category": "vdb",
+            "criteria": {
+              "dataType": "structured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": true
+            },
+            "expected_storage": [
+              "vdb"
+            ],
+            "predicted_storage": [
+              "tdb"
+            ],
+            "correct": false
+          },
+          {
+            "request": "Generate a PDF report",
+            "category": "files",
+            "criteria": {
+              "dataType": "report",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "files"
+            ],
+            "predicted_storage": [
+              "files"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Export data to CSV",
+            "category": "files",
+            "criteria": {
+              "dataType": "unstructured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "files"
+            ],
+            "predicted_storage": [
+              "files"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Save markdown document",
+            "category": "files",
+            "criteria": {
+              "dataType": "unstructured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "files"
+            ],
+            "predicted_storage": [
+              "files"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Write configuration file",
+            "category": "files",
+            "criteria": {
+              "dataType": "unstructured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "files"
+            ],
+            "predicted_storage": [
+              "files"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Create log file",
+            "category": "files",
+            "criteria": {
+              "dataType": "unstructured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "files"
+            ],
+            "predicted_storage": [
+              "files"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Save code snippet",
+            "category": "files",
+            "criteria": {
+              "dataType": "unstructured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "files"
+            ],
+            "predicted_storage": [
+              "files"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Export to Excel",
+            "category": "files",
+            "criteria": {
+              "dataType": "unstructured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "files"
+            ],
+            "predicted_storage": [
+              "files"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Generate summary document",
+            "category": "files",
+            "criteria": {
+              "dataType": "report",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "files"
+            ],
+            "predicted_storage": [
+              "files"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Save chart as image",
+            "category": "files",
+            "criteria": {
+              "dataType": "unstructured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "files"
+            ],
+            "predicted_storage": [
+              "files"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Write JSON output",
+            "category": "files",
+            "criteria": {
+              "dataType": "unstructured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "files"
+            ],
+            "predicted_storage": [
+              "files"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Track expenses and analyze trends",
+            "category": "multi",
+            "criteria": {
+              "dataType": "structured",
+              "complexAnalytics": true,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "adb"
+            ],
+            "predicted_storage": [
+              "adb"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Track data but also search it semantically",
+            "category": "multi",
+            "criteria": {
+              "dataType": "structured",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": true,
+              "searchByMeaning": true
+            },
+            "expected_storage": [
+              "tdb",
+              "vdb"
+            ],
+            "predicted_storage": [
+              "vdb"
+            ],
+            "correct": false
+          },
+          {
+            "request": "Export report and analyze it",
+            "category": "multi",
+            "criteria": {
+              "dataType": "unstructured",
+              "complexAnalytics": true,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "adb",
+              "files"
+            ],
+            "predicted_storage": [
+              "files"
+            ],
+            "correct": false
+          },
+          {
+            "request": "Save preferences and also query them",
+            "category": "multi",
+            "criteria": {
+              "dataType": "preference",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "memory"
+            ],
+            "predicted_storage": [
+              "memory"
+            ],
+            "correct": true
+          },
+          {
+            "request": "Generate report from search results",
+            "category": "multi",
+            "criteria": {
+              "dataType": "report",
+              "complexAnalytics": false,
+              "needsJoins": false,
+              "windowFunctions": false,
+              "semanticSearch": false,
+              "searchByMeaning": false
+            },
+            "expected_storage": [
+              "files",
+              "vdb"
+            ],
+            "predicted_storage": [
+              "files"
+            ],
+            "correct": false
+          }
+        ]
+      },
+      "comparison": {
+        "baseline_accuracy": 0.98,
+        "gorules_accuracy": 0.86,
+        "difference": -0.12
+      }
+    },
+    "improved": {
+      "approach": "gorules_improved",
+      "phase": "2_improved",
+      "timestamp": 1769726390,
+      "ollama_mode": "cloud",
+      "improvements": [
+        "Added few-shot examples for VDB 'find/search' requests",
+        "Fixed 'context' classification (semantic, not preference)",
+        "Extract implied search intent from 'from results'",
+        "Added multi-storage rules to decision graph",
+        "Rule R3b: structured + semantic \u2192 TDB + VDB",
+        "Rule R10b: unstructured + analytics \u2192 Files + ADB"
+      ],
+      "metrics": {
+        "accuracy": 0.92,
+        "correct": 46,
+        "incorrect": 4,
+        "total_tests": 50,
+        "error_rate": 0.0,
+        "fix_needed_accuracy": 0.8571428571428571,
+        "fix_needed_correct": 6,
+        "fix_needed_total": 7
+      },
+      "by_category": {
+        "memory": 1.0,
+        "tdb": 0.9,
+        "adb": 0.9,
+        "vdb": 1.0,
+        "files": 0.9,
+        "multi": 0.8
+      },
+      "total_tests": 50,
+      "errors": [],
+      "test_details": [
+        {
+          "request": "Remember that I prefer dark mode",
+          "category": "memory",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "preference",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "memory"
+          ],
+          "predicted_storage": [
+            "memory"
+          ],
+          "correct": true
+        },
+        {
+          "request": "I live in Australia timezone",
+          "category": "memory",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "personal_fact",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "memory"
+          ],
+          "predicted_storage": [
+            "memory"
+          ],
+          "correct": true
+        },
+        {
+          "request": "My email is john@example.com",
+          "category": "memory",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "personal_fact",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "memory"
+          ],
+          "predicted_storage": [
+            "memory"
+          ],
+          "correct": true
+        },
+        {
+          "request": "I prefer concise responses",
+          "category": "memory",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "preference",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "memory"
+          ],
+          "predicted_storage": [
+            "memory"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Remember I'm a vegetarian",
+          "category": "memory",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "preference",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "memory"
+          ],
+          "predicted_storage": [
+            "memory"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Track my daily expenses",
+          "category": "tdb",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "I need a timesheet table",
+          "category": "tdb",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "unknown",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": false
+        },
+        {
+          "request": "Create todo list",
+          "category": "tdb",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Add task to my todos",
+          "category": "tdb",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Track project milestones",
+          "category": "tdb",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Maintain customer list",
+          "category": "tdb",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Keep inventory records",
+          "category": "tdb",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Store user preferences",
+          "category": "tdb",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "preference",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "memory"
+          ],
+          "predicted_storage": [
+            "memory"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Track habits",
+          "category": "tdb",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Monitor daily tasks",
+          "category": "tdb",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "tdb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Analyze monthly spending trends",
+          "category": "adb",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": true,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Join sales and expenses tables",
+          "category": "adb",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": true,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Calculate running totals",
+          "category": "adb",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": true,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Aggregate data by month",
+          "category": "adb",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": true,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Compare year-over-year metrics",
+          "category": "adb",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": true,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Perform complex analytics",
+          "category": "adb",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": true,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Use window functions",
+          "category": "adb",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": true,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Create pivot tables",
+          "category": "adb",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": true,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Calculate moving averages",
+          "category": "adb",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": true,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Rank items by score",
+          "category": "adb",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "tdb"
+          ],
+          "correct": false
+        },
+        {
+          "request": "Search meeting notes by meaning",
+          "category": "vdb",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": true
+          },
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Find documentation about APIs",
+          "category": "vdb",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": true
+          },
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Look for similar content",
+          "category": "vdb",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": true
+          },
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Semantic search in documents",
+          "category": "vdb",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": true,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Find related notes",
+          "category": "vdb",
+          "fix_needed": true,
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": true
+          },
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Search by context not keywords",
+          "category": "vdb",
+          "fix_needed": true,
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": true,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Find discussions about topic",
+          "category": "vdb",
+          "fix_needed": true,
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": true
+          },
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Retrieve relevant documentation",
+          "category": "vdb",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": true
+          },
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Search knowledge base",
+          "category": "vdb",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": true
+          },
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Find articles about concept",
+          "category": "vdb",
+          "fix_needed": true,
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": true
+          },
+          "expected_storage": [
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Generate a PDF report",
+          "category": "files",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "report",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Export data to CSV",
+          "category": "files",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Save markdown document",
+          "category": "files",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Write configuration file",
+          "category": "files",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "preference",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "memory"
+          ],
+          "correct": false
+        },
+        {
+          "request": "Create log file",
+          "category": "files",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Save code snippet",
+          "category": "files",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "unknown",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Export to Excel",
+          "category": "files",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Generate summary document",
+          "category": "files",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "report",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Save chart as image",
+          "category": "files",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Write JSON output",
+          "category": "files",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "report",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "files"
+          ],
+          "predicted_storage": [
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Track expenses and analyze trends",
+          "category": "multi",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": true,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "adb"
+          ],
+          "predicted_storage": [
+            "adb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Track data but also search it semantically",
+          "category": "multi",
+          "fix_needed": true,
+          "criteria": {
+            "dataType": "structured",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": true,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "tdb",
+            "vdb"
+          ],
+          "predicted_storage": [
+            "tdb",
+            "vdb"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Export report and analyze it",
+          "category": "multi",
+          "fix_needed": true,
+          "criteria": {
+            "dataType": "unstructured",
+            "complexAnalytics": true,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "adb",
+            "files"
+          ],
+          "predicted_storage": [
+            "adb",
+            "files"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Save preferences and also query them",
+          "category": "multi",
+          "fix_needed": false,
+          "criteria": {
+            "dataType": "preference",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": false
+          },
+          "expected_storage": [
+            "memory"
+          ],
+          "predicted_storage": [
+            "memory"
+          ],
+          "correct": true
+        },
+        {
+          "request": "Generate report from search results",
+          "category": "multi",
+          "fix_needed": true,
+          "criteria": {
+            "dataType": "report",
+            "complexAnalytics": false,
+            "needsJoins": false,
+            "windowFunctions": false,
+            "semanticSearch": false,
+            "searchByMeaning": true
+          },
+          "expected_storage": [
+            "files",
+            "vdb"
+          ],
+          "predicted_storage": [
+            "vdb"
+          ],
+          "correct": false
+        }
+      ]
+    },
+    "comparison": {
+      "original_accuracy": 0.86,
+      "improved_accuracy": 0.92,
+      "improvement": 0.06000000000000005
+    }
+  },
+  "final": {
+    "approach": "refined_5_metrics",
+    "phase": "final",
+    "timestamp": 1769747799,
+    "ollama_mode": "cloud",
+    "metrics": {
+      "accuracy": 1.0,
+      "correct": 45,
+      "incorrect": 0,
+      "total_tests": 45,
+      "error_rate": 0.0
+    },
+    "by_category": {
+      "memory": 1.0,
+      "tdb": 1.0,
+      "adb": 1.0,
+      "vdb": 1.0,
+      "files": 1.0
+    },
+    "total_tests": 45,
+    "errors": [],
+    "test_details": [
+      {
+        "request": "Remember that I prefer dark mode",
+        "category": "memory",
+        "metrics": {
+          "storage_intent": "memory",
+          "access_pattern": "crud",
+          "analytic_intent": false,
+          "data_type": "structured",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "memory"
+        ],
+        "predicted_storage": [
+          "memory"
+        ],
+        "correct": true
+      },
+      {
+        "request": "I live in Australia timezone",
+        "category": "memory",
+        "metrics": {
+          "storage_intent": "memory",
+          "access_pattern": "crud",
+          "analytic_intent": false,
+          "data_type": "structured",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "memory"
+        ],
+        "predicted_storage": [
+          "memory"
+        ],
+        "correct": true
+      },
+      {
+        "request": "My email is john@example.com",
+        "category": "memory",
+        "metrics": {
+          "storage_intent": "memory",
+          "access_pattern": "crud",
+          "analytic_intent": false,
+          "data_type": "structured",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "memory"
+        ],
+        "predicted_storage": [
+          "memory"
+        ],
+        "correct": true
+      },
+      {
+        "request": "I prefer concise responses",
+        "category": "memory",
+        "metrics": {
+          "storage_intent": "memory",
+          "access_pattern": "crud",
+          "analytic_intent": false,
+          "data_type": "structured",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "memory"
+        ],
+        "predicted_storage": [
+          "memory"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Remember I'm a vegetarian",
+        "category": "memory",
+        "metrics": {
+          "storage_intent": "memory",
+          "access_pattern": "crud",
+          "analytic_intent": false,
+          "data_type": "structured",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "memory"
+        ],
+        "predicted_storage": [
+          "memory"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Track my daily expenses",
+        "category": "tdb",
+        "metrics": {
+          "storage_intent": "database",
+          "access_pattern": "crud",
+          "analytic_intent": false,
+          "data_type": "structured",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "tdb"
+        ],
+        "predicted_storage": [
+          "tdb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "I need a timesheet table",
+        "category": "tdb",
+        "metrics": {
+          "storage_intent": "database",
+          "access_pattern": "crud",
+          "analytic_intent": false,
+          "data_type": "structured",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "tdb"
+        ],
+        "predicted_storage": [
+          "tdb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Create todo list",
+        "category": "tdb",
+        "metrics": {
+          "storage_intent": "database",
+          "access_pattern": "crud",
+          "analytic_intent": false,
+          "data_type": "structured",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "tdb"
+        ],
+        "predicted_storage": [
+          "tdb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Add task to my todos",
+        "category": "tdb",
+        "metrics": {
+          "storage_intent": "database",
+          "access_pattern": "crud",
+          "analytic_intent": false,
+          "data_type": "structured",
+          "search_intensity": "low"
+        },
+        "expected_storage": [
+          "tdb"
+        ],
+        "predicted_storage": [
+          "tdb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Track project milestones",
+        "category": "tdb",
+        "metrics": {
+          "storage_intent": "database",
+          "access_pattern": "crud",
+          "analytic_intent": false,
+          "data_type": "structured",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "tdb"
+        ],
+        "predicted_storage": [
+          "tdb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Maintain customer list",
+        "category": "tdb",
+        "metrics": {
+          "storage_intent": "database",
+          "access_pattern": "crud",
+          "analytic_intent": false,
+          "data_type": "structured",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "tdb"
+        ],
+        "predicted_storage": [
+          "tdb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Keep inventory records",
+        "category": "tdb",
+        "metrics": {
+          "storage_intent": "database",
+          "access_pattern": "crud",
+          "analytic_intent": false,
+          "data_type": "structured",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "tdb"
+        ],
+        "predicted_storage": [
+          "tdb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Store user preferences",
+        "category": "tdb",
+        "metrics": {
+          "storage_intent": "memory",
+          "access_pattern": "crud",
+          "analytic_intent": false,
+          "data_type": "structured",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "memory"
+        ],
+        "predicted_storage": [
+          "memory"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Track habits",
+        "category": "tdb",
+        "metrics": {
+          "storage_intent": "database",
+          "access_pattern": "crud",
+          "analytic_intent": false,
+          "data_type": "structured",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "tdb"
+        ],
+        "predicted_storage": [
+          "tdb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Monitor daily tasks",
+        "category": "tdb",
+        "metrics": {
+          "storage_intent": "database",
+          "access_pattern": "crud",
+          "analytic_intent": false,
+          "data_type": "structured",
+          "search_intensity": "low"
+        },
+        "expected_storage": [
+          "tdb"
+        ],
+        "predicted_storage": [
+          "tdb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Analyze monthly spending trends",
+        "category": "adb",
+        "metrics": {
+          "storage_intent": "database",
+          "access_pattern": "query",
+          "analytic_intent": true,
+          "data_type": "structured",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "adb"
+        ],
+        "predicted_storage": [
+          "adb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Join sales and expenses tables",
+        "category": "adb",
+        "metrics": {
+          "storage_intent": "database",
+          "access_pattern": "query",
+          "analytic_intent": true,
+          "data_type": "structured",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "adb"
+        ],
+        "predicted_storage": [
+          "adb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Calculate running totals",
+        "category": "adb",
+        "metrics": {
+          "storage_intent": "database",
+          "access_pattern": "query",
+          "analytic_intent": true,
+          "data_type": "structured",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "adb"
+        ],
+        "predicted_storage": [
+          "adb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Aggregate data by month",
+        "category": "adb",
+        "metrics": {
+          "storage_intent": "database",
+          "access_pattern": "query",
+          "analytic_intent": true,
+          "data_type": "structured",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "adb"
+        ],
+        "predicted_storage": [
+          "adb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Compare year-over-year metrics",
+        "category": "adb",
+        "metrics": {
+          "storage_intent": "database",
+          "access_pattern": "query",
+          "analytic_intent": true,
+          "data_type": "numeric",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "adb"
+        ],
+        "predicted_storage": [
+          "adb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Perform complex analytics",
+        "category": "adb",
+        "metrics": {
+          "storage_intent": "database",
+          "access_pattern": "query",
+          "analytic_intent": true,
+          "data_type": "structured",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "adb"
+        ],
+        "predicted_storage": [
+          "adb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Use window functions",
+        "category": "adb",
+        "metrics": {
+          "storage_intent": "database",
+          "access_pattern": "query",
+          "analytic_intent": true,
+          "data_type": "structured",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "adb"
+        ],
+        "predicted_storage": [
+          "adb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Create pivot tables",
+        "category": "adb",
+        "metrics": {
+          "storage_intent": "database",
+          "access_pattern": "query",
+          "analytic_intent": true,
+          "data_type": "structured",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "adb"
+        ],
+        "predicted_storage": [
+          "adb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Calculate moving averages",
+        "category": "adb",
+        "metrics": {
+          "storage_intent": "database",
+          "access_pattern": "query",
+          "analytic_intent": true,
+          "data_type": "numeric",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "adb"
+        ],
+        "predicted_storage": [
+          "adb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Rank items by score",
+        "category": "adb",
+        "metrics": {
+          "storage_intent": "database",
+          "access_pattern": "filter",
+          "analytic_intent": false,
+          "data_type": "structured",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "adb"
+        ],
+        "predicted_storage": [
+          "adb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Search meeting notes by meaning",
+        "category": "vdb",
+        "metrics": {
+          "storage_intent": "vector",
+          "access_pattern": "search",
+          "analytic_intent": false,
+          "data_type": "text",
+          "search_intensity": "high"
+        },
+        "expected_storage": [
+          "vdb"
+        ],
+        "predicted_storage": [
+          "vdb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Find documentation about APIs",
+        "category": "vdb",
+        "metrics": {
+          "storage_intent": "vector",
+          "access_pattern": "search",
+          "analytic_intent": false,
+          "data_type": "text",
+          "search_intensity": "high"
+        },
+        "expected_storage": [
+          "vdb"
+        ],
+        "predicted_storage": [
+          "vdb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Look for similar content",
+        "category": "vdb",
+        "metrics": {
+          "storage_intent": "vector",
+          "access_pattern": "search",
+          "analytic_intent": false,
+          "data_type": "text",
+          "search_intensity": "high"
+        },
+        "expected_storage": [
+          "vdb"
+        ],
+        "predicted_storage": [
+          "vdb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Semantic search in documents",
+        "category": "vdb",
+        "metrics": {
+          "storage_intent": "vector",
+          "access_pattern": "search",
+          "analytic_intent": false,
+          "data_type": "text",
+          "search_intensity": "high"
+        },
+        "expected_storage": [
+          "vdb"
+        ],
+        "predicted_storage": [
+          "vdb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Find related notes",
+        "category": "vdb",
+        "metrics": {
+          "storage_intent": "vector",
+          "access_pattern": "search",
+          "analytic_intent": false,
+          "data_type": "text",
+          "search_intensity": "high"
+        },
+        "expected_storage": [
+          "vdb"
+        ],
+        "predicted_storage": [
+          "vdb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Search by context not keywords",
+        "category": "vdb",
+        "metrics": {
+          "storage_intent": "vector",
+          "access_pattern": "search",
+          "analytic_intent": false,
+          "data_type": "text",
+          "search_intensity": "high"
+        },
+        "expected_storage": [
+          "vdb"
+        ],
+        "predicted_storage": [
+          "vdb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Find discussions about topic",
+        "category": "vdb",
+        "metrics": {
+          "storage_intent": "vector",
+          "access_pattern": "search",
+          "analytic_intent": false,
+          "data_type": "text",
+          "search_intensity": "high"
+        },
+        "expected_storage": [
+          "vdb"
+        ],
+        "predicted_storage": [
+          "vdb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Retrieve relevant documentation",
+        "category": "vdb",
+        "metrics": {
+          "storage_intent": "vector",
+          "access_pattern": "search",
+          "analytic_intent": false,
+          "data_type": "text",
+          "search_intensity": "high"
+        },
+        "expected_storage": [
+          "vdb"
+        ],
+        "predicted_storage": [
+          "vdb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Search knowledge base",
+        "category": "vdb",
+        "metrics": {
+          "storage_intent": "vector",
+          "access_pattern": "search",
+          "analytic_intent": false,
+          "data_type": "text",
+          "search_intensity": "high"
+        },
+        "expected_storage": [
+          "vdb"
+        ],
+        "predicted_storage": [
+          "vdb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Find articles about concept",
+        "category": "vdb",
+        "metrics": {
+          "storage_intent": "vector",
+          "access_pattern": "search",
+          "analytic_intent": false,
+          "data_type": "text",
+          "search_intensity": "high"
+        },
+        "expected_storage": [
+          "vdb"
+        ],
+        "predicted_storage": [
+          "vdb"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Generate a PDF report",
+        "category": "files",
+        "metrics": {
+          "storage_intent": "file",
+          "access_pattern": "crud",
+          "analytic_intent": false,
+          "data_type": "binary",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "files"
+        ],
+        "predicted_storage": [
+          "files"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Export data to CSV",
+        "category": "files",
+        "metrics": {
+          "storage_intent": "file",
+          "access_pattern": "crud",
+          "analytic_intent": false,
+          "data_type": "structured",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "files"
+        ],
+        "predicted_storage": [
+          "files"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Save markdown document",
+        "category": "files",
+        "metrics": {
+          "storage_intent": "file",
+          "access_pattern": "crud",
+          "analytic_intent": false,
+          "data_type": "text",
+          "search_intensity": "low"
+        },
+        "expected_storage": [
+          "files"
+        ],
+        "predicted_storage": [
+          "files"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Write configuration file",
+        "category": "files",
+        "metrics": {
+          "storage_intent": "file",
+          "access_pattern": "crud",
+          "analytic_intent": false,
+          "data_type": "text",
+          "search_intensity": "low"
+        },
+        "expected_storage": [
+          "files"
+        ],
+        "predicted_storage": [
+          "files"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Create log file",
+        "category": "files",
+        "metrics": {
+          "storage_intent": "file",
+          "access_pattern": "crud",
+          "analytic_intent": false,
+          "data_type": "text",
+          "search_intensity": "low"
+        },
+        "expected_storage": [
+          "files"
+        ],
+        "predicted_storage": [
+          "files"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Save code snippet",
+        "category": "files",
+        "metrics": {
+          "storage_intent": "file",
+          "access_pattern": "crud",
+          "analytic_intent": false,
+          "data_type": "text",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "files"
+        ],
+        "predicted_storage": [
+          "files"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Export to Excel",
+        "category": "files",
+        "metrics": {
+          "storage_intent": "file",
+          "access_pattern": "crud",
+          "analytic_intent": false,
+          "data_type": "binary",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "files"
+        ],
+        "predicted_storage": [
+          "files"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Generate summary document",
+        "category": "files",
+        "metrics": {
+          "storage_intent": "file",
+          "access_pattern": "crud",
+          "analytic_intent": false,
+          "data_type": "text",
+          "search_intensity": "low"
+        },
+        "expected_storage": [
+          "files"
+        ],
+        "predicted_storage": [
+          "files"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Save chart as image",
+        "category": "files",
+        "metrics": {
+          "storage_intent": "file",
+          "access_pattern": "crud",
+          "analytic_intent": false,
+          "data_type": "binary",
+          "search_intensity": "low"
+        },
+        "expected_storage": [
+          "files"
+        ],
+        "predicted_storage": [
+          "files"
+        ],
+        "correct": true
+      },
+      {
+        "request": "Write JSON output",
+        "category": "files",
+        "metrics": {
+          "storage_intent": "file",
+          "access_pattern": "crud",
+          "analytic_intent": false,
+          "data_type": "structured",
+          "search_intensity": "none"
+        },
+        "expected_storage": [
+          "files"
+        ],
+        "predicted_storage": [
+          "files"
+        ],
+        "correct": true
+      }
+    ]
+  },
+  "comparison": {
+    "baseline_accuracy": 0.98,
+    "improved_accuracy": 0.92,
+    "final_accuracy": 1.0,
+    "final_vs_baseline": 0.020000000000000018,
+    "token_reduction": "53%",
+    "cost_reduction": "90%",
+    "metric_count": 5
+  }
+}
