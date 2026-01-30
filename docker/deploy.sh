@@ -1,17 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Change to project root where docker-compose.yml is located
+cd "$PROJECT_ROOT"
+
 echo "📥 Pulling latest code from Git..."
-git pull origin main  # Synchronize with your main branch  [oai_citation:1‡docs.dify.ai](https://docs.dify.ai/en/getting-started/install-self-hosted/docker-compose?utm_source=chatgpt.com)
+git pull origin main
 
 echo "⬇️ Pulling updated Docker images..."
-docker compose pull
+docker compose -f docker/docker-compose.yml pull
 
 echo "⏬ Bringing down existing containers..."
-docker compose down
+docker compose -f docker/docker-compose.yml down
 
 echo "🚀 Starting containers in detached mode..."
-docker compose up -d
+docker compose -f docker/docker-compose.yml up -d
 
 echo "📝 Streaming logs (press Ctrl-C to stop)..."
-docker compose logs -f
+docker compose -f docker/docker-compose.yml logs -f
