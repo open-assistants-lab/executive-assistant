@@ -189,12 +189,18 @@ class Settings(BaseSettings):
     # 1. Counts message tokens via token_counter
     # 2. Checks AIMessage.usage_metadata.total_tokens (includes system + tools overhead)
     #
-    # Trigger #2 fires early! Set to 7000-8000 for effective ~5000 message-token threshold.
+    # Trigger #2 fires early due to overhead:
+    # - System prompt: ~1,200 tokens
+    # - 72 tool definitions: ~4,500-5,000 tokens
+    # - Total overhead: ~5,700 tokens
+    #
+    # With max_tokens=10,000: Effective message trigger = 10,000 - 5,700 = ~4,300 tokens
+    # With target_tokens=2,000: Preserves ~15-20 recent messages after summarization (5:1 ratio)
     MW_SUMMARIZATION_MAX_TOKENS: int = _yaml_field(
-        "MIDDLEWARE_SUMMARIZATION_MAX_TOKENS", 7_000  # Increased from 5_000 due to trigger behavior
+        "MIDDLEWARE_SUMMARIZATION_MAX_TOKENS", 10_000
     )
     MW_SUMMARIZATION_TARGET_TOKENS: int = _yaml_field(
-        "MIDDLEWARE_SUMMARIZATION_TARGET_TOKENS", 1_000
+        "MIDDLEWARE_SUMMARIZATION_TARGET_TOKENS", 2_000  # Increased to 5:1 ratio for better context retention
     )
     MW_DEBUG_SUMMARIZATION: bool = _yaml_field(
         "MIDDLEWARE_DEBUG_SUMMARIZATION", False

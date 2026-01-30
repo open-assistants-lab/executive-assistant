@@ -116,16 +116,20 @@ NEVER use write_todos for storing user's personal tasks - those belong in TDB.""
             middleware.append(TodoDisplayMiddleware(channel=channel))
 
     if settings.MW_SUMMARIZATION_ENABLED:
-        # NOTE: Summarization trigger behavior
+        # NOTE: Summarization trigger behavior (5:1 ratio = 10,000 → 2,000)
         # The middleware checks TWO triggers (see summarization.py:372-377):
         # 1. Counted tokens >= trigger threshold (uses token_counter)
         # 2. Reported tokens from last AIMessage.usage_metadata (includes system prompt + tools)
         #
-        # The second trigger can fire EARLY (e.g., at 2000 tokens instead of 5000) because
-        # usage_metadata.total_tokens includes the full request context, not just messages.
+        # Trigger #2 fires EARLY due to overhead (~5,700 tokens with 72 tools):
+        # - System prompt: ~1,200 tokens
+        # - 72 tool definitions: ~4,500-5,000 tokens
+        # - Total overhead: ~5,700 tokens
         #
-        # Workaround: Increase MW_SUMMARIZATION_MAX_TOKENS in config.yaml to 7000-8000
-        # to account for this overhead, or the middleware will trigger prematurely.
+        # Effective thresholds with current settings:
+        # - Trigger: 10,000 - 5,700 = ~4,300 message tokens (when usage_metadata check fires)
+        # - Target: 2,000 tokens preserves ~15-20 recent messages + summary
+        # - Ratio: 5:1 provides balanced context retention without excessive growth
         #
         # Improved prompt: Concise with 300-word limit to prevent verbose summaries
         summary_prompt = """Summarize the conversation below into 200-300 words maximum.
@@ -156,7 +160,7 @@ Respond ONLY with the summary. No additional text."""
                 keep=("tokens", settings.MW_SUMMARIZATION_TARGET_TOKENS),
                 summary_prompt=summary_prompt,
                 # Set trim_tokens higher than trigger to avoid "too long to summarize" error
-                # Default is 4000, but we need more headroom when triggering at 5000+
+                # With trigger=10,000, we need headroom for the summarization LLM call itself
                 trim_tokens_to_summarize=settings.MW_SUMMARIZATION_MAX_TOKENS + 2000,
             )
         )
