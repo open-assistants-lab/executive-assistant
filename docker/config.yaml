@@ -78,8 +78,11 @@ middleware:
   # Summarization Middleware - reduces context size when it gets too large
   summarization:
     enabled: true
-    max_tokens: 5000 # Trigger summarization at this token count
+    max_tokens: 7000 # Trigger summarization at this token count (see note below)
     target_tokens: 1000 # Target size after summarization
+    # NOTE: max_tokens may trigger early (at ~2000-3000 actual message tokens) due to
+    # LangChain checking usage_metadata which includes system prompt + tools overhead.
+    # Set to 7000-8000 for effective 5000-token message threshold, or monitor logs.
   debug_summarization: true
 
   # Call Limits - prevent runaway agent execution (per-message limits)

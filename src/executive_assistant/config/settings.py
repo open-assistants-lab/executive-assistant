@@ -185,8 +185,13 @@ class Settings(BaseSettings):
     MW_SUMMARIZATION_ENABLED: bool = _yaml_field(
         "MIDDLEWARE_SUMMARIZATION_ENABLED", True
     )
+    # NOTE: LangChain SummarizationMiddleware has dual trigger behavior:
+    # 1. Counts message tokens via token_counter
+    # 2. Checks AIMessage.usage_metadata.total_tokens (includes system + tools overhead)
+    #
+    # Trigger #2 fires early! Set to 7000-8000 for effective ~5000 message-token threshold.
     MW_SUMMARIZATION_MAX_TOKENS: int = _yaml_field(
-        "MIDDLEWARE_SUMMARIZATION_MAX_TOKENS", 5_000
+        "MIDDLEWARE_SUMMARIZATION_MAX_TOKENS", 7_000  # Increased from 5_000 due to trigger behavior
     )
     MW_SUMMARIZATION_TARGET_TOKENS: int = _yaml_field(
         "MIDDLEWARE_SUMMARIZATION_TARGET_TOKENS", 1_000
