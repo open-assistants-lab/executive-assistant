@@ -311,6 +311,18 @@ class BaseChannel(ABC):
                 )
                 self._interrupted_chats.discard(message.conversation_id)
 
+            # Observe user message for instinct learning (non-blocking)
+            try:
+                from executive_assistant.instincts.observer import get_instinct_observer
+
+                observer = get_instinct_observer()
+                detected = observer.observe_message(enhanced_content, thread_id=thread_id)
+                if detected:
+                    logger.debug(f"{ctx_system} Observed {len(detected)} instinct patterns")
+            except Exception as e:
+                # Don't break message handling if instinct observation fails
+                logger.debug(f"{ctx_system} Instinct observation failed: {e}")
+
 
             # Build state with only the new message
             state = {

@@ -80,7 +80,7 @@ middleware:
     enabled: true
     # [SCOPE: Total LLM request size] Includes: system prompt + tool definitions + messages
     # Triggers when last LLM request reached this count (~4,300 message tokens effective)
-    max_tokens: 10000 # Trigger summarization at this token count (see note below)
+    max_tokens: 12000 # Trigger summarization at this token count (see note below)
     # [SCOPE: Message buffer AFTER summarization] Preserves most recent ~2,000 tokens of messages
     # Results in ~15-20 recent messages + summary (5:1 ratio prevents excessive context loss)
     target_tokens: 2000 # Target size after summarization (5:1 ratio for balanced context retention)

@@ -16,6 +16,10 @@ def create_memory(
     """
     Create or update a memory entry.
 
+    If a key is provided and already exists, this will create a new version of the
+    memory with temporal versioning. The old version is preserved with a valid_to
+    timestamp, and the new version becomes the current active version.
+
     Args:
         content: The memory content to store.
         memory_type: Type of memory. Options: profile, preference, fact, constraint, style, context.
@@ -67,6 +71,9 @@ def update_memory(
 ) -> str:
     """
     Update an existing memory.
+
+    If content is provided, this creates a new version of the memory with temporal
+    versioning. The old version is preserved with a valid_to timestamp.
 
     Args:
         memory_id: UUID of the memory to update.
@@ -286,6 +293,85 @@ def normalize_or_create_memory(
     return f"Memory {action}: {memory_id}"
 
 
+@tool
+def get_memory_at_time(
+    key: str,
+    time: str,
+) -> str:
+    """
+    Get memory value as of a specific point in time.
+
+    Use this to query historical memory states. For example, if a user moved from
+    Sydney to Tokyo, you can query what their location was at a specific date.
+
+    Args:
+        key: The memory key to look up (e.g., "location", "timezone").
+        time: ISO timestamp string (e.g., "2024-06-01T12:00:00Z").
+
+    Returns:
+        Memory content as of the specified time, or "not found" error.
+
+    Examples:
+        >>> get_memory_at_time("location", "2024-06-01T12:00:00Z")
+        "Key: location | Version: 1 | Content: User lives in Sydney | Valid: 2024-01-01 to 2024-06-15"
+        >>> get_memory_at_time("location", "2024-07-01T12:00:00Z")
+        "Key: location | Version: 2 | Content: User lives in Tokyo | Valid: 2024-06-15 onwards"
+    """
+    storage = get_mem_storage()
+    memory = storage.get_memory_at_time(key=key, query_time=time)
+
+    if memory:
+        return (
+            f"Key: {memory['key']} | Version: {memory['version']} | "
+            f"Type: {memory['memory_type']} | Confidence: {memory['confidence']:.2f}\n"
+            f"Content: {memory['content']}\n"
+            f"Valid from: {memory['valid_from']} | "
+            f"Valid to: {memory['valid_to'] or 'Present'}"
+        )
+
+    return f"No memory found for key '{key}' at time {time}"
+
+
+@tool
+def get_memory_history(key: str) -> str:
+    """
+    Get full version history of a memory key.
+
+    Use this to see all changes to a memory over time, including when it was
+    created, updated, and what changed in each version.
+
+    Args:
+        key: The memory key to look up (e.g., "location", "timezone").
+
+    Returns:
+        List of all versions with timestamps and change reasons, or "not found" error.
+
+    Examples:
+        >>> get_memory_history("location")
+        "Version 1: User lives in Sydney | Created: 2024-01-01 | Reason: create"
+        "Version 2: User lives in Tokyo | Created: 2024-06-15 | Reason: update"
+    """
+    storage = get_mem_storage()
+    history = storage.get_memory_history(key=key)
+
+    if not history:
+        return f"No memory history found for key: {key}"
+
+    lines = []
+    for entry in history:
+        valid_to = entry.get('valid_to') or 'Present'
+        reason = entry.get('change_reason', 'unknown')
+
+        lines.append(
+            f"Version {entry['version']}: {entry['content']}\n"
+            f"  Confidence: {entry['confidence']:.2f} | "
+            f"Valid: {entry['valid_from']} to {valid_to}\n"
+            f"  Reason: {reason}"
+        )
+
+    return "\n\n".join(lines)
+
+
 def get_memory_tools() -> list:
     """
     Get all memory tools for the agent.
@@ -302,4 +388,6 @@ def get_memory_tools() -> list:
         search_memories,
         get_memory_by_key,
         normalize_or_create_memory,
+        get_memory_at_time,  # NEW: Temporal query
+        get_memory_history,  # NEW: Version history
     ]

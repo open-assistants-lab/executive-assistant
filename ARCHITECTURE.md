@@ -1,14 +1,19 @@
 # Executive Assistant Technical Architecture Documentation
 
-**Version:** 1.1.0
-**Last Updated:** January 29, 2026
+**Version:** 1.2.0
+**Last Updated:** January 31, 2026
 **Project:** Executive Assistant - Multi-channel AI Agent Platform
 
 **Recent Updates (January 2026):**
+- ✅ **Implemented Instinct System** - Automatic behavioral pattern learning
+  - Observer: Pattern detection (corrections, repetitions, preferences)
+  - Injector: Context injection into system prompts
+  - Evolver: Clustering instincts into skills
+  - Profiles: 6 pre-built personality presets
 - ✅ Migrated to LangChain agent runtime (removed custom nodes.py)
 - ✅ Implemented token usage tracking for HTTP channel (OpenAI/Anthropic)
 - ✅ Added comprehensive middleware stack (summarization, retry, status updates)
-- ✅ Fixed progressive disclosure bug (all 71 tools now available by default)
+- ✅ Fixed progressive disclosure bug (all 87 tools now available by default)
 - ✅ Added ThreadContextMiddleware for async context propagation
 - ✅ Enhanced error logging with comprehensive tracebacks
 - ✅ Fixed HTTP channel non-streaming endpoint
@@ -41,7 +46,8 @@ Executive Assistant is a **multi-channel AI agent platform** built on LangGraph 
 - **ReAct Agent Pattern**: Reasoning → Action → Observation cycle
 - **Multi-Channel Support**: Telegram bot and HTTP REST API with SSE streaming
 - **Privacy-First Storage**: Thread-only context with per-thread data isolation
-- **Tool-Based Intelligence**: All 71 tools available in every conversation
+- **Tool-Based Intelligence**: All 87 tools available in every conversation
+- **Instincts System**: Automatic behavioral pattern learning with confidence scoring
 - **State Persistence**: PostgreSQL-backed checkpointing for conversation memory
 - **Token Tracking**: Automatic usage monitoring for cost control (provider-dependent)
 - **Production-Ready**: Middleware stack with summarization, retry logic, status updates, and call limits
@@ -209,6 +215,7 @@ executive_assistant/
 │   │   ├── scheduled_flows.py    # APScheduler integration
 │   │   ├── chunking.py         # Document chunking for vector database
 │   │   ├── mem_storage.py      # Embedded memory storage
+│   │   ├── instinct_storage.py # Instinct behavioral patterns (JSONL + snapshot)
 │   │   └── workers.py          # Async worker pool
 │   │
 │   ├── tools/                    # LangChain tool implementations
@@ -229,6 +236,12 @@ executive_assistant/
 │   │   ├── builder.py          # Skill graph builder
 │   │   ├── tool.py             # Skill tool wrapper
 │   │   └── content/            # Skill definitions directory
+│   │
+│   ├── instincts/                # Behavioral pattern learning system
+│   │   ├── observer.py         # Pattern detection from interactions
+│   │   ├── injector.py         # Context injection into system prompts
+│   │   ├── evolver.py          # Clustering instincts into skills
+│   │   └── profiles.py         # Pre-built personality presets
 │   │
 │   ├── config/                   # Configuration management
 │   │   ├── settings.py         # Pydantic Settings class
@@ -393,7 +406,10 @@ data/
         ├── files/
         ├── tdb/
         ├── vdb/
-        └── mem/
+        ├── mem/
+        └── instincts/    # Learned behavioral patterns
+            ├── instincts.jsonl
+            └── instincts.snapshot.json
 ```
 
 #### Key Storage Components
@@ -446,6 +462,25 @@ data/
   - Ownership tracking for files/TDB/VDB/reminders per thread
   - Message audit log for troubleshooting
 
+**InstinctStorage (`instinct_storage.py`)**
+- **Purpose**: Behavioral pattern learning with confidence scoring
+- **Backend**: JSONL append-only log + compacted snapshot
+- **Features**:
+  - Confidence scoring (0.0-1.0, thresholds at 0.2/0.5/0.6)
+  - 6 domains: communication, format, workflow, tool_selection, verification, timing
+  - Automatic reinforcement and contradiction
+  - Event-based audit trail
+  - Thread-scoped storage
+- **Tools**:
+  - `create_instinct`: Manually create behavioral pattern
+  - `list_instincts`: Show all learned patterns
+  - `adjust_instinct_confidence`: Reinforce or contradict patterns
+  - `get_applicable_instincts`: Find patterns matching context
+  - `disable_instinct` / `enable_instinct`: Toggle patterns
+  - `evolve_instincts`: Cluster patterns into draft skills
+  - `approve_evolved_skill`: Save draft as user skill
+  - `export_instincts` / `import_instincts`: Backup and sharing
+
 **Checkpoint (`checkpoint.py`)**
 - **Purpose**: LangGraph state persistence
 - **Backend**: PostgreSQL (via `langgraph-checkpoint-postgres`)
@@ -497,9 +532,9 @@ data/
 **Purpose:** LangChain tool implementations that the agent can invoke.
 
 **Tool Registry (`registry.py`)**
-- `get_all_tools()`: Aggregates all tool categories (83 total tools)
+- `get_all_tools()`: Aggregates all tool categories (87 total tools)
 - **All tools available by default** - No progressive disclosure filtering
-  - Token overhead: ~937 tokens (0.5% of 200K context)
+  - Token overhead: ~8,100 tokens (4% of 200K context)
   - Prevents multi-step workflow breakage
   - Removed: `get_tools_for_request()` (deprecated, caused tool loss mid-conversation)
 - Categories:
@@ -518,6 +553,7 @@ data/
   - Flow tools (5 tools): Workflow automation
   - Memory tools (6 tools): Memory extraction and search
   - Meta tools (3 tools): System metadata
+  - Instinct tools (13 tools): Behavioral pattern learning
   - MCP tools: Configurable MCP server integration
   - Confirmation tool (1 tool): Large operation confirmation
   - Skills tool (1 tool): Dynamic skill loading
@@ -569,7 +605,84 @@ data/
 - Defines ReAct agent pattern as a reusable skill
 - Can be loaded via `load_skill` tool
 
-### 6. Configuration Layer (`src/executive_assistant/config/`)
+### 6. Instincts System (`src/executive_assistant/instincts/`)
+
+**Purpose:** Automatic behavioral pattern learning from user interactions.
+
+**Components:**
+
+**Observer (`observer.py`)**
+- **Purpose**: Detect behavioral patterns in user messages
+- **Pattern Types**:
+  - Corrections: "Actually, I meant..." → Apologize and adjust
+  - Repetitions: "Do it again..." → Follow same pattern
+  - Verbosity: "Be concise" / "More detail" → Adjust response length
+  - Format: "Use JSON" / "Bullet points" → Output format preference
+- **Features**:
+  - Regex-based pattern detection
+  - Automatic reinforcement of existing patterns
+  - Creates new instincts with 0.5-0.8 initial confidence
+  - Integrated into message flow (BaseChannel.handle_message)
+
+**Injector (`injector.py`)**
+- **Purpose**: Load applicable instincts into system prompts
+- **Features**:
+  - Context-aware filtering (matches user message to triggers)
+  - Confidence-based formatting (bold for ≥0.8, conditional for lower)
+  - Fallback to all high-confidence instincts if no matches
+  - Domain-specific sections (Communication, Format, Workflow, etc.)
+- **Integration**: Called in `get_system_prompt()` between BASE_PROMPT and CHANNEL_APPENDIX
+
+**Evolver (`evolver.py`)**
+- **Purpose**: Cluster related instincts into reusable skills
+- **Algorithm**:
+  1. Group instincts by domain
+  2. Extract keywords from triggers
+  3. Find common themes (≥2 instincts sharing keywords)
+  4. Build cluster with avg confidence
+  5. Generate draft skill with behavioral patterns
+- **Requirements**: Minimum 2 instincts per cluster, ≥0.6 avg confidence
+- **HITL**: Human-in-the-loop approval required (approve_evolved_skill tool)
+
+**Profiles (`profiles.py`)**
+- **Purpose**: Quick personality configuration with preset instincts
+- **Available Profiles**:
+  1. **Concise Professional**: Brief, business-focused (3 instincts)
+  2. **Detailed Explainer**: Thorough with examples (3 instincts)
+  3. **Friendly Casual**: Conversational, approachable (3 instincts)
+  4. **Technical Expert**: Precise technical language (4 instincts)
+  5. **Agile Developer**: Iterative, testing-focused (3 instincts)
+  6. **Analyst Researcher**: Data-driven analysis (4 instincts)
+- **Tools**:
+  - `list_profiles`: Browse available profiles
+  - `apply_profile`: Apply profile to current thread
+  - `create_custom_profile`: Build custom personality pack
+
+**System Prompt Assembly Order:**
+```python
+system_prompt = (
+    BASE_PROMPT +              # "You are {AGENT_NAME}..."
+    ADMIN_PROMPT +             # Admin policies (safety, etc.)
+    INSTINCTS_SECTION +        # "## Behavioral Patterns\nApply these..."
+    CHANNEL_APPENDIX           # "HTTP/Telegram Formatting..."
+)
+```
+
+**Storage Schema:**
+```json
+{
+  "id": "uuid",
+  "trigger": "user asks quick questions",
+  "action": "respond briefly, skip detailed explanations",
+  "domain": "communication",
+  "source": "session-observation",
+  "confidence": 0.8,
+  "status": "enabled",
+  "created_at": "2026-01-31T10:00:00Z"
+}
+```
+
+### 7. Configuration Layer (`src/executive_assistant/config/`)
 
 **Purpose:** Centralized configuration management.
 
@@ -624,6 +737,7 @@ data/
     │  • Normalize message to HumanMessage
     │  • Set thread_id in ContextVars
     │  • Acquire thread lock (prevent concurrent processing)
+    │  • Observe message for instinct patterns (non-blocking)
     │
     ↓
 [Middleware Stack] (LangChain)
@@ -634,6 +748,12 @@ data/
     │
     ↓
 [LangGraph ReAct Agent]
+    │
+    ├─→ [System Prompt Assembly]
+    │      • BASE_PROMPT (core role)
+    │      • ADMIN_PROMPT (safety policies)
+    │      • INSTINCTS_SECTION (learned patterns)
+    │      • CHANNEL_APPENDIX (formatting)
     │
     ├─→ [call_model Node]
     │      • Load conversation history from state
@@ -729,6 +849,8 @@ data/
 | `vdb_paths` | VDB ownership tracking | `thread_id`, `vdb_path`, `created_at` |
 | `adb_paths` | Analytics DB ownership tracking | `thread_id`, `adb_path`, `created_at` |
 | `reminders` | Scheduled reminders | `reminder_id`, `thread_id`, `trigger_time`, `recurrence` |
+
+**Note:** Instincts are stored in the filesystem (JSONL + snapshot) under `data/users/{thread_id}/instincts/`, not in PostgreSQL.
 
 ### Data Isolation Model
 
@@ -979,10 +1101,11 @@ Typical token usage for a conversation:
 | Component | Token Count | Notes |
 |-----------|-------------|-------|
 | System prompt | ~50 tokens | "You are Jen, a personal AI assistant..." |
-| Tools (71 tools) | ~7,500 tokens | Tool names, descriptions, JSON schemas |
+| Tools (87 tools) | ~8,100 tokens | Tool names, descriptions, JSON schemas |
+| Instincts (variable) | ~100-500 tokens | Learned behavioral patterns |
 | Conversation messages | Variable | Grows with each turn (±30-80 tokens per round) |
-| **Total (Round 1)** | ~7,550 tokens | System + tools + first user message |
-| **Total (Round 5)** | ~8,000 tokens | +450 tokens from 4 conversation turns |
+| **Total (Round 1)** | ~8,250 tokens | System + tools + first user message |
+| **Total (Round 5)** | ~8,700 tokens | +450 tokens from 4 conversation turns |
 
 ### Example Log Output
 
@@ -1010,7 +1133,7 @@ middleware:
 
 **Important Notes**:
 - Threshold applies to **conversation messages only**, not total LLM input
-- Does NOT count the ~7,500 token system prompt + tools overhead
+- Does NOT count the ~8,100 token system prompt + tools + instincts overhead
 - With 128K context window (GPT-OSS 20B), 5,000 messages is very conservative
 - Summarization calls the LLM to compress older messages into a summary
 
@@ -1199,8 +1322,29 @@ This enables:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.2.0 | 2026-01-31 | Implemented Instinct System (Observer, Injector, Evolver, Profiles) |
 | 1.1.0 | 2026-01-28 | Added ThreadContextMiddleware, HTTP auth bypass, error logging enhancements |
 | 1.0.0 | 2026-01-21 | Initial technical architecture documentation |
+
+### Key Changes in v1.2.0
+
+**New Feature: Instinct System**
+- Automatic behavioral pattern learning from user interactions
+- Observer: Detects corrections, repetitions, verbosity/format preferences
+- Injector: Loads applicable instincts into system prompts
+- Evolver: Clusters related instincts into reusable skills
+- Profiles: 6 pre-built personality presets (Concise Professional, Detailed Explainer, etc.)
+- 13 instinct tools for management and evolution
+- JSONL + snapshot storage for auditability
+
+**Architecture Improvements:**
+- System prompt assembly now includes instincts between BASE_PROMPT and CHANNEL_APPENDIX
+- Observer integrated into message flow (non-blocking pattern detection)
+- Confidence scoring (0.0-1.0) with automatic thresholds
+- Human-in-the-loop approval for skill evolution
+
+**Tool Count:**
+- Increased from 83 to 87 tools (+4 instinct management tools)
 
 ### Key Changes in v1.1.0
 
@@ -1211,13 +1355,14 @@ This enables:
 - Enhanced error logging with full tracebacks at DEBUG level
 
 **Architecture Improvements:**
-- All 83 tools now available by default (~937 tokens = 0.5% of 200K context)
+- All 87 tools now available by default (~8,100 tokens = 4% of 200K context)
 - HTTP channel bypasses allowlist (frontend authentication pattern)
 - ThreadContextMiddleware ensures context propagation across async boundaries
 - Removed deprecated `get_tools_for_request()` function
 
 **New Components:**
 - `src/executive_assistant/agent/thread_context_middleware.py` - Context propagation middleware
+- `src/executive_assistant/instincts/` - Complete instinct learning system (observer, injector, evolver, profiles)
 - Enhanced `is_authorized()` in `user_allowlist.py` - Channel-specific authorization
 
 ---

@@ -119,6 +119,13 @@ list_files("reports/weekly/", recursive=False)
 
 # Check journals/notes
 search_vdb("week progress update", "journal")
+
+# TEMPORAL MEMORY: Query historical states
+# What was their location 3 months ago?
+get_memory_at_time("location", "2025-10-01T12:00:00Z")
+
+# Show full history of a fact
+get_memory_history("job_title")
 ```
 
 ---
@@ -334,6 +341,9 @@ grep_files("workaround", "docs/")
 | File name pattern | `glob_files("pattern", "path/")` |
 | Text in files | `grep_files("text", "path/")` |
 | General topic | `search_vdb("topic", "")` |
+| **Current fact** | `get_memory_by_key("location")` |
+| **Historical fact** | `get_memory_at_time("location", "2025-01-01T12:00:00Z")` |
+| **Fact history** | `get_memory_history("job_title")` |
 
 **Search Patterns:**
 - **Narrow down:** Start broad, add filters

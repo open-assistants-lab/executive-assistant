@@ -69,18 +69,23 @@ If you can't do something with available tools, say so.
 """
 
 
-def get_system_prompt(channel: str | None = None, thread_id: str | None = None) -> str:
+def get_system_prompt(
+    channel: str | None = None,
+    thread_id: str | None = None,
+    user_message: str | None = None,
+) -> str:
     """Get appropriate system prompt for the channel.
 
     Merge order (highest priority last):
     1. Admin prompt (global policies)
     2. Base prompt (role definition)
-    3. User prompt (personal preferences) ← NEW
+    3. User instincts (learned behavioral patterns)
     4. Channel appendix (formatting constraints)
 
     Args:
         channel: Channel type ('telegram', 'http', etc.)
-        thread_id: Thread identifier for user-specific prompt (optional)
+        thread_id: Thread identifier for user-specific content (optional)
+        user_message: Current user message for context-aware instinct filtering (optional)
 
     Returns:
         Complete system prompt with all layers merged.
@@ -95,11 +100,17 @@ def get_system_prompt(channel: str | None = None, thread_id: str | None = None) 
     # Layer 2: Base prompt (required)
     parts.append(get_default_prompt())
 
-    # Layer 3: User prompt (optional, per-thread) ← NEW
+    # Layer 3: User instincts (optional, per-thread)
     if thread_id:
-        user_prompt = load_user_prompt(thread_id)
-        if user_prompt:
-            parts.append(user_prompt)
+        # Try to load instincts first (preferred)
+        instincts_section = load_instincts_context(thread_id, user_message)
+        if instincts_section:
+            parts.append(instincts_section)
+        else:
+            # Fallback to deprecated user prompt for transition period
+            user_prompt = load_user_prompt(thread_id)
+            if user_prompt:
+                parts.append(user_prompt)
 
     # Layer 4: Channel appendix (optional)
     appendix = get_channel_prompt(channel)
@@ -108,6 +119,26 @@ def get_system_prompt(channel: str | None = None, thread_id: str | None = None) 
 
     # Join all layers with double newlines
     return "\n\n".join(parts)
+
+
+def load_instincts_context(thread_id: str, user_message: str | None = None) -> str:
+    """Load applicable instincts as formatted context for system prompt.
+
+    Args:
+        thread_id: Thread identifier (e.g., "telegram:123456")
+        user_message: Current user message for context-aware filtering (optional)
+
+    Returns:
+        Formatted instincts section if any exist, empty string otherwise.
+    """
+    try:
+        from executive_assistant.instincts.injector import get_instinct_injector
+
+        injector = get_instinct_injector()
+        return injector.build_instincts_context(thread_id, user_message)
+    except Exception:
+        # If instincts system fails, return empty (don't break the agent)
+        return ""
 
 
 def load_user_prompt(thread_id: str) -> str:

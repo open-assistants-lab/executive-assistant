@@ -445,6 +445,16 @@ class Settings(BaseSettings):
         reminders_path.mkdir(parents=True, exist_ok=True)
         return reminders_path
 
+    def get_thread_instincts_dir(self, thread_id: str) -> Path:
+        """
+        Get instincts directory for a thread.
+
+        Returns: data/users/{thread_id}/instincts/
+        """
+        instincts_dir = self.get_thread_root(thread_id) / "instincts"
+        instincts_dir.mkdir(parents=True, exist_ok=True)
+        return instincts_dir
+
     # ============================================================================
     # Context-Aware Routing (thread_id only)
     # ============================================================================

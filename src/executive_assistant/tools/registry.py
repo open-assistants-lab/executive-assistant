@@ -173,6 +173,12 @@ async def get_memory_tools() -> list[BaseTool]:
     return _get()
 
 
+async def get_instinct_tools() -> list[BaseTool]:
+    """Get Instinct tools for behavioral pattern learning."""
+    from executive_assistant.tools.instinct_tools import get_instinct_tools as _get
+    return _get()
+
+
 async def get_mcp_tools() -> list[BaseTool]:
     """Get tools from MCP servers configured in admin mcp.json."""
     tools: list[BaseTool] = []
@@ -261,6 +267,7 @@ async def get_all_tools() -> list[BaseTool]:
     all_tools.extend(await get_skills_tools())
     all_tools.extend(await get_vdb_tools())
     all_tools.extend(await get_memory_tools())
+    all_tools.extend(await get_instinct_tools())
     all_tools.extend(await get_time_tools())
     all_tools.extend(await get_reminder_tools())
     # DISABLED: Flow tools - not production-ready yet

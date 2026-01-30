@@ -34,6 +34,25 @@ Executive Assistant uses a skills system to choose the right approach:
 
 You don't need to remember which tool does what—Executive Assistant figures it out from context.
 
+### Adaptive Behavior with Instincts
+Executive Assistant learns your communication style and preferences automatically:
+- **Pattern Detection**: Automatically learns from corrections, repetitions, and preferences
+- **Profile Presets**: Quick personality configuration (Concise Professional, Detailed Explainer, etc.)
+- **Confidence Scoring**: Behaviors are applied probabilistically based on confidence
+- **Evolution**: Learned patterns can evolve into reusable skills
+
+**Example:**
+```
+You: Be concise
+[Assistant learns: user prefers brief responses]
+
+You: Use bullet points
+[Assistant learns: user prefers list format]
+
+You: Actually, use JSON for data
+[Assistant adjusts: reinforces format preference]
+```
+
 ## How Executive Assistant Thinks
 
 Executive Assistant is a **ReAct agent** built on LangGraph. Unlike simple chatbots, it:
@@ -106,7 +125,11 @@ data/
     └── {thread_id}/
         ├── files/
         ├── tdb/
-        └── vdb/
+        ├── vdb/
+        ├── mem/         # Embedded memories
+        └── instincts/   # Learned behavioral patterns
+            ├── instincts.jsonl         # Append-only event log
+            └── instincts.snapshot.json  # Compacted state
 ```
 
 ### Thread-Scoped Ownership
@@ -150,9 +173,10 @@ EXECUTIVE_ASSISTANT_CHANNELS=telegram,http uv run executive_assistant
 ### Unlike Other AI Agents
 - **Intelligent storage**: Knows when to use TDB (structured) vs VDB (semantic) vs files (raw)
 - **Skills system**: Progressive disclosure of advanced patterns (load with `load_skill`)
+- **Instincts system**: Automatically learns behavioral patterns from interactions
 - **Privacy-first**: Thread isolation by design, merge only when you request it
 - **Multi-channel**: Same agent works on Telegram, HTTP, and more (planned: Email, Slack)
-- **All tools available**: All 71 tools available in every conversation
+- **All tools available**: All 87 tools available in every conversation
 - **Robust error handling**: Comprehensive error logging with full tracebacks at DEBUG level
 - **Frontend auth**: HTTP channel delegates authentication to your application layer
 
@@ -236,6 +260,12 @@ See `docker/.env.example` for all available options.
 | `/file` | File commands |
 | `/meta` | Show storage summary (files/VDB/TDB/reminders) |
 | `/user` | Admin allowlist management |
+
+**Instinct Tools** (available in conversation):
+- `list_profiles` - Browse available personality profiles
+- `apply_profile` - Apply a profile preset (e.g., "Concise Professional")
+- `list_instincts` - Show learned behavioral patterns
+- `evolve_instincts` - Cluster patterns into reusable skills
 
 ### Debug Mode
 
@@ -342,9 +372,9 @@ CH=http CONV=http_user123 TYPE=token_usage | message tokens=7581+19=7600
 - **Ollama**: ❌ No metadata provided (usage not tracked)
 
 **Token Breakdown** (typical conversation):
-- System prompt + 71 tools: ~7,500 tokens (fixed overhead)
+- System prompt + 87 tools: ~8,100 tokens (fixed overhead)
 - Conversation messages: Grows with each turn
-- Total input = overhead + messages (e.g., 8,000 tokens by turn 5)
+- Total input = overhead + messages (e.g., 8,600 tokens by turn 5)
 
 ## Architecture Overview
 
