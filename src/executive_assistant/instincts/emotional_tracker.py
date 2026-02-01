@@ -44,12 +44,12 @@ class EmotionalTracker:
         EmotionalState.SATISFIED: [
             r"\b(perfect|great|awesome|thanks|exactly)\b",
             r"\b(that's what I needed|just what I wanted)\b",
-            r"\b(love it|amazing|brilliant)\b",
+            r"\b(love it|amazing|brilliant|excellent)\b",
             r"👍|✅|🎉",
         ],
         EmotionalState.CONFUSED: [
             r"\b(don't understand|confused|doesn't make sense)\b",
-            r"\b(what do you mean|explain again|not sure)\b",
+            r"\b(what do you mean|explain again)\b",
         ],
         EmotionalState.OVERWHELMED: [
             r"\b(too much|overwhelmed|information overload)\b",
@@ -57,10 +57,10 @@ class EmotionalTracker:
         ],
         EmotionalState.URGENT: [
             r"\b(asap|urgent|emergency|immediately|right now)\b",
-            r"\b(hurry|quick|fast|deadline|running out of time)\b",
+            r"\b(hurry|quick|deadline)\b",
         ],
         EmotionalState.CURIOUS: [
-            r"\b(just curious|wondering|can you)\b",
+            r"\b(just curious|wondering)\b",
             r"\b(what if|try|experiment|explore)\b",
         ],
     }

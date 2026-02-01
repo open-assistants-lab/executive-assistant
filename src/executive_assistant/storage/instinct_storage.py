@@ -261,6 +261,30 @@ class InstinctStorage:
         self._update_snapshot(instinct, thread_id)
         return True
 
+    def _set_confidence(
+        self,
+        instinct_id: str,
+        confidence: float,
+        thread_id: str | None = None,
+    ) -> None:
+        """Set the confidence level for an instinct.
+
+        Args:
+            instinct_id: Instinct identifier
+            confidence: New confidence level (0.0 to 1.0)
+            thread_id: Thread identifier
+        """
+        snapshot = self._load_snapshot(thread_id)
+
+        if instinct_id not in snapshot:
+            return
+
+        instinct = snapshot[instinct_id]
+        instinct["confidence"] = max(0.0, min(1.0, confidence))
+        instinct["updated_at"] = _utc_now()
+
+        self._update_snapshot(instinct, thread_id)
+
     # ========================================================================
     # QUERY: Retrieve instincts
     # ========================================================================
