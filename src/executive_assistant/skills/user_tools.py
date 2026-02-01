@@ -9,34 +9,24 @@ from executive_assistant.storage.file_sandbox import get_thread_id
 from executive_assistant.storage.user_storage import UserPaths
 
 
-@tool
-def create_user_skill(
+def _save_user_skill_file(
     name: str,
     description: str,
     content: str,
     tags: str = "",
 ) -> str:
-    """Create a personal skill for the current user.
+    """Helper function to save user skill file (not a tool).
 
-    User skills are private to your thread and can be loaded immediately
-    without restart using the load_skill tool.
+    This is the actual implementation that both the tool and evolver can use.
 
     Args:
-        name: Skill name (will be normalized to snake_case)
-        description: Brief description of what this skill does
-        content: Skill content in markdown format
-        tags: Comma-separated tags (optional)
+        name: Skill name
+        description: Brief description
+        content: Skill content in markdown
+        tags: Comma-separated tags (can be list or string)
 
     Returns:
-        Confirmation message with canonical skill name.
-
-    Examples:
-        create_user_skill(
-            name="todo workflow",
-            description="My personal todo management workflow",
-            content="## Overview\\nWhen I say 'track todos', use TDB...",
-            tags="productivity,todos"
-        )
+        Confirmation message
     """
     # Get current thread_id
     thread_id = get_thread_id()
@@ -64,9 +54,13 @@ def create_user_skill(
     # ─────────────────────────────────────────────────────────────
     # Parse tags
     # ─────────────────────────────────────────────────────────────
-    tag_list = []
-    if tags:
+    # Handle both string and list formats
+    if isinstance(tags, list):
+        tag_list = [t.strip() for t in tags if t.strip()]
+    elif tags:
         tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+    else:
+        tag_list = []
 
     # Build tags string for markdown
     tags_str = ", ".join(tag_list) if tag_list else "user_skill"
@@ -121,6 +115,39 @@ Tags: {tags_str}
         )
     except Exception as e:
         return f"❌ Failed to create skill: {e}"
+
+
+@tool
+def create_user_skill(
+    name: str,
+    description: str,
+    content: str,
+    tags: str = "",
+) -> str:
+    """Create a personal skill for the current user.
+
+    User skills are private to your thread and can be loaded immediately
+    without restart using the load_skill tool.
+
+    Args:
+        name: Skill name (will be normalized to snake_case)
+        description: Brief description of what this skill does
+        content: Skill content in markdown format
+        tags: Comma-separated tags (optional)
+
+    Returns:
+        Confirmation message with canonical skill name.
+
+    Examples:
+        create_user_skill(
+            name="todo workflow",
+            description="My personal todo management workflow",
+            content="## Overview\\nWhen I say 'track todos', use TDB...",
+            tags="productivity,todos"
+        )
+    """
+    # Delegate to helper function
+    return _save_user_skill_file(name, description, content, tags)
 
 
 def get_user_skill_tools():

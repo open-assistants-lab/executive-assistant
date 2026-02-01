@@ -910,6 +910,35 @@ async def _adb_create(update: Update, thread_id: str, table_name: str, data: str
         rows = _normalize_json_rows(data)
         columns, types = _infer_schema(rows)
         conn = get_adb(scope)
+
+        # Check if table already exists and validate schema match
+        cursor = conn.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'")
+        table_exists = cursor.fetchone() is not None
+
+        if table_exists:
+            # Get existing schema
+            cursor = conn.execute(f"PRAGMA table_info({table_name})")
+            existing_cols = {row[1]: row[2] for row in cursor.fetchall()}  # {name: type}
+
+            # Check for schema mismatch
+            requested_cols = {col: types[col] for col in columns}
+            if existing_cols != requested_cols:
+                # Build detailed error message
+                existing_formatted = ", ".join(f"{k} ({v})" for k, v in sorted(existing_cols.items()))
+                requested_formatted = ", ".join(f"{k} ({v})" for k, v in sorted(requested_cols.items()))
+
+                await update.message.reply_text(
+                    f"⚠️ Table '{table_name}' already exists with different schema:\n\n"
+                    f"**Existing schema:**\n{existing_formatted}\n\n"
+                    f"**Requested schema:**\n{requested_formatted}\n\n"
+                    f"Options:\n"
+                    f"• Use `/adb insert {table_name} ...` to add data to existing table\n"
+                    f"• Use `/adb drop {table_name}` then recreate with new schema\n"
+                    f"• Or use a different table name"
+                )
+                return
+
+        # Create table (safe if already exists with same schema)
         col_defs = ", ".join(f"{col} {types[col]}" for col in columns)
         conn.execute(f"CREATE TABLE IF NOT EXISTS {table_name} ({col_defs})")
 
@@ -939,7 +968,36 @@ async def _adb_insert(update: Update, thread_id: str, table_name: str, data: str
         if not rows:
             await update.message.reply_text("No rows to insert.")
             return
-        columns = list(rows[0].keys())
+
+        # Use first row as reference for expected columns
+        reference_columns = set(rows[0].keys())
+
+        # Validate all rows have the same columns
+        mismatch_errors = []
+        for i, row in enumerate(rows[1:], 1):  # Start from second row
+            row_columns = set(row.keys())
+            if row_columns != reference_columns:
+                missing = reference_columns - row_columns
+                extra = row_columns - reference_columns
+
+                error_parts = []
+                if missing:
+                    error_parts.append(f"missing: {', '.join(sorted(missing))}")
+                if extra:
+                    error_parts.append(f"extra: {', '.join(sorted(extra))}")
+
+                mismatch_errors.append(f"Row {i}: {', '.join(error_parts)}")
+
+        if mismatch_errors:
+            await update.message.reply_text(
+                f"⚠️ Column mismatch detected in input data:\n\n"
+                f"**Expected columns** (from first row): {', '.join(sorted(reference_columns))}\n\n"
+                f"**Errors:**\n" + "\n".join(mismatch_errors) + "\n\n"
+                f"All rows must have exactly the same columns."
+            )
+            return
+
+        columns = list(reference_columns)
         for col in columns:
             validate_identifier(col)
 

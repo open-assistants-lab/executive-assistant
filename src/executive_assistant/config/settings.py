@@ -278,11 +278,8 @@ class Settings(BaseSettings):
         """Convert empty strings to None for optional provider field."""
         return v or None
 
-    # Web Search (external service - configure in .env)
-    SEARCH_PROVIDER: Literal["searxng", "firecrawl"] = _yaml_field(
-        "SEARCH_PROVIDER", "searxng"
-    )
-    SEARXNG_HOST: str | None = None
+    # Web Search (uses Firecrawl - external service, configure in .env)
+    # Firecrawl API also used for scrape/crawl tools
 
     # Logging
     LOG_LEVEL: str = _yaml_field("LOGGING_LEVEL", "INFO")

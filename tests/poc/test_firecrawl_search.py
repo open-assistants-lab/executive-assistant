@@ -26,8 +26,8 @@ async def test_firecrawl_search():
     print("-" * 60)
 
     # Test 1: Basic web search
-    print("\n1. Basic web search (5 results):")
-    result = await firecrawl_search.invoke({
+    print("\n1. Basic web search (3 results):")
+    result = await firecrawl_search.ainvoke({
         "query": "python async await",
         "num_results": 3,
         "sources": "web",
@@ -37,7 +37,7 @@ async def test_firecrawl_search():
 
     # Test 2: Search with content scraping
     print("\n2. Search with content scraping (2 results):")
-    result = await firecrawl_search.invoke({
+    result = await firecrawl_search.ainvoke({
         "query": "what is Firecrawl API",
         "num_results": 2,
         "sources": "web",
@@ -47,7 +47,7 @@ async def test_firecrawl_search():
 
     # Test 3: News search
     print("\n3. News search:")
-    result = await firecrawl_search.invoke({
+    result = await firecrawl_search.ainvoke({
         "query": "artificial intelligence",
         "num_results": 3,
         "sources": "news",
@@ -62,7 +62,8 @@ async def test_firecrawl_search():
 
 def test_search_tool():
     """Test unified search tool with provider switching."""
-    from executive_assistant.tools.search_tool import search_web
+    import asyncio
+    from executive_assistant.tools.search_tool import _search_with_searxng, _search_with_firecrawl
 
     print("\nTesting unified search_tool.py...")
 
@@ -75,12 +76,16 @@ def test_search_tool():
             print("❌ Firecrawl selected but API key not configured")
             return False
 
-    result = search_web.invoke({
-        "query": "test search",
-        "num_results": 2,
-    })
-    print(f"Result preview: {result[:200]}...")
-    print("✅ search_web works!")
+        # Test Firecrawl search
+        result = asyncio.run(_search_with_firecrawl("test search", 2))
+        print(f"Result preview: {result[:200]}...")
+        print("✅ Firecrawl search works!")
+    else:
+        # Test SearXNG search
+        result = _search_with_searxng("test search", 2)
+        print(f"Result preview: {result[:200]}...")
+        print("✅ SearXNG search works!")
+
     return True
 
 

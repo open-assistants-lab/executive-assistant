@@ -32,6 +32,7 @@ class InstinctEvolver:
 
     def __init__(self) -> None:
         self.storage = get_instinct_storage()
+        self._drafts_cache: dict[str, dict] = {}  # Cache drafts by thread_id
 
     def analyze_clusters(
         self,
@@ -227,6 +228,10 @@ Tags: evolved, instinct-cluster, {cluster['domain']}
                 draft = self.generate_draft_skill(cluster, thread_id)
                 drafts.append(draft)
 
+        # Cache drafts for approval
+        if thread_id:
+            self._drafts_cache[thread_id] = {d["id"]: d for d in drafts}
+
         return drafts
 
     def approve_skill(
@@ -245,26 +250,47 @@ Tags: evolved, instinct-cluster, {cluster['domain']}
             True if successful, False otherwise
         """
         # Import here to avoid circular dependency
-        from executive_assistant.skills.user_tools import create_user_skill
+        from executive_assistant.skills.user_tools import _save_user_skill_file
+        import logging
 
-        drafts = self.evolve_instincts(thread_id)
+        logger = logging.getLogger(__name__)
 
-        for draft in drafts:
-            if draft["id"] == draft_id:
-                # Save as user skill
-                skill_name = draft["name"].lower().replace(" ", "_").replace(":", "")
+        if not thread_id:
+            logger.debug(f"[approve_skill] No thread_id provided")
+            return False
 
-                result = create_user_skill(
-                    name=skill_name,
-                    description=f"Auto-generated from {len(draft['cluster']['instincts'])} instincts",
-                    content=draft["content"],
-                    tags=["evolved", "instinct-cluster", draft["cluster"]["domain"]],
-                )
+        # Get cached drafts for this thread
+        thread_drafts = self._drafts_cache.get(thread_id, {})
 
-                # Mark instincts as used (optional enhancement)
-                return "created" in result.lower() or "saved" in result.lower()
+        logger.debug(f"[approve_skill] thread_id={thread_id}")
+        logger.debug(f"[approve_skill] Cached thread_ids: {list(self._drafts_cache.keys())}")
+        logger.debug(f"[approve_skill] Draft IDs in cache: {list(thread_drafts.keys())}")
+        logger.debug(f"[approve_skill] Looking for draft_id: {draft_id}")
 
-        return False
+        if draft_id not in thread_drafts:
+            logger.debug(f"[approve_skill] Draft {draft_id} not found in cache")
+            return False
+
+        draft = thread_drafts[draft_id]
+        logger.debug(f"[approve_skill] Found draft: {draft.get('name')}")
+
+        # Save as user skill using helper function
+        skill_name = draft["name"].lower().replace(" ", "_").replace(":", "")
+
+        result = _save_user_skill_file(
+            name=skill_name,
+            description=f"Auto-generated from {len(draft['cluster']['instincts'])} instincts",
+            content=draft["content"],
+            tags=["evolved", "instinct-cluster", draft["cluster"]["domain"]],
+        )
+
+        logger.debug(f"[approve_skill] Save result: {result}")
+
+        # Clear cache after approval
+        self._drafts_cache.pop(thread_id, None)
+
+        # Check for success
+        return "created" in result.lower() or "saved" in result.lower() or "✅" in result
 
 
 _instinct_evolver = InstinctEvolver()

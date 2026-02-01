@@ -312,11 +312,13 @@ class BaseChannel(ABC):
                 self._interrupted_chats.discard(message.conversation_id)
 
             # Observe user message for instinct learning (non-blocking)
+            # Use raw message content, not enhanced (with memory injection)
+            # This prevents false pattern detection from memory context
             try:
                 from executive_assistant.instincts.observer import get_instinct_observer
 
                 observer = get_instinct_observer()
-                detected = observer.observe_message(enhanced_content, thread_id=thread_id)
+                detected = observer.observe_message(message.content, thread_id=thread_id)
                 if detected:
                     logger.debug(f"{ctx_system} Observed {len(detected)} instinct patterns")
             except Exception as e:

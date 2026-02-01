@@ -1,10 +1,12 @@
 """Tool registry for aggregating all available tools."""
 
+import logging
 from typing import Any
 import re
 
 from langchain_core.tools import BaseTool
 
+logger = logging.getLogger(__name__)
 _mcp_client_cache: dict[str, Any] = {}
 
 
@@ -216,16 +218,7 @@ async def get_mcp_tools() -> list[BaseTool]:
 def get_standard_tools() -> list[BaseTool]:
     """Get standard LangChain tools."""
     tools: list[BaseTool] = []
-    try:
-        from langchain_community.tools import TavilySearchResults
-        import os
-        if os.getenv("TAVILY_API_KEY"):
-            tools.append(TavilySearchResults(max_results=5))
-    except ImportError:
-        pass
-    except Exception:
-        pass
-
+    # Tavily integration removed - using Firecrawl for search instead
     return tools
 
 
@@ -300,9 +293,34 @@ async def get_all_tools() -> list[BaseTool]:
     from executive_assistant.tools.mcp_tools import get_mcp_config_tools
     all_tools.extend(get_mcp_config_tools())
 
+    # User MCP management tools
+    from executive_assistant.tools.user_mcp_tools import (
+        mcp_add_server,
+        mcp_add_remote_server,
+        mcp_export_config,
+        mcp_import_config,
+        mcp_list_backups,
+        mcp_list_servers,
+        mcp_remove_server,
+        mcp_show_server,
+        mcp_reload,
+    )
+    all_tools.extend([
+        mcp_list_servers,
+        mcp_add_server,
+        mcp_add_remote_server,
+        mcp_remove_server,
+        mcp_show_server,
+        mcp_export_config,
+        mcp_import_config,
+        mcp_list_backups,
+        mcp_reload,
+    ])
+
     all_tools.extend(get_standard_tools())
 
-    all_tools.extend(await load_mcp_tools_if_enabled())
+    # Load MCP tools with tiered priority: User > Admin
+    all_tools.extend(await load_mcp_tools_tiered())
 
     all_tools = [_normalize_tool(t) for t in all_tools]
     return all_tools
@@ -461,3 +479,167 @@ async def load_mcp_tools_if_enabled() -> list[BaseTool]:
         print("Warning: langchain-mcp-adapters not installed. MCP tools unavailable.")
 
     return tools
+
+
+async def load_mcp_tools_tiered() -> list[BaseTool]:
+    """Load MCP tools with tiered priority: User > Admin.
+
+    Priority order:
+    1. User-local MCP (stdio): data/users/{thread_id}/mcp/mcp.json
+    2. User-remote MCP (HTTP/SSE): data/users/{thread_id}/mcp/mcp_remote.json
+    3. Admin MCP (fallback): data/admins/mcp.json
+
+    Returns:
+        List of MCP tools from all sources (user tools override admin tools)
+
+    Note:
+        Tool name collisions: User tools take priority over admin tools
+        with warnings logged when collisions occur.
+    """
+    tools: list[BaseTool] = []
+    all_tool_names = set()
+
+    try:
+        from langchain_mcp_adapters.client import MultiServerMCPClient
+        from executive_assistant.storage.file_sandbox import get_thread_id
+        from executive_assistant.storage.user_mcp_storage import UserMCPStorage
+
+        thread_id = get_thread_id()
+
+        # Priority 1: User-local MCP (highest priority)
+        if thread_id:
+            try:
+                storage = UserMCPStorage(thread_id)
+                user_local_config = storage.load_local_config()
+                user_local_servers = user_local_config.get("mcpServers", {})
+
+                if user_local_servers:
+                    user_tools = await _load_mcp_servers(user_local_servers, "user-local")
+                    tools.extend(user_tools)
+                    all_tool_names.update(_get_tool_names(user_tools))
+                    logger.debug(f"Loaded {len(user_tools)} user-local MCP tools")
+            except Exception as e:
+                logger.debug(f"Failed to load user-local MCP: {e}")
+
+            # Priority 2: User-remote MCP (medium priority)
+            try:
+                user_remote_config = storage.load_remote_config()
+                user_remote_servers = user_remote_config.get("mcpServers", {})
+
+                if user_remote_servers:
+                    user_tools = await _load_mcp_servers(user_remote_servers, "user-remote")
+                    tools.extend(user_tools)
+                    all_tool_names.update(_get_tool_names(user_tools))
+                    logger.debug(f"Loaded {len(user_tools)} user-remote MCP tools")
+            except Exception as e:
+                logger.debug(f"Failed to load user-remote MCP: {e}")
+
+        # Priority 3: Admin MCP (fallback, lowest priority)
+        from executive_assistant.storage.mcp_storage import load_mcp_config
+
+        admin_config = load_mcp_config()
+        admin_servers = admin_config.get("mcpServers", {})
+
+        if admin_servers:
+            # Only load admin tools that don't collide with user tools
+            filtered_servers = {}
+            for name, config in admin_servers.items():
+                # Check if this server would collide with user tools
+                # (We can't know tool names without loading, so we load all
+                # and deduplicate by name later)
+                filtered_servers[name] = config
+
+            if filtered_servers:
+                admin_tools = await _load_mcp_servers(filtered_servers, "admin")
+                # Deduplicate: user tools take priority
+                for tool in admin_tools:
+                    if tool.name not in all_tool_names:
+                        tools.append(tool)
+                        all_tool_names.add(tool.name)
+                    else:
+                        logger.debug(f"Admin MCP tool '{tool.name}' overridden by user tool")
+
+                if admin_tools:
+                    logger.debug(f"Loaded {len(admin_tools)} admin MCP tools (non-colliding)")
+
+    except ImportError:
+        print("Warning: langchain-mcp-adapters not installed. MCP tools unavailable.")
+
+    return tools
+
+
+async def _load_mcp_servers(
+    servers: dict,
+    source: str,
+) -> list[BaseTool]:
+    """Load tools from MCP servers.
+
+    Args:
+        servers: Dict of server_name -> server_config
+        source: Source label for logging
+
+    Returns:
+        List of MCP tools
+    """
+    from langchain_mcp_adapters.client import MultiServerMCPClient
+
+    tools = []
+    connections = {}
+
+    for server_name, server_config in servers.items():
+        try:
+            connection = _mcp_server_to_connection(server_config)
+            connections[server_name] = connection
+        except Exception as e:
+            print(f"Warning: Invalid MCP server config for '{server_name}' ({source}): {e}")
+
+    if connections:
+        client = MultiServerMCPClient(connections=connections)
+        server_tools = await client.get_tools()
+        tools.extend(server_tools)
+
+    return tools
+
+
+def _get_tool_names(tools: list[BaseTool]) -> set[str]:
+    """Extract tool names from a list of tools.
+
+    Args:
+        tools: List of BaseTool instances
+
+    Returns:
+        Set of tool names
+    """
+    return {tool.name for tool in tools}
+
+
+def clear_mcp_cache() -> int:
+    """Clear the MCP client cache.
+
+    This function clears all cached MCP connections, forcing a reload
+    on the next tool loading. Use this when MCP configurations have changed.
+
+    Returns:
+        Number of cache entries cleared
+    """
+    global _mcp_client_cache
+
+    cleared = len(_mcp_client_cache)
+    _mcp_client_cache.clear()
+
+    logger.debug(f"Cleared {cleared} MCP cache entries")
+    return cleared
+
+
+def get_mcp_cache_info() -> dict:
+    """Get information about the MCP cache.
+
+    Returns:
+        Dict with cache size and keys
+    """
+    global _mcp_client_cache
+
+    return {
+        "size": len(_mcp_client_cache),
+        "keys": list(_mcp_client_cache.keys()),
+    }
