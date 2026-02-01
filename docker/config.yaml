@@ -56,8 +56,8 @@ storage:
   paths:
     # 3-level storage hierarchy
     shared_root: "./data/shared"
-    groups_root: "./data/groups"
     users_root: "./data/users"
+    admins_root: "./data/admins"
 
   # Security settings
   max_file_size_mb: 10
@@ -97,7 +97,6 @@ middleware:
     # - Preserving recent conversation (~15-20 messages)
     # - Summarizing older context
     # - Preventing context loss
-  debug_summarization: true
 
   # Call Limits - prevent runaway agent execution (per-message limits)
   model_call_limit: 50 # Max 50 LLM calls per message (prevents infinite loops)
@@ -118,7 +117,6 @@ middleware:
     enabled: false
     trigger_tokens: 5000
     keep_tool_uses: 10
-  debug_context_editing: true
 
   # Status Update Middleware - real-time progress feedback
   status_updates:
@@ -224,10 +222,11 @@ admin:
 channels:
   telegram:
     # webhook_url and webhook_secret should be in .env
+    # Example:
+    # TELEGRAM_WEBHOOK_URL=https://your-domain.com/webhook
+    # TELEGRAM_WEBHOOK_SECRET=your-secret-here
 
   http:
     host: "0.0.0.0"
     port: 8000
 
-storage_paths:
-  admins_root: ./data/admins

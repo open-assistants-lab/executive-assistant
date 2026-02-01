@@ -19,8 +19,13 @@ ENV/
 *.swp
 *.swo
 
-# Environment
+# Environment variables (NEVER COMMIT THESE!)
+.env
 .env.local
+.env.*.local
+docker/.env
+docker/.env.local
+docker/.env.*.local
 
 # Data directories
 data/
@@ -37,16 +42,6 @@ htmlcov/
 
 # Claude
 .claude/
-.DS_Store
-.DS_Store
-.DS_Store
-.DS_Store
 
 # Logs
 logs/
-.env
-.DS_Store
-.DS_Store
-docker/.env
-docs/.DS_Store
-.DS_Store
