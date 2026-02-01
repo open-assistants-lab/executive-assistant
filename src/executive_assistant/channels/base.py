@@ -325,6 +325,23 @@ class BaseChannel(ABC):
                 # Don't break message handling if instinct observation fails
                 logger.debug(f"{ctx_system} Instinct observation failed: {e}")
 
+            # Track emotional state (non-blocking)
+            try:
+                from executive_assistant.instincts.emotional_tracker import get_emotional_tracker
+
+                tracker = get_emotional_tracker()
+                # Get conversation length for context
+                history = self._get_conversation_history(message.conversation_id)
+                state = tracker.update_state(
+                    message.content,
+                    conversation_length=len(history) if history else 0
+                )
+                if state.value != "neutral":
+                    logger.debug(f"{ctx_system} Emotional state: {state.value} (confidence: {tracker.confidence:.2f})")
+            except Exception as e:
+                # Don't break message handling if emotional tracking fails
+                logger.debug(f"{ctx_system} Emotional tracking failed: {e}")
+
 
             # Build state with only the new message
             state = {

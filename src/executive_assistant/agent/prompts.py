@@ -112,7 +112,12 @@ def get_system_prompt(
             if user_prompt:
                 parts.append(user_prompt)
 
-    # Layer 4: Channel appendix (optional)
+    # Layer 4: Emotional state context (optional, per-conversation)
+    emotional_section = load_emotional_context()
+    if emotional_section:
+        parts.append(emotional_section)
+
+    # Layer 5: Channel appendix (optional)
     appendix = get_channel_prompt(channel)
     if appendix:
         parts.append(appendix)
@@ -148,7 +153,37 @@ def load_user_prompt(thread_id: str) -> str:
         thread_id: Thread identifier (e.g., "telegram:123456")
 
     Returns:
-        User prompt content if file exists, empty string otherwise.
+        Formatted user prompt if exists, empty string otherwise.
+    """
+    try:
+        from executive_assistant.storage.user_storage import UserPaths
+
+        user_paths = UserPaths(thread_id)
+        prompt_path = user_paths.get_prompt_path()
+
+        if prompt_path.exists():
+            with open(prompt_path) as f:
+                return f.read()
+    except Exception:
+        pass
+
+    return ""
+
+
+def load_emotional_context() -> str:
+    """Load current emotional state as context for system prompt.
+
+    Returns:
+        Formatted emotional context if state is significant, empty string otherwise.
+    """
+    try:
+        from executive_assistant.instincts.emotional_tracker import get_emotional_tracker
+
+        tracker = get_emotional_tracker()
+        return tracker.get_state_for_prompt()
+    except Exception:
+        # If emotional tracking fails, return empty (don't break the agent)
+        return ""        User prompt content if file exists, empty string otherwise.
     """
     prompt_path = UserPaths.get_prompt_path(thread_id)
     if not prompt_path.exists():
