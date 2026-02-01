@@ -1,10 +1,28 @@
 # Executive Assistant Technical Architecture Documentation
 
-**Version:** 1.2.0
-**Last Updated:** January 31, 2026
+**Version:** 1.3.0
+**Last Updated:** February 1, 2026
 **Project:** Executive Assistant - Multi-channel AI Agent Platform
 
-**Recent Updates (January 2026):**
+**Recent Updates (February 2026):**
+- ✅ **Implemented User MCP Management** - Per-conversation MCP server management
+  - User-managed MCP servers (stdio + HTTP/SSE)
+  - Tiered tool loading (user > admin priority)
+  - Tool deduplication and hot-reload with `clear_mcp_cache()`
+  - Automatic backup/restore with rotation (keeps last 5)
+  - Security validation (HTTPS enforcement, server name validation, command injection prevention)
+  - Storage: `data/users/{thread_id}/mcp/mcp.json` and `mcp_remote.json`
+- ✅ **Implemented MCP-Skill HITL Integration** - Human-in-the-loop skill loading
+  - Auto-detection of relevant skills when adding MCP servers
+  - Pending skill proposals with approval workflow
+  - Skill mapping database (fetch, github, clickhouse, filesystem, brave-search, puppeteer)
+  - 5 HITL workflow tools: `mcp_list_pending_skills`, `mcp_approve_skill`, `mcp_reject_skill`, `mcp_edit_skill`, `mcp_show_skill`
+  - Enhanced `mcp_add_server` creates proposals, `mcp_reload` loads approved skills
+  - Storage: `data/users/{thread_id}/mcp/pending_skills/{skill_name}.json`
+  - 60 comprehensive tests (33 storage/mapping + 27 workflow tools)
+  - Files: `storage/mcp_skill_storage.py`, `tools/mcp_skill_mapping.py`, enhanced `tools/user_mcp_tools.py`
+
+**Previous Updates (January 2026):**
 - ✅ **Implemented Instinct System** - Automatic behavioral pattern learning
   - Observer: Pattern detection (corrections, repetitions, preferences)
   - Injector: Context injection into system prompts
@@ -481,6 +499,77 @@ data/
   - `approve_evolved_skill`: Save draft as user skill
   - `export_instincts` / `import_instincts`: Backup and sharing
 
+**UserMCPStorage (`user_mcp_storage.py`)**
+- **Purpose**: Per-conversation MCP server configuration management
+- **Backend**: JSON files per-thread
+- **Location**: `data/users/{thread_id}/mcp/`
+- **Files**:
+  - `mcp.json`: Local (stdio) server configurations
+  - `mcp_remote.json`: Remote (HTTP/SSE) server configurations
+  - Automatic backups: `mcp.json.backup_001` to `backup_005` (rotation)
+- **Features**:
+  - Server name validation (alphanumeric, underscore, hyphen only)
+  - Command validation (stdio servers require command)
+  - URL validation (HTTPS required, localhost exception for testing)
+  - Security checks (command injection prevention)
+  - Backup before modifications
+  - Manual restore from any backup
+- **Tools**:
+  - `mcp_add_server`: Add local MCP server
+  - `mcp_add_remote_server`: Add remote MCP server
+  - `mcp_remove_server`: Remove server
+  - `mcp_list_servers`: List all configured servers
+  - `mcp_show_server`: Show server details
+  - `mcp_export_config`: Export configuration as JSON
+  - `mcp_import_config`: Import configuration from JSON
+  - `mcp_list_backups`: List available backups
+  - `mcp_restore_backup`: Restore from backup
+  - `mcp_reload`: Reload tools from configuration
+
+**MCPSkillStorage (`mcp_skill_storage.py`)**
+- **Purpose**: HITL workflow for skill proposals from MCP servers
+- **Backend**: JSON files per-thread
+- **Location**: `data/users/{thread_id}/mcp/pending_skills/`
+- **Proposal Schema**:
+  ```json
+  {
+    "skill_name": "web_scraping",
+    "source_server": "fetch",
+    "reason": "The fetch tool requires knowledge of web scraping best practices",
+    "content": "",
+    "created_at": "2026-02-01T10:00:00Z",
+    "status": "pending"  // pending | approved | rejected
+  }
+  ```
+- **Features**:
+  - Create pending proposals when MCP servers added
+  - Approve/reject workflow with user control
+  - Edit skill content before approving
+  - List pending skills (sorted by created_at, newest first)
+  - Get list of approved skills for loading
+- **Functions**:
+  - `save_pending_skill()`: Save proposal to storage
+  - `load_pending_skill()`: Load proposal by name
+  - `list_pending_skills()`: Get all pending proposals
+  - `approve_skill()`: Mark as approved (loads on next reload)
+  - `reject_skill()`: Mark as rejected
+  - `get_approved_skills()`: Get list of approved skill names
+
+**MCP Skill Mapping (`tools/mcp_skill_mapping.py`)**
+- **Purpose**: Maps MCP servers to their associated skills
+- **Database**: `MCP_SERVER_SKILLS` dictionary
+- **Supported Servers**:
+  - `fetch` → `web_scraping`, `fetch_content` (web scraping best practices)
+  - `github` → `github_api`, `code_search`, `git_operations` (API patterns)
+  - `clickhouse` → `clickhouse_sql`, `database_queries` (SQL optimization)
+  - `filesystem` → `file_operations`, `file_security` (auto-load=False, requires paths)
+  - `brave-search` → `web_search`, `search_strategies` (query optimization)
+  - `puppeteer` → `browser_automation`, `web_scraping_advanced` (DOM manipulation)
+- **Functions**:
+  - `get_skills_for_server(name, command)`: Detect skills for a server
+  - `get_skill_recommendation_reason(name)`: Get explanation
+  - `is_server_auto_load(name)`: Check if skills should be auto-proposed
+
 **Checkpoint (`checkpoint.py`)**
 - **Purpose**: LangGraph state persistence
 - **Backend**: PostgreSQL (via `langgraph-checkpoint-postgres`)
@@ -554,7 +643,11 @@ data/
   - Memory tools (6 tools): Memory extraction and search
   - Meta tools (3 tools): System metadata
   - Instinct tools (13 tools): Behavioral pattern learning
-  - MCP tools: Configurable MCP server integration
+  - MCP tools (14 tools): Configurable MCP server integration
+    - Server management: add, remove, list, show servers (local + remote)
+    - Configuration: export, import, list backups, restore backup
+    - Hot-reload: clear MCP cache and reload tools
+    - HITL workflow: list pending skills, approve, reject, edit, show skills
   - Confirmation tool (1 tool): Large operation confirmation
   - Skills tool (1 tool): Dynamic skill loading
 
@@ -831,6 +924,70 @@ system_prompt = (
     │
     └─→ Return results to agent
 ```
+
+### MCP-Skill HITL Flow
+
+When users add MCP servers, the system automatically proposes relevant skills:
+
+```
+[User adds MCP server]
+    │
+    ↓
+[mcp_add_server tool]
+    │  • Validate server configuration
+    │  • Save to mcp.json or mcp_remote.json
+    │  • Check skill mapping database
+    │
+    ├─→ [For each associated skill]
+    │      • Check if already approved
+    │      • Create MCPSkillProposal
+    │      • Save to pending_skills/{skill_name}.json
+    │      • Status: "pending"
+    │
+    ↓
+[User reviews proposals]
+    │
+    ├─→ mcp_list_pending_skills()
+    │   • Shows all pending skills
+    │   • Displays source server and reason
+    │   • Sorted by created_at (newest first)
+    │
+    ├─→ mcp_show_skill(skill_name)
+    │   • Shows skill details
+    │   • Displays current content
+    │   • Shows available actions
+    │
+    ├─→ mcp_edit_skill(skill_name, content) [optional]
+    │   • Customize skill content
+    │   • Preserves status
+    │
+    ├─→ mcp_approve_skill(skill_name)
+    │   • Changes status to "approved"
+    │   • Will load on next reload
+    │
+    └─→ mcp_reject_skill(skill_name)
+        • Changes status to "rejected"
+        • Won't be loaded
+    │
+    ↓
+[mcp_reload tool]
+    │  • clear_mcp_cache() - Clear tool cache
+    │  • Load tools from all configured servers
+    │  • get_approved_skills() - Get approved skill list
+    │  • For each approved skill:
+    │     • load_skill(skill_name)
+    │     • Inject skill content into agent context
+    │
+    ↓
+[Agent now has tools + expertise]
+```
+
+**Key Benefits:**
+- **Transparency**: Users see exactly what skills will be loaded
+- **Control**: Users approve/reject individual skills
+- **Customization**: Users can edit skills before loading
+- **Safety**: Skills require explicit approval
+- **Context**: Skills teach agent how/when/why to use tools
 
 ---
 
@@ -1322,9 +1479,67 @@ This enables:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.3.0 | 2026-02-01 | Implemented User MCP Management and MCP-Skill HITL Integration |
 | 1.2.0 | 2026-01-31 | Implemented Instinct System (Observer, Injector, Evolver, Profiles) |
 | 1.1.0 | 2026-01-28 | Added ThreadContextMiddleware, HTTP auth bypass, error logging enhancements |
 | 1.0.0 | 2026-01-21 | Initial technical architecture documentation |
+
+### Key Changes in v1.3.0
+
+**New Feature: User MCP Management**
+- Per-conversation MCP server configuration (separate from admin MCP)
+- Support for stdio (command-line) and HTTP/SSE (remote) servers
+- Tiered loading: User tools override admin tools when names conflict
+- Tool deduplication: Prevents duplicate tools with same name
+- Hot-reload: `clear_mcp_cache()` for updating tools without restart
+- Security validation:
+  - Server name validation (alphanumeric, underscore, hyphen only)
+  - Command injection prevention (validates command format)
+  - HTTPS enforcement for remote servers (localhost exception)
+  - JSON validation for env/headers arguments
+- Backup/Restore:
+  - Automatic backups before modifications (keeps last 5)
+  - Manual restore from any backup point
+  - Rotation: Oldest backup deleted when exceeding limit
+- Storage: `data/users/{thread_id}/mcp/mcp.json` and `mcp_remote.json`
+
+**New Feature: MCP-Skill HITL Integration**
+- Skill mapping database: Maps MCP servers to associated skills
+- Auto-detection: When adding servers, relevant skills are proposed
+- Human-in-the-loop workflow:
+  - `mcp_list_pending_skills`: Show all proposals
+  - `mcp_show_skill`: View skill details before deciding
+  - `mcp_approve_skill`: Approve skill (loads on next reload)
+  - `mcp_reject_skill`: Reject skill (won't be loaded)
+  - `mcp_edit_skill`: Customize skill content
+- Storage: `data/users/{thread_id}/mcp/pending_skills/{skill_name}.json`
+- Enhanced tools:
+  - `mcp_add_server`: Now creates skill proposals
+  - `mcp_reload`: Now loads approved skills into context
+- Supported servers: fetch, github, clickhouse, filesystem, brave-search, puppeteer
+
+**Architecture Improvements:**
+- Separation of concerns: MCP config vs skill proposals
+- Status workflow: pending → approved/rejected
+- Proposal metadata: source_server, reason, created_at
+- Audit trail: All proposals stored with timestamps
+- Thread isolation: Each conversation has its own servers and skills
+
+**Testing:**
+- 33 tests for storage and skill mapping (`test_mcp_skill_hitl.py`)
+- 27 tests for HITL workflow tools (`test_mcp_hitl_tools.py`)
+- Total: 60 tests, all passing
+- Test coverage: Proposal lifecycle, mapping detection, tool integration, error handling
+
+**New Files:**
+- `src/executive_assistant/storage/mcp_skill_storage.py` (130+ lines)
+- `src/executive_assistant/tools/mcp_skill_mapping.py` (117 lines)
+- `src/executive_assistant/tools/user_mcp_tools.py` (700+ lines, enhanced)
+- `tests/test_mcp_skill_hitl.py` (400+ lines)
+- `tests/test_mcp_hitl_tools.py` (500+ lines)
+
+**Tool Count:**
+- Increased from 87 to 101 tools (+14 MCP management tools)
 
 ### Key Changes in v1.2.0
 

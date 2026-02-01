@@ -31,6 +31,8 @@ Executive Assistant uses a skills system to choose the right approach:
 - **Transactional Database tools** for structured data and temporary analysis (timesheets, logs, datasets)
 - **Vector Transactional Database** for long-term knowledge retrieval (meeting notes, decisions, documentation)
 - **File tools** for browsing and exact-text search (codebases, document archives)
+- **MCP Tools** for extensible external tool integration via Model Context Protocol
+- **Skills** for contextual knowledge on how to use tools effectively
 
 You don't need to remember which tool does what—Executive Assistant figures it out from context.
 
@@ -267,6 +269,22 @@ See `docker/.env.example` for all available options.
 - `list_instincts` - Show learned behavioral patterns
 - `evolve_instincts` - Cluster patterns into reusable skills
 
+**MCP Tools** (Model Context Protocol - available in conversation):
+- `mcp_add_server` - Add an MCP server (stdio or HTTP/SSE)
+- `mcp_add_remote_server` - Add a remote MCP server
+- `mcp_remove_server` - Remove an MCP server
+- `mcp_list_servers` - List all configured MCP servers
+- `mcp_show_server` - Show detailed server information
+- `mcp_reload` - Reload MCP tools from configuration
+- `mcp_export_config` - Export MCP configuration as JSON
+- `mcp_import_config` - Import MCP configuration from JSON
+- `mcp_list_backups` - List available configuration backups
+- `mcp_list_pending_skills` - List skills awaiting approval
+- `mcp_approve_skill` - Approve a pending skill proposal
+- `mcp_reject_skill` - Reject a pending skill proposal
+- `mcp_edit_skill` - Edit skill content before approving
+- `mcp_show_skill` - Show detailed skill information
+
 ### Debug Mode
 
 Toggle detailed progress tracking:
@@ -321,6 +339,44 @@ curl http://localhost:8000/health
 - Telegram channel uses allowlist (managed via `/user` command)
 
 ## Tool Capabilities
+
+### MCP Integration (Model Context Protocol)
+Executive Assistant supports extensible tool integration via MCP servers:
+- **User-Managed Servers**: Add your own MCP servers per conversation
+- **Auto-Detection**: Automatically suggests relevant skills when adding servers
+- **Human-in-the-Loop**: Review and approve skills before loading
+- **Hot-Reload**: Add/remove servers without restarting
+- **Tiered Loading**: User tools override admin tools for customization
+- **Backup/Restore**: Automatic backups with manual restore options
+
+**Example Workflow:**
+```bash
+# Add fetch MCP server
+You: Add the fetch MCP server from GitHub
+Assistant: ✅ Added 'fetch' server with 1 tool
+        📚 Auto-loaded 2 helper skills:
+          • web_scraping
+          • fetch_content
+
+# Review and approve skills
+You: Show pending skills
+You: Approve web_scraping
+You: Reload
+
+# Now agent knows how to use fetch effectively!
+You: Fetch https://example.com and extract the main heading
+Assistant: [Uses web_scraping skill + fetch tool]
+        Successfully fetched and extracted heading...
+```
+
+**Supported MCP Servers:**
+- **Fetch**: Web content extraction (`uvx mcp-server-fetch`)
+- **GitHub**: Repository operations and code search (`npx @modelcontextprotocol/server-github`)
+- **ClickHouse**: Analytics database queries (`uv run --with mcp-clickhouse`)
+- **Filesystem**: File operations (requires paths argument)
+- **Brave Search**: Web search integration
+- **Puppeteer**: Browser automation
+- **And more**: Any MCP server can be added!
 
 ### File Operations
 - **Read/write**: Create, edit, and organize files
