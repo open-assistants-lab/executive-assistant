@@ -563,6 +563,8 @@ Instead of measuring "prompt quality", track:
 
 ## Implementation Plan
 
+**📘 Complete Roadmap**: See [instincts_system_roadmap.md](./instincts_system_roadmap.md) for comprehensive instincts system evolution (4 phases, ~13 days).
+
 ### Phase 1: Enable Auto-Extraction ✅
 - Change default from `False` to `True` (DONE)
 - Test auto-extraction works
@@ -591,6 +593,13 @@ Instead of measuring "prompt quality", track:
 - Add self-introduction detection
 - Extract context from introductions
 - Create relevant memories/instincts
+
+### Phase 6+: Instincts System Evolution 🚀
+See [instincts_system_roadmap.md](./instincts_system_roadmap.md) for:
+- **Quick Wins** (1 day): Missing sources, conflict resolution, metadata utilization
+- **Important Enhancements** (3 days): Temporal decay, staleness detection, success tracking
+- **Architecture Expansion** (4 days): New domains, emotional tracking, expertise mapping
+- **Advanced Intelligence** (5 days): Cross-pattern recognition, confidence calibration
 
 ---
 
