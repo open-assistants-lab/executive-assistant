@@ -3,26 +3,50 @@
 # For secrets and environment-specific overrides, use .env file.
 
 # ============================================================================
-# LLM Configuration
+# ESSENTIAL CONFIGURATION
 # ============================================================================
+# Basic settings that define your agent deployment
 
+# Agent Configuration
+agent:
+  # Agent display name - customize this for your deployment
+  name: "Executive Assistant"
+
+# Channels Configuration
+channels:
+  telegram:
+    # webhook_url and webhook_secret should be in .env
+    # Example:
+    # TELEGRAM_WEBHOOK_URL=https://your-domain.com/webhook
+    # TELEGRAM_WEBHOOK_SECRET=your-secret-here
+
+  http:
+    host: "0.0.0.0"
+    port: 8000
+
+# Admin Access Control
+admin:
+  user_ids: [] # Comma-separated list of admin user IDs
+  thread_ids: [telegram:6282871705] # Comma-separated list of admin thread IDs
+
+# ============================================================================
+# CORE INTELLIGENCE
+# ============================================================================
+# AI models, knowledge retrieval, and memory systems
+
+# LLM Configuration
 llm:
   # Default LLM provider: anthropic, openai, zhipu, ollama
   default_provider: openai
-  # default_provider: ollama
-
-  # Global fallback models (used when provider-specific model not set)
-  default_model: null # Use provider-specific default
-  fast_model: null # Use provider-specific fast model
 
   # Provider-specific model configurations
   anthropic:
-    default_model: claude-haiku-4-5-20251001 # Uses claude-sonnet-4-20250514 by default
-    fast_model: claude-haiku-4-5-20251001 # Uses claude-haiku-4-20250514 by default
+    default_model: claude-haiku-4-5-20251001
+    fast_model: claude-haiku-4-5-20251001
 
   openai:
-    default_model: gpt-5.2-2025-12-11 # Uses gpt-4o by default
-    fast_model: gpt-5-mini-2025-08-07 # Uses gpt-4o-mini by default
+    default_model: gpt-5.2-2025-12-11
+    fast_model: gpt-5-mini-2025-08-07
 
   zhipu:
     default_model: glm-4-plus
@@ -30,16 +54,33 @@ llm:
 
   ollama:
     default_model: gpt-oss:20b-cloud
-    # default_model: qwen3-next:80b-cloud
     fast_model: gpt-oss:20b-cloud
     mode: cloud # cloud or local
     cloud_url: "https://ollama.com"
     local_url: "http://localhost:11434"
 
-# ============================================================================
-# Storage Configuration
-# ============================================================================
+# Vector Store Configuration
+vector_store:
+  # Sentence-transformers model for embeddings
+  embedding_model: "all-MiniLM-L6-v2"
+  embedding_dimension: 384
+  chunk_size: 3000 # Default chunk size in characters
 
+# Memory (Embedded User Memories)
+memory:
+  auto_extract: true # Auto-extract memories from each message
+  confidence_min: 0.6 # Minimum confidence to save a memory
+  max_per_turn: 3 # Max memories to extract per turn
+  extract_model: fast # Model variant: "default", "fast", or specific model
+  extract_provider: null # Override provider for extraction
+  extract_temperature: 0.0
+
+# ============================================================================
+# DATA & STORAGE
+# ============================================================================
+# Where your data is stored and how it's organized
+
+# Storage Configuration
 storage:
   # Checkpoint storage backend: postgres, memory
   checkpoint: postgres
@@ -63,17 +104,11 @@ storage:
   max_file_size_mb: 10
 
 # ============================================================================
-# Agent Configuration
+# BEHAVIOR & FEATURES
 # ============================================================================
+# Advanced middleware and agent behavior settings
 
-agent:
-  # Agent display name - customize this for your deployment
-  name: "Executive Assistant"
-
-# ============================================================================
 # LangChain Middleware Configuration
-# ============================================================================
-
 middleware:
   # Summarization Middleware - reduces context size when it gets too large
   summarization:
@@ -87,11 +122,11 @@ middleware:
     # NOTE: max_tokens may trigger early (at ~4000-4500 actual message tokens) due to
     # LangChain checking usage_metadata which includes system prompt + tools overhead.
     #
-    # Token accounting with 72 tools:
+    # Token accounting with ~100 tools:
     # - System prompt: ~1,200 tokens
-    # - 72 tool definitions: ~4,500-5,000 tokens
-    # - Overhead total: ~5,700 tokens
-    # - Effective message trigger: 10,000 - 5,700 = ~4,300 tokens
+    # - Tool definitions: ~5,000-6,000 tokens
+    # - Overhead total: ~6,200-7,200 tokens
+    # - Effective message trigger: 12,000 - 7,200 = ~4,800 tokens
     #
     # Ratio: 10,000 → 2,000 (5:1) provides good balance between:
     # - Preserving recent conversation (~15-20 messages)
@@ -131,39 +166,16 @@ middleware:
     show_progress_bar: false # Use progress bar format instead of list
 
 # ============================================================================
-# Vector Store Configuration
+# OPTIONAL FEATURES
 # ============================================================================
+# Additional features that can be enabled as needed
 
-vector_store:
-  # Sentence-transformers model for embeddings
-  embedding_model: "all-MiniLM-L6-v2"
-  embedding_dimension: 384
-  chunk_size: 3000 # Default chunk size in characters
-
-# ============================================================================
-# Memory (Embedded User Memories)
-# ============================================================================
-
-memory:
-  auto_extract: true # Auto-extract memories from each message
-  confidence_min: 0.6 # Minimum confidence to save a memory
-  max_per_turn: 3 # Max memories to extract per turn
-  extract_model: fast # Model variant: "default", "fast", or specific model
-  extract_provider: null # Override provider for extraction
-  extract_temperature: 0.0
-
-# ============================================================================
 # Logging
-# ============================================================================
-
 logging:
   level: DEBUG # DEBUG, INFO, WARNING, ERROR, CRITICAL
   file: logs/executive_assistant.log # Optional log file path
 
-# ============================================================================
 # OCR (Text Extraction from Images/PDFs)
-# ============================================================================
-
 ocr:
   engine: surya # paddleocr or tesseract
   lang: eng
@@ -177,27 +189,28 @@ ocr:
   structured_provider: null
   structured_max_retries: 2
 
-# ============================================================================
 # Allowed File Extensions
-# ============================================================================
-
 allowed_file_extensions:
+  # Documents
   - .txt
   - .md
-  - .py
-  - .js
-  - .ts
+  - .pdf
+  - .csv
+  - .xml
   - .json
   - .yaml
   - .yml
-  - .csv
-  - .xml
+
+  # Code
+  - .py
+  - .js
+  - .ts
   - .html
   - .css
   - .sh
   - .bash
-  - .log
-  - .pdf
+
+  # Images
   - .png
   - .jpg
   - .jpeg
@@ -206,27 +219,3 @@ allowed_file_extensions:
   - .tif
   - .bmp
   - .gif
-
-# ============================================================================
-# Admin Access Control
-# ============================================================================
-
-admin:
-  user_ids: [] # Comma-separated list of admin user IDs
-  thread_ids: [telegram:6282871705] # Comma-separated list of admin thread IDs
-
-# ============================================================================
-# Channels Configuration
-# ============================================================================
-
-channels:
-  telegram:
-    # webhook_url and webhook_secret should be in .env
-    # Example:
-    # TELEGRAM_WEBHOOK_URL=https://your-domain.com/webhook
-    # TELEGRAM_WEBHOOK_SECRET=your-secret-here
-
-  http:
-    host: "0.0.0.0"
-    port: 8000
-
