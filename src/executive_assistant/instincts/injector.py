@@ -163,7 +163,7 @@ Adjust your explanations:
         thread_id: str,
         user_message: str | None = None,
         min_confidence: float = 0.5,
-        max_per_domain: int = 3,
+        max_per_domain: int = None,  # None = adaptive
     ) -> str:
         """
         Build instincts section for system prompt.
@@ -172,18 +172,27 @@ Adjust your explanations:
             thread_id: Thread identifier
             user_message: Current user message for context filtering (optional)
             min_confidence: Minimum confidence threshold (default 0.5)
-            max_per_domain: Maximum instincts to include per domain (default 3)
+            max_per_domain: Maximum instincts to include per domain (default 3, None=adaptive)
 
         Returns:
             Formatted instincts section for injection into system prompt
         """
+        # Adaptive max_per_domain calculation
+        if max_per_domain is None:
+            # We'll calculate after loading instincts (O(n) but n is small)
+            adaptive_mode = True
+        else:
+            adaptive_mode = False
+
         # Get applicable instincts
         if user_message:
             # Context-aware: get instincts matching current situation
+            # Use large limit for adaptive mode, calculate specific limit otherwise
+            limit = max_per_domain * 6 if max_per_domain is not None else 100
             instincts = self.storage.get_applicable_instincts(
                 context=user_message,
                 thread_id=thread_id,
-                max_count=max_per_domain * 6,  # Get more, then filter by domain
+                max_count=limit,  # Get more, then filter by domain
             )
             # Fall back to all high-confidence instincts if no matches
             if not instincts:
@@ -255,6 +264,25 @@ Adjust your explanations:
 
         # Filter by final confidence
         instincts = [i for i in scored_instincts if i["final_confidence"] >= min_confidence]
+
+        # Adaptive max_per_domain calculation
+        if adaptive_mode and instincts:
+            # Calculate average confidence of all scored instincts
+            avg_confidence = sum(i["final_confidence"] for i in scored_instincts) / len(scored_instincts)
+
+            # Set max_per_domain based on quality thresholds
+            if avg_confidence > 0.8:
+                max_per_domain = 5  # High quality: include more instincts
+            elif avg_confidence > 0.6:
+                max_per_domain = 3  # Medium quality: standard limit
+            else:
+                max_per_domain = 1  # Lower quality: be conservative
+
+            logger.debug(
+                f"Adaptive injection: avg_confidence={avg_confidence:.2f} → max_per_domain={max_per_domain}"
+            )
+        elif not instincts:
+            max_per_domain = 0  # No instincts to include
 
         # Sort by final confidence
         instincts.sort(key=lambda i: i["final_confidence"], reverse=True)
@@ -343,6 +371,113 @@ Adjust your explanations:
             "avg_confidence": avg_confidence,
             "min_confidence": min_confidence,
         }
+
+    def format_instincts_for_user(
+        self,
+        thread_id: str,
+        min_confidence: float = 0.5,
+    ) -> str:
+        """
+        Format learned instincts in user-friendly language.
+
+        Shows what the agent has learned about the user's preferences.
+
+        Args:
+            thread_id: Thread identifier
+            min_confidence: Minimum confidence threshold
+
+        Returns:
+            User-friendly formatted text describing learned patterns
+        """
+        instincts = self.storage.list_instincts(
+            min_confidence=min_confidence,
+            thread_id=thread_id,
+        )
+
+        if not instincts:
+            return "I haven't learned your preferences yet. As we interact more, I'll adapt to your communication style and preferences."
+
+        # Sort by confidence descending
+        instincts.sort(key=lambda i: i["confidence"], reverse=True)
+
+        # Group by domain
+        by_domain: dict[str, list[dict]] = {}
+        for instinct in instincts:
+            domain = instinct["domain"]
+            if domain not in by_domain:
+                by_domain[domain] = []
+            by_domain[domain].append(instinct)
+
+        # Build user-friendly output
+        sections = []
+        sections.append("## What I've Learned About Your Preferences")
+        sections.append("")
+        sections.append(
+            f"Based on our interactions, I've noticed {len(instincts)} patterns "
+            f"in how you prefer to work:"
+        )
+        sections.append("")
+
+        # Format each domain
+        for domain in sorted(by_domain.keys()):
+            domain_instincts = by_domain[domain]
+
+            # User-friendly domain names
+            domain_names = {
+                "communication": "Communication Style",
+                "format": "Output Format",
+                "workflow": "Workflow",
+                "tool_selection": "Tool Preferences",
+                "verification": "Quality Standards",
+                "timing": "Timing",
+                "emotional_state": "Emotional Patterns",
+                "learning_style": "Learning Style",
+                "expertise": "Your Expertise",
+            }
+
+            domain_title = domain_names.get(domain, domain.replace("_", " ").title())
+            sections.append(f"### {domain_title}")
+            sections.append("")
+
+            for instinct in domain_instincts:
+                confidence = instinct["confidence"]
+                action = instinct["action"]
+                trigger = instinct["trigger"]
+                metadata = instinct.get("metadata", {})
+
+                # Confidence indicator
+                if confidence >= 0.9:
+                    strength = "Always"
+                elif confidence >= 0.75:
+                    strength = "Usually"
+                elif confidence >= 0.6:
+                    strength = "Often"
+                else:
+                    strength = "Sometimes"
+
+                # Format the instinct
+                sections.append(f"**{strength}**: {action}")
+
+                # Add trigger context for lower-confidence instincts
+                if confidence < 0.75:
+                    sections.append(f"_When: {trigger}_")
+
+                # Add metadata for transparency
+                occurrence_count = metadata.get("occurrence_count", 0)
+                if occurrence_count > 0:
+                    sections.append(f"_(Seen {occurrence_count} times)_")
+
+                sections.append("")
+
+        # Add learning note
+        sections.append("---")
+        sections.append("")
+        sections.append(
+            "*I continuously learn from our interactions. If something here is wrong, "
+            "just let me know and I'll adjust!*"
+        )
+
+        return "\n".join(sections)
 
 
 _instinct_injector = InstinctInjector()

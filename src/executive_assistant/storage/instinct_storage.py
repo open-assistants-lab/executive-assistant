@@ -588,6 +588,146 @@ class InstinctStorage:
         return removed_count
 
     # ========================================================================
+    # PATTERN RECOGNITION: Find similar instincts
+    # ========================================================================
+
+    def find_similar_instincts(
+        self,
+        thread_id: str | None = None,
+        similarity_threshold: float = 0.8,
+    ) -> list[list[dict]]:
+        """Find instincts that are semantically similar.
+
+        Uses simple word-overlap similarity (can upgrade to embeddings later).
+
+        Args:
+            thread_id: Thread identifier
+            similarity_threshold: Minimum similarity score (0.0 to 1.0)
+
+        Returns:
+            List of clusters (lists) of similar instincts
+        """
+        instincts = self.list_instincts(
+            thread_id=thread_id,
+            apply_decay=False,  # Use base confidence for similarity
+        )
+
+        clusters = []
+        used = set()
+
+        for i, instinct_a in enumerate(instincts):
+            if i in used:
+                continue
+
+            cluster = [instinct_a]
+            used.add(i)
+
+            for j, instinct_b in enumerate(instincts[i+1:], start=i+1):
+                if j in used:
+                    continue
+
+                # Calculate similarity
+                sim = self._calculate_similarity(instinct_a, instinct_b)
+
+                if sim >= similarity_threshold:
+                    cluster.append(instinct_b)
+                    used.add(j)
+
+            if len(cluster) > 1:
+                clusters.append(cluster)
+
+        return clusters
+
+    def _calculate_similarity(self, instinct_a: dict, instinct_b: dict) -> float:
+        """Calculate semantic similarity between two instincts.
+
+        Uses word-overlap of trigger and action text.
+        Can be upgraded to use embeddings later.
+
+        Args:
+            instinct_a: First instinct
+            instinct_b: Second instinct
+
+        Returns:
+            Similarity score (0.0 to 1.0)
+        """
+        # Combine trigger and action for similarity
+        text_a = f"{instinct_a['trigger']} {instinct_a['action']}"
+        text_b = f"{instinct_b['trigger']} {instinct_b['action']}"
+
+        # Simple word-overlap similarity
+        words_a = set(text_a.lower().split())
+        words_b = set(text_b.lower().split())
+
+        if not words_a or not words_b:
+            return 0.0
+
+        intersection = words_a & words_b
+        union = words_a | words_b
+
+        return len(intersection) / len(union)
+
+    def merge_similar_instincts(
+        self,
+        thread_id: str | None = None,
+        similarity_threshold: float = 0.8,
+    ) -> dict[str, int]:
+        """Merge similar instincts, keeping highest-confidence version.
+
+        Args:
+            thread_id: Thread identifier
+            similarity_threshold: Minimum similarity to merge
+                instincts based on overlap
+
+        Returns:
+            Dictionary with merge statistics
+        """
+        clusters = self.find_similar_instincts(
+            thread_id=thread_id,
+            similarity_threshold=similarity_threshold,
+        )
+
+        merged_count = 0
+        boost_count = 0
+
+        for cluster in clusters:
+            # Sort by confidence descending
+            cluster.sort(key=lambda x: x["confidence"], reverse=True)
+            keeper = cluster[0]
+
+            # Merge confidence from others
+            for instinct in cluster[1:]:
+                # Boost keeper confidence based on merged instinct's confidence
+                confidence_boost = instinct["confidence"] * 0.3
+                new_confidence = min(1.0, keeper["confidence"] + confidence_boost)
+
+                if new_confidence > keeper["confidence"]:
+                    boost_count += 1
+
+                # Merge metadata
+                keeper_metadata = keeper.get("metadata", {})
+                other_metadata = instinct.get("metadata", {})
+
+                keeper_metadata["occurrence_count"] = (
+                    keeper_metadata.get("occurrence_count", 0)
+                    + other_metadata.get("occurrence_count", 0)
+                )
+
+                # Delete duplicate
+                self.delete_instinct(instinct["id"], thread_id)
+                merged_count += 1
+
+            # Update keeper confidence
+            if boost_count > 0:
+                self._set_confidence(keeper["id"], keeper["confidence"], thread_id)
+
+        return {
+            "clusters_found": len(clusters),
+            "instincts_merged": merged_count,
+            "instincts_boosted": boost_count,
+        }
+
+    # ========================================================================
     # STORAGE: JSONL + Snapshot
     # ========================================================================
 
@@ -671,6 +811,137 @@ class InstinctStorage:
         snapshot = self._load_snapshot(thread_id)
         snapshot[instinct["id"]] = instinct
         self._save_snapshot(snapshot, thread_id)
+
+    def export_instincts(
+        self,
+        thread_id: str | None = None,
+        min_confidence: float = 0.0,
+        include_metadata: bool = True,
+    ) -> str:
+        """Export instincts as JSON string.
+
+        Args:
+            thread_id: Thread identifier (None for all threads)
+            min_confidence: Minimum confidence threshold
+            include_metadata: Whether to include metadata
+
+        Returns:
+            JSON string containing exported instincts
+        """
+        instincts = self.list_instincts(
+            thread_id=thread_id,
+            min_confidence=min_confidence,
+        )
+
+        # Prepare export data
+        export_data = {
+            "version": "1.0",
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "thread_id": thread_id,
+            "total_instincts": len(instincts),
+            "instincts": [],
+        }
+
+        for instinct in instincts:
+            export_instinct = {
+                "id": instinct["id"],
+                "trigger": instinct["trigger"],
+                "action": instinct["action"],
+                "domain": instinct["domain"],
+                "confidence": instinct["confidence"],
+                "created_at": instinct["created_at"],
+            }
+
+            if include_metadata:
+                export_instinct["metadata"] = instinct.get("metadata", {})
+
+            export_data["instincts"].append(export_instinct)
+
+        return json.dumps(export_data, indent=2)
+
+    def import_instincts(
+        self,
+        json_data: str,
+        thread_id: str | None = None,
+        merge_strategy: "replace" | "merge" = "merge",
+        confidence_boost: float = 0.0,
+    ) -> dict[str, int]:
+        """Import instincts from JSON string.
+
+        Args:
+            json_data: JSON string from export_instincts()
+            thread_id: Target thread identifier
+            merge_strategy: "replace" to overwrite, "merge" to combine
+            confidence_boost: Add this to all imported confidences (max 1.0)
+
+        Returns:
+            Dictionary with import statistics
+        """
+        try:
+            data = json.loads(json_data)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON data: {e}")
+
+        # Validate structure
+        if "instincts" not in data:
+            raise ValueError("Invalid export format: missing 'instincts'")
+
+        imported_count = 0
+        skipped_count = 0
+        merged_count = 0
+
+        for export_instinct in data["instincts"]:
+            # Apply confidence boost
+            confidence = export_instinct["confidence"]
+            if confidence_boost > 0:
+                confidence = min(1.0, confidence + confidence_boost)
+
+            # Check for duplicates if merging
+            if merge_strategy == "merge":
+                existing = self.list_instincts(
+                    thread_id=thread_id,
+                )
+
+                # Check for similar instincts (same trigger+action)
+                is_duplicate = False
+                for existing_instinct in existing:
+                    if (existing_instinct["trigger"] == export_instinct["trigger"] and
+                        existing_instinct["action"] == export_instinct["action"]):
+
+                        is_duplicate = True
+                        # Merge by keeping higher confidence
+                        if confidence > existing_instinct["confidence"]:
+                            # Reinforce with higher confidence
+                            self.reinforce_instinct(
+                                existing_instinct["id"],
+                                thread_id,
+                                confidence_boost=confidence - existing_instinct["confidence"],
+                            )
+                            merged_count += 1
+                        break
+
+                if is_duplicate:
+                    skipped_count += 1
+                    continue
+
+            # Create new instinct
+            self.create_instinct(
+                trigger=export_instinct["trigger"],
+                action=export_instinct["action"],
+                domain=export_instinct["domain"],
+                confidence=confidence,
+                thread_id=thread_id,
+                metadata=export_instinct.get("metadata", {}),
+            )
+
+            imported_count += 1
+
+        return {
+            "imported": imported_count,
+            "skipped": skipped_count,
+            "merged": merged_count,
+            "total": imported_count + merged_count,
+        }
 
 
 _instinct_storage = InstinctStorage()
