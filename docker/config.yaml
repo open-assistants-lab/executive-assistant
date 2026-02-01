@@ -134,8 +134,8 @@ middleware:
     # - Preventing context loss
 
   # Call Limits - prevent runaway agent execution (per-message limits)
-  model_call_limit: 50 # Max 50 LLM calls per message (prevents infinite loops)
-  tool_call_limit: 100 # Max 100 tool calls per message
+  model_call_limit: 50 # Max LLM calls per message (prevents infinite loops)
+  tool_call_limit: 100 # Max tool calls per message
 
   # Retry Middleware - retry failed calls
   tool_retry_enabled: true
