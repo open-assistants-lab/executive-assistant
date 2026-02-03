@@ -9,6 +9,8 @@ This test suite follows TDD methodology:
 6. Verify all tests pass
 
 Week 3 Implementation: Time-based journal with automatic rollups
+Rollup chain: raw → hourly → weekly → monthly → yearly (NO daily)
+Default retention: 7 years
 """
 
 import sqlite3
@@ -312,7 +314,7 @@ class TestTimeRollups:
         # TODO: Implement hierarchy retrieval
         # Expected:
         # - Get all rollups for a time period
-        # - Return in hierarchical order
+        # - Return in hierarchical order: raw → hourly → weekly → monthly → yearly
         # - Show parent-child relationships
         pass
 
@@ -440,6 +442,31 @@ class TestJournalPerformance:
         # - Add 10,000 entries
         # - Search still < 200ms
         # - Time-range queries still fast
+        pass
+
+
+class TestJournalConfiguration:
+    """Test journal configuration from config.yaml."""
+
+    def test_default_retention_config(self, tmp_path):
+        """Test that default retention configuration is loaded."""
+        from executive_assistant.storage.journal_storage import JournalStorage
+
+        storage = JournalStorage()
+        config = storage.get_retention_config()
+
+        # Should match YAML defaults
+        assert config["hourly"] == 30  # 30 days
+        assert config["weekly"] == 52  # 52 weeks (1 year)
+        assert config["monthly"] == 84  # 84 months (7 years)
+        assert config["yearly"] == 7  # 7 years
+
+    def test_custom_retention_from_yaml(self, tmp_path):
+        """Test that custom values can be set in config.yaml."""
+        # TODO: Test custom YAML configuration
+        # Expected:
+        # - Set custom retention in config.yaml
+        # - Verify storage picks up custom values
         pass
 
 

@@ -31,7 +31,6 @@ def _utc_now() -> str:
 EntryType = Literal[
     "raw",
     "hourly_rollup",
-    "daily_rollup",
     "weekly_rollup",
     "monthly_rollup",
     "yearly_rollup",
@@ -436,10 +435,9 @@ class JournalStorage:
         rollup_levels = {
             "raw": 0,
             "hourly_rollup": 1,
-            "daily_rollup": 2,
-            "weekly_rollup": 3,
-            "monthly_rollup": 4,
-            "yearly_rollup": 5,
+            "weekly_rollup": 2,
+            "monthly_rollup": 3,
+            "yearly_rollup": 4,
         }
         rollup_level = rollup_levels.get(rollup_type, 0)
 
@@ -482,12 +480,11 @@ class JournalStorage:
         Get rollup hierarchy for a given time.
 
         Returns:
-            Dict with keys: raw, hourly, daily, weekly, monthly, yearly
+            Dict with keys: raw, hourly, weekly, monthly, yearly
         """
         hierarchy = {
             "raw": [],
             "hourly": [],
-            "daily": [],
             "weekly": [],
             "monthly": [],
             "yearly": [],
@@ -496,6 +493,22 @@ class JournalStorage:
         # TODO: Implement full hierarchy retrieval
         # For now, return empty structure
         return hierarchy
+
+    def get_retention_config(self) -> dict[str, int]:
+        """
+        Get retention configuration from settings.
+
+        Returns:
+            Dict with retention periods for each rollup level (in days)
+        """
+        from executive_assistant.config import settings
+
+        return {
+            "hourly": settings.JOURNAL_RETENTION_HOURLY,
+            "weekly": settings.JOURNAL_RETENTION_WEEKLY,
+            "monthly": settings.JOURNAL_RETENTION_MONTHLY,
+            "yearly": settings.JOURNAL_RETENTION_YEARLY,
+        }
 
 
 _journal_storage = JournalStorage()

@@ -75,6 +75,22 @@ memory:
   extract_provider: null # Override provider for extraction
   extract_temperature: 0.0
 
+# Journal (Time-Based Activity Tracking with Rollups)
+journal:
+  # Rollup retention configuration (how many levels back to keep)
+  # Levels: raw (0) → hourly (1) → weekly (2) → monthly (3) → yearly (4)
+  retention:
+    hourly: 30  # Keep hourly rollups for 30 days
+    weekly: 52  # Keep weekly rollups for 52 weeks (1 year)
+    monthly: 84 # Keep monthly rollups for 84 months (7 years)
+    yearly: 7   # Keep yearly rollups for 7 years
+  # Auto-rollup settings
+  auto_rollup:
+    enabled: false # Set to true to enable automatic rollup creation
+    hour_trigger: "0 * * * *" # Cron expression: every hour at minute 0
+    day_trigger: "0 0 * * 0" # Cron expression: every Sunday at midnight
+    month_trigger: "0 0 1 * *" # Cron expression: 1st of each month at midnight
+
 # ============================================================================
 # DATA & STORAGE
 # ============================================================================
