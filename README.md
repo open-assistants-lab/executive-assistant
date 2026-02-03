@@ -403,43 +403,200 @@ POSTGRES_DB=executive_assistant_db
 
 See `docker/.env.example` for all available options.
 
-## Telegram Bot Commands
+## Slash Commands & Tools
 
-| Command | Description |
-|---------|-------------|
-| `/start` | Start conversation / show welcome message |
-| `/reset` | Reset the current thread context |
-| `/remember` | Save a memory from a single message |
-| `/debug` | Toggle verbose status mode (see LLM/tool timing) |
-| `/mem` | List/add/update/forget memories |
-| `/reminder` | List/set/edit/cancel reminders |
-| `/vdb` | Vector store commands |
-| `/tdb` | Transactional Database commands |
-| `/file` | File commands |
-| `/meta` | Show storage summary (files/VDB/TDB/reminders) |
-| `/user` | Admin allowlist management |
+### Telegram Bot Commands
 
-**Instinct Tools** (available in conversation):
-- `list_profiles` - Browse available personality profiles
-- `apply_profile` - Apply a profile preset (e.g., "Concise Professional")
-- `list_instincts` - Show learned behavioral patterns
-- `evolve_instincts` - Cluster patterns into reusable skills
+| Command | Description | Usage |
+|---------|-------------|-------|
+| `/start` | Start conversation or show welcome message | `/start` |
+| `/reset` | Reset the current thread context (clears conversation history) | `/reset` |
+| `/remember` | Save a memory from a single message | `/remember The API key is sk-xxx` |
+| `/debug` | Toggle verbose status mode (see LLM/tool timing) | `/debug on`, `/debug off`, `/debug toggle` |
+| `/mem` | Memory management: list, add, update, forget memories | `/mem list`, `/mem add budget: $1000` |
+| `/reminder` | Reminder management: list, set, edit, cancel | `/reminder list`, `/reminder set 9am "daily standup"` |
+| `/vdb` | Vector database commands: collections, search | `/vdb list`, `/vdb create docs` |
+| `/tdb` | Transactional database commands: tables, queries | `/tdb list`, `/tdb create users` |
+| `/file` | File operations: list, read, write, search | `/file list`, `/file read notes.txt` |
+| `/meta` | Show storage summary (files/VDB/TDB/reminders count) | `/meta` |
+| `/user` | Admin allowlist management (Telegram only) | `/user add @username`, `/user list` |
 
-**MCP Tools** (Model Context Protocol - available in conversation):
-- `mcp_add_server` - Add an MCP server (stdio or HTTP/SSE)
-- `mcp_add_remote_server` - Add a remote MCP server
-- `mcp_remove_server` - Remove an MCP server
-- `mcp_list_servers` - List all configured MCP servers
-- `mcp_show_server` - Show detailed server information
-- `mcp_reload` - Reload MCP tools from configuration
-- `mcp_export_config` - Export MCP configuration as JSON
-- `mcp_import_config` - Import MCP configuration from JSON
-- `mcp_list_backups` - List available configuration backups
-- `mcp_list_pending_skills` - List skills awaiting approval
-- `mcp_approve_skill` - Approve a pending skill proposal
-- `mcp_reject_skill` - Reject a pending skill proposal
-- `mcp_edit_skill` - Edit skill content before approving
-- `mcp_show_skill` - Show detailed skill information
+### Memory Commands (`/mem`)
+
+Manage conversational memories that persist across sessions:
+
+```bash
+/mem list                           # List all memories
+/mem add project_alpha: "My secret project"  # Add a memory
+/mem update project_alpha            # Update an existing memory
+/mem forget project_alpha            # Delete a memory
+/mem search "project"                # Search memories
+```
+
+**Use cases**: Remember preferences, project context, API keys, recurring tasks
+
+### Reminder Commands (`/reminder`)
+
+Schedule one-time or recurring reminders:
+
+```bash
+/reminder list                       # List all reminders
+/reminder set 3pm "review PRs"       # Set one-time reminder
+/reminder set 9am "daily standup" --daily  # Recurring daily
+/reminder set monday 9am "weekly planning" --weekly  # Recurring weekly
+/reminder edit 1 "new text"          # Edit reminder by ID
+/reminder cancel 1                   # Cancel reminder by ID
+```
+
+**Recurring patterns**: `--daily`, `--weekly`, `--weekdays`, `--cron "0 9 * * 1-5"`
+
+### Vector Database Commands (`/vdb`)
+
+Semantic knowledge base for document retrieval:
+
+```bash
+/vdb list                           # List all collections
+/vdb create docs                    # Create new collection
+/vdb add docs "Meeting notes..."    # Add document to collection
+/vdb search docs "API decisions"    # Semantic search
+/vdb describe docs                  # Show collection stats
+/vdb drop docs                      # Delete collection
+```
+
+**Use cases**: Meeting notes, documentation, decisions, conversation history
+
+### Transactional Database Commands (`/tdb`)
+
+Structured data storage with SQL queries:
+
+```bash
+/tdb list                           # List all tables
+/tdb create users                   # Create new table
+/tdb insert users '{"name": "Alice"}'  # Insert row(s)
+/tdb query users "SELECT * FROM users WHERE name = 'Alice'"  # SQL query
+/tdb describe users                 # Show table schema
+/tdb drop users                     # Delete table
+/tdb export users CSV               # Export table to CSV/JSON/Parquet
+/tdb import users data.csv          # Import from CSV/JSON/Parquet
+```
+
+**Use cases**: Timesheets, task tracking, logs, structured data, lookups
+
+### File Commands (`/file`)
+
+File operations within thread-scoped directories:
+
+```bash
+/file list                          # List files (supports *.txt, **/*.json patterns)
+/file read notes.txt                # Read file content
+/file write output.txt "data"       # Write file
+/file search "TODO" --glob *.py     # Search in files
+/file move old.txt new.txt          # Move/rename file
+/file delete old.txt                # Delete file
+/file create_folder subdir          # Create directory
+```
+
+**Use cases**: Code management, document processing, data exports, templates
+
+### Meta Commands (`/meta`)
+
+Show storage summary and thread context:
+
+```bash
+/meta                              # Show all storage counts
+/meta files                        # Show file count and total size
+/meta tdb                          # Show table count and row counts
+/meta vdb                          # Show collection count and document counts
+/meta reminders                    # Show active and scheduled reminders
+```
+
+### User Management (`/user`) - Admin Only
+
+Manage Telegram allowlist (only available to admins):
+
+```bash
+/user list                         # List all allowed users
+/user add @username                # Add user to allowlist
+/user remove @username             # Remove user from allowlist
+/user check @username              # Check if user is allowed
+```
+
+### Instinct Tools (In-Conversation Tools)
+
+Learn behavioral patterns and personality profiles:
+
+```bash
+list_profiles                       # Browse available personality profiles
+apply_profile "Concise Professional"  # Apply a profile preset
+list_instincts                      # Show learned behavioral patterns
+get_applicable_instincts            # Show applicable instincts for current context
+create_instinct "Be concise"        # Manually create a behavioral pattern
+adjust_instinct_confidence "Be concise" 0.9  # Adjust pattern strength
+disable_instinct "Be concise"       # Disable a specific pattern
+enable_instinct "Be concise"        # Re-enable a disabled pattern
+evolve_instincts                    # Cluster patterns into reusable skills
+export_instincts                    # Export learned patterns for sharing
+import_instincts                    # Import patterns from teammates
+```
+
+### MCP Tools (Model Context Protocol) - In-Conversation Tools
+
+Add and manage external MCP server integrations:
+
+```bash
+mcp_list_servers                   # List all configured MCP servers (admin + user)
+mcp_add_server fetch "uvx" ["mcp-server-fetch"]  # Add local (stdio) MCP server
+mcp_add_remote_server "github" "https://..."  # Add remote HTTP/SSE server
+mcp_remove_server fetch            # Remove an MCP server by name
+mcp_show_server clickhouse         # Show detailed server info (tools, config)
+mcp_reload                         # Reload MCP tools from config (hot-reload)
+mcp_export_config                  # Export config as JSON (for backup/sharing)
+mcp_import_config config.json      # Import config from JSON
+mcp_list_backups                   # List automatic configuration backups
+mcp_show_backup 3                  # Show specific backup details
+```
+
+**MCP Skill Management** (approve/reject skills from MCP servers):
+```bash
+mcp_list_pending_skills            # List skills awaiting approval
+mcp_show_skill web_scraping        # Show skill content and metadata
+mcp_approve_skill web_scraping     # Approve and load skill
+mcp_reject_skill web_scraping      # Reject skill proposal
+mcp_edit_skill web_scraping        # Edit skill content before approving
+```
+
+### Skills System Tools
+
+Load and manage reusable workflow skills:
+
+```bash
+load_skill gong_cha_analyst        # Load a skill by name
+list_skills                        # List all available skills
+create_user_skill                  # Create a personal skill from conversation
+show_skill gong_cha_analyst        # Show skill content and metadata
+```
+
+### Debug Mode
+
+Toggle detailed progress tracking to understand agent behavior:
+
+```bash
+/debug                              # Show current debug status
+/debug on                           # Enable verbose mode
+/debug off                          # Disable (clean mode)
+/debug toggle                       # Toggle debug mode
+```
+
+**Normal mode:** Status messages are edited in place (clean UI)
+**Verbose mode:** Each update sent as separate message with LLM timing
+
+Example verbose output:
+```
+🤔 Thinking...
+🛠️ 1: run_select_query
+🛠️ 2: list_tables
+✅ Done in 12.5s | LLM: 2 calls (11.8s)
+```
 
 ### Debug Mode
 
@@ -598,6 +755,293 @@ Assistant: [Uses web_scraping skill + fetch tool]
 - **Brave Search**: Web search integration
 - **Puppeteer**: Browser automation
 - **And more**: Any MCP server can be added!
+
+---
+
+## Admin Configuration: MCP, Skills & Prompts
+
+Administrators can pre-configure MCP servers, custom prompts, and skills that apply to **all users** (Telegram allowlist) or **all HTTP conversations**. This is powerful for:
+
+- **Organization-wide integrations**: Pre-connect databases, APIs, external services
+- **Standardized behavior**: Enforce specific query patterns or safety rules
+- **Domain expertise**: Load organization-specific knowledge (sales analytics, internal tools)
+- **Compliance**: Add mandatory prompts for data handling, privacy, etc.
+
+### Directory Structure
+
+```
+data/admins/
+├── mcp.json                  # Admin MCP server configuration
+├── prompts/
+│   └── prompt.md            # Admin system prompt (layered on base prompt)
+└── skills/
+    ├── on_start/            # Skills loaded at startup (for ALL users)
+    │   └── gong_cha_analyst.md
+    └── on_demand/           # Skills loaded manually by users
+        └── advanced_analytics.md
+```
+
+### 1. Admin MCP Servers (`data/admins/mcp.json`)
+
+Pre-configure MCP servers that **all users** can access without manual setup.
+
+**Example: ClickHouse Analytics Database**
+```json
+{
+  "mcpEnabled": true,
+  "mcpServers": {
+    "clickhouse": {
+      "command": "uvx",
+      "args": [
+        "mcp-clickhouse",
+        "--host=172.105.163.229",
+        "--port=8123",
+        "--user=libre_chat",
+        "--password=your_password",
+        "--database=gong_cha_redcat_db"
+      ],
+      "env": {
+        "CLICKHOUSE_HOST": "172.105.163.229"
+      }
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github", "--personal-access-token", "${GITHUB_TOKEN}"]
+    }
+  }
+}
+```
+
+**Key Features:**
+- **Stdio servers**: Use `"command"` and `"args"` for local/process servers
+- **HTTP/SSE servers**: Use `"url"` for remote servers
+- **Environment variables**: Use `"env"` for configuration (supports `${VAR}` expansion)
+- **Priority**: User MCP servers override admin servers with the same name
+
+**Loading Behavior:**
+- Admin MCP servers are loaded **before** user servers
+- Tools from admin servers are available in **all conversations**
+- Users can override admin servers by adding their own with the same name
+
+### 2. Admin Prompts (`data/admins/prompts/prompt.md`)
+
+Add system-level instructions that apply to **all conversations**. This is layered **on top of** the base system prompt.
+
+**Example: Gong Cha Data Analyst**
+```markdown
+# GONG CHA DATA ANALYST - MANDATORY RULES
+
+## DATABASE - USE THIS EXACTLY
+- Database: `gong_cha_redcat_db` - NO OTHER DATABASE
+- For sales: use `d_txnlines` table
+- For stores: use `r_stores` table
+
+## WHEN USER ASKS ABOUT SALES
+1. RUN THIS QUERY IMMEDIATELY - DO NOT ASK QUESTIONS:
+```sql
+SELECT sum(net_amount) as total_sales
+FROM gong_cha_redcat_db.d_txnlines
+WHERE itemdate = today() - INTERVAL 1 DAY
+```
+
+2. Show ONLY the result to user - DO NOT show SQL
+
+## TRIGGER WORDS
+If user says: "sales", "sell", "revenue", "yesterday", "how much"
+→ RUN THE QUERY ABOVE - NO QUESTIONS
+
+## YOUR TOOLS
+- `run_select_query` - use with `gong_cha_redcat_db` database
+- `list_databases` - can see databases but ONLY use `gong_cha_redcat_db`
+- `list_tables` - can see tables but ONLY use `d_txnlines` for sales
+
+## DO NOT
+- DO NOT ask clarifying questions - RUN THE QUERY
+- DO NOT use `gong_cha_aupos_db` - WRONG DATABASE
+- DO NOT show SQL to users - show only results
+- DO NOT suggest other data sources
+```
+
+**Prompt Layering Order:**
+1. **Base system prompt** (built-in, defines agent capabilities)
+2. **Admin prompt** (`data/admins/prompts/prompt.md`) ← **You are here**
+3. **Admin skills** (on_start skills)
+4. **System skills** (built-in skills from `data/skills/`)
+5. **Channel prompts** (Telegram/HTTP-specific prompts)
+
+**Best Practices:**
+- **Be directive**: Use "DO NOT", "MUST", "ALWAYS" for critical rules
+- **Provide examples**: Show exact queries or patterns to follow
+- **List trigger words**: Help LLM recognize when to apply rules
+- **Think in tool terms**: Reference specific MCP tools the agent should use
+
+### 3. Admin Skills (`data/admins/skills/`)
+
+Skills provide **contextual knowledge** on how to use tools effectively. There are two types:
+
+#### `on_start/` Skills
+Loaded **automatically at startup** for **all users**. Use for:
+- Domain-specific patterns (sales analytics, internal tools)
+- Mandatory workflows (compliance checks, data handling)
+- Organization-specific knowledge
+
+**Example: Gong Cha Analyst (`data/admins/skills/on_start/gong_cha_analyst.md`)**
+```markdown
+# Gong Cha Data Analyst - STRICT INSTRUCTIONS
+
+## MANDATORY DATABASE
+You MUST use `gong_cha_redcat_db` for ALL sales queries. No other database.
+
+## MANDATORY TABLES
+- `d_txnlines` - Sales data
+- `r_stores` - Store data
+- `tbl_plufile` - Product data
+
+## SALES QUERIES - EXACT PATTERNS
+
+For "yesterday's sales":
+```sql
+SELECT sum(net_amount) as total_sales
+FROM gong_cha_redcat_db.d_txnlines
+WHERE itemdate = today() - INTERVAL 1 DAY
+```
+
+For "best selling products":
+```sql
+SELECT itemname, sum(net_amount) as sales
+FROM gong_cha_redcat_db.d_txnlines
+WHERE itemdate >= today() - INTERVAL 7 DAY
+GROUP BY itemname
+ORDER BY sales DESC
+LIMIT 5
+```
+
+## TRIGGER WORDS
+If user mentions: "sell", "sales", "revenue", "yesterday", "products", "store"
+→ RUN THE QUERY. Do not ask questions.
+```
+
+#### `on_demand/` Skills
+Loaded **manually by users** via the `load_skill` tool. Use for:
+- Advanced patterns (not needed for all users)
+- Experimental features
+- User-specific workflows
+
+**User loads on-demand skills:**
+```bash
+You: load_skill gong_cha_advanced
+Assistant: ✅ Loaded skill: gong_cha_advanced (2.1KB)
+        This skill adds advanced ClickHouse analytics capabilities...
+```
+
+### 4. Putting It All Together: Complete Example
+
+**Scenario**: You want all agents to query ClickHouse for sales data without asking clarifying questions.
+
+#### Step 1: Configure MCP Server (`data/admins/mcp.json`)
+```json
+{
+  "mcpEnabled": true,
+  "mcpServers": {
+    "clickhouse": {
+      "command": "uvx",
+      "args": [
+        "mcp-clickhouse",
+        "--host=172.105.163.229",
+        "--port=8123",
+        "--user=libre_chat",
+        "--password=your_password",
+        "--database=gong_cha_redcat_db"
+      ]
+    }
+  }
+}
+```
+
+#### Step 2: Add Admin Prompt (`data/admins/prompts/prompt.md`)
+```markdown
+# GONG CHA DATA ANALYST - MANDATORY RULES
+
+## WHEN USER ASKS ABOUT SALES
+RUN THIS QUERY IMMEDIATELY - DO NOT ASK QUESTIONS:
+```sql
+SELECT sum(net_amount) as total_sales
+FROM gong_cha_redcat_db.d_txnlines
+WHERE itemdate = today() - INTERVAL 1 DAY
+```
+
+## TRIGGER WORDS
+"sales", "sell", "revenue", "yesterday" → RUN THE QUERY
+```
+
+#### Step 3: Add Admin Skill (`data/admins/skills/on_start/gong_cha_analyst.md`)
+```markdown
+# Gong Cha Data Analyst
+
+You are the **Gong Cha Data Analyst** with access to Gong Cha's ClickHouse sales database.
+
+## Your ClickHouse Tools
+1. `list_databases` - Show all databases
+2. `list_tables` - Show tables in a database
+3. `run_select_query` - Run SQL SELECT queries
+
+## Key Tables
+- `d_txnlines` - Transaction line items (sales, amounts, dates)
+- `r_stores` - Store locations
+
+## Query Patterns
+**Yesterday's sales**:
+```sql
+SELECT sum(net_amount) as total_sales
+FROM gong_cha_redcat_db.d_txnlines
+WHERE itemdate = today() - INTERVAL 1 DAY
+```
+```
+
+#### Step 4: Restart Service
+```bash
+pkill -f executive_assistant
+rm -rf .cache  # Clear cached tools
+EXECUTIVE_ASSISTANT_CHANNELS=http uv run executive_assistant
+```
+
+#### Step 5: Test
+```bash
+curl -X POST http://localhost:8000/message \
+  -H 'Content-Type: application/json' \
+  -d '{"content": "how much did we sell yesterday", "user_id": "test"}'
+
+# Response: $221,586.02 (instant query, no clarifying questions)
+```
+
+### 5. Troubleshooting Admin Configuration
+
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| Tools not loaded | MCP server not starting | Check `mcp.json` syntax, test command manually |
+| Agent ignoring instructions | Admin prompt not found | Ensure path is `data/admins/prompts/prompt.md` |
+| Skills not loading | File format incorrect | Skills must start with `# Title` heading |
+| User can override admin | This is by design | Users can override admin MCP with same name |
+
+**Check what's loaded:**
+```bash
+# List MCP servers
+You: mcp_list_servers
+
+# Show admin prompt
+$ cat data/admins/prompts/prompt.md
+
+# Verify skills are loaded
+$ grep "Loaded.*admin skills" /tmp/ken.log
+```
+
+### 6. Security Considerations
+
+- **Admin MCP servers**: Available to **all users** (or allowlist in Telegram)
+- **Admin prompts**: Cannot be overridden by users
+- **Admin skills**: Loaded for all users, make them generic
+- **Credentials**: Use environment variables in `.env`, never hardcode in `mcp.json`
+- **Permissions**: Admin MCP tools respect existing file/DB permissions
 
 ### File Operations
 - **Read/write**: Create, edit, and organize files

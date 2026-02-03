@@ -79,6 +79,8 @@ def _format_server_list(local_servers: dict, remote_servers: dict) -> str:
 def mcp_list_servers() -> str:
     """List all configured MCP servers for the current conversation.
 
+    Shows user MCP servers (per-thread) and admin MCP servers (if available).
+
     Returns:
         Formatted list of all configured MCP servers (local and remote)
 
@@ -86,16 +88,59 @@ def mcp_list_servers() -> str:
         >>> mcp_list_servers()
         "Your MCP Servers:\\n\\n### Local (stdio) Servers\\n..."
     """
+    from executive_assistant.storage.mcp_storage import load_mcp_config
+    from executive_assistant.config import settings
+
     thread_id = get_thread_id()
     if not thread_id:
         return "❌ No thread context available."
 
     try:
+        # Load user MCP servers
         storage = UserMCPStorage(thread_id)
         local = storage.load_local_config()["mcpServers"]
         remote = storage.load_remote_config()["mcpServers"]
 
-        return _format_server_list(local, remote)
+        # Load admin MCP servers (if configured)
+        admin_local = {}
+        admin_remote = {}
+        try:
+            admin_config = load_mcp_config()
+            # Check if admin MCP is enabled
+            if admin_config.get("mcpEnabled", False):
+                admin_servers = admin_config.get("mcpServers", {})
+                # Split into local (stdio) and remote (HTTP/SSE)
+                for name, config in admin_servers.items():
+                    if "command" in config:
+                        admin_local[name] = config
+                    elif "url" in config:
+                        admin_remote[name] = config
+        except Exception:
+            # Admin MCP not configured or error loading - skip
+            pass
+
+        # Build response
+        parts = []
+
+        # Admin servers (if any)
+        if admin_local or admin_remote:
+            parts.append("## 📋 Admin MCP Servers")
+            parts.append("(Configured by system administrator)")
+            parts.append(_format_server_list(admin_local, admin_remote))
+            parts.append("")
+
+        # User servers (if any)
+        if local or remote:
+            parts.append("## 👤 Your MCP Servers")
+            parts.append("(Configured for this conversation)")
+            parts.append(_format_server_list(local, remote))
+            parts.append("")
+
+        # No servers at all
+        if not (local or remote or admin_local or admin_remote):
+            return "I don't have any MCP servers configured right now. If you'd like to add a ClickHouse (or any other) server, let me know and I can walk you through the setup."
+
+        return "\n".join(parts).strip()
 
     except Exception as e:
         return f"❌ Error loading MCP configuration: {e}"

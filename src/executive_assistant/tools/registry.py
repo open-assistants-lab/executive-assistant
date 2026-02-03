@@ -11,7 +11,14 @@ _mcp_client_cache: dict[str, Any] = {}
 
 
 def _normalize_tool(tool):
+    # Don't unwrap MCP tools (StructuredTool from langchain_mcp_adapters)
+    # They're already properly formatted and unwrapping loses the tool name
     if isinstance(tool, BaseTool):
+        # Check if this is an MCP tool by looking for specific attributes
+        if hasattr(tool, "name") and hasattr(tool, "description") and hasattr(tool, "args_schema"):
+            # This is likely an MCP tool (StructuredTool) - keep it as-is
+            return tool
+        # For other BaseTool types, unwrap to the underlying function
         if getattr(tool, "coroutine", None):
             return tool.coroutine
         if getattr(tool, "func", None):

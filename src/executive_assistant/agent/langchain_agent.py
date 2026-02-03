@@ -19,7 +19,14 @@ logger = logging.getLogger(__name__)
 def _normalize_agent_tools(tools: list):
     normalized = []
     for tool in tools:
+        # Don't unwrap MCP tools (StructuredTool) - keep them as-is
         if isinstance(tool, BaseTool):
+            # Check if this is an MCP tool (has name, description, args_schema)
+            if hasattr(tool, "name") and hasattr(tool, "description") and hasattr(tool, "args_schema"):
+                # This is likely an MCP tool - keep it as-is
+                normalized.append(tool)
+                continue
+            # For other BaseTool types, unwrap to the underlying function
             if getattr(tool, "coroutine", None):
                 normalized.append(tool.coroutine)
                 continue
