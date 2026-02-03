@@ -102,6 +102,16 @@ class HttpChannel(BaseChannel):
     def _setup_routes(self) -> None:
         """Setup API routes."""
 
+        async def _get_conversation_history_from_registry(self, conversation_id: str, limit: int = 100):
+            """Get conversation history from UserRegistry."""
+            from executive_assistant.storage.user_registry import UserRegistry
+
+            try:
+                registry = UserRegistry()
+                return await registry.get_conversation_history(conversation_id, limit)
+            except Exception:
+                return None
+
         @self.app.post("/message", response_model=None)
         async def send_message(req: MessageRequest) -> StreamingResponse | list[dict]:
             """
@@ -128,6 +138,38 @@ class HttpChannel(BaseChannel):
                 message_id="",  # No message_id for HTTP requests
                 metadata=req.metadata or {},
             )
+
+            # === ONBOARDING CHECK ===
+            # Trigger onboarding if user data folder is empty (new user or reset)
+            from executive_assistant.utils.onboarding import is_user_data_empty, mark_onboarding_started
+            from executive_assistant.logging import get_logger, format_log_context
+
+            logger = get_logger(__name__)
+            ctx_system = format_log_context("system", component="context", channel="http", user=thread_id, conversation=conversation_id)
+
+            try:
+                # Check if user data folder is empty
+                user_folder_empty = is_user_data_empty(thread_id)
+
+                if user_folder_empty:
+                    logger.info(f"{ctx_system} ONBOARDING: User data folder empty for {thread_id}, triggering onboarding")
+                    # Mark onboarding as in-progress to prevent re-triggering
+                    mark_onboarding_started(thread_id)
+                    # Add system note to trigger onboarding skill
+                    # The onboarding skill is loaded at startup (on_start) and will handle the flow
+                    message.content += (
+                        "\n\n[SYSTEM: New user detected (empty data folder). "
+                        "Follow this onboarding flow: "
+                        "1. Welcome briefly (1 sentence). "
+                        "2. Ask: 'What do you do?' and 'What would you like help with?' "
+                        "3. Learn about them naturally - extract and store key info (name, role, goals) as memories using create_memory(). "
+                        "4. Based on their role, suggest 2-3 specific things you can CREATE for them (database, automation, workflow). "
+                        "5. Ask 'Should I set this up for you?' - if yes, create it immediately. "
+                        "Be brief and conversational - this is a chat, not a form. "
+                        "Remember: They can see this system note, so keep it professional.]"
+                    )
+            except Exception as e:
+                logger.warning(f"{ctx_system} Onboarding check failed: {e}")
 
             if req.stream:
                 return StreamingResponse(
@@ -464,6 +506,53 @@ class HttpChannel(BaseChannel):
         Args:
             message: Incoming message in MessageFormat.
         """
+        # DEBUG: Log entry
+        from executive_assistant.logging import get_logger, format_log_context
+        logger = get_logger(__name__)
+        thread_id = self.get_thread_id(message)
+        ctx_system = format_log_context("system", component="context", channel="http", user=thread_id, conversation=message.conversation_id)
+        logger.info(f"{ctx_system} HTTP handle_message called: user={thread_id}, content='{message.content[:50]}'")
+
+        # Check for onboarding - enhance message before processing
+        from executive_assistant.utils.onboarding import (
+            should_show_onboarding,
+            has_completed_onboarding,
+            is_vague_request,
+        )
+
+        try:
+            # Only check onboarding for new conversations
+            conversation_history = self._get_conversation_history(message.conversation_id)
+            is_new_conversation = not conversation_history or len(conversation_history) < 5
+            history_len = len(conversation_history) if conversation_history else 0
+
+            logger.info(f"{ctx_system} DEBUG: history_len={history_len}, is_new={is_new_conversation}")
+
+            if is_new_conversation:
+                has_completed = has_completed_onboarding(thread_id)
+                is_vague = is_vague_request(message.content)
+                logger.info(f"{ctx_system} DEBUG: has_completed={has_completed}, is_vague={is_vague}")
+
+                if not has_completed and is_vague:
+                    logger.info(f"{ctx_system} ONBOARDING: TRIGGERED - showing capabilities")
+                    # Inject onboarding instructions
+                    message.content += (
+                        "\n\n=== IMPORTANT ONBOARDING INSTRUCTION ===\n"
+                        "This is a NEW user who sent a vague greeting. You MUST:\n"
+                        "1. Welcome them briefly (1 sentence)\n"
+                        "2. Show 3-4 BULLET POINTS of what you can do (be specific!)\n"
+                        "3. End with 'What would you like help with?'\n\n"
+                        "Keep it SHORT - expert users hate tutorials.\n"
+                        "Example bullet points:\n"
+                        "- Build mini-apps and workflows\n"
+                        "- Analyze data with SQL and Python\n"
+                        "- Search web and save to knowledge base\n"
+                        "- Manage reminders and track work\n"
+                        "=== END ONBOARDING INSTRUCTION ===\n"
+                    )
+        except Exception as e:
+            logger.error(f"{ctx_system} Onboarding error: {e}", exc_info=True)
+
         # Process the message but don't send via send_message
         # The API endpoint handles returning the response
         await self.stream_agent_response(message)

@@ -1331,6 +1331,32 @@ class TelegramChannel(BaseChannel):
                 },
             )
 
+            # === ONBOARDING CHECK ===
+            # Trigger onboarding if user data folder is empty (new user or reset)
+            from executive_assistant.utils.onboarding import is_user_data_empty, mark_onboarding_started
+
+            thread_id = self.get_thread_id(message)
+            try:
+                user_folder_empty = is_user_data_empty(thread_id)
+                if user_folder_empty:
+                    logger.info(f"{ctx} ONBOARDING: User data folder empty for {thread_id}, triggering onboarding")
+                    # Mark onboarding as in-progress to prevent re-triggering
+                    mark_onboarding_started(thread_id)
+                    # Add system note to trigger onboarding skill
+                    message.content += (
+                        "\n\n[SYSTEM: New user detected (empty data folder). "
+                        "Follow this onboarding flow: "
+                        "1. Welcome briefly (1 sentence). "
+                        "2. Ask: 'What do you do?' and 'What would you like help with?' "
+                        "3. Learn about them naturally - extract and store key info (name, role, goals) as memories using create_memory(). "
+                        "4. Based on their role, suggest 2-3 specific things you can CREATE for them (database, automation, workflow). "
+                        "5. Ask 'Should I set this up for you?' - if yes, create it immediately. "
+                        "Be brief and conversational - this is a chat, not a form. "
+                        "Remember: They can see this system note, so keep it professional.]"
+                    )
+            except Exception as e:
+                logger.warning(f"{ctx} Onboarding check failed: {e}")
+
             # Handle through agent (typing indicator is sent in handle_message)
             await self.handle_message(message)
         except Exception as e:
