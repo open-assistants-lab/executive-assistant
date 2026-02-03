@@ -57,6 +57,48 @@ You: Actually, use JSON for data
 [Assistant adjusts: reinforces format preference]
 ```
 
+> **Inspired by** [Everything with Claude Code](https://github.com/affaan-m/everything-claude-code)'s continuous learning system, instincts provide adaptive behavior that evolves with your usage patterns.
+
+### Persistent Memory System
+
+Executive Assistant never forgets important information across conversations:
+
+**Semantic Memory (VDB)**
+- **Meaning-based storage**: Remember decisions, context, and knowledge by semantic meaning
+- **Automatic retrieval**: Relevant memories surface based on conversation context
+- **Thread isolation**: Private memory per conversation (or shared via `scope="shared"`)
+- **Use cases**: Meeting notes, decisions, project context, preferences
+
+**Structured Memory (TDB)**
+- **Tabular storage**: Queryable facts, configurations, reference data
+- **SQL access**: Query memories with SQLite-compatible SQL
+- **Thread-scoped or shared**: Private tables or organization-wide knowledge
+- **Use cases**: API keys, contact lists, configurations, reference data
+
+**Key-Value Memory**
+- **Fast lookups**: Store and retrieve by key for quick access
+- **Time-aware**: Get memory as it was at a specific point in time
+- **Version tracking**: See how memories changed over time
+- **Use cases**: User preferences, settings, quick facts
+
+**Memory Commands:**
+```bash
+# Store a memory
+/remember add project_alpha: "My secret project"
+
+# Search memories
+/mem search "project"
+
+# Update a memory
+/mem update project_alpha "Project Alpha: AI assistant platform"
+
+# Forget a memory
+/mem forget project_alpha
+
+# List all memories
+/mem list
+```
+
 ## How Executive Assistant Thinks
 
 Executive Assistant is a **ReAct agent** built on LangGraph. Unlike simple chatbots, it:
@@ -1195,3 +1237,59 @@ Apache License 2.0 - see LICENSE file for details.
 Contributions welcome! Please read `CLAUDE.md` for development workflow and testing guidelines.
 
 **Remember**: Always test locally with `uv run executive_assistant` before building Docker. See `CLAUDE.md` for details.
+
+## Tech Stack
+
+Executive Assistant is built on modern, production-ready technologies:
+
+### Core Framework
+- **LangGraph** - Agent orchestration and state management
+- **LangChain** - LLM abstraction and tool integration
+- **Python 3.13** - Core runtime with async/await
+
+### LLM Providers
+- **OpenAI** - GPT-4, GPT-4o (recommended for instruction following)
+- **Anthropic** - Claude models (Sonnet, Opus, Haiku)
+- **Ollama** - Local and cloud LLM hosting
+- **Zhipu AI** - GLM-4 models
+- **OpenAI-compatible** - Any provider using OpenAI API format
+
+### Databases & Storage
+- **PostgreSQL** (via asyncpg) - Conversation state, checkpoints, audit logs
+- **SQLite** - Transactional Database (TDB) for structured data
+- **DuckDB** - Analytics Database (ADB) for large-scale analytics
+- **LanceDB** - Vector Database (VDB) for semantic search
+
+### Channels
+- **python-telegram-bot** - Telegram Bot API integration
+- **FastAPI** - HTTP channel with SSE streaming
+- **Uvicorn** - ASGI server for HTTP channel
+
+### External Integrations
+- **Firecrawl** - Web scraping and search API
+- **Playwright** - Browser automation for JS-heavy pages
+- **MCP (Model Context Protocol)** - Extensible tool integration
+- **PaddleOCR** - OCR for image/PDF text extraction
+
+### Scheduling & Async
+- **APScheduler** - Reminder and scheduled flow execution
+- **asyncio** - Async I/O and concurrent operations
+- **asyncpg** - Async PostgreSQL driver
+
+### Utilities
+- **pandas** - Data manipulation and analysis
+- **matplotlib** - Data visualization
+- **Pydantic** - Data validation and settings
+- **python-dotenv** - Environment configuration
+- **loguru** - Structured logging
+- **pytest** - Testing framework with VCR cassettes
+
+### Admin & Observability
+- **ClickHouse MCP** - Analytics database queries (mcp-clickhouse)
+- **GitHub MCP** - Repository operations (@modelcontextprotocol/server-github)
+- **Fetch MCP** - Web content extraction (mcp-server-fetch)
+
+### Development Tools
+- **uv** - Fast Python package installer and resolver
+- **Docker Compose** - PostgreSQL containerization
+- **VCR.py** - HTTP request recording for tests
