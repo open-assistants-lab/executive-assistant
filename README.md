@@ -1284,11 +1284,6 @@ Executive Assistant is built on modern, production-ready technologies:
 - **loguru** - Structured logging
 - **pytest** - Testing framework with VCR cassettes
 
-### Admin & Observability
-- **ClickHouse MCP** - Analytics database queries (mcp-clickhouse)
-- **GitHub MCP** - Repository operations (@modelcontextprotocol/server-github)
-- **Fetch MCP** - Web content extraction (mcp-server-fetch)
-
 ### Development Tools
 - **uv** - Fast Python package installer and resolver
 - **Docker Compose** - PostgreSQL containerization
