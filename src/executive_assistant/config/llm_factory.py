@@ -14,6 +14,16 @@ from executive_assistant.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
+
+def get_llm_config() -> dict:
+    """Get LLM configuration from YAML defaults.
+
+    Returns:
+        Flattened LLM configuration dictionary.
+    """
+    from executive_assistant.config.loader import get_yaml_defaults
+    return get_yaml_defaults()
+
 # Model aliases (no default models - users must configure)
 MODEL_ALIASES = ["default", "fast"]
 
@@ -23,11 +33,21 @@ MODEL_PATTERNS = {
     "openai": r"^(gpt|o1)-",   # Must start with "gpt-" or "o1-"
     "zhipu": r"^glm-",         # Must start with "glm-"
     "ollama": r".+",            # Any pattern allowed for Ollama
+    "gemini": r"^gemini(?:-[\d\.]+)?(?:-[a-z]+(?:-[a-z0-9]+)?)?$",
+    "qwen": r"^(?:qwen|qwq)(?:-[a-zA-Z0-9\.\+]+)*$",
+    "kimi": r"^kimi-k2(?:\.[a-z0-9]+)?(?:-[a-z0-9]+)?$",
+    "minimax": r"^(?:MiniMax-)?M2(?:\.[a-z0-9]+)?(?:-[A-Za-z]+)?$",
 }
 
 
 def validate_llm_config() -> None:
     """Validate LLM configuration on startup.
+
+    Checks:
+    - Provider is valid
+    - Default and fast models are configured
+    - Model names match provider patterns
+    - API keys are set for cloud providers
 
     Raises:
         ValueError: If configuration is invalid, with descriptive message.
@@ -89,6 +109,20 @@ def validate_llm_config() -> None:
                 f"{api_key_var} not set for {provider} provider."
             )
 
+    # Check API keys for new providers
+    if provider == "gemini":
+        if not settings.GOOGLE_API_KEY and not settings.GEMINI_API_KEY:
+            errors.append("GOOGLE_API_KEY or GEMINI_API_KEY not set for gemini provider.")
+    if provider == "qwen":
+        if not settings.DASHSCOPE_API_KEY:
+            errors.append("DASHSCOPE_API_KEY not set for qwen provider.")
+    if provider == "kimi":
+        if not settings.MOONSHOT_API_KEY:
+            errors.append("MOONSHOT_API_KEY not set for kimi provider.")
+    if provider == "minimax":
+        if not settings.MINIMAX_API_KEY:
+            errors.append("MINIMAX_API_KEY not set for minimax provider.")
+
     if errors:
         error_msg = "LLM configuration validation failed:\n" + "\n".join(f"  - {e}" for e in errors)
         logger.error(error_msg)
@@ -106,7 +140,7 @@ def _get_model_config(provider: str, model: str = "default") -> str:
     3. Error: No model configured
 
     Args:
-        provider: LLM provider (anthropic, openai, zhipu, ollama)
+        provider: LLM provider (anthropic, openai, zhipu, ollama, gemini, qwen, kimi, minimax)
         model: Model variant (default, fast) or specific model name
 
     Returns:
@@ -253,10 +287,121 @@ class LLMFactory:
         ollama_kwargs.update(kwargs)
         return ChatOllama(**ollama_kwargs)
 
+    @staticmethod
+    def _create_gemini(model: str = "default", **kwargs) -> BaseChatModel:
+        """Create Google Gemini model."""
+        from langchain_google_genai import ChatGoogleGenerativeAI
+
+        if not settings.GOOGLE_API_KEY and not settings.GEMINI_API_KEY:
+            raise ValueError("GOOGLE_API_KEY or GEMINI_API_KEY not set")
+
+        model_name = _get_model_config("gemini", model)
+        api_key = settings.GOOGLE_API_KEY or settings.GEMINI_API_KEY
+
+        # Vertex AI backend detection
+        config = get_llm_config().get("gemini", {})
+        vertexai = config.get("vertexai", False)
+
+        params = {
+            "model": model_name,
+            "api_key": api_key,
+            "temperature": kwargs.get("temperature", 1.0),  # Gemini 3.0+ defaults to 1.0
+            "max_tokens": kwargs.get("max_tokens", None),
+            "timeout": kwargs.get("timeout", None),
+            "max_retries": kwargs.get("max_retries", 2),
+        }
+
+        if vertexai or settings.GOOGLE_CLOUD_PROJECT:
+            params.update({
+                "vertexai": True,
+                "project": settings.GOOGLE_CLOUD_PROJECT or config.get("project"),
+                "location": config.get("location", settings.GOOGLE_CLOUD_LOCATION or "us-central1"),
+            })
+
+        return ChatGoogleGenerativeAI(**params)
+
+    @staticmethod
+    def _create_qwen(model: str = "default", **kwargs) -> BaseChatModel:
+        """Create Qwen (Alibaba) model."""
+        from langchain_qwq import ChatQwen
+
+        if not settings.DASHSCOPE_API_KEY:
+            raise ValueError("DASHSCOPE_API_KEY not set")
+
+        model_name = _get_model_config("qwen", model)
+
+        return ChatQwen(
+            model=model_name,
+            api_key=settings.DASHSCOPE_API_KEY,
+            max_tokens=kwargs.get("max_tokens", 3_000),
+            temperature=kwargs.get("temperature", 0.7),
+            timeout=kwargs.get("timeout", None),
+            max_retries=kwargs.get("max_retries", 2),
+        )
+
+    @staticmethod
+    def _create_kimi(model: str = "default", **kwargs) -> BaseChatModel:
+        """Create Kimi K2 (Moonshot AI) model using OpenAI-compatible API."""
+        if not settings.MOONSHOT_API_KEY:
+            raise ValueError("MOONSHOT_API_KEY not set")
+
+        model_name = _get_model_config("kimi", model)
+
+        return ChatOpenAI(
+            model=model_name,
+            api_key=settings.MOONSHOT_API_KEY,
+            base_url=settings.MOONSHOT_API_BASE,
+            temperature=kwargs.get("temperature", 0.7),
+            max_tokens=kwargs.get("max_tokens", 8192),
+            timeout=kwargs.get("timeout", None),
+            max_retries=kwargs.get("max_retries", 2),
+        )
+
+    @staticmethod
+    def _create_minimax(model: str = "default", **kwargs) -> BaseChatModel:
+        """Create MiniMax M2 model using OpenAI or Anthropic-compatible API."""
+        config = get_llm_config().get("minimax", {})
+        api_type = config.get("api_type", settings.MINIMAX_API_TYPE or "openai")
+
+        if not settings.MINIMAX_API_KEY:
+            raise ValueError("MINIMAX_API_KEY not set")
+
+        model_name = _get_model_config("minimax", model)
+        api_base = config.get(
+            "api_base",
+            settings.MINIMAX_API_BASE or (
+                "https://api.minimax.io/v1" if api_type == "openai"
+                else "https://api.minimax.io/anthropic"
+            )
+        )
+
+        if api_type == "anthropic":
+            return ChatAnthropic(
+                model=model_name,
+                api_key=settings.MINIMAX_API_KEY,
+                base_url=api_base,
+                temperature=kwargs.get("temperature", 0.7),
+                max_tokens=kwargs.get("max_tokens", 204800),  # Ultra-long context!
+                timeout=kwargs.get("timeout", None),
+                max_retries=kwargs.get("max_retries", 2),
+            )
+        else:  # OpenAI-compatible (default)
+            return ChatOpenAI(
+                model=model_name,
+                api_key=settings.MINIMAX_API_KEY,
+                base_url=api_base,
+                temperature=kwargs.get("temperature", 0.7),
+                max_tokens=kwargs.get("max_tokens", 204800),
+                timeout=kwargs.get("timeout", None),
+                max_retries=kwargs.get("max_retries", 2),
+            )
+
     @classmethod
     def create(
         cls,
-        provider: Literal["anthropic", "openai", "zhipu", "ollama"] | None = None,
+        provider: Literal[
+            "anthropic", "openai", "zhipu", "ollama", "gemini", "qwen", "kimi", "minimax"
+        ] | None = None,
         model: str = "default",
         **kwargs,
     ) -> BaseChatModel:
@@ -264,7 +409,8 @@ class LLMFactory:
         Create a chat model instance.
 
         Args:
-            provider: LLM provider (anthropic, openai, zhipu, ollama). Defaults to DEFAULT_LLM_PROVIDER.
+            provider: LLM provider (anthropic, openai, zhipu, ollama, gemini, qwen, kimi, minimax).
+                      Defaults to DEFAULT_LLM_PROVIDER.
             model: Model variant (default, fast) or specific model name. Defaults to "default".
             **kwargs: Additional model parameters.
 
@@ -282,6 +428,14 @@ class LLMFactory:
             return cls._create_zhipu(model, **kwargs)
         elif provider == "ollama":
             return cls._create_ollama(model, **kwargs)
+        elif provider == "gemini":
+            return cls._create_gemini(model, **kwargs)
+        elif provider == "qwen":
+            return cls._create_qwen(model, **kwargs)
+        elif provider == "kimi":
+            return cls._create_kimi(model, **kwargs)
+        elif provider == "minimax":
+            return cls._create_minimax(model, **kwargs)
         else:
             raise ValueError(f"Unknown provider: {provider}")
 

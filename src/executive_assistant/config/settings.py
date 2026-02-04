@@ -45,9 +45,9 @@ class Settings(BaseSettings):
     # LLM Configuration
     # ============================================================================
 
-    DEFAULT_LLM_PROVIDER: Literal["anthropic", "openai", "zhipu", "ollama"] = (
-        _yaml_field("LLM_DEFAULT_PROVIDER", "anthropic")
-    )
+    DEFAULT_LLM_PROVIDER: Literal[
+        "anthropic", "openai", "zhipu", "ollama", "gemini", "qwen", "kimi", "minimax"
+    ] = _yaml_field("LLM_DEFAULT_PROVIDER", "anthropic")
 
     # Global Model Overrides (apply to all providers)
     DEFAULT_LLM_MODEL: str | None = _yaml_field("LLM_DEFAULT_MODEL", None)
@@ -64,11 +64,26 @@ class Settings(BaseSettings):
     ZHIPU_FAST_MODEL: str | None = _yaml_field("LLM_ZHIPU_FAST_MODEL", None)
     OLLAMA_DEFAULT_MODEL: str | None = _yaml_field("LLM_OLLAMA_DEFAULT_MODEL", None)
     OLLAMA_FAST_MODEL: str | None = _yaml_field("LLM_OLLAMA_FAST_MODEL", None)
+    GEMINI_DEFAULT_MODEL: str | None = _yaml_field("LLM_GEMINI_DEFAULT_MODEL", None)
+    GEMINI_FAST_MODEL: str | None = _yaml_field("LLM_GEMINI_FAST_MODEL", None)
+    QWEN_DEFAULT_MODEL: str | None = _yaml_field("LLM_QWEN_DEFAULT_MODEL", None)
+    QWEN_FAST_MODEL: str | None = _yaml_field("LLM_QWEN_FAST_MODEL", None)
+    KIMI_DEFAULT_MODEL: str | None = _yaml_field("LLM_KIMI_DEFAULT_MODEL", None)
+    KIMI_FAST_MODEL: str | None = _yaml_field("LLM_KIMI_FAST_MODEL", None)
+    MINIMAX_DEFAULT_MODEL: str | None = _yaml_field("LLM_MINIMAX_DEFAULT_MODEL", None)
+    MINIMAX_FAST_MODEL: str | None = _yaml_field("LLM_MINIMAX_FAST_MODEL", None)
 
     # API Keys (secrets - must be in .env)
     ANTHROPIC_API_KEY: str | None = None
     OPENAI_API_KEY: str | None = None
     ZHIPUAI_API_KEY: str | None = None
+
+    # New LLM Provider API Keys
+    GOOGLE_API_KEY: str | None = None  # For Gemini
+    GEMINI_API_KEY: str | None = None  # Alternative to GOOGLE_API_KEY
+    DASHSCOPE_API_KEY: str | None = None  # For Qwen (Alibaba)
+    MOONSHOT_API_KEY: str | None = None  # For Kimi K2
+    MINIMAX_API_KEY: str | None = None  # For MiniMax
 
     # ============================================================================
     # Ollama Configuration
@@ -95,6 +110,28 @@ class Settings(BaseSettings):
         if not settings_obj.OLLAMA_CLOUD_API_KEY and settings_obj.OLLAMA_API_KEY:
             settings_obj.OLLAMA_CLOUD_API_KEY = settings_obj.OLLAMA_API_KEY
         return settings_obj
+
+    # ============================================================================
+    # Gemini Configuration
+    # ============================================================================
+
+    # Vertex AI backend (optional, defaults to Gemini API)
+    GOOGLE_GENAI_USE_VERTEXAI: bool = False
+    GOOGLE_CLOUD_PROJECT: str | None = None
+    GOOGLE_CLOUD_LOCATION: str = "us-central1"
+
+    # ============================================================================
+    # Kimi Configuration
+    # ============================================================================
+
+    MOONSHOT_API_BASE: str = "https://api.moonshot.ai/v1"
+
+    # ============================================================================
+    # MiniMax Configuration
+    # ============================================================================
+
+    MINIMAX_API_TYPE: Literal["openai", "anthropic"] = "openai"
+    MINIMAX_API_BASE: str = "https://api.minimax.io/v1"
 
     # Telegram Configuration
     TELEGRAM_BOT_TOKEN: str | None = None  # Secret
@@ -267,9 +304,9 @@ class Settings(BaseSettings):
     MEM_CONFIDENCE_MIN: float = _yaml_field("MEMORY_CONFIDENCE_MIN", 0.6)
     MEM_MAX_PER_TURN: int = _yaml_field("MEMORY_MAX_PER_TURN", 3)
     MEM_EXTRACT_MODEL: str = _yaml_field("MEMORY_EXTRACT_MODEL", "fast")
-    MEM_EXTRACT_PROVIDER: Literal["anthropic", "openai", "zhipu", "ollama"] | None = (
-        _yaml_field("MEMORY_EXTRACT_PROVIDER", None)
-    )
+    MEM_EXTRACT_PROVIDER: Literal[
+        "anthropic", "openai", "zhipu", "ollama", "gemini", "qwen", "kimi", "minimax"
+    ] | None = _yaml_field("MEMORY_EXTRACT_PROVIDER", None)
     MEM_EXTRACT_TEMPERATURE: float = _yaml_field("MEMORY_EXTRACT_TEMPERATURE", 0.0)
 
     @field_validator("MEM_EXTRACT_PROVIDER", mode="before")
@@ -309,7 +346,17 @@ class Settings(BaseSettings):
     OCR_TIMEOUT_SECONDS: int = _yaml_field("OCR_TIMEOUT_SECONDS", 30)
     OCR_STRUCTURED_MODEL: str = _yaml_field("OCR_STRUCTURED_MODEL", "fast")
     OCR_STRUCTURED_PROVIDER: (
-        Literal["anthropic", "openai", "zhipu", "ollama"] | None
+        Literal[
+            "anthropic",
+            "openai",
+            "zhipu",
+            "ollama",
+            "gemini",
+            "qwen",
+            "kimi",
+            "minimax",
+        ]
+        | None
     ) = _yaml_field("OCR_STRUCTURED_PROVIDER", None)
     OCR_STRUCTURED_MAX_RETRIES: int = _yaml_field("OCR_STRUCTURED_MAX_RETRIES", 2)
 

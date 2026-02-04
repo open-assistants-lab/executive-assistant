@@ -36,7 +36,7 @@ admin:
 
 # LLM Configuration
 llm:
-  # Default LLM provider: anthropic, openai, zhipu, ollama
+  # Default LLM provider: anthropic, openai, zhipu, ollama, gemini, qwen, kimi, minimax
   default_provider: openai
 
   # Provider-specific model configurations
@@ -58,6 +58,34 @@ llm:
     mode: cloud # cloud or local
     cloud_url: "https://ollama.com"
     local_url: "http://localhost:11434"
+
+  # Gemini (Google)
+  gemini:
+    default_model: gemini-2.5-flash
+    fast_model: gemini-2.5-flash-lite
+    # Optional: Vertex AI backend (defaults to Gemini API)
+    vertexai: false
+    project: null
+    location: us-central1
+
+  # Qwen (Alibaba)
+  qwen:
+    default_model: qwen-plus-latest
+    fast_model: qwen-turbo-latest
+
+  # Kimi K2 (Moonshot AI)
+  kimi:
+    default_model: kimi-k2.5
+    fast_model: kimi-k2.5
+    api_base: https://api.moonshot.ai/v1
+
+  # MiniMax M2
+  minimax:
+    default_model: MiniMax-M2.1
+    fast_model: MiniMax-M2-Turbo
+    # Choose API type: openai or anthropic
+    api_type: openai
+    api_base: https://api.minimax.io/v1
 
 # Vector Store Configuration
 vector_store:
