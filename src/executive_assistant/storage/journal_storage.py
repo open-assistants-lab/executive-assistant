@@ -3,7 +3,6 @@
 Stores user activities in a time-series format with automatic hierarchical rollups:
 - Raw entries: Individual activities
 - Hourly rollups: Summarized hourly activities
-- Daily rollups: Summarized daily activities
 - Weekly rollups: Summarized weekly activities
 - Monthly rollups: Summarized monthly activities
 - Yearly rollups: Summarized yearly activities
@@ -15,6 +14,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import struct
 import uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -22,10 +22,55 @@ from typing import Any, Literal
 
 from executive_assistant.config import settings
 
+try:
+    from sentence_transformers import SentenceTransformer
+    SENTENCE_TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    SENTENCE_TRANSFORMERS_AVAILABLE = False
+
 
 def _utc_now() -> str:
     """Get current UTC timestamp in ISO format."""
     return datetime.now(timezone.utc).isoformat()
+
+
+def _get_embedding(text: str) -> list[float] | None:
+    """Generate embedding for text using sentence-transformers.
+
+    Returns None if sentence-transformers is not available.
+    """
+    if not SENTENCE_TRANSFORMERS_AVAILABLE:
+        return None
+
+    try:
+        # Lazy-load model (singleton pattern)
+        if not hasattr(_get_embedding, "_model"):
+            _get_embedding._model = SentenceTransformer("all-MiniLM-L6-v2")
+
+        model = _get_embedding._model
+        embedding = model.encode(text, convert_to_numpy=True)
+        return embedding.tolist()
+    except Exception:
+        return None
+
+
+def _serialize_embedding(embedding: list[float] | None) -> bytes | None:
+    """Serialize embedding to bytes for SQLite BLOB storage."""
+    if embedding is None:
+        return None
+
+    # Pack floats as little-endian bytes
+    return struct.pack(f"{len(embedding)}f", *embedding)
+
+
+def _deserialize_embedding(blob: bytes | None) -> list[float] | None:
+    """Deserialize embedding bytes to list of floats."""
+    if blob is None:
+        return None
+
+    # Unpack bytes to floats
+    num_floats = len(blob) // 4  # 4 bytes per float
+    return list(struct.unpack(f"{num_floats}f", blob))
 
 
 EntryType = Literal[
@@ -127,8 +172,30 @@ class JournalStorage:
             # FTS5 not available
             pass
 
-        # TODO: Add sqlite-vss for semantic search
-        # For now, we'll use FTS5 for keyword search only
+        # Semantic search with sqlite-vss
+        try:
+            # Load sqlite-vss extension
+            conn.enable_load_extension(True)
+            conn.load_extension("vss")
+
+            # Create VSS table for semantic search
+            # Note: We create a separate table for vectors to avoid issues with rowid
+            conn.execute("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS journal_vss USING vss0(
+                    id TEXT PRIMARY KEY,
+                    embedding(384)
+                );
+            """)
+
+            # Create index for faster VSS queries
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_journal_vss_id
+                ON journal_vss(id);
+            """)
+        except (sqlite3.OperationalError, AttributeError) as e:
+            # sqlite-vss not available or error loading extension
+            # Silently continue - semantic search will be disabled
+            pass
 
         conn.commit()
 
@@ -170,8 +237,13 @@ class JournalStorage:
         entry_id = str(uuid.uuid4())
         now = _utc_now()
 
+        # Generate embedding for semantic search
+        embedding = _get_embedding(content)
+        embedding_blob = _serialize_embedding(embedding) if embedding else None
+
         conn = self.get_connection(thread_id)
         try:
+            # Insert main entry
             conn.execute("""
                 INSERT INTO journal_entries (
                     id, thread_id, content, entry_type, timestamp,
@@ -193,6 +265,18 @@ class JournalStorage:
                 now,
                 now,
             ))
+
+            # Insert embedding into VSS table if available
+            if embedding_blob is not None:
+                try:
+                    conn.execute("""
+                        INSERT INTO journal_vss (id, embedding)
+                        VALUES (?, ?)
+                    """, (entry_id, embedding_blob))
+                except sqlite3.OperationalError:
+                    # VSS table doesn't exist or error - skip semantic search
+                    pass
+
             conn.commit()
             return entry_id
         finally:
@@ -311,9 +395,12 @@ class JournalStorage:
         limit: int = 10,
     ) -> list[dict[str, Any]]:
         """
-        Search journal entries using FTS5 keyword search.
+        Search journal entries using semantic search (sqlite-vss) + keyword search (FTS5).
 
-        TODO: Add semantic search with sqlite-vss
+        Priority order:
+        1. Semantic search (sqlite-vss) - meaning-based
+        2. Keyword search (FTS5) - keyword matching
+        3. LIKE search - fallback
 
         Args:
             query: Search query
@@ -323,11 +410,72 @@ class JournalStorage:
             limit: Maximum results
 
         Returns:
-            List of matching entries
+            List of matching entries with distance scores (if semantic search)
         """
         conn = self.get_connection(thread_id)
         try:
-            # Try FTS5 first
+            # Try semantic search first
+            query_embedding = _get_embedding(query)
+
+            if query_embedding is not None:
+                try:
+                    # Generate embedding blob for query
+                    query_blob = _serialize_embedding(query_embedding)
+
+                    # Build semantic search query with VSS
+                    sql_query = """
+                        SELECT e.*, v.distance
+                        FROM journal_entries e
+                        INNER JOIN journal_vss v ON e.id = v.id
+                        WHERE e.status = 'active'
+                        AND v.embedding MATCH ?
+                        AND e.id IN (
+                            SELECT id FROM journal_vss
+                            WHERE embedding MATCH ?
+                            ORDER BY distance
+                            LIMIT ?
+                        )
+                    """
+                    params = [query_blob, query_blob, limit * 3]  # Get more candidates, filter later
+
+                    if start_time:
+                        sql_query += " AND e.timestamp >= ?"
+                        params.append(start_time)
+
+                    if end_time:
+                        sql_query += " AND e.timestamp <= ?"
+                        params.append(end_time)
+
+                    sql_query += " ORDER BY v.distance, e.timestamp DESC LIMIT ?"
+                    params.append(limit)
+
+                    rows = conn.execute(sql_query, params).fetchall()
+
+                    # Format results with distance scores
+                    results = []
+                    for row in rows:
+                        results.append({
+                            "id": row["id"],
+                            "thread_id": row["thread_id"],
+                            "content": row["content"],
+                            "entry_type": row["entry_type"],
+                            "timestamp": row["timestamp"],
+                            "period_start": row["period_start"],
+                            "period_end": row["period_end"],
+                            "metadata": json.loads(row["metadata"]) if row["metadata"] else {},
+                            "parent_id": row["parent_id"],
+                            "rollup_level": row["rollup_level"],
+                            "status": row["status"],
+                            "distance": row.get("distance"),  # Semantic distance (lower = more similar)
+                        })
+
+                    return results
+
+                except (sqlite3.OperationalError, AttributeError) as e:
+                    # VSS not available or error, fall back to FTS5
+                    pass
+
+            # Fall back to FTS5 keyword search
             try:
                 sql_query = """
                     SELECT e.* FROM journal_entries e
