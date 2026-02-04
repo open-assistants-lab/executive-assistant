@@ -372,6 +372,94 @@ def get_memory_history(key: str) -> str:
     return "\n\n".join(lines)
 
 
+@tool
+def mark_onboarding_complete() -> str:
+    """
+    Mark user onboarding as complete.
+
+    Call this tool after successfully gathering user profile information
+    during onboarding. This creates a completion marker and prevents
+    onboarding from re-triggering.
+
+    Returns:
+        Confirmation message.
+
+    Examples:
+        >>> mark_onboarding_complete()
+        "Onboarding marked as complete."
+    """
+    from executive_assistant.storage.file_sandbox import get_thread_id
+    from executive_assistant.utils.onboarding import mark_onboarding_complete as _mark_complete
+
+    thread_id = get_thread_id()
+    if thread_id:
+        _mark_complete(thread_id)
+        return "Onboarding marked as complete."
+    return "Could not mark onboarding complete (no thread ID)."
+
+
+@tool
+def create_user_profile(
+    name: str,
+    role: str,
+    responsibilities: str,
+    communication_preference: str = "professional",
+) -> str:
+    """
+    Create a structured user profile during onboarding.
+
+    Use this tool during onboarding to create a well-structured user profile
+    with key information instead of creating multiple fragmented memories.
+
+    Args:
+        name: User's name.
+        role: User's job title/position.
+        responsibilities: What the user does at their job (comma-separated).
+        communication_preference: How they prefer to communicate (professional, casual, concise).
+
+    Returns:
+        Confirmation message.
+
+    Examples:
+        >>> create_user_profile("Ken", "CIO", "IT, escalation, franchise relations, legal, HR", "professional")
+        "User profile created successfully."
+    """
+    storage = get_mem_storage()
+
+    # Create or update structured profile memories
+    profile_data = [
+        {
+            "key": "name",
+            "content": f"Name: {name}",
+            "memory_type": "profile",
+            "confidence": 1.0,
+        },
+        {
+            "key": "role",
+            "content": f"Role: {role}",
+            "memory_type": "profile",
+            "confidence": 1.0,
+        },
+        {
+            "key": "responsibilities",
+            "content": f"Responsibilities: {responsibilities}",
+            "memory_type": "profile",
+            "confidence": 1.0,
+        },
+        {
+            "key": "communication_style",
+            "content": f"Communication preference: {communication_preference}",
+            "memory_type": "style",
+            "confidence": 1.0,
+        },
+    ]
+
+    for mem in profile_data:
+        storage.normalize_or_create(**mem)
+
+    return f"User profile created for {name} ({role})."
+
+
 def get_memory_tools() -> list:
     """
     Get all memory tools for the agent.
@@ -390,4 +478,6 @@ def get_memory_tools() -> list:
         normalize_or_create_memory,
         get_memory_at_time,  # NEW: Temporal query
         get_memory_history,  # NEW: Version history
+        mark_onboarding_complete,  # NEW: Onboarding completion
+        create_user_profile,  # NEW: Structured profile creation
     ]
