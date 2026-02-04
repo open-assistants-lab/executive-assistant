@@ -1,0 +1,139 @@
+# Comprehensive Model Evaluation Results
+Date: 2026-02-04 00:01
+
+## Test Scenarios
+1. Simple Onboarding: 'hi'
+2. Role Extraction: 'I'm a data analyst. I need to track my daily work logs.'
+3. Tool Creation: 'Yes please create it'
+
+=========================================
+MODEL: gpt-oss:20b-cloud
+=========================================
+
+Test 1: Simple Onboarding
+---
+        "content": "Hi! I\u2019m\u202fKen, your AI assistant.  \nTo help you better, tell me a bit about yourself.\n\n1. **What do you do?**  \n2. **What would you like help with?**\n\nOnce I know a little more, I can suggest a few quick setups\u2014like a sales dashboard, a data\u2011pull automation, or a workflow\u2011tracking board\u2014and we can create them right away if that sounds good.  \n\nWould you like me to set up one of those for you?",
+        "role": "assistant"
+
+Test 2: Role Extraction
+---
+        "content": "Great, thanks for sharing!  \n\nHere are a few quick things I can set up that fit a data\u2011analyst workflow:\n\n1. **Daily Work\u2011Log Tracker** \u2013 A simple table where you can record tasks, time spent, and notes each day.  \n2. **Automated Sales Snapshot** \u2013 A weekly report that pulls yesterday\u2019s sales from the Gong\u202fCha database (the one you asked about).  \n3. **Task\u2011Reminder Board** \u2013 A reminder system that nudges you to log your work at the end of each day.\n\nWould you like me to create any of these for you right now?",
+        "role": "assistant"
+
+Test 3: Tool Creation
+---
+        "content": "\u2705 I\u2019ve set up a **Daily Work\u2011Log Tracker** for you.  \nYou can now add entries to the `work_logs` table whenever you finish a task.  \n\n- **How to add a log**:  \n  ```sql\n  INSERT INTO work_logs (date, task, duration, notes)\n  VALUES ('2025\u201102\u201103', 'Analyzed sales trend', '2h', 'Found spike in Q1')\n  ```\n\n- **View your logs**:  \n  ```sql\n  SELECT * FROM work_logs ORDER BY date DESC;\n  ```\n\nIf you\u2019d like help automating reminders or generating reports, just let me know!",
+        "role": "assistant"
+
+
+Checking memories stored...
+No memories found
+
+---
+
+=========================================
+MODEL: kimi-k2.5:cloud
+=========================================
+
+Test 1: Simple Onboarding
+---
+        "content": "Model call failed after 3 attempts with ResponseError: JSON Schema not supported: could not understand the instance `{}`. (status code: 400)",
+        "role": "assistant"
+
+Test 2: Role Extraction
+---
+        "content": "Model call failed after 3 attempts with ResponseError: JSON Schema not supported: could not understand the instance `{}`. (status code: 400)",
+        "role": "assistant"
+
+Test 3: Tool Creation
+---
+        "content": "Model call failed after 3 attempts with ResponseError: JSON Schema not supported: could not understand the instance `{}`. (status code: 400)",
+        "role": "assistant"
+
+
+Checking memories stored...
+No memories found
+
+---
+
+=========================================
+MODEL: minimax-m2.1:cloud
+=========================================
+
+Test 1: Simple Onboarding
+---
+        "content": "Hi! I'm Ken, your AI assistant. To help you better, tell me a bit about yourself.\n\n**What do you do?** And **what would you like help with?**",
+        "role": "assistant"
+
+Test 2: Role Extraction
+---
+        "content": "Great! Let me remember that. As a data analyst tracking daily work logs, I can create a structured table for you to log your tasks, time spent, and notes.",
+        "role": "assistant"
+--
+        "content": "I can **create** for you:\n\n1. **Daily Work Log Table** \u2014 Track task, project, time spent, and status\n2. **Weekly Summary Dashboard** \u2014 Auto-calculate hours by project/task\n3. **Daily Reminder** \u2014 Prompt you to log at end of each day\n\nShould I set this up for you?",
+        "role": "assistant"
+
+Test 3: Tool Creation
+---
+        "content": "Perfect! Let me set this up for you.",
+        "role": "assistant"
+--
+        "content": "All set! Here's what I created for you:\n\n**\ud83d\udccb Work Log Table** \u2014 Ready to log your daily tasks\n- Columns: date, project, task, time spent, status, notes\n\n**\u23f0 Daily Reminder** \u2014 5:30 PM each day to log your work\n\nYou can start logging anytime! Just tell me what you worked on, for example:\n\n> \"Logged 2 hours on sales report, completed\"\n\nWant me to add your first entry, or would you like to see the table structure first?",
+        "role": "assistant"
+
+
+Checking memories stored...
+No memories found
+
+---
+
+=========================================
+MODEL: deepseek-v3.2:cloud
+=========================================
+
+Test 1: Simple Onboarding
+---
+        "content": "Hi! I'm Ken, your personal AI assistant. \n\nTo help you better, tell me a bit about yourself! \n\nWhat do you do, and what kind of help are you looking for today?",
+        "role": "assistant"
+
+Test 2: Role Extraction
+---
+        "content": "Hi! As a data analyst, tracking your work logs is super helpful for productivity and reporting. I can set up a structured system for you right now.\n\n**Here's what I can create for your daily work logs:**\n\n1. **Structured Log Database** - A daily log system to track your analytics work\n2. **Automated Reporting** - Weekly summaries of your data analysis activities\n3. **Project Tracking** - Monitor time spent on different data projects\n\nWould you like me to set up a daily work log system for you? I can create a database table with fields like:\n- Date, project name, hours spent, analysis type, key findings\n\nShould I create this for you now?",
+        "role": "assistant"
+
+Test 3: Tool Creation
+---
+        "content": "I've created a structured work log system for you! Here's what I've set up:\n\n**Your Daily Work Log Database**\n\nI've created a database table called `work_logs` with these fields:\n- **Date** of your work\n- **Project** name or client\n- **Task Description** of what you worked on\n- **Time spent** (in hours)\n- **Category** (e.g., Data Cleaning, Analysis, Reporting, etc.)\n- **Status** (e.g., In Progress, Completed, On Hold)\n- **Key Findings** or notes about the work\n\n**To help customize this for you:**\n1. What are the main **categories of work** you do? (e.g., data cleaning, analysis, reporting, visualization)\n2. Do you work on multiple **projects** or just one main focus?\n3. Would you like to track **time by project** or by **type of analysis**?\n\n**How to use your work log:**\n- I can help you add entries like: \"Logged 3 hours on Q4 sales analysis, found 15% YOY growth\"\n- Generate weekly summaries\n- Track time by project or category\n- Export logs for reports\n\n**What would you like to call your first project or log entry?**\n\nYou can start by saying something like: \"Log 3 hours on the Q3 sales report\" or \"Track 2 hours of data cleaning for client X.\"\n\nWhat would you like to track first?",
+        "role": "assistant"
+
+
+Checking memories stored...
+No memories found
+
+---
+
+=========================================
+MODEL: qwen3-next:80b-cloud
+=========================================
+
+Test 1: Simple Onboarding
+---
+        "content": "\n\nHi! I'm Ken, your AI assistant. To help you better, tell me a bit about yourself. What do you do, and what would you like help with? \ud83d\ude0a",
+        "role": "assistant"
+
+Test 2: Role Extraction
+---
+        "content": "Model call failed after 3 attempts with ResponseError: Service Temporarily Unavailable (status code: 503)",
+        "role": "assistant"
+
+Test 3: Tool Creation
+---
+        "content": "Model call failed after 3 attempts with ResponseError: Service Temporarily Unavailable (status code: 503)",
+        "role": "assistant"
+
+
+Checking memories stored...
+No memories found
+
+---
+

@@ -90,6 +90,7 @@ class BaseChannel(ABC):
         self.registry = registry  # Optional UserRegistry instance
         self._active_tasks: dict[str, Any] = {}
         self._interrupted_chats: set[str] = set()
+        self._profile_loaded: set[str] = set()  # Track which thread profiles are cached
 
 
     def cancel_active_task(self, conversation_id: str) -> bool:
@@ -489,9 +490,49 @@ class BaseChannel(ABC):
         """
         return f"{self.__class__.__name__}:{message.conversation_id}"
 
+    def _is_general_query(self, query: str) -> bool:
+        """
+        Detect if a query is asking for general memory information.
+
+        General queries like "What do you remember?" should return all profile memories,
+        not perform semantic search which won't match profile content.
+
+        Args:
+            query: The user's query string.
+
+        Returns:
+            True if this is a general memory query, False for specific queries.
+        """
+        if not query:
+            return False
+
+        query_lower = query.lower()
+        general_patterns = [
+            "what do you remember",
+            "what do you know",
+            "about me",
+            "about myself",
+            "remind me",
+            "information do you have",
+            "tell me about",
+        ]
+
+        return any(pattern in query_lower for pattern in general_patterns)
+
     def _get_relevant_memories(self, thread_id: str, query: str, limit: int = 5) -> list[dict]:
         """
         Retrieve relevant memories for a query.
+
+        CRITICAL FIX: Always load profile memories, not just search results.
+        Profile memories (name, role, preferences) must always be available.
+
+        Strategy:
+        1. ALWAYS load profile memories (name, role, preferences, etc.)
+        2. For general queries, return all memories
+        3. For specific queries, combine profiles + search results
+
+        Note: Profile caching is handled at the conversation level (not implemented here)
+        to avoid complexity. The key fix is using list_memories() instead of search_memories().
 
         Args:
             thread_id: Thread identifier.
@@ -505,12 +546,42 @@ class BaseChannel(ABC):
             from executive_assistant.storage.mem_storage import get_mem_storage
 
             storage = get_mem_storage()
-            memories = storage.search_memories(
+
+            # CRITICAL: ALWAYS load profile memories (they define WHO the user is)
+            # This is the fix: use list_memories() not search_memories()
+            profile_memories = storage.list_memories(
+                memory_type="profile",
+                status="active",
+                thread_id=thread_id,
+            )
+
+            logger.debug(
+                "Loaded %d profile memories for thread %s",
+                len(profile_memories),
+                thread_id[:20],
+            )
+
+            # For general queries, get all memories (not just profile)
+            if self._is_general_query(query):
+                all_memories = storage.list_memories(
+                    status="active",
+                    thread_id=thread_id,
+                )
+                # Combine: profiles + other memories
+                non_profile = [m for m in all_memories if m.get("memory_type") != "profile"]
+                return profile_memories + non_profile
+
+            # For specific queries, use semantic search for other memory types
+            other_memories = storage.search_memories(
                 query=query,
                 limit=limit,
                 min_confidence=settings.MEM_CONFIDENCE_MIN,
+                thread_id=thread_id,
             )
-            return memories
+
+            # Combine: profiles + search results
+            return profile_memories + other_memories
+
         except Exception:
             # Don't fail if memory system isn't set up
             return []

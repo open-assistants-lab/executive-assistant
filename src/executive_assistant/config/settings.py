@@ -278,6 +278,13 @@ class Settings(BaseSettings):
         """Convert empty strings to None for optional provider field."""
         return v or None
 
+    # Journal (Time-Based Activity Tracking with Rollups)
+    JOURNAL_RETENTION_HOURLY: int = _yaml_field("JOURNAL_RETENTION_HOURLY", 30)
+    JOURNAL_RETENTION_WEEKLY: int = _yaml_field("JOURNAL_RETENTION_WEEKLY", 52)
+    JOURNAL_RETENTION_MONTHLY: int = _yaml_field("JOURNAL_RETENTION_MONTHLY", 84)  # 7 years
+    JOURNAL_RETENTION_YEARLY: int = _yaml_field("JOURNAL_RETENTION_YEARLY", 7)
+    JOURNAL_AUTO_ROLLUP_ENABLED: bool = _yaml_field("JOURNAL_AUTO_ROLLUP_ENABLED", False)
+
     # Web Search (uses Firecrawl - external service, configure in .env)
     # Firecrawl API also used for scrape/crawl tools
 

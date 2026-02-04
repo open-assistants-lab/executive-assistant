@@ -1,0 +1,9 @@
+[
+  {
+    "model": "gpt-oss:20b-cloud",
+    "scenario": "scenario_1_simple_onboarding",
+    "error": "All connection attempts failed",
+    "success": false,
+    "response_time": 0.05
+  }
+]
