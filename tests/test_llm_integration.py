@@ -16,10 +16,14 @@ from unittest.mock import patch, MagicMock
 # Import settings to get correct URLs
 from executive_assistant.config import settings
 
+# Load Ollama Cloud credentials from .env
+from dotenv import load_dotenv
+load_dotenv("docker/.env")
+
 # Set test environment variables to use Ollama Cloud
-os.environ["OLLAMA_API_KEY"] = "test-key"
-os.environ["DEFAULT_LLM_PROVIDER"] = "ollama"
 os.environ["OLLAMA_MODE"] = "cloud"
+if not os.environ.get("OLLAMA_CLOUD_API_KEY"):
+    os.environ["OLLAMA_CLOUD_API_KEY"] = settings.OLLAMA_CLOUD_API_KEY
 
 
 class TestLLMIntegration:
@@ -64,6 +68,11 @@ class TestLLMIntegration:
             model=model,
             base_url=settings.OLLAMA_CLOUD_URL,
             temperature=0.7,
+            client_kwargs={
+                "headers": {
+                    "Authorization": f"Bearer {settings.OLLAMA_CLOUD_API_KEY}"
+                }
+            }
         )
 
         # Retrieve memory
@@ -132,6 +141,11 @@ Provide a brief answer."""
             model=model,
             base_url=settings.OLLAMA_CLOUD_URL,
             temperature=0.7,
+            client_kwargs={
+                "headers": {
+                    "Authorization": f"Bearer {settings.OLLAMA_CLOUD_API_KEY}"
+                }
+            }
         )
 
         # Retrieve journal context
@@ -249,6 +263,11 @@ Summarize briefly."""
             model=model,
             base_url=settings.OLLAMA_CLOUD_URL,
             temperature=0.7,
+            client_kwargs={
+                "headers": {
+                    "Authorization": f"Bearer {settings.OLLAMA_CLOUD_API_KEY}"
+                }
+            }
         )
 
         # Create comprehensive prompt
