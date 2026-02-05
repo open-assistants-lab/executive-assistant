@@ -148,6 +148,7 @@ class TelegramChannel(BaseChannel):
         # Register handlers
         self.application.add_handler(CommandHandler("start", self._start_command))
         self.application.add_handler(CommandHandler("reset", self._reset_command))
+        self.application.add_handler(CommandHandler("connect_gmail", self._connect_gmail_command))
         self.application.add_handler(CommandHandler("remember", self._remember_command))
         self.application.add_handler(CommandHandler("debug", self._debug_command))
         self.application.add_handler(CommandHandler("stop", self._stop_command))
@@ -448,10 +449,17 @@ class TelegramChannel(BaseChannel):
         if not self.application:
             return
 
-        if content is None:
+        if content is None or not content.strip():
+            logger.debug(f"Skipping empty message for conversation {conversation_id}")
             return
 
         content = self._strip_assistant_file_links(content)
+
+        # Check again after stripping
+        if not content.strip():
+            logger.debug(f"Skipping empty message after stripping for conversation {conversation_id}")
+            return
+
         raw_content = content
         ctx = format_log_context("message", channel="telegram", conversation=conversation_id, type="text")
         logger.info(f"{ctx} send text=\"{truncate_log_text(raw_content)}\"")
@@ -857,7 +865,7 @@ class TelegramChannel(BaseChannel):
                 msgs = self._extract_messages_from_event(event)
                 new_messages = self._get_new_ai_messages(msgs, last_message_id)
                 for msg in new_messages:
-                    if isinstance(msg, AIMessage) and hasattr(msg, "content") and msg.content:
+                    if isinstance(msg, AIMessage) and hasattr(msg, "content") and msg.content and msg.content.strip():
                         message_count += 1
                         await self.send_message(batch[-1].conversation_id, msg.content)
 
@@ -920,6 +928,78 @@ class TelegramChannel(BaseChannel):
         if admin_flag:
             message += "\nAdmin access enabled."
         await update.message.reply_text(message)
+
+    async def _connect_gmail_command(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+    ) -> None:
+        """Handle /connect_gmail command."""
+        if not update.message:
+            return
+
+        from executive_assistant.auth.google_oauth import get_google_oauth_manager
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+        thread_id = f"telegram:{update.effective_chat.id}"
+
+        try:
+            # Create OAuth manager
+            oauth_manager = get_google_oauth_manager()
+
+            # Check if already connected
+            is_connected = await oauth_manager.is_connected(thread_id)
+
+            if is_connected:
+                await update.message.reply_text(
+                    "✅ Gmail is already connected!\n\n"
+                    "You can:\n"
+                    "• Read emails\n"
+                    "• Search emails\n"
+                    "• Draft and send emails\n\n"
+                    "Try: 'Show me my unread emails'"
+                )
+                return
+
+            # Create authorization URL
+            state = thread_id  # Encode thread_id in state parameter
+            auth_url = oauth_manager.create_authorization_url(state)
+
+            # Create inline keyboard with button
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔗 Connect Gmail", url=auth_url)]
+            ])
+
+            await update.message.reply_text(
+                "📧 **Connect Your Gmail Account**\n\n"
+                "Click the button below to connect your Gmail.\n"
+                "You'll be redirected to Google to sign in and grant permissions.\n\n"
+                "After approving, you'll be redirected back to this chat.\n\n"
+                "**Permissions you're granting:**\n"
+                "• Read your emails\n"
+                "• Send emails on your behalf\n"
+                "• Manage email labels\n"
+                "• View and create calendar events\n"
+                "• Access your contacts\n\n"
+                "This is the official Google OAuth flow - your credentials are "
+                "encrypted and stored securely.",
+                reply_markup=keyboard,
+                disable_web_page_preview=True,
+            )
+
+        except ValueError as e:
+            # OAuth not configured
+            logger.error(f"Google OAuth not configured: {e}")
+            await update.message.reply_text(
+                "❌ Google integration is not configured.\n\n"
+                "Please contact the administrator to set up Google OAuth "
+                "credentials (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI)."
+            )
+        except Exception as e:
+            logger.error(f"Error starting Gmail connection: {e}")
+            await update.message.reply_text(
+                "❌ Failed to start Gmail connection. Please try again later."
+            )
 
     async def _execute_reset_scope(
         self,

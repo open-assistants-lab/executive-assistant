@@ -133,6 +133,18 @@ class Settings(BaseSettings):
     MINIMAX_API_TYPE: Literal["openai", "anthropic"] = "openai"
     MINIMAX_API_BASE: str = "https://api.minimax.io/v1"
 
+    # ============================================================================
+    # Google Workspace Integration
+    # ============================================================================
+
+    # OAuth2 Configuration (for Gmail, Calendar, Contacts)
+    GOOGLE_CLIENT_ID: str | None = None
+    GOOGLE_CLIENT_SECRET: str | None = None
+    GOOGLE_REDIRECT_URI: str | None = None
+
+    # Token encryption (required for production, generate with: Fernet.generate_key())
+    EMAIL_ENCRYPTION_KEY: str | None = None
+
     # Telegram Configuration
     TELEGRAM_BOT_TOKEN: str | None = None  # Secret
     TELEGRAM_WEBHOOK_URL: str | None = None

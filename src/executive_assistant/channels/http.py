@@ -213,6 +213,89 @@ class HttpChannel(BaseChannel):
             """Health check endpoint."""
             return HealthResponse(status="healthy", channel="http")
 
+        # ========================================================================
+        # Google OAuth Endpoints
+        # ========================================================================
+
+        @self.app.get("/auth/google/start")
+        async def start_google_oauth(user_id: str, redirect: str = "/"):
+            """
+            Start Google OAuth flow.
+
+            Args:
+                user_id: User/thread identifier
+                redirect: Where to redirect after authorization (default: /)
+
+            Returns:
+                Redirect to Google OAuth consent screen
+            """
+            from executive_assistant.auth.google_oauth import get_google_oauth_manager
+
+            thread_id = f"http:{user_id}"
+
+            try:
+                oauth_manager = get_google_oauth_manager()
+                state = thread_id  # Encode thread_id in state parameter
+                auth_url = oauth_manager.create_authorization_url(state)
+
+                from fastapi.responses import RedirectResponse
+                return RedirectResponse(url=auth_url)
+
+            except ValueError as e:
+                logger.error(f"Google OAuth not configured: {e}")
+                raise HTTPException(
+                    status_code=500,
+                    detail="Google OAuth not configured. Contact administrator.",
+                )
+            except Exception as e:
+                logger.error(f"Error starting Google OAuth: {e}")
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to start Google OAuth.",
+                )
+
+        @self.app.get("/auth/callback/google")
+        async def google_oauth_callback(
+            code: str,
+            state: str,
+            error: str = None,
+        ):
+            """
+            Handle Google OAuth callback.
+
+            Args:
+                code: Authorization code from Google
+                state: State parameter (contains thread_id)
+                error: OAuth error if user cancelled
+
+            Returns:
+                Redirect to success/error page
+            """
+            from starlette.responses import RedirectResponse
+            from executive_assistant.auth.google_oauth import get_google_oauth_manager
+
+            if error:
+                logger.warning(f"Google OAuth error: {error}")
+                return RedirectResponse(url=f"/?auth_error={error}")
+
+            try:
+                # Exchange code for tokens
+                oauth_manager = get_google_oauth_manager()
+                credentials = await oauth_manager.exchange_code_for_tokens(code)
+
+                # Get thread_id from state parameter
+                thread_id = state
+
+                # Save encrypted tokens
+                await oauth_manager.save_tokens(thread_id, credentials)
+
+                logger.info(f"Google OAuth successful for {thread_id}")
+                return RedirectResponse(url="/?auth=success")
+
+            except Exception as e:
+                logger.error(f"Error in Google OAuth callback: {e}")
+                return RedirectResponse(url=f"/?auth_error=server_error")
+
         @self.app.get("/")
         async def root() -> dict[str, Any]:
             """Root endpoint with API info."""
@@ -462,7 +545,7 @@ class HttpChannel(BaseChannel):
                         total_input_tokens += input_tok
                     if output_tok:
                         total_output_tokens += output_tok
-                if hasattr(msg, "content") and msg.content:
+                if hasattr(msg, "content") and msg.content and msg.content.strip():
                     chunk = MessageChunk(
                         content=msg.content,
                         role="assistant",

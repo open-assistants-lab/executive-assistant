@@ -1,1050 +1,907 @@
-# Email, Calendar & Contacts Integration Plan
+# Google Workspace Integration Plan
 
-Complete guide for implementing email, calendar, and contacts integration for the Executive Assistant.
+Complete guide for integrating Gmail, Google Calendar, and Google Contacts for the Executive Assistant (2025).
+
+**Latest Updates:**
+- `google-api-python-client` v2.189.0 (Feb 2026)
+- `google-auth-oauthlib` v1.2.3 (Oct 2025)
+- Official quickstarts updated Dec 11, 2025
 
 ## Table of Contents
 
 1. [Executive Summary](#executive-summary)
-2. [Part 1: OAuth2 Setup Guide](#part-1-oauth2-setup-guide)
-3. [Part 2: Email Integration](#part-2-email-integration)
-4. [Part 3: Calendar & Contacts Integration](#part-3-calendar--contacts-integration)
-5. [Shared Implementation Details](#shared-implementation-details)
-6. [Implementation Roadmap](#implementation-roadmap)
-7. [Testing Strategy](#testing-strategy)
+2. [Google Workspace Setup](#google-workspace-setup)
+3. [OAuth2 Authentication](#oauth2-authentication)
+4. [Gmail Integration](#gmail-integration)
+5. [Google Calendar Integration](#google-calendar-integration)
+6. [Google Contacts Integration](#google-contacts-integration)
+7. [Implementation Roadmap](#implementation-roadmap)
+8. [References](#references)
 
 ---
 
 ## Executive Summary
 
-This document provides a complete plan for integrating email, calendar, and contacts capabilities into the Executive Assistant. Users connect their accounts through **existing channels** (Telegram/HTTP), enabling the agent to:
+This document provides a complete plan for integrating Google Workspace services (Gmail, Calendar, Contacts) into the Executive Assistant using the latest 2025 methods and libraries.
 
-- **Email**: Read, draft, send, and learn user's writing style
-- **Calendar**: Schedule meetings, check availability, manage events
-- **Contacts**: Look up contacts, find people, manage contact information
+### Target Users
+
+| User Type | Authentication Method | Use Case |
+|-----------|----------------------|-----------|
+| **Individual Users** | OAuth2 (User Consent) | Personal Gmail (@gmail.com) |
+| **Google Workspace Domain** | OAuth2 + Admin Consent | Organization (@company.com) |
+| **Service Account** | Domain-Wide Delegation | Backend processing, scheduled tasks |
 
 ### Key Design Principles
 
-1. **Channel Agnostic**: All services work through Telegram OR HTTP (not separate channels)
-2. **Single OAuth2**: Google/Microsoft use one authorization for all services
-3. **Thread-Scoped**: Credentials stored in `data/users/{thread_id}/auth/{service}/`
-4. **Approval Workflow**: Drafts/events require user approval before sending
-5. **Privacy-First**: Encrypted credential storage
-6. **Progressive Enhancement**: Email first, then calendar/contacts
+1. **Thread-Scoped**: `data/users/{thread_id}/auth/google/`
+2. **Multi-Account**: Support multiple Google accounts per user
+3. **Token Refresh**: Automatic token refresh (1-hour expiry)
+4. **Rate Limiting**: Proper quota management (250 units/sec)
+5. **Security**: Fernet encryption for token storage
 
 ---
 
-# Part 1: OAuth2 Setup Guide
+## Google Workspace Setup
 
-This section walks you through setting up OAuth2 authentication for email, calendar, and contacts providers.
+### Option A: Google Cloud Project (Recommended)
 
-**Important**: Include all scopes (email, calendar, contacts) from the start. This avoids requiring users to re-authorize later when you add these features.
+**Best for**: All use cases (individual + enterprise)
 
-## Supported Providers
-
-### Recommended (Priority Order)
-
-| Provider | Coverage | Email | Calendar | Contacts | OAuth Support |
-|----------|----------|-------|----------|----------|---------------|
-| **Google** | 1.8B+ users | ✅ Gmail API | ✅ Calendar API | ✅ People API | ✅ Single auth |
-| **Microsoft** | 400M+ users | ✅ Graph Mail | ✅ Graph Calendar | ✅ Graph Contacts | ✅ Single auth |
-| **iCloud** | 850M+ users | ✅ IMAP/SMTP | ✅ CalDAV | ✅ CardDAV | ⚠️ App passwords |
-| **Generic IMAP** | Universal | ✅ | ❌ | ❌ | ⚠️ App passwords |
-
-**Recommendation**: Start with Google + Microsoft + iCloud. This covers 95%+ of users.
-
----
-
-## Google Cloud Console Setup
-
-### Step 1: Create Google Cloud Project
+#### Step 1: Create Google Cloud Project
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Sign in with your Google account
-3. Click the project dropdown at the top
-4. Click **"NEW PROJECT"**
-5. Enter project name: `Executive Assistant`
-6. Click **"CREATE"**
+2. Click project dropdown → **"NEW PROJECT"**
+3. Name: `Executive Assistant`
+4. Click **"CREATE"**
 
-### Step 2: Enable APIs
+#### Step 2: Enable APIs (Latest 2025)
 
-Enable all APIs you'll need (even if you're starting with email only):
+```bash
+# Enable using gcloud CLI or Console UI
+gcloud services enable gmail-api.googleapis.com
+gcloud services enable calendar-json.googleapis.com
+gcloud services enable people.googleapis.com
+```
 
-1. In the left sidebar, go to **"APIs & Services"** → **"Library"**
-2. Search for and enable these APIs:
-   - **"Gmail API"** - Click and press **"ENABLE"**
-   - **"Calendar API"** - Click and press **"ENABLE"**
-   - **"People API"** (Contacts) - Click and press **"ENABLE"**
+Or in Console:
+- **APIs & Services** → **Library**
+- Search and enable:
+  - **Gmail API**
+  - **Calendar API**
+  - **People API** (Contacts)
 
-### Step 3: Configure OAuth Consent Screen
+#### Step 3: Configure OAuth Consent Screen (Dec 2025 Updated)
 
-1. Go to **"APIs & Services"** → **"OAuth consent screen"**
-2. Choose **"External"** (since anyone will use this)
-3. Click **"CREATE"**
-4. Fill in required fields:
+1. **APIs & Services** → **OAuth consent screen**
+2. Choose **"External"** (for any Google user)
+3. Fill in:
    - **App name**: `Executive Assistant`
    - **User support email**: Your email
-   - **Developer contact information**: Your email
-5. Click **"SAVE AND CONTINUE"** through all screens
+   - **Developer contact**: Your email
+4. Click **"SAVE AND CONTINUE"**
 
-### Step 4: Add OAuth Scopes
+#### Step 4: Add OAuth Scopes (Critical!)
 
-1. Still on **"OAuth consent screen"**
-2. Click **"EDIT APP"** or go to **"Scopes"** tab
-3. Click **"ADD SCOPE"**
-4. Add these scopes:
+Add ALL scopes from the start to avoid re-authorization:
 
-**Email (Gmail):**
-- `https://www.googleapis.com/auth/gmail.readonly` - Read emails
-- `https://www.googleapis.com/auth/gmail.send` - Send emails
-- `https://www.googleapis.com/auth/gmail.modify` - Manage labels, archive (optional)
-
-**Calendar:**
-- `https://www.googleapis.com/auth/calendar` - Full calendar access
-- `https://www.googleapis.com/auth/calendar.events` - Create/edit events (recommended alternative)
-
-**Contacts:**
-- `https://www.googleapis.com/auth/contacts` - Full contacts access
-- `https://www.googleapis.com/auth/contacts.other.readonly` - Read other contacts
-
-5. Click **"UPDATE"**
-
-**Note**: Include all scopes from the start, even if you're only implementing email initially. This prevents users from needing to re-authorize when you add calendar/contacts features.
-
-### Step 5: Create OAuth 2.0 Credentials
-
-1. Go to **"APIs & Services"** → **"Credentials"**
-2. Click **"+ CREATE CREDENTIALS"** → **"OAuth client ID"**
-3. **Application type**: Select **"Web application"**
-4. **Name**: `Executive Assistant`
-5. **Authorized redirect URIs** (click **"ADD URI"**):
-   - `http://localhost:8000/email/callback/gmail` (development)
-   - `https://your-domain.com/email/callback/gmail` (production)
-6. Click **"CREATE"**
-
-### Step 6: Save Credentials
-
-1. Copy the **Client ID** (looks like: `123456789-abc123def456.apps.googleusercontent.com`)
-2. Copy the **Client Secret** (looks like: `GOCSPX-xxxxxxxxxxxxxxxxx`)
-3. Store these securely - you'll need them for the `.env` file
-
----
-
-## Microsoft Azure Portal Setup
-
-### Step 1: Register App in Azure Portal
-
-1. Go to [Azure Portal](https://portal.azure.com/)
-2. Sign in with your Microsoft account (use personal account for Outlook/Hotmail)
-3. Search for **"App registrations"** in the search bar
-4. Click **"App registrations"**
-
-### Step 2: New Registration
-
-1. Click **"New registration"**
-2. Fill in the form:
-   - **Name**: `Executive Assistant`
-   - **Supported account types**: Select **"Accounts in any organizational directory and personal Microsoft accounts"** (this covers Outlook, Hotmail, Live)
-   - **Redirect URI**: Select **"Web"** and enter:
-     - `http://localhost:8000/email/callback/outlook` (development)
-     - `https://your-domain.com/email/callback/outlook` (production)
-3. Click **"Register"**
-
-### Step 3: Copy Application ID
-
-1. On the app's overview page, copy the **Application (client) ID**
-2. Save this - it's your `OUTLOOK_CLIENT_ID`
-
-### Step 4: Create Client Secret
-
-1. In the left sidebar, click **"Certificates & secrets"**
-2. Click **"+ New client secret"**
-3. Description: `Executive Assistant Secret`
-4. Expires: Select **"180 days"** or **"365 days"** (not never for security)
-5. Click **"Add"**
-6. **IMPORTANT**: Copy the **Value** immediately (you can't see it again!)
-   - Not the "Secret ID" - you need the "Value"
-7. Save this as your `OUTLOOK_CLIENT_SECRET`
-
-### Step 5: Configure API Permissions
-
-1. In the left sidebar, click **"API permissions"**
-2. Click **"+ Add a permission"**
-3. Click **"Microsoft Graph"**
-4. Select **"Delegated permissions"**
-5. Search for and add these permissions:
-
-**Email:**
-- `Mail.Read` - Read user's mail
-- `Mail.Send` - Send mail as user
-
-**Calendar:**
-- `Calendars.ReadWrite` - Full calendar access
-
-**Contacts:**
-- `Contacts.ReadWrite` - Full contacts access
-
-6. Click **"Add permissions"**
-
-### Step 6: Grant Admin Consent
-
-1. Still on **"API permissions"** page
-2. Click **"Grant admin consent for [Your Organization]"**
-3. Click **"Yes"** to confirm
-4. You should see green checkmarks next to permissions
-
----
-
-## Apple iCloud Setup
-
-Apple iCloud uses **app-specific passwords** and standard protocols. No OAuth2 registration needed.
-
-### What iCloud Users Get
-
-| Service | Protocol | Support |
-|---------|----------|---------|
-| **Email** | IMAP/SMTP | ✅ Full support with app password |
-| **Calendar** | CalDAV | ✅ Full support with app password |
-| **Contacts** | CardDAV | ✅ Full support with app password |
-
-### How Users Generate App-Specific Passwords
-
-1. Go to [appleid.apple.com](https://appleid.apple.com)
-2. Sign in with Apple ID
-3. Go to **"Sign-In and Security"**
-4. Click **"App-Specific Passwords"**
-5. Click **"+"** or **"Generate Password"**
-6. Enter a label (e.g., "Executive Assistant")
-7. Copy the password (format: `abcd-efgh-ijkl-mnop`)
-
-### User Setup Flow for iCloud
-
-**Email:**
-```
-User: Connect my iCloud email
-Bot: Please provide your @icloud.com address and app-specific password.
-User: connect_icloud user@icloud.com abcd-efgh-ijkl-mnop
-Bot: ✅ iCloud Mail connected!
+**Scopes for Gmail:**
+```python
+'https://www.googleapis.com/auth/gmail.readonly'     # Read emails
+'https://www.googleapis.com/auth/gmail.send'          # Send emails
+'https://www.googleapis.com/auth/gmail.modify'        # Manage labels
 ```
 
-**Calendar:**
-```
-User: Connect my iCloud calendar
-Bot: Please provide your @icloud.com address and app-specific password.
-User: connect_icloud_calendar user@icloud.com abcd-efgh-ijkl-mnop
-Bot: ✅ iCloud Calendar connected!
+**Scopes for Calendar:**
+```python
+'https://www.googleapis.com/auth/calendar'             # Full calendar access
+'https://www.googleapis.com/auth/calendar.events'     # Create/edit events
 ```
 
-**Contacts:**
-```
-User: Connect my iCloud contacts
-Bot: Please provide your @icloud.com address and app-specific password.
-User: connect_icloud_contacts user@icloud.com abcd-efgh-ijkl-mnop
-Bot: ✅ iCloud Contacts connected!
+**Scopes for Contacts:**
+```python
+'https://www.googleapis.com/auth/contacts'            # Full contacts access
+'https://www.googleapis.com/auth/contacts.other.readonly'  # Read other contacts
 ```
 
----
+#### Step 5: Create OAuth 2.0 Client ID
 
-## Environment Configuration
-
-### 1. Create Encryption Key
-
-Generate a Fernet encryption key for storing tokens:
-
-```bash
-python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-```
-
-Save the output - you'll need it for `EMAIL_ENCRYPTION_KEY`.
-
-### 2. Update `docker/.env`
-
-```bash
-# =====================================================
-# EMAIL, CALENDAR & CONTACTS OAUTH2 CONFIGURATION
-# =====================================================
-
-# Encryption key (REQUIRED)
-EMAIL_ENCRYPTION_KEY=your-generated-fernet-key-here
-
-# Google OAuth2
-GMAIL_CLIENT_ID=your-client-id.apps.googleusercontent.com
-GMAIL_CLIENT_SECRET=your-client-secret
-
-# Microsoft OAuth2
-OUTLOOK_CLIENT_ID=your-microsoft-application-id
-OUTLOOK_CLIENT_SECRET=your-client-secret-value
-```
-
-### 3. Update `docker/config.yaml`
-
-```yaml
-email:
-  enabled: true
-  encryption_key: ${EMAIL_ENCRYPTION_KEY}
-  providers:
-    gmail:
-      client_id: ${GMAIL_CLIENT_ID}
-      client_secret: ${GMAIL_CLIENT_SECRET}
-      redirect_uri: http://localhost:8000/email/callback/gmail
-    outlook:
-      client_id: ${OUTLOOK_CLIENT_ID}
-      client_secret: ${OUTLOOK_CLIENT_SECRET}
-      redirect_uri: http://localhost:8000/email/callback/outlook
-
-icloud:
-  email:
-    imap_host: imap.mail.me.com
-    imap_port: 993
-    smtp_host: smtp.mail.me.com
-    smtp_port: 587
-  calendar:
-    caldav_host: caldav.icloud.com
-    caldav_port: 443
-    caldav_path: "/"
-  contacts:
-    carddav_host: contacts.icloud.com
-    carddav_port: 443
-    carddav_path: "/addressbooks"
-```
-
----
-
-## Testing OAuth2 Setup
-
-### Test 1: Verify Environment Variables
-
-```bash
-docker compose exec executive_assistant env | grep -E "(GMAIL|OUTLOOK|EMAIL_ENCRYPTION)"
-```
-
-Expected output:
-```
-GMAIL_CLIENT_ID=123456789-abc123.apps.googleusercontent.com
-GMAIL_CLIENT_SECRET=GOCSPX-xxxxxxxxxxxxx
-OUTLOOK_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-OUTLOOK_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxx
-EMAIL_ENCRYPTION_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
-
-### Test 2: Test OAuth2 Flow
-
-1. Start the bot: `uv run executive_assistant`
-2. In Telegram/HTTP, type: `Connect my Gmail`
-3. Click the authorization link
-4. Authorize in Google/Microsoft
-5. Verify credentials saved:
-   ```bash
-   ls data/users/<thread_id>/auth/email/credentials.json
+1. **APIs & Services** → **Credentials**
+2. **"+ CREATE CREDENTIALS"** → **"OAuth client ID"**
+3. **Application type**: **"Web application"**
+4. **Name**: `Executive Assistant OAuth Client`
+5. **Authorized redirect URIs**:
    ```
+   http://localhost:8000/auth/callback/google
+   https://your-domain.com/auth/callback/google
+   ```
+6. Click **"CREATE"**
+7. Save **Client ID** and **Client Secret**
 
 ---
 
-# Part 2: Email Integration
+### Option B: Google Workspace Marketplace (Enterprise)
 
-## Architecture Overview
+**Best for**: Organization-wide deployment
 
-### Component Diagram
+1. Go to [Google Workspace Marketplace SDK](https://developers.google.com/workspace)
+2. Create new app integration
+3. Configure OAuth scopes (same as above)
+4. Submit for verification
+5. Install to Workspace domain via admin console
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        Executive Assistant                           │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│  User chats on Telegram/HTTP: "Check my emails for anything urgent" │
-│                                                                      │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐          │
-│  │   Telegram   │    │     HTTP     │    │   Email      │          │
-│  │   Channel    │    │   Channel    │    │   Tools      │          │
-│  └──────┬───────┘    └──────┬───────┘    └──────┬───────┘          │
-│         │                   │                    │                   │
-│         └───────────────────┴────────────────────┘                  │
-│                             │                                        │
-│                             ▼                                        │
-│                  ┌───────────────────┐                              │
-│                  │   LangGraph       │                              │
-│                  │   Agent           │                              │
-│                  └─────────┬─────────┘                              │
-│                            │                                         │
-│          ┌─────────────────┼─────────────────┐                     │
-│          ▼                 ▼                 ▼                     │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │
-│  │  Gmail/      │  │  Auth        │  │  Tone        │              │
-│  │  Outlook     │  │  Storage     │  │  Analysis    │              │
-│  │  API         │  │  (Thread)    │  │  Storage     │              │
-│  └──────────────┘  └──────────────┘  └──────────────┘              │
-│                                                                      │
-└─────────────────────────────────────────────────────────────────────┘
+---
+
+## OAuth2 Authentication
+
+### Latest Libraries (2025)
+
+```toml
+[project.dependencies]
+google-api-python-client = "^2.189.0"  # Latest as of Feb 2026
+google-auth-oauthlib = "^1.2.3"        # Latest as of Oct 2025
+google-auth = "^2.20.0"
+cryptography = "^41.0.0"
 ```
 
-## Directory Structure
+### OAuth2 Flow Implementation (2025 Standard)
 
-```
-data/users/{thread_id}/
-├── auth/
-│   └── email/
-│       └── credentials.json       # Encrypted OAuth tokens
-├── email_drafts.json              # Local draft copies
-├── email_rules.json               # Automation rules
-├── email_style_profile.json       # Learned writing style
-└── email_samples/                 # Sample emails for learning
-```
-
-## Email Provider Abstraction
-
-**File**: `src/executive_assistant/email/providers/base.py`
+**File**: `src/executive_assistant/auth/google_oauth.py`
 
 ```python
-class EmailProvider(ABC):
-    """Abstract base class for email providers."""
+from google_auth_oauthlib.flow import Flow
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
+from cryptography.fernet import Fernet
+import json
+from pathlib import Path
+from datetime import datetime
 
-    @abstractmethod
-    async def authenticate(self, credentials: dict) -> bool:
-        """Validate credentials and refresh if needed."""
+class GoogleOAuthManager:
+    """Manage Google OAuth2 flow with token refresh."""
 
-    @abstractmethod
+    SCOPES = [
+        'https://www.googleapis.com/auth/gmail.readonly',
+        'https://www.googleapis.com/auth/gmail.send',
+        'https://www.googleapis.com/auth/calendar',
+        'https://www.googleapis.com/auth/contacts'
+    ]
+
+    def __init__(self, client_id: str, client_secret: str, redirect_uri: str):
+        self.client_id = client_id
+        self.client_secret = client_secret
+        self.redirect_uri = redirect_uri
+
+    def create_authorization_url(self, state: str) -> str:
+        """Create OAuth authorization URL with PKCE."""
+        flow = Flow.from_client_config(
+            {
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+                "redirect_uri": self.redirect_uri,
+                "scopes": self.SCOPES
+            }
+        )
+
+        flow.redirect_uri = self.redirect_uri
+        authorization_url, state = flow.authorization_url(
+            access_type='offline',
+            include_granted_scopes='true',
+            state=state,
+            prompt='consent'  # Force consent to get refresh token
+        )
+
+        return authorization_url
+
+    async def exchange_code_for_tokens(self, code: str) -> Credentials:
+        """Exchange authorization code for credentials."""
+        flow = Flow.from_client_config(
+            {
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+                "redirect_uri": self.redirect_uri,
+                "scopes": self.SCOPES
+            }
+        )
+
+        flow.redirect_uri = self.redirect_uri
+        flow.fetch_token(code=code)
+
+        return flow.credentials
+
+    async def save_tokens(self, thread_id: str, credentials: Credentials) -> None:
+        """Save encrypted tokens to thread-scoped storage."""
+        from executive_assistant.config.settings import settings
+
+        token_data = {
+            "token": credentials.token,
+            "refresh_token": credentials.refresh_token,
+            "token_uri": credentials.token_uri,
+            "client_id": credentials.client_id,
+            "client_secret": credentials.client_secret,
+            "scopes": credentials.scopes,
+            "expiry": credentials.expiry.isoformat() if credentials.expiry else None
+        }
+
+        auth_dir = Path(f"data/users/{thread_id}/auth/google")
+        auth_dir.mkdir(parents=True, exist_ok=True)
+
+        # Encrypt with Fernet
+        fernet = Fernet(settings.EMAIL_ENCRYPTION_KEY.encode())
+        encrypted = fernet.encrypt(json.dumps(token_data).encode())
+
+        cred_file = auth_dir / "credentials.json"
+        with open(cred_file, "wb") as f:
+            f.write(encrypted)
+
+    async def load_credentials(self, thread_id: str) -> Credentials:
+        """Load and refresh credentials if expired."""
+        from executive_assistant.config.settings import settings
+
+        auth_dir = Path(f"data/users/{thread_id}/auth/google")
+        cred_file = auth_dir / "credentials.json"
+
+        if not cred_file.exists():
+            return None
+
+        # Decrypt
+        fernet = Fernet(settings.EMAIL_ENCRYPTION_KEY.encode())
+        with open(cred_file, "rb") as f:
+            decrypted = fernet.decrypt(f.read())
+
+        token_data = json.loads(decrypted)
+
+        # Create credentials object
+        credentials = Credentials(
+            token=token_data["token"],
+            refresh_token=token_data["refresh_token"],
+            token_uri=token_data["token_uri"],
+            client_id=token_data["client_id"],
+            client_secret=token_data["client_secret"],
+            scopes=token_data["scopes"],
+            expiry=datetime.fromisoformat(token_data["expiry"]) if token_data.get("expiry") else None
+        )
+
+        # Auto-refresh if expired (standard google-auth behavior)
+        if credentials.expired:
+            credentials.refresh(Request())
+            await self.save_tokens(thread_id, credentials)
+
+        return credentials
+```
+
+### OAuth Callback (Latest 2025 Pattern)
+
+**Both HTTP and Telegram channels use the SAME callback endpoint:**
+
+**File**: `src/executive_assistant/channels/http.py`
+
+```python
+from fastapi import Request, Response
+from starlette.responses import RedirectResponse
+
+@app.get("/auth/callback/google")
+async def google_auth_callback(
+    request: Request,
+    code: str,
+    state: str,
+    error: str = None
+):
+    """Handle Google OAuth2 callback for BOTH HTTP and Telegram channels."""
+    if error:
+        # Redirect back to appropriate channel based on thread_id in state
+        if state.startswith("telegram:"):
+            return RedirectResponse(url=f"https://t.me/{BOT_USERNAME}?start=auth_failed")
+        return RedirectResponse(url=f"/?auth_error={error}")
+
+    from executive_assistant.auth.google_oauth import GoogleOAuthManager
+
+    # Exchange code for tokens
+    oauth_manager = GoogleOAuthManager(
+        client_id=settings.GOOGLE_CLIENT_ID,
+        client_secret=settings.GOOGLE_CLIENT_SECRET,
+        redirect_uri=settings.GOOGLE_REDIRECT_URI
+    )
+
+    credentials = await oauth_manager.exchange_code_for_tokens(code)
+
+    # Get thread_id from state parameter
+    thread_id = state
+
+    # Save encrypted tokens
+    await oauth_manager.save_tokens(thread_id, credentials)
+
+    # Redirect back to appropriate channel
+    if state.startswith("telegram:"):
+        return RedirectResponse(url=f"https://t.me/{BOT_USERNAME}?start=auth_success")
+    return RedirectResponse(url="/?auth=success")
+```
+
+### User OAuth Flow (HTTP Channel)
+
+**User clicks link in web interface:**
+
+```
+1. User (in browser): "Connect my Gmail"
+   ↓
+2. App redirects to Google OAuth URL
+   ↓
+3. User signs in → Approves permissions
+   ↓
+4. Google redirects back to: https://your-domain.com/auth/callback/google
+   ↓
+5. Backend saves tokens → Redirects to /?auth=success
+```
+
+### User OAuth Flow (Telegram Channel)
+
+**User clicks link in Telegram chat:**
+
+```
+1. User (in Telegram): "Connect my Gmail"
+   ↓
+2. Bot sends message with clickable URL:
+   "Click here to connect Gmail: https://your-domain.com/auth/google/start?thread_id=telegram:123456"
+   ↓
+3. User clicks link → Opens in browser
+   ↓
+4. User signs in → Approves permissions
+   ↓
+5. Google redirects back to: https://your-domain.com/auth/callback/google
+   ↓
+6. Backend saves tokens → Redirects to Telegram bot
+   ↓
+7. Bot sends confirmation: "✅ Gmail connected!"
+```
+
+### Telegram OAuth Implementation
+
+**File**: `src/executive_assistant/channels/telegram.py`
+
+```python
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from executive_assistant.auth.google_oauth import GoogleOAuthManager
+
+async def connect_gmail_command(update: Update, context):
+    """Handle /connect_gmail command in Telegram."""
+    thread_id = f"telegram:{update.effective_message.chat_id}"
+
+    # Create OAuth manager
+    oauth_manager = GoogleOAuthManager(
+        client_id=settings.GOOGLE_CLIENT_ID,
+        client_secret=settings.GOOGLE_CLIENT_SECRET,
+        redirect_uri=settings.GOOGLE_REDIRECT_URI
+    )
+
+    # Create authorization URL with thread_id in state
+    auth_url = oauth_manager.create_authorization_url(
+        state=thread_id  # Encode thread_id in state parameter
+    )
+
+    # Send clickable link button
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔗 Connect Gmail", url=auth_url)]
+    ])
+
+    await update.message.reply_text(
+        "📧 **Connect Your Gmail Account**\n\n"
+        "Click the button below to connect your Gmail.\n"
+        "You'll be redirected to Google to sign in and grant permissions.\n\n"
+        "After approving, you'll be redirected back here.",
+        reply_markup=keyboard,
+        disable_web_page_preview=True
+    )
+```
+
+**Key Point:** Both channels use the SAME standard OAuth flow. The only difference is:
+- **HTTP**: Link shown in web interface, redirects back to web page
+- **Telegram**: Link sent as button in chat, redirects back to Telegram bot
+
+---
+
+## Gmail Integration
+
+### Latest Gmail API Setup (2025)
+
+**Version**: `gmail` v1 (via `google-api-python-client` v2.189.0)
+
+```python
+from googleapiclient.discovery import build
+from google.oauth2.credentials import Credentials
+from googleapiclient.errors import HttpError
+
+class GmailProvider:
+    """Gmail API provider with OAuth2 (2025 standard)."""
+
+    def __init__(self, credentials: Credentials):
+        self.service = build('gmail', 'v1', credentials=credentials)
+
     async def list_emails(
         self,
-        folder: str = "INBOX",
-        limit: int = 20,
-        unread_only: bool = False
+        label_ids: list = None,
+        max_results: int = 20,
+        query: str = None
     ) -> List[EmailMessage]:
-        """Fetch emails from specified folder."""
+        """List emails from Gmail using latest API."""
+        try:
+            results = self.service.users().messages().list(
+                userId='me',
+                labelIds=label_ids or ['INBOX'],
+                maxResults=max_results,
+                q=query
+            ).execute()
 
-    @abstractmethod
-    async def get_email(self, message_id: str) -> EmailMessage:
-        """Fetch full email content."""
+            messages = results.get('messages', [])
 
-    @abstractmethod
+            # Fetch full details for each message
+            return [await self._get_email_detail(msg['id']) for msg in messages]
+
+        except HttpError as error:
+            print(f"Gmail API Error: {error}")
+            return []
+
+    async def _get_email_detail(self, message_id: str) -> EmailMessage:
+        """Get full email message with headers and body."""
+        try:
+            message = self.service.users().messages().get(
+                userId='me',
+                id=message_id,
+                format='full',  # Get full message with payload
+                metadataHeaders=['From', 'To', 'Subject', 'Date']
+            ).execute()
+
+            # Parse email
+            payload = message['payload']
+            headers = {h['name']: h['value'] for h in payload.get('headers', [])}
+
+            # Extract body
+            body = self._extract_body(payload)
+
+            return EmailMessage(
+                id=message_id,
+                thread_id=message.get('threadId'),
+                subject=headers.get('Subject', ''),
+                from_address=headers.get('From', ''),
+                to_address=headers.get('To', ''),
+                date=headers.get('Date', ''),
+                body=body,
+                snippet=message.get('snippet', '')
+            )
+
+        except HttpError as error:
+            print(f"Error fetching message {message_id}: {error}")
+            return None
+
+    def _extract_body(self, payload: dict) -> str:
+        """Extract email body from payload (handles text/html)."""
+        body = payload.get('body', {})
+        if 'data' in body:
+            return self._decode_base64(body['data'])
+
+        # Check multipart
+        parts = payload.get('parts', [])
+        for part in parts:
+            if part['mimeType'] == 'text/html':
+                return self._decode_base64(part['body']['data'])
+            elif part['mimeType'] == 'text/plain':
+                return self._decode_base64(part['body']['data'])
+
+        return ""
+
+    @staticmethod
+    def _decode_base64(data: str) -> str:
+        """Decode URL-safe base64 data."""
+        import base64
+        return base64.urlsafe_b64decode(data).decode('utf-8')
+
     async def send_email(self, email: EmailDraft) -> str:
-        """Send email and return message ID."""
+        """Send email via Gmail API (2025 standard)."""
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        import base64
 
-    @abstractmethod
-    async def draft_email(self, email: EmailDraft) -> str:
-        """Save draft and return draft ID."""
+        # Create message
+        message = MIMEMultipart('alternative')
+        message['to'] = email.to
+        message['from'] = email.from_address
+        message['subject'] = email.subject
 
-    @abstractmethod
-    async def search_emails(self, query: str) -> List[EmailMessage]:
-        """Search emails by query."""
+        # Add HTML body
+        html_part = MIMEText(email.body, 'html')
+        message.attach(html_part)
+
+        # Encode and send
+        raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+
+        try:
+            result = self.service.users().messages().send(
+                userId='me',
+                body={'raw': raw}
+            ).execute()
+
+            return result['id']
+
+        except HttpError as error:
+            print(f"Error sending email: {error}")
+            raise
 ```
 
-**Implementations**:
-- `src/executive_assistant/email/providers/gmail.py` - Gmail API
-- `src/executive_assistant/email/providers/outlook.py` - Microsoft Graph API
-- `src/executive_assistant/email/providers/imap.py` - Generic IMAP/SMTP
-- `src/executive_assistant/email/providers/icloud.py` - iCloud IMAP/SMTP
+### Gmail Tools (2025)
 
-## Email Tools
+**File**: `src/executive_assistant/tools/gmail_tools.py`
 
-**File**: `src/executive_assistant/tools/email_tools.py`
+| Tool | Description |
+|------|-------------|
+| `connect_gmail` | Start OAuth2 flow (returns auth URL) |
+| `list_emails` | List recent emails with filters |
+| `get_email` | Get full email by ID |
+| `search_emails` | Search with Gmail query syntax |
+| `draft_email` | Create draft response |
+| `send_draft` | Send approved draft |
+| `reply_to_email` | Reply to thread |
+| `forward_email` | Forward email |
+| `get_thread` | Get full conversation thread |
+| `mark_read` | Mark as read |
 
-### Tool List:
-1. **`connect_email`** - Start OAuth2 connection flow
-2. **`disconnect_email`** - Remove connected email account
-3. **`list_email_accounts`** - Show connected accounts
-4. **`list_emails`** - Fetch recent emails
-5. **`get_email`** - Get full email content
-6. **`search_emails`** - Search emails by query
-7. **`draft_email`** - Create draft response
-8. **`send_draft`** - Send approved draft
-9. **`reply_to_email`** - Reply to thread
-10. **`forward_email`** - Forward email
-11. **`archive_email`** - Archive/remove from inbox
-12. **`mark_read`** - Mark as read
-13. **`add_label`** - Add label/category (Gmail)
-14. **`move_to_folder`** - Move to folder (Outlook)
-
-### Example: User Flow
-
-```
-User: Check my emails for anything urgent
-
-Agent: 🔴 **URGENT: Project Deadline**
-From: john@acme.com
-Date: Jan 3, 2:30 PM
-Preview: We need the deliverables by EOD Friday...
-ID: `123456`
-
-Found 1 urgent email. Would you like me to draft a response?
-
-User: Yes, draft a reply saying I'll review by Friday
-
-Agent: ✅ **Draft created**
-
-**To:** john@acme.com
-**Subject:** Re: Project Deadline
-
-Hi John,
-Thanks for the update. I'll review the deliverables by EOD Friday...
-
-Say "send draft 1" to send this email.
-
-User: Send it
-
-Agent: ✅ **Email sent!**
-Message ID: `123457`
-```
-
-## Tone Learning & Personalization
-
-### Style Profile Structure
+### Gmail Query Examples (2025)
 
 ```python
-class UserStyleProfile(BaseModel):
-    """User's email writing style profile."""
+# Urgent emails
+"is:urgent"
 
-    # General characteristics
-    formality_level: float  # 0.0 (casual) to 1.0 (formal)
-    avg_sentence_length: float
-    vocabulary_complexity: float
+# Unread with attachments
+"is:unread has:attachment"
 
-    # Signature patterns
-    greetings: Dict[str, int]  # {"Hi": 45, "Dear": 10, "Hey": 30}
-    signoffs: Dict[str, int]   # {"Best": 35, "Thanks": 20, "Regards": 5}
-    common_phrases: List[str]  # ["Let's discuss", "Circle back"]
+# From specific sender
+"from:john@company.com"
 
-    # Context-specific styles
-    recipient_styles: Dict[str, Dict]  # Email -> style adaptations
-    category_styles: Dict[str, Dict]   # Category -> style adaptations
+# Emails in last 24 hours
+"after:2025-01-03"
 
-    # Metadata
-    sample_count: int
-    learned_at: datetime
-    last_updated: datetime
-```
+# Important emails
+"is:important OR label:urgent"
 
-### Tone Analysis Tools
-
-**File**: `src/executive_assistant/tools/tone_analysis_tools.py`
-
-```python
-@tool
-async def analyze_my_style(
-   account: Optional[str] = None,
-   sample_size: int = 50
-) -> str:
-    """Analyze user's writing style from sent emails."""
-
-@tool
-async def draft_in_my_style(
-    to: Union[str, List[str]],
-    subject: str,
-    key_points: List[str],
-    context: Optional[str] = None,
-    tone: Optional[str] = None
-) -> str:
-    """Draft an email using learned writing style."""
-
-@tool
-async def find_similar_emails(
-    query: str,
-    account: Optional[str] = None,
-    limit: int = 5
-) -> str:
-    """Find similar past emails for reference."""
+# Attachments larger than 1MB
+"larger:1M"
 ```
 
 ---
 
-# Part 3: Calendar & Contacts Integration
+## Google Calendar Integration
 
-## Key Insight
-
-Google and Microsoft use **single OAuth2 authorization** for all services. When a user connects their Gmail/Outlook account, you get access to Calendar and Contacts too (with proper scopes)!
-
-### Shared Credentials
-
-```
-data/users/{thread_id}/
-├── auth/
-│   ├── email/credentials.json       # Email tokens
-│   ├── calendar/credentials.json    # Can symlink to email credentials
-│   └── contacts/credentials.json    # Can symlink to email credentials
-```
-
-For Google/Microsoft: **single credentials work for all services**. No need for separate auth files!
-
-## Calendar Integration
-
-### Calendar Provider Abstraction
-
-**File**: `src/executive_assistant/calendar/providers/base.py`**
+### Calendar Provider (2025)
 
 ```python
-class CalendarProvider(ABC):
-    """Abstract base class for calendar providers."""
+from googleapiclient.discovery import build
+from datetime import datetime, timedelta
 
-    @abstractmethod
+class GoogleCalendarProvider:
+    """Google Calendar API provider (2025 standard)."""
+
+    def __init__(self, credentials: Credentials):
+        self.service = build('calendar', 'v3', credentials=credentials)
+
     async def list_events(
         self,
-        start_date: datetime,
-        end_date: datetime,
-        calendar_id: str = "primary"
+        calendar_id: str = 'primary',
+        time_min: datetime = None,
+        time_max: datetime = None,
+        max_results: int = 100
     ) -> List[CalendarEvent]:
-        """Fetch events within date range."""
+        """List events (Dec 2025 updated API)."""
+        time_min_str = time_min.isoformat() + 'Z' if time_min else None
+        time_max_str = time_max.isoformat() + 'Z' if time_max else None
 
-    @abstractmethod
-    async def create_event(self, event: CalendarEvent) -> str:
-        """Create event and return event ID."""
+        try:
+            events_result = self.service.events().list(
+                calendarId=calendar_id,
+                timeMin=time_min_str,
+                timeMax=time_max_str,
+                maxResults=max_results,
+                singleEvents=True,
+                orderBy='startTime'  # 2025 best practice
+            ).execute()
 
-    @abstractmethod
+            events = events_result.get('items', [])
+            return [self._parse_event(event) for event in events]
+
+        except HttpError as error:
+            print(f"Calendar API Error: {error}")
+            return []
+
+    async def create_event(
+        self,
+        title: str,
+        start: datetime,
+        end: datetime,
+        attendees: List[str] = None,
+        description: str = None,
+        create_meet: bool = False,
+        timezone: str = 'UTC'
+    ) -> str:
+        """Create event with optional Google Meet (2025 standard)."""
+
+        event_body = {
+            'summary': title,
+            'description': description,
+            'start': {
+                'dateTime': start.isoformat(),
+                'timeZone': timezone
+            },
+            'end': {
+                'dateTime': end.isoformat(),
+                'timeZone': timezone
+            }
+        }
+
+        # Add attendees
+        if attendees:
+            event_body['attendees'] = [
+                {'email': email} for email in attendees
+            ]
+
+        # Add Google Meet (2025 best practice)
+        if create_meet:
+            event_body['conferenceData'] = {
+                'createRequest': {
+                    'requestId': f"meeting-{int(datetime.now().timestamp())}",
+                    'conferenceSolutionKey': {
+                        'type': 'hangoutsMeet'
+                    }
+                }
+            }
+
+            # Use conferenceDataVersion=1 for 2025 API
+            result = self.service.events().insert(
+                calendarId='primary',
+                body=event_body,
+                conferenceDataVersion=1
+            ).execute()
+        else:
+            result = self.service.events().insert(
+                calendarId='primary',
+                body=event_body
+            ).execute()
+
+        return result['id']
+
     async def find_free_time(
         self,
         start_date: datetime,
         end_date: datetime,
         duration_minutes: int,
-        attendees: Optional[List[str]] = None
+        work_hours_start: str = "09:00",
+        work_hours_end: str = "18:00"
     ) -> List[TimeSlot]:
-        """Find available time slots."""
+        """Find available time slots (2025 efficient algorithm)."""
+        from datetime import time
 
-    @abstractmethod
-    async def list_calendars(self) -> List[Calendar]:
-        """List user's calendars."""
+        events = await self.list_events(
+            time_min=start_date,
+            time_max=end_date
+        )
+
+        # Sort by start time
+        events.sort(key=lambda e: e.start)
+
+        # Find gaps
+        free_slots = []
+        current_time = start_date
+
+        for event in events:
+            if current_time + timedelta(minutes=duration_minutes) <= event.start:
+                # Check if within work hours
+                current_hour = current_time.hour
+                if int(work_hours_start[:2]) <= current_hour < int(work_hours_end[:2]):
+                    free_slots.append(TimeSlot(current_time, event.start))
+
+            current_time = max(current_time, event.end)
+
+        return free_slots
 ```
 
-**Implementations**:
-- `src/executive_assistant/calendar/providers/google.py` - Google Calendar API
-- `src/executive_assistant/calendar/providers/microsoft.py` - Microsoft Graph Calendar
-- `src/executive_assistant/calendar/providers/icloud.py` - iCloud CalDAV
+---
 
-### Calendar Tools
+## Google Contacts Integration
 
-**File**: `src/executive_assistant/tools/calendar_tools.py`
-
-1. **`check_availability`** - Check when user is free
-2. **`list_events`** - List events in date range
-3. **`create_event`** - Create new event
-4. **`schedule_meeting`** - Schedule meeting with attendees
-5. **`find_meeting_time`** - Find time that works for multiple attendees
-
-### Example: User Flow
-
-```
-User: When am I free tomorrow for a 1-hour meeting?
-
-Agent: You're free tomorrow:
-- 9:00 AM - 11:00 AM
-- 2:00 PM - 5:00 PM
-- After 6:00 PM
-
-User: Schedule a meeting with John tomorrow at 2pm
-
-Agent: ✅ **Meeting scheduled!**
-
-**Project Review**
-Tomorrow, 2:00 PM - 3:00 PM
-
-Attendees:
-- John (john@acme.com)
-- You
-
-Invites sent! 📧
-```
-
-## Contacts Integration
-
-### Contacts Provider Abstraction
-
-**File**: `src/executive_assistant/contacts/providers/base.py`**
+### People API Provider (2025)
 
 ```python
-class ContactsProvider(ABC):
-    """Abstract base class for contacts providers."""
+from googleapiclient.discovery import build
 
-    @abstractmethod
+class GoogleContactsProvider:
+    """Google People API provider (Dec 2025 updated)."""
+
+    def __init__(self, credentials: Credentials):
+        self.service = build('people', 'v1', credentials=credentials)
+
     async def list_contacts(
         self,
         limit: int = 50,
-        search_query: Optional[str] = None
+        search_query: str = None
     ) -> List[Contact]:
-        """Fetch contacts, optionally filtered by search."""
+        """List or search contacts (2025 API standard)."""
 
-    @abstractmethod
-    async def create_contact(self, contact: Contact) -> str:
-        """Create contact and return contact ID."""
+        try:
+            if search_query:
+                # Search contacts (2025 method)
+                results = self.service.people().searchContacts().query(
+                    query=search_query,
+                    readMask='names,emailAddresses,phoneNumbers,organizations,photos'
+                ).execute()
+            else:
+                # List all connections (2025 method)
+                results = self.service.people().connections().list(
+                    resourceName='people/me',
+                    pageSize=limit,
+                    personFields='names,emailAddresses,phoneNumbers,organizations,photos'
+                ).execute()
 
-    @abstractmethod
-    async def search_contacts(
-        self,
-        query: str,
-        search_fields: Optional[List[str]] = None
-    ) -> List[Contact]:
-        """Search contacts by name, email, phone, etc."""
-```
+            connections = results.get('connections', [])
+            return [self._parse_contact(conn) for conn in connections]
 
-**Implementations**:
-- `src/executive_assistant/contacts/providers/google.py` - Google People API
-- `src/executive_assistant/contacts/providers/microsoft.py` - Microsoft Graph Contacts
-- `src/executive_assistant/contacts/providers/icloud.py` - iCloud CardDAV
+        except HttpError as error:
+            print(f"People API Error: {error}")
+            return []
 
-### Contacts Tools
+    def _parse_contact(self, person: dict) -> Contact:
+        """Parse People API person object (2025 schema)."""
+        names = person.get('names', [])
+        primary_name = next((n['displayName'] for n in names if n.get('metadata', {}).get('primary')), None)
 
-**File**: `src/executive_assistant/tools/contacts_tools.py`
+        emails = person.get('emailAddresses', [])
+        primary_email = next((e['value'] for e in emails if e.get('metadata', {}).get('primary')), None)
 
-1. **`find_contact`** - Find contact by name/email/phone
-2. **`list_contacts`** - List all contacts or search
-3. **`create_contact`** - Create new contact
-4. **`get_contact_info`** - Quick lookup (phone, email, etc.)
+        phones = person.get('phoneNumbers', [])
+        primary_phone = next((p['value'] for p in phones if p.get('metadata', {}).get('primary')), None)
 
-### Example: User Flow
+        organizations = person.get('organizations', [])
+        company = next((o['name'] for o in organizations if o.get('current')), None)
 
-```
-User: What's John's phone number?
+        photos = person.get('photos', [])
+        photo_url = next((p['url'] for p in photos), None)
 
-Agent: Found John Smith:
-📧 Email: john.smith@acme.com
-📱 Phone: +1-555-0123
-🏢 Company: Acme Corp
-
-User: Email John about the meeting
-
-Agent: [Finds John's email + drafts in user's style]
-✅ Draft created for John Smith (john@acme.com)
-
-Say "send" to send this email.
-```
-
-## Cross-Service Integration
-
-### Email + Calendar + Contacts Working Together
-
-```
-User: Set up a meeting with the sales team
-
-Agent:
-1. Searches contacts for "sales team" → Finds 5 people
-2. Checks all their calendars → Finds mutual free time
-3. Creates calendar event
-4. Sends email invites to all attendees
-
-Agent: ✅ Meeting scheduled for Wednesday 2pm.
-Invites sent to Sarah, Mike, Jen, and Tom.
-```
-
-### Smart Features
-
-**Extract Meetings from Emails:**
-```
-User: That email from John is a meeting invite, add it to my calendar
-
-Agent: Found meeting in email:
-**Project Review**
-Date: Friday, Jan 5 at 2:00 PM
-Location: Zoom link in email
-
-Should I create this event?
-```
-
-**Cross-Service Search:**
-```
-User: Search for everything about Project Alpha
-
-Agent: Found:
-📧 **5 emails**
-- Latest from John yesterday about deadline
-
-👥 **2 contacts**
-- John Smith (Project Lead)
-- Sarah Johnson (Designer)
-
-📅 **3 events**
-- Project Alpha kickoff (Jan 1)
-- Weekly standup (Mondays 9am)
-- Deadline review (Jan 15)
+        return Contact(
+            name=primary_name,
+            email=primary_email,
+            phone=primary_phone,
+            company=company,
+            photo_url=photo_url
+        )
 ```
 
 ---
 
-# Shared Implementation Details
+## Implementation Roadmap
 
-## Auth Storage Helper
+### Phase 1: OAuth Foundation (Week 1)
 
-**File**: `src/executive_assistant/email/storage.py`
+- [ ] Google Cloud project setup with latest APIs
+- [ ] OAuth consent screen with all scopes
+- [ ] Token storage with Fernet encryption
+- [ ] FastAPI callback endpoint
+- [ ] Token refresh mechanism
+- [ ] Multi-account support
 
-```python
-"""
-Thread-scoped authentication storage.
+### Phase 2: Gmail Integration (Weeks 2-3)
 
-Supports multiple services (email, calendar, contacts) with consistent directory structure:
-data/users/{thread_id}/auth/{service}/
-"""
+- [ ] Gmail provider (v2.189.0)
+- [ ] Core Gmail tools (list, get, search)
+- [ ] Email draft and send tools
+- [ ] Attachment handling
+- [ ] Thread retrieval
+- [ ] Rate limit handling
 
-from executive_assistant.storage.thread_storage import get_thread_id
+### Phase 3: Calendar Integration (Weeks 4-5)
 
-def get_auth_dir(service: str) -> Path:
-    """Get the auth directory for a specific service."""
-    thread_id = get_thread_id()
-    auth_dir = Path(f"data/users/{thread_id}/auth/{service}")
-    auth_dir.mkdir(parents=True, exist_ok=True)
-    return auth_dir
+- [ ] Calendar provider (2025 API)
+- [ ] Event listing and creation
+- [ ] Google Meet integration
+- [ ] Availability checking
+- [ ] Multi-attendee scheduling
 
-async def load_credentials(service: str) -> Dict:
-    """Load credentials for a service."""
-    auth_dir = get_auth_dir(service)
-    cred_file = auth_dir / "credentials.json"
+### Phase 4: Contacts Integration (Weeks 6-7)
 
-    if not cred_file.exists():
-        return {}
+- [ ] People API provider (Dec 2025)
+- [ ] Contact search and lookup
+- [ ] Contact creation
+- [ ] Domain-based search
 
-    with open(cred_file, "r") as f:
-        return json.load(f)
+### Phase 5: Cross-Service Integration (Week 8)
 
-async def save_credentials(service: str, credentials: Dict) -> None:
-    """Save credentials for a service."""
-    auth_dir = get_auth_dir(service)
-    cred_file = auth_dir / "credentials.json"
+- [ ] Extract events from emails
+- [ ] Smart email composition with contacts
+- [ ] Unified search across all services
 
-    with open(cred_file, "w") as f:
-        json.dump(credentials, f, indent=2)
+### Total Timeline: ~8 weeks
 
-async def delete_credentials(service: str) -> None:
-    """Delete credentials for a service."""
-    auth_dir = get_auth_dir(service)
-    cred_file = auth_dir / "credentials.json"
+---
 
-    if cred_file.exists():
-        cred_file.unlink()
-```
+## Rate Limits & Quotas (2025)
 
-For Google/Microsoft, calendar and contacts can reuse email credentials:
+### Gmail API (Latest)
 
-```python
-# Calendar credentials (reuses email tokens)
-async def get_calendar_credentials() -> Dict:
-    from executive_assistant.email.storage import load_email_credentials
-    return await load_email_credentials()
+| Resource | Limit |
+|----------|-------|
+| Quota per day | 1 billion units |
+| Per second | 250 units |
+| Per user per second | 1 unit |
 
-# Contacts credentials (reuses email tokens)
-async def get_contacts_credentials() -> Dict:
-    from executive_assistant.email.storage import load_email_credentials
-    return await load_email_credentials()
-```
+**Operation Costs:**
+- `messages.list`: 5-10 units
+- `messages.get`: 5 units
+- `messages.send`: 100 units
+- `threads.get`: 10 units
+
+### Google Calendar API (2025)
+
+| Resource | Limit |
+|----------|-------|
+| Queries per day | 10,000 per user |
+| Per 100 seconds | 500 per user |
+
+### Google People API (2025)
+
+| Resource | Limit |
+|----------|-------|
+| Requests per day | 10,000 per user |
+| Per 100 seconds | 500 per user |
+
+---
 
 ## Security Considerations
 
-### Credential Storage
-- **Encryption**: Fernet symmetric encryption (AES-128)
-- **Key Management**: Environment variable, never in git
-- **Storage Path**: `data/users/{thread_id}/auth/{service}/credentials.json`
-- **Rotation**: Automatic token refresh (Gmail: 1 hour, Outlook: 90 minutes)
-- **Revocation**: User can disconnect anytime via command
+### Token Storage
 
-### Data Privacy
-- **Thread-Scoped**: Each user's credentials and data isolated
-- **No Logging**: Sensitive data never logged to console/files
-- **Retention**: User-configurable, default 90 days
-- **Right to Deletion**: Commands to delete all data
+- **Encryption**: Fernet (AES-128-CBC + HMAC)
+- **File Permissions**: `chmod 600`
+- **Key Management**: Environment variable only
+- **Rotation**: Automatic on refresh
 
-### OAuth2 Security
-- **PKCE**: Use Proof Key for Code Exchange (prevents auth code interception)
-- **State Parameter**: CSRF protection with thread_id binding
-- **Scopes**: Minimal required scopes only
-- **SSL Only**: Redirect URIs must be HTTPS (except localhost)
+### OAuth Best Practices (2025)
 
-### Rate Limiting
-- **Gmail API**: 250 quota units/second
-- **Microsoft Graph**: 10,000 requests/10 minutes
-- **Google Calendar API**: 10,000 requests per day per user
-- **Google People API**: 10,000 requests per day per user
-- **Implementation**: Exponential backoff, request queue
+1. **PKCE** (Recommended for public clients)
+2. **State Parameter**: CSRF protection
+3. **HTTPS Only**: Production callbacks must be HTTPS
+4. **Token Binding**: Associate with thread_id
+5. **Short-lived tokens**: 1-hour expiry, auto-refresh
 
 ---
 
-# Implementation Roadmap
-
-## Phase 1: Email Foundation (Weeks 1-6)
-
-### Sprint 1-2: Foundation (Weeks 1-2)
-- Auth storage helper
-- Email provider abstraction layer
-- OAuth2 flow for Gmail
-- HTTP callback endpoints
-- Encrypt/decrypt token utilities
-
-### Sprint 3-4: Core Tools (Weeks 3-4)
-- Gmail + Outlook + iCloud provider implementations
-- `connect_email`, `disconnect_email`, `list_email_accounts` tools
-- `list_emails` and `get_email` tools
-- Telegram/HTTP commands for email management
-
-### Sprint 5-6: Draft & Send (Weeks 5-6)
-- `draft_email` tool
-- `send_draft` tool
-- Draft approval workflow
-- Local draft storage
-
-## Phase 2: Tone Learning (Weeks 7-8)
-
-- Email sample collection
-- Style analysis tools (`analyze_my_style`)
-- Enhanced draft generation (`draft_in_my_style`)
-- Style profile storage (TDB/VDB)
-
-## Phase 3: Advanced Email Features (Weeks 9-10)
-
-- Email summarization
-- Smart reply suggestions
-- Scheduling integration
-- Multi-account support
-
-## Phase 4: Calendar (Weeks 11-14)
-
-- Calendar provider abstraction (Google, Microsoft, iCloud)
-- Core calendar tools (list, create, update, delete)
-- Availability checking
-- Meeting scheduling with attendees
-
-## Phase 5: Contacts (Weeks 15-16)
-
-- Contacts provider abstraction (Google, Microsoft, iCloud)
-- Core contacts tools (list, create, search)
-- Contact caching
-- Relationship tracking
-
-## Phase 6: Integration & Polish (Weeks 17-18)
-
-- Email + Calendar integration (extract events from emails)
-- Email + Contacts integration (smart email composition)
-- Cross-service search
-- Comprehensive testing
-- Documentation
-- Security audit
-
-### Total Timeline: ~18 weeks (4.5 months)
-
-**Alternative**: Email only = 12 weeks
-
----
-
-# Testing Strategy
-
-## Unit Tests
-
-### Email
-- OAuth2 flow with mock providers
-- Token refresh logic
-- Encryption/decryption
-- Draft approval workflow
-- Style profile updates
-
-### Calendar
-- Event CRUD operations
-- Availability calculation
-- Recurring event logic
-- Multi-attendee scheduling
-
-### Contacts
-- Contact CRUD operations
-- Search functionality
-- vCard parsing (for iCloud)
-
-## Integration Tests
-
-- Full OAuth2 flow with test accounts
-- Email fetching from real Gmail/Outlook/iCloud test accounts
-- Draft creation and sending
-- Calendar event creation and management
-- Contact creation and lookup
-- Style profile generation from sample emails
-
-## VCR Cassettes
-
-- Record real API calls for Gmail/Outlook/Google Calendar
-- Replay in tests for consistency
-- Prevent rate limiting during development
-
-## Test Fixtures
-
-- Sample emails with various styles
-- Sample calendar events
-- Sample contacts
-- Fake OAuth2 responses
-- Encrypted credential samples
-
-## Test Accounts
-
-- Create test Gmail accounts via Google Workspace
-- Create test Outlook accounts via Microsoft 365 Developer Program
-- Create test iCloud account
-- Use dedicated test accounts to avoid affecting real data
-
----
-
-# Success Metrics
-
-## Technical Metrics
-
-### Email
-- OAuth2 success rate: >95%
-- Token refresh success rate: >99%
-- Email fetch latency: <2 seconds for 50 emails
-- Draft generation: <5 seconds
-- Style accuracy (user ratings): >4/5
-
-### Calendar
-- Events created per user per week: 5+
-- Scheduling accuracy: >95%
-- Availability check latency: <3 seconds
-- Multi-attendee scheduling: <10 seconds
-
-### Contacts
-- Contacts searched per user per day: 10+
-- Contact creation rate: 2+ per week per user
-- Search accuracy: >90%
-
-### Integration
-- Cross-service tasks per day: 3+
-- "Schedule meeting with X" success rate: >85%
-
-## User Metrics
-
-- Connection completion rate: >80%
-- Draft approval rate: >70%
-- Daily active users: TBD
-- Average emails checked per session: 5-10
-- Style improvement over time (measured via user feedback)
-
----
-
-# Python Dependencies
-
-Add to `pyproject.toml`:
+## Python Dependencies (Latest 2025)
 
 ```toml
 [project.dependencies]
-# Email
-google-api-python-client = "^2.100.0"
-msgraph-sdk = "^1.0.0"
-oauthlib = "^3.2.2"
+# Google APIs (Latest)
+google-api-python-client = "^2.189.0"
+google-auth-oauthlib = "^1.2.3"
+google-auth = "^2.20.0"
 
-# Calendar
-google-api-python-client = "^2.100.0"  # Includes Calendar
-caldav = "^1.3.9"        # CalDAV for iCloud
+# Encryption
+cryptography = "^41.0.0"
 
-# Contacts
-google-api-python-client = "^2.100.0"  # Includes People API
-vobject = "^0.9.7"       # vCard/iCalendar parser
-
-# IMAP/SMTP (already included)
-# imaplib, smtplib - stdlib
+# Web Framework (if using FastAPI)
+fastapi = "^0.104.0"
+starlette = "^0.27.0"
 ```
 
 ---
 
-# References
+## References
 
-## Google
-- [Gmail API Documentation](https://developers.google.com/gmail/api)
-- [Google Calendar API](https://developers.google.com/calendar)
-- [Google People API (Contacts)](https://developers.google.com/people)
-- [OAuth 2.0 for Mobile & Desktop Apps](https://developers.google.com/identity/protocols/oauth2/native-app)
+### Official Documentation
+- [Gmail API Python Quickstart](https://developers.google.com/workspace/gmail/api/quickstart/python) (Updated Dec 11, 2025)
+- [Google Calendar API Python Quickstart](https://developers.google.com/workspace/calendar/api/quickstart/python) (Updated Dec 11, 2025)
+- [People API Python Quickstart](https://developers.google.com/people/quickstart/python) (Updated Dec 11, 2025)
+- [OAuth 2.0 for Web Server Applications](https://developers.google.com/identity/protocols/oauth2/web-server) (Updated Dec 19, 2025)
 
-## Microsoft
-- [Microsoft Graph Mail](https://docs.microsoft.com/graph/api/resources/mail-api-overview)
-- [Microsoft Graph Calendar](https://docs.microsoft.com/graph/api/resources/calendar-api-overview)
-- [Microsoft Graph Contacts](https://docs.microsoft.com/graph/api/resources-contacts-overview)
-- [Azure App Registration](https://docs.microsoft.com/azure/active-directory/develop/quickstart-register-app)
+### Libraries
+- [google-api-python-client GitHub](https://github.com/googleapis/google-api-python-client) (v2.189.0 - Feb 2026)
+- [google-auth-oauthlib GitHub](https://github.com/googleapis/google-auth-library-python-oauthlib) (v1.2.3 - Oct 2025)
+- [PyPI: google-api-python-client](https://pypi.org/project/google-api-python-client/)
+- [PyPI: google-auth-oauthlib](https://pypi.org/project/google-auth-oauthlib/)
 
-## Standards
-- [CalDAV (RFC 4791)](https://tools.ietf.org/html/rfc4791) - Calendar protocol
-- [CardDAV (RFC 6352)](https://tools.ietf.org/html/rfc6352) - Contacts protocol
-- [RFC 3501 - IMAP4rev1](https://tools.ietf.org/html/rfc3501) - Email protocol
+### Client Libraries Docs
+- [Google API Client Library for Python Docs](https://googleapis.github.io/google-api-python-client/docs/)
+- [Python Client for Calendar](https://googleapis.github.io/google-api-python-client/docs/dyn/calendar_v1.html)
+- [Python Client for People](https://googleapis.github.io/google-api-python-client/docs/dyn/people_v1.html)
