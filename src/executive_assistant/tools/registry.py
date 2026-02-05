@@ -8,6 +8,7 @@ from langchain_core.tools import BaseTool
 
 logger = logging.getLogger(__name__)
 _mcp_client_cache: dict[str, Any] = {}
+_tools_cache: list[BaseTool] | None = None  # Cache for loaded tools
 
 
 def _normalize_tool(tool):
@@ -45,9 +46,11 @@ def _mcp_server_to_connection(server_config: dict) -> dict:
 
 
 def clear_mcp_cache() -> None:
-    """Clear MCP client cache to force reload."""
-    global _mcp_client_cache
+    """Clear MCP client cache and tools cache to force reload."""
+    global _mcp_client_cache, _tools_cache
     _mcp_client_cache.clear()
+    _tools_cache = None
+    logger.debug("Cleared MCP client cache and tools cache")
 
 
 async def get_confirmation_tools() -> list[BaseTool]:
@@ -258,7 +261,19 @@ async def get_tools_by_name(names: list[str]) -> list[BaseTool]:
 
 
 async def get_all_tools() -> list[BaseTool]:
-    """Aggregate all available tools for the agent."""
+    """Aggregate all available tools for the agent.
+
+    Tools are cached globally to avoid re-loading MCP servers on every request.
+    Cache is cleared when clear_mcp_cache() is called.
+    """
+    global _tools_cache
+
+    # Return cached tools if available
+    if _tools_cache is not None:
+        logger.debug("Using cached tools (count=%s)", len(_tools_cache))
+        return _tools_cache
+
+    logger.debug("Loading tools and caching...")
     all_tools: list = []
 
     all_tools.extend(await get_file_tools())
@@ -330,7 +345,12 @@ async def get_all_tools() -> list[BaseTool]:
     all_tools.extend(await load_mcp_tools_tiered())
 
     all_tools = [_normalize_tool(t) for t in all_tools]
-    return all_tools
+
+    # Cache the loaded tools
+    _tools_cache = all_tools
+    logger.debug("Tools cached (count=%s)", len(_tools_cache))
+
+    return _tools_cache
 
 
 def _text_has_any(text: str, patterns: list[str]) -> bool:
@@ -636,20 +656,21 @@ def _get_tool_names(tools: list[BaseTool]) -> set[str]:
 
 
 def clear_mcp_cache() -> int:
-    """Clear the MCP client cache.
+    """Clear the MCP client cache and tools cache.
 
-    This function clears all cached MCP connections, forcing a reload
+    This function clears all cached MCP connections and tools, forcing a reload
     on the next tool loading. Use this when MCP configurations have changed.
 
     Returns:
-        Number of cache entries cleared
+        Number of MCP cache entries cleared
     """
-    global _mcp_client_cache
+    global _mcp_client_cache, _tools_cache
 
     cleared = len(_mcp_client_cache)
     _mcp_client_cache.clear()
+    _tools_cache = None
 
-    logger.debug(f"Cleared {cleared} MCP cache entries")
+    logger.debug(f"Cleared {cleared} MCP cache entries and tools cache")
     return cleared
 
 
