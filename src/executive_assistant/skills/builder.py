@@ -28,14 +28,8 @@ class SkillsBuilder:
         Returns:
             Formatted skills section for system prompt.
         """
-        import sys
         sections = []
         skills = ordered_skills if ordered_skills is not None else self.registry.list_all()
-
-        # DEBUG: Print all skills
-        print(f"DEBUG: Building skills prompt with {len(skills)} skills", file=sys.stderr)
-        for skill in skills:
-            print(f"  - {skill.name}: tags={skill.tags}, desc={skill.description[:50]}...", file=sys.stderr)
         
         startup_skills = []
         on_demand_skills = []
@@ -49,9 +43,7 @@ class SkillsBuilder:
         # Include FULL CONTENT of startup skills in prompt
         if startup_skills:
             sections.append("\n## Core Skills (Always Available)\n")
-            print(f"DEBUG: Adding {len(startup_skills)} startup skills to prompt", file=sys.stderr)
             for skill in startup_skills:
-                print(f"DEBUG: Adding startup skill '{skill.name}' with {len(skill.content)} chars", file=sys.stderr)
                 sections.append(f"\n### {skill.name}\n")
                 sections.append(f"*{skill.description}*\n")
                 sections.append(skill.content)
@@ -76,12 +68,6 @@ class SkillsBuilder:
                 sections.append(f"- **{category}**: {', '.join(skill_names)}")
 
         result = "\n".join(sections)
-        # DEBUG: Print full skills section (first 5000 chars)
-        import sys
-        print(f"DEBUG: Full skills section length: {len(result)} chars", file=sys.stderr)
-        if "gong_cha" in result.lower():
-            idx = result.lower().find("gong_cha")
-            print(f"DEBUG: Gong Cha content preview:\n{result[idx:idx+1500]}...", file=sys.stderr)
         return result
 
     def build_prompt(self, base_prompt: str, ordered_skills: list[Skill] | None = None) -> str:
