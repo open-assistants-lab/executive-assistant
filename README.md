@@ -193,6 +193,69 @@ Over time, Ken learns patterns from your conversations and can cluster them into
 ```
 See [USER_MANUALS/CONVERSATION_TO_SKILL.md](USER_MANUALS/CONVERSATION_TO_SKILL.md) for complete guide.
 
+### Learning Patterns: Progressive Intelligence
+
+Ken uses **three learning patterns** that work together to make it progressively more intelligent and autonomous while keeping you in control:
+
+**1. Teach → Verify (Two-Way Learning)**
+- Ken confirms understanding before saving patterns
+- Prevents bad instincts from being learned
+- You approve or correct what Ken thinks it learned
+
+**2. Reflect → Improve (Continuous Learning)**
+- Self-reflection after tasks to learn from mistakes
+- Generates improvement suggestions automatically
+- Tracks what's working and what needs adjustment
+
+**3. Predict → Prepare (Anticipatory Assistance)**
+- Learns your behavior patterns over time
+- Proactively prepares what you'll need before you ask
+- Offers help based on context (time, tasks, sequences)
+
+**Learning Tools:**
+```bash
+learning_stats()                     # See all learning statistics
+verify_preferences()                 # See pending verifications (Teach→Verify)
+confirm_learning(id, "yes")          # Confirm what Ken learned
+show_reflections()                   # See learning progress (Reflect→Improve)
+create_learning_reflection(...)      # Manually reflect on a task
+show_patterns()                      # See detected patterns (Predict→Prepare)
+learn_pattern(...)                   # Manually teach Ken a pattern
+```
+
+**Example Workflow:**
+```
+# Ken learns from you
+You: Be concise for sales reports
+Ken: [Creates verification] I learned: "Use concise style for sales reports"
+    Is this correct? (yes/no/correct)
+You: yes
+Ken: [Confirms] ✅ Saved! I'll be concise for sales reports.
+
+# Ken reflects on tasks
+You: create_learning_reflection("analysis", "Quick data processing", "Would be faster with caching")
+Ken: [Analyzes] Generated 3 improvement suggestions:
+    • Use caching for analysis tasks
+    • Continue quick processing approach
+    • Consider pre-loading common datasets
+
+# Ken predicts and prepares
+[Monday 9am detected]
+Ken: I noticed you work on sales reports every Monday morning.
+    Should I prepare the sales dashboard template?
+```
+
+**How It Works:**
+- **Confidence-based**: Patterns are applied probabilistically based on confidence
+- **User control**: You confirm verifications, approve improvements, teach patterns
+- **Continuous improvement**: Ken gets smarter with each interaction
+- **Privacy-first**: All learning data is thread-scoped and isolated
+
+**Learning Databases:**
+- `learning.db` - Verification requests (Teach → Verify)
+- `reflections.db` - Reflections and improvements (Reflect → Improve)
+- `predictions.db` - Patterns and prepared data (Predict → Prepare)
+
 ### Persistent Memory System
 
 Executive Assistant never forgets important information across conversations:

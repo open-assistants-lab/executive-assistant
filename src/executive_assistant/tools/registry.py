@@ -211,6 +211,32 @@ async def get_checkin_tools() -> list[BaseTool]:
     ]
 
 
+async def get_learning_tools() -> list[BaseTool]:
+    """Get learning pattern tools (Teach→Verify, Reflect→Improve, Predict→Prepare)."""
+    from executive_assistant.learning.tools import (
+        confirm_learning,
+        create_learning_reflection,
+        implement_improvement,
+        learn_pattern,
+        learning_stats,
+        show_prepared_data,
+        show_patterns,
+        show_reflections,
+        verify_preferences,
+    )
+    return [
+        verify_preferences,
+        confirm_learning,
+        show_reflections,
+        create_learning_reflection,
+        implement_improvement,
+        show_patterns,
+        learn_pattern,
+        show_prepared_data,
+        learning_stats,
+    ]
+
+
 async def get_mcp_tools() -> list[BaseTool]:
     """Get tools from MCP servers configured in admin mcp.json."""
     tools: list[BaseTool] = []
@@ -304,6 +330,7 @@ async def get_all_tools() -> list[BaseTool]:
     all_tools.extend(await get_memory_tools())
     all_tools.extend(await get_instinct_tools())
     all_tools.extend(await get_checkin_tools())
+    all_tools.extend(await get_learning_tools())
     all_tools.extend(await get_time_tools())
     all_tools.extend(await get_reminder_tools())
     # DISABLED: Flow tools - not production-ready yet

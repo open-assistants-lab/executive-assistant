@@ -1,6 +1,6 @@
 # Ken Executive Assistant - Comprehensive Test Plan
 
-**Total Tests:** 222 (212 + 10 check-in tests)
+**Total Tests:** 237 (212 + 10 check-in tests + 15 learning patterns)
 **Last Updated:** 2025-02-06
 **Status:** Ready for Execution
 
@@ -25,8 +25,10 @@
 15. [Phase 13: Security Testing](#phase-13-security-testing)
 16. [Phase 14: Concurrent Access](#phase-14-concurrent-access)
 17. [Phase 15: Performance Benchmarks](#phase-15-performance-benchmarks)
-18. [Test Execution Guide](#test-execution-guide)
-19. [Scoring Matrix](#scoring-matrix)
+18. [Phase 16: Check-in Monitoring](#phase-16-check-in-monitoring)
+19. [Phase 17: Learning Patterns](#phase-17-learning-patterns)
+20. [Test Execution Guide](#test-execution-guide)
+21. [Scoring Matrix](#scoring-matrix)
 
 ---
 
@@ -910,6 +912,192 @@ run_test \
 echo ""
 echo "Phase 16 Results: $PASS passed, $FAIL failed"
 ```
+
+---
+
+## Phase 17: Learning Patterns
+
+**Feature:** Progressive intelligence through three learning patterns
+
+**What it does:**
+- **Teach → Verify**: Two-way learning where Ken confirms understanding before saving patterns
+- **Reflect → Improve**: Self-reflection after tasks to learn from mistakes and improve
+- **Predict → Prepare**: Anticipatory assistance based on behavioral patterns
+
+**Tools tested:**
+- `learning_stats()` - Show comprehensive learning statistics
+- `verify_preferences()` - Show pending verifications
+- `confirm_learning()` - Confirm a learning verification
+- `show_reflections()` - Show recent reflections and improvements
+- `create_learning_reflection()` - Create a learning reflection after a task
+- `show_patterns()` - Show learned patterns for proactive assistance
+- `learn_pattern()` - Manually teach Ken a pattern
+
+### Test Cases
+
+#### Pattern 1: Teach → Verify (4 tests)
+
+| # | Test | Query | Expected | Pass/Fail |
+|---|------|-------|----------|-----------|
+| 1 | Show learning stats | `learning_stats()` | Shows TEACH → VERIFY stats | ___ |
+| 2 | Check pending verifications | `verify_preferences()` | Shows pending items or "No pending" | ___ |
+| 3 | Confirm learning | `confirm_learning(id, "yes")` | Verification confirmed | ___ |
+| 4 | Reject learning | `confirm_learning(id, "no")` | Verification rejected | ___ |
+
+**Success Criteria:**
+- Learning stats display all three patterns
+- Verifications created and stored in learning.db
+- Confirmation/rejection updates status correctly
+- Acceptance rate calculated accurately
+
+#### Pattern 2: Reflect → Improve (5 tests)
+
+| # | Test | Query | Expected | Pass/Fail |
+|---|------|-------|----------|-----------|
+| 5 | Show reflections | `show_reflections()` | Shows recent reflections | ___ |
+| 6 | Create reflection (task success) | `create_learning_reflection("analysis", "Quick processing", "")` | Reflection created | ___ |
+| 7 | Create reflection (with improvement) | `create_learning_reflection("coding", "Good progress", "Add more tests")` | Suggestions generated | ___ |
+| 8 | Create reflection (with corrections) | Manual correction input | Correction pattern learned | ___ |
+| 9 | Implement improvement | `implement_improvement(suggestion_id)` | Improvement marked implemented | ___ |
+
+**Success Criteria:**
+- Reflections stored in reflections.db
+- Improvement suggestions generated automatically
+- User corrections captured and analyzed
+- Implementation tracking works correctly
+
+#### Pattern 3: Predict → Prepare (4 tests)
+
+| # | Test | Query | Expected | Pass/Fail |
+|---|------|-------|----------|-----------|
+| 10 | Show patterns | `show_patterns()` | Shows detected patterns | ___ |
+| 11 | Learn pattern manually | `learn_pattern("time", "Monday 9am sales review", "Monday 9am")` | Pattern stored | ___ |
+| 12 | Learn task pattern | `learn_pattern("task", "Sales report query", "sales report")` | Pattern stored | ___ |
+| 13 | Show prepared data | `show_prepared_data()` | Shows prepared items or "No prepared data" | ___ |
+
+**Success Criteria:**
+- Patterns detected and stored in predictions.db
+- Confidence scoring works correctly
+- Context matching identifies triggers
+- Preparation offers made at high confidence
+
+#### Integration Tests (2 tests)
+
+| # | Test | Scenario | Expected | Pass/Fail |
+|---|------|----------|----------|-----------|
+| 14 | Multi-pattern workflow | Complete task → Reflect → Verify | All patterns engaged | ___ |
+| 15 | Stats aggregation | All three patterns active | Comprehensive stats | ___ |
+
+**Success Criteria:**
+- All three patterns work together
+- Stats aggregate across all patterns
+- No conflicts between patterns
+- Learning databases isolated correctly
+
+### Test Script
+
+```bash
+#!/bin/bash
+# Phase 17: Learning Patterns Tests
+
+USER_ID="test_learning_01"
+PASS=0
+FAIL=0
+
+test_count=0
+
+run_test() {
+  local test_name=$1
+  local expected=$2
+  local test_command=$3
+
+  test_count=$((test_count + 1))
+  echo "Test $test_count: $test_name"
+
+  response=$(eval $test_command)
+
+  if echo "$response" | grep -q "$expected"; then
+    echo "  ✅ PASS"
+    PASS=$((PASS + 1))
+  else
+    echo "  ❌ FAIL"
+    echo "  Expected: $expected"
+    echo "  Got: $response"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+# Test 1: Show learning stats
+run_test \
+  "Show learning stats" \
+  "TEACH → VERIFY" \
+  "test_agent '$USER_ID' 'learning_stats()'"
+
+# Test 2: Check pending verifications
+run_test \
+  "Check pending verifications" \
+  "Pending Verifications" \
+  "test_agent '$USER_ID' 'verify_preferences()'"
+
+# Test 3: Show reflections
+run_test \
+  "Show reflections" \
+  "Learning Progress" \
+  "test_agent '$USER_ID' 'show_reflections()'"
+
+# Test 4: Create learning reflection
+run_test \
+  "Create learning reflection" \
+  "Reflection saved" \
+  "test_agent '$USER_ID' 'create_learning_reflection(\"analysis\", \"Quick data processing\", \"Would be faster with caching\")'"
+
+# Test 5: Show patterns
+run_test \
+  "Show patterns" \
+  "Learned Patterns" \
+  "test_agent '$USER_ID' 'show_patterns()'"
+
+# Test 6: Learn pattern manually
+run_test \
+  "Learn pattern manually" \
+  "Pattern learned" \
+  "test_agent '$USER_ID' 'learn_pattern(\"time\", \"Monday 9am sales review\", \"Monday 9am\", 0.8)'"
+
+# Test 7: Check learning stats again
+run_test \
+  "Check learning stats updated" \
+  "Patterns Detected: 1" \
+  "test_agent '$USER_ID' 'learning_stats()'"
+
+echo ""
+echo "Phase 17 Results: $PASS passed, $FAIL failed"
+```
+
+### Success Criteria
+
+**Teach → Verify:**
+- [ ] Verifications created for learning events
+- [ ] User can confirm/reject learning
+- [ ] Acceptance rate tracked
+- [ ] Bad instincts prevented
+
+**Reflect → Improve:**
+- [ ] Reflections created after tasks
+- [ ] Improvement suggestions generated
+- [ ] Corrections captured and analyzed
+- [ ] Implementation tracking works
+
+**Predict → Prepare:**
+- [ ] Patterns detected from behavior
+- [ ] Confidence scoring accurate
+- [ ] Context matching works
+- [ ] Proactive offers made appropriately
+
+**Integration:**
+- [ ] All three patterns coexist
+- [ ] Stats aggregate correctly
+- [ ] Databases isolated per user
+- [ ] Tools registered and accessible
 
 ---
 
