@@ -1,7 +1,7 @@
 # Ken Executive Assistant - Comprehensive Test Plan
 
-**Total Tests:** 212
-**Last Updated:** 2025-02-05
+**Total Tests:** 222 (212 + 10 check-in tests)
+**Last Updated:** 2025-02-06
 **Status:** Ready for Execution
 
 ---
@@ -57,6 +57,7 @@
 | HITLMiddleware | ❌ Disabled | Human-in-the-loop (can enable) |
 | Conversation → Instincts | ✅ Implemented | Pattern learning |
 | Conversation → Skills | ✅ Implemented | load_skill() tool |
+| **Check-in (Journal + Goals)** | ✅ Implemented | Proactive monitoring |
 | **Scheduled Flows** | ❌ NOT IMPLEMENTED | Planned for future |
 | **Image/Multimodal** | ⚠️ PARTIAL | OCR only, no LLM vision |
 | **Email/SMS Notifications** | ❌ NOT IMPLEMENTED | Telegram/HTTP only |
@@ -796,6 +797,119 @@ For each test, document:
 | Analyst | 15 | ___ | |
 | Developer | 16 | ___ | |
 | Gong Cha | 8 | ___ | |
+
+---
+
+## Phase 16: Check-in Monitoring
+
+**Feature:** Proactive journal and goals monitoring with intelligent insights
+
+**What it does:**
+- Periodically analyzes journal entries and goals
+- Detects patterns, inactivity, and misalignment
+- Messages user only when something needs attention
+- Stays silent if everything is on track
+
+**Tools tested:**
+- `checkin_enable()` - Enable check-in
+- `checkin_disable()` - Disable check-in
+- `checkin_show()` - Show configuration
+- `checkin_schedule()` - Set frequency
+- `checkin_hours()` - Set active hours
+- `checkin_test()` - Run test check-in
+
+### Test Cases
+
+| # | Test | Expected | Pass/Fail |
+|---|------|----------|-----------|
+| 1 | Enable check-in with defaults | Check-in enabled, 30m/24h | ___ |
+| 2 | Enable check-in with custom settings | Custom settings saved | ___ |
+| 3 | Show check-in configuration | Current config displayed | ___ |
+| 4 | Change frequency to 1h | Schedule updated | ___ |
+| 5 | Set active hours to 9-18 | Hours updated | ___ |
+| 6 | Disable check-in | Check-in disabled | ___ |
+| 7 | Run test check-in (no journal) | Returns CHECKIN_OK | ___ |
+| 8 | Run test check-in (with journal) | Analyzes entries | ___ |
+| 9 | Run test check-in (with goals) | Analyzes goals | ___ |
+| 10 | Run test check-in (both) | Combined analysis | ___ |
+
+### Success Criteria
+
+- **Enable/Disable:** Config persists across restarts
+- **Configuration:** All settings saved and retrieved correctly
+- **Analysis:** Correctly identifies patterns and issues
+- **Filtering:** Returns CHECKIN_OK when nothing important
+- **Integration:** Works with existing journal and goals systems
+
+### Test Script
+
+```bash
+#!/bin/bash
+# Phase 16: Check-in Monitoring Tests
+
+USER_ID="test_checkin_01"
+PASS=0
+FAIL=0
+
+test_count=0
+
+run_test() {
+  local test_name=$1
+  local expected=$2
+  local test_command=$3
+
+  test_count=$((test_count + 1))
+  echo "Test $test_count: $test_name"
+
+  response=$(eval $test_command)
+
+  if echo "$response" | grep -q "$expected"; then
+    echo "  ✅ PASS"
+    PASS=$((PASS + 1))
+  else
+    echo "  ❌ FAIL"
+    echo "  Expected: $expected"
+    echo "  Got: $response"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+# Test 1: Enable check-in
+run_test \
+  "Enable check-in" \
+  "Check-in enabled" \
+  "test_agent '$USER_ID' 'checkin_enable()'"
+
+# Test 2: Show configuration
+run_test \
+  "Show configuration" \
+  "every 30m" \
+  "test_agent '$USER_ID' 'checkin_show()'"
+
+# Test 3: Test check-in (no data)
+run_test \
+  "Test check-in (no data)" \
+  "CHECKIN_OK" \
+  "test_agent '$USER_ID' 'checkin_test()'"
+
+# Test 4: Create journal entries and test
+test_agent '$USER_ID' 'Journal: Working on API feature'
+test_agent '$USER_ID' 'Journal: Fixed authentication bug'
+
+run_test \
+  "Test check-in (with data)" \
+  "." \
+  "test_agent '$USER_ID' 'checkin_test()'"
+
+# Test 5: Disable check-in
+run_test \
+  "Disable check-in" \
+  "Check-in disabled" \
+  "test_agent '$USER_ID' 'checkin_disable()'"
+
+echo ""
+echo "Phase 16 Results: $PASS passed, $FAIL failed"
+```
 
 ---
 

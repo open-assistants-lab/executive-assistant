@@ -143,6 +143,44 @@ You: apply_profile "Concise Professional"
 
 > **Inspired by** [Everything with Claude Code](https://github.com/affaan-m/everything-claude-code)'s continuous learning system, instincts provide adaptive behavior that evolves with your usage patterns.
 
+### Proactive Check-ins (Journal + Goals Monitoring)
+
+**NEW:** Ken can proactively monitor your journal and goals, surfacing insights without you asking:
+
+- **Periodic Analysis**: Checks your journal and goals every 30 minutes (configurable)
+- **Pattern Detection**: Identifies work patterns, inactivity, misalignment
+- **Intelligent Filtering**: Only messages when something important needs attention
+- **Stay Silent**: No spam - stays quiet if everything is on track
+
+**Example:**
+```
+[Check-in runs automatically]
+
+Ken: ⚠️ Check-in:
+    • You've been working on API features (3 journal entries today)
+    • But goal "Launch sales dashboard" is due in 3 days and only 40% complete
+    • Consider: Should you switch focus to the dashboard?
+```
+
+**Enable it:**
+```bash
+checkin_enable()              # Enable with defaults (30m, 24h lookback)
+checkin_enable("1h", "7d")    # Custom: every 1 hour, look back 7 days
+checkin_show()                # View configuration
+checkin_hours("9:00", "18:00") # Set active hours
+checkin_test()                # Run once to test
+```
+
+**What it monitors:**
+- Journal entries for patterns (e.g., "Always works on X on Mondays")
+- Goal progress (e.g., "No progress on goal Y for 3 days")
+- Misalignment (e.g., "Working on A but goal B is stalled")
+
+**Part of the Observe → Analyze → Act Pattern:**
+- **Memory**: Observe → Extract → Score → Update (facts)
+- **Instincts**: Observe → Detect → Cluster → Evolve (behaviors)
+- **Check-in**: Observe (journal/goals) → Analyze (LLM) → Act (message)
+
 **Turn Conversations into Reusable Skills:**
 Over time, Ken learns patterns from your conversations and can cluster them into reusable skills:
 ```
@@ -777,6 +815,34 @@ enable_instinct "Be concise"        # Re-enable a disabled pattern
 evolve_instincts                    # Cluster patterns into reusable skills
 export_instincts                    # Export learned patterns for sharing
 import_instincts                    # Import patterns from teammates
+```
+
+### Check-in Tools (Proactive Monitoring)
+
+Enable proactive journal and goals monitoring:
+
+```bash
+checkin_enable()                    # Enable check-in (default: 30m, 24h lookback)
+checkin_enable("1h", "7d")          # Custom: every 1 hour, look back 7 days
+checkin_disable()                   # Disable check-in
+checkin_show()                      # Show current configuration
+checkin_schedule("1h")              # Change frequency
+checkin_hours("9:00", "18:00")      # Set active hours
+checkin_test()                      # Run once to test
+```
+
+**What it does:**
+- Analyzes your journal and goals periodically
+- Detects patterns, inactivity, misalignment
+- Messages you only when something needs attention
+- Stays silent if everything is on track
+
+**Example output:**
+```
+Ken: ⚠️ Check-in:
+    • No progress on "Launch dashboard" in 3 days
+    • Journal shows you've been working on API features
+    • Goal deadline: 3 days remaining (40% complete)
 ```
 
 ### MCP Tools (Model Context Protocol) - In-Conversation Tools

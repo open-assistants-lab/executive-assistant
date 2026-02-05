@@ -191,6 +191,26 @@ async def get_instinct_tools() -> list[BaseTool]:
     return _get()
 
 
+async def get_checkin_tools() -> list[BaseTool]:
+    """Get check-in tools for proactive journal and goals monitoring."""
+    from executive_assistant.checkin.tools import (
+        checkin_disable,
+        checkin_enable,
+        checkin_hours,
+        checkin_schedule,
+        checkin_show,
+        checkin_test,
+    )
+    return [
+        checkin_enable,
+        checkin_disable,
+        checkin_show,
+        checkin_schedule,
+        checkin_hours,
+        checkin_test,
+    ]
+
+
 async def get_mcp_tools() -> list[BaseTool]:
     """Get tools from MCP servers configured in admin mcp.json."""
     tools: list[BaseTool] = []
@@ -283,6 +303,7 @@ async def get_all_tools() -> list[BaseTool]:
     all_tools.extend(await get_vdb_tools())
     all_tools.extend(await get_memory_tools())
     all_tools.extend(await get_instinct_tools())
+    all_tools.extend(await get_checkin_tools())
     all_tools.extend(await get_time_tools())
     all_tools.extend(await get_reminder_tools())
     # DISABLED: Flow tools - not production-ready yet
