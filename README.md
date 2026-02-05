@@ -261,6 +261,52 @@ Executive Assistant works where you work:
 - **Open access** (authentication handled by your frontend)
 - Ideal for workflows, webhooks, and custom integrations
 
+### Google Workspace Integration (Optional)
+
+Connect your Gmail, Calendar, and Contacts to enable powerful productivity workflows:
+
+**Features:**
+- **Gmail**: Read, send, and manage emails with natural language
+- **Calendar**: Schedule meetings, check availability, manage events
+- **Contacts**: Search and manage contacts
+- **Thread-scoped authentication**: Each user connects their own Google account
+- **Encrypted token storage**: OAuth tokens encrypted at rest with Fernet
+- **Automatic token refresh**: Seamless authentication with 1-hour token expiry
+
+**Setup:**
+```bash
+# Run the interactive setup script
+./setup_google_oauth.sh
+
+# Or manually configure:
+# 1. Create Google Cloud project: https://console.cloud.google.com/projectcreate
+# 2. Enable APIs: Gmail, Calendar, People
+# 3. Configure OAuth consent screen with scopes:
+#    - https://www.googleapis.com/auth/gmail.readonly
+#    - https://www.googleapis.com/auth/gmail.send
+#    - https://www.googleapis.com/auth/gmail.modify
+#    - https://www.googleapis.com/auth/calendar
+#    - https://www.googleapis.com/auth/contacts
+# 4. Create OAuth client ID with redirect URI
+# 5. Add credentials to docker/.env:
+#    GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+#    GOOGLE_CLIENT_SECRET=your-client-secret
+#    GOOGLE_REDIRECT_URI=http://localhost:8000/auth/callback/google
+#    EMAIL_ENCRYPTION_KEY=your-fernet-key
+```
+
+**Connect in Telegram:**
+```
+/connect_gmail
+```
+
+**Connect via HTTP:**
+```
+GET /auth/google/start?user_id=your_user_id
+```
+
+See `features/GOOGLE_OAUTH_LOCAL_SETUP.md` for detailed setup instructions.
+
 ## Storage That Respects Your Privacy
 
 Executive Assistant takes data isolation seriously with a unified `scope` parameter across all storage tools:
