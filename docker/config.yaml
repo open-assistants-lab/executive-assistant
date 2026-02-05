@@ -53,8 +53,8 @@ llm:
     fast_model: glm-4-flash
 
   ollama:
-    default_model: deepseek-v3.2:cloud
-    fast_model: deepseek-v3.2:cloud
+    default_model: deepseek-v3.1:671b-cloud
+    fast_model: deepseek-v3.1:671b-cloud
     mode: cloud # cloud or local
     cloud_url: "https://ollama.com"
     local_url: "http://localhost:11434"
