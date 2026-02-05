@@ -54,6 +54,7 @@ def _ensure_schema(conn) -> None:
             id TEXT PRIMARY KEY,
             thread_id TEXT NOT NULL,
             suggestion_type TEXT NOT NULL,
+            suggestion TEXT NOT NULL,
             priority REAL DEFAULT 0.5,
             status TEXT DEFAULT 'pending',
             implemented_at TEXT,
