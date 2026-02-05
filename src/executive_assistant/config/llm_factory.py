@@ -350,9 +350,6 @@ class LLMFactory:
 
         ollama_kwargs.update(kwargs)
         llm = ChatOllama(**ollama_kwargs)
-
-        # Store model name for compatibility checking downstream
-        llm.model_name = model_name  # type: ignore[attr-defined]
         return llm
 
     @staticmethod
