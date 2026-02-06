@@ -45,14 +45,6 @@ def _mcp_server_to_connection(server_config: dict) -> dict:
     raise ValueError("Unsupported MCP server config; expected command/args or url")
 
 
-def clear_mcp_cache() -> None:
-    """Clear MCP client cache and tools cache to force reload."""
-    global _mcp_client_cache, _tools_cache
-    _mcp_client_cache.clear()
-    _tools_cache = None
-    logger.debug("Cleared MCP client cache and tools cache")
-
-
 async def get_confirmation_tools() -> list[BaseTool]:
     """Get user confirmation tools for large operations."""
     from executive_assistant.tools.confirmation_tool import confirm_request

@@ -66,8 +66,6 @@ dependencies = [
     "lancedb>=0.15.0",
     "pyarrow>=14.0.0",
     "psutil>=6.0.0",
-    "paddleocr>=3.3.2",
-    "paddlepaddle>=3.3.0",
     "surya-ocr>=0.6.0",
     "playwright",
     "zen-engine>=0.51.0",

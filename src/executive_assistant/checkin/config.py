@@ -128,7 +128,11 @@ class CheckinConfig:
         )
 
 
-def get_checkin_config(thread_id: str | None = None) -> CheckinConfig:
+def get_checkin_config(
+    thread_id: str | None = None,
+    *,
+    persist_default: bool = False,
+) -> CheckinConfig:
     """Get check-in config for a user.
 
     Args:
@@ -148,8 +152,9 @@ def get_checkin_config(thread_id: str | None = None) -> CheckinConfig:
         ).fetchone()
 
         if not row:
-            # Return default config (enabled by default)
-            return CheckinConfig(
+            # Return default config (enabled by default).
+            # Optionally persist the default row so background jobs can discover it.
+            default_config = CheckinConfig(
                 thread_id=thread_id,
                 enabled=True,  # Enabled by default
                 every="30m",
@@ -158,6 +163,9 @@ def get_checkin_config(thread_id: str | None = None) -> CheckinConfig:
                 active_hours_end="18:00",
                 active_days="Mon,Tue,Wed,Thu,Fri",
             )
+            if persist_default:
+                save_checkin_config(default_config)
+            return default_config
 
         return CheckinConfig(
             thread_id=row["thread_id"],
@@ -249,10 +257,36 @@ def get_users_with_checkin_enabled() -> list[str]:
     Returns:
         List of thread_ids with check-in enabled
     """
-    # TODO: Implement efficient lookup
-    # For now, this would require scanning all user directories
-    # which is expensive. Could add a registry in the future.
-    return []
+    users: set[str] = set()
+    users_root = settings.USERS_ROOT
+
+    if not users_root.exists():
+        return []
+
+    # Scan per-user check-in DBs: data/users/{thread_id}/instincts/checkin.db
+    for db_path in users_root.glob("*/instincts/checkin.db"):
+        conn: sqlite3.Connection | None = None
+        try:
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                """
+                SELECT thread_id
+                FROM checkin_config
+                WHERE enabled = 1
+                LIMIT 1
+                """
+            ).fetchone()
+            if row and row["thread_id"]:
+                users.add(str(row["thread_id"]))
+        except Exception:
+            # Ignore malformed or missing DB/schema; continue scanning.
+            continue
+        finally:
+            if conn is not None:
+                conn.close()
+
+    return sorted(users)
 
 
 # Need to import datetime for the functions

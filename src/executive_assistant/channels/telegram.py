@@ -819,6 +819,13 @@ class TelegramChannel(BaseChannel):
             set_channel(channel)
             set_chat_type("private")
             set_flow_mode_active(is_flow_mode_enabled(batch[-1].conversation_id))
+            # Bootstrap check-in defaults for this user so proactive scheduler can discover it.
+            try:
+                from executive_assistant.checkin.config import get_checkin_config
+
+                get_checkin_config(thread_id, persist_default=True)
+            except Exception as e:
+                logger.debug(f"{ctx} checkin bootstrap failed error=\"{e}\"")
 
             messages: list[HumanMessage] = []
             last_message_id = batch[-1].message_id

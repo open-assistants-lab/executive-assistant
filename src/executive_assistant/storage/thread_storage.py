@@ -139,6 +139,11 @@ def get_thread_files_path(thread_id: str) -> Path:
     return get_thread_path(thread_id) / "files"
 
 
+def get_thread_file_path(thread_id: str) -> Path:
+    """Backward-compatible alias for get_thread_files_path()."""
+    return get_thread_files_path(thread_id)
+
+
 def get_thread_kb_path(thread_id: str) -> Path:
     return get_thread_path(thread_id) / "kb"
 

@@ -464,6 +464,13 @@ class HttpChannel(BaseChannel):
             List of AI messages from the agent
         """
         thread_id = self.get_thread_id(message)
+        # Bootstrap check-in defaults for this user so proactive scheduler can discover it.
+        try:
+            from executive_assistant.checkin.config import get_checkin_config
+
+            get_checkin_config(thread_id, persist_default=True)
+        except Exception as e:
+            logger.debug(f"Failed to bootstrap check-in config for {thread_id}: {e}")
 
         # Build state
         memories = self._get_relevant_memories(thread_id, message.content)
@@ -508,6 +515,13 @@ class HttpChannel(BaseChannel):
         config = {"configurable": {"thread_id": thread_id}}
 
         set_thread_id(thread_id)
+        # Bootstrap check-in defaults for this user so proactive scheduler can discover it.
+        try:
+            from executive_assistant.checkin.config import get_checkin_config
+
+            get_checkin_config(thread_id, persist_default=True)
+        except Exception as e:
+            logger.debug(f"Failed to bootstrap check-in config for {thread_id}: {e}")
 
         messages: list[HumanMessage] = []
         for idx, msg in enumerate(batch):

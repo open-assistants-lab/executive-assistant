@@ -1,22 +1,20 @@
-"""Scheduler for reminder notifications and scheduled flow handling using APScheduler.
+"""Scheduler for reminders, proactive check-ins, and scheduled flow handling using APScheduler.
 
 This module runs as a background task, polling the database for:
 1. Pending reminders - sends notifications
-2. Scheduled flows - executes flow chains
+2. Enabled check-ins - analyzes journal/goals and notifies on findings
+3. Scheduled flows - executes flow chains
 """
 
-import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from executive_assistant.config.settings import settings
 from executive_assistant.logging import format_log_context
-from executive_assistant.storage.file_sandbox import set_thread_id, clear_thread_id
-from executive_assistant.storage.reminder import ReminderStorage, get_reminder_storage
+from executive_assistant.storage.reminder import get_reminder_storage
 from executive_assistant.storage.scheduled_flows import get_scheduled_flow_storage
 from executive_assistant.utils.cron import parse_cron_next
 
@@ -174,8 +172,54 @@ async def _process_pending_flows():
         logger.error(f"Error processing pending flows: {e}")
 
 
+async def _process_checkins():
+    """Run proactive check-ins for users with check-in enabled."""
+    try:
+        from executive_assistant.checkin.config import (
+            get_checkin_config,
+            get_users_with_checkin_enabled,
+        )
+        from executive_assistant.checkin.runner import run_checkin, should_run_checkin
+
+        enabled_users = get_users_with_checkin_enabled()
+        if not enabled_users:
+            return
+
+        checked = 0
+        sent = 0
+
+        for thread_id in enabled_users:
+            try:
+                config = get_checkin_config(thread_id)
+                if not should_run_checkin(config, config.last_checkin):
+                    continue
+
+                checked += 1
+                channel = thread_id.split(":", 1)[0] if ":" in thread_id else "unknown"
+                findings = await run_checkin(thread_id, channel=channel)
+
+                if findings:
+                    # Keep channel-specific formatting simple and consistent with reminders.
+                    msg = f"Check-in:\n{findings}"
+                    if await _send_notification(thread_id, msg, channel):
+                        sent += 1
+            except Exception as e:
+                logger.error(f"Check-in failed for {thread_id}: {e}", exc_info=True)
+
+        if checked:
+            logger.info(
+                "Processed check-ins: users=%s checked=%s sent=%s",
+                len(enabled_users),
+                checked,
+                sent,
+            )
+
+    except Exception as e:
+        logger.error(f"Error processing check-ins: {e}", exc_info=True)
+
+
 async def start_scheduler():
-    """Start the scheduler for reminders and scheduled flows.
+    """Start the scheduler for reminders, check-ins, and scheduled flows.
 
     This should be called during application startup.
     """
@@ -203,9 +247,17 @@ async def start_scheduler():
         replace_existing=True,
     )
 
+    # Run check-ins at second 30 every minute to stagger load.
+    _scheduler.add_job(
+        _process_checkins,
+        CronTrigger(second=30),
+        id="checkins",
+        replace_existing=True,
+    )
+
     _scheduler.start()
     ctx = format_log_context("system", component="scheduler")
-    logger.info(f"{ctx} started (reminders; scheduled flows enabled)")
+    logger.info(f"{ctx} started (reminders; check-ins; scheduled flows enabled)")
     logger.debug(f"{ctx} start_scheduler returning")
 
 

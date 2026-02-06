@@ -4,6 +4,9 @@
 import asyncio
 import sys
 import logging
+import json
+from pathlib import Path
+from typing import Any
 
 # Add src to path
 sys.path.insert(0, "src")
@@ -18,6 +21,52 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
+def _load_demo_clickhouse_server() -> dict:
+    """Load ClickHouse MCP server config, preferring admin config on disk.
+
+    Falls back to the public ClickHouse demo endpoint if admin config is missing.
+    """
+    config_path = Path("data/admins/mcp/mcp.json")
+    if config_path.exists():
+        try:
+            cfg = json.loads(config_path.read_text(encoding="utf-8"))
+            server = (cfg.get("mcpServers") or {}).get("clickhouse")
+            if server:
+                return {"clickhouse": server}
+        except Exception as exc:
+            logger.warning("Failed to parse %s: %s", config_path, exc)
+
+    # Fallback: public demo ClickHouse endpoint.
+    return {
+        "clickhouse": {
+            "command": "uvx",
+            "args": ["mcp-clickhouse"],
+            "env": {
+                "CLICKHOUSE_HOST": "sql-clickhouse.clickhouse.com",
+                "CLICKHOUSE_PORT": "8443",
+                "CLICKHOUSE_USER": "demo",
+                "CLICKHOUSE_PASSWORD": "",
+                "CLICKHOUSE_SECURE": "true",
+            },
+        }
+    }
+
+
+def _extract_text_payload(result: Any) -> str:
+    """Extract text payload from MCP tool results."""
+    if isinstance(result, str):
+        return result
+    if isinstance(result, list):
+        texts = []
+        for item in result:
+            if isinstance(item, dict) and "text" in item:
+                texts.append(str(item["text"]))
+            else:
+                texts.append(str(item))
+        return "\n".join(texts)
+    return str(result)
+
+
 async def test_mcp_caching():
     """Test that MCP client is cached and reused across calls."""
 
@@ -29,25 +78,10 @@ async def test_mcp_caching():
     clear_mcp_cache()
     print("\n✅ Cleared cache")
 
-    # Sample MCP server config (using mcp-clickhouse as example)
-    servers = {
-        "mcp-clickhouse": {
-            "command": "uv",
-            "args": [
-                "--directory",
-                "/Users/eddy/Developer/Langgraph/ken/data/admins/skills/mcp-clickhouse",
-                "run",
-                "mcp-clickhouse",
-            ],
-            "env": {
-                "CLICKHOUSE_HOST": "172.105.163.229",
-                "CLICKHOUSE_PORT": "8123",
-                "CLICKHOUSE_USER": "libre_chat",
-                "CLICKHOUSE_PASSWORD": "${CLICKHOUSE_PASSWORD}",
-                "CLICKHOUSE_DATABASE": "gong_cha_redcat_db",
-            },
-        }
-    }
+    # MCP server config tailored to the current ClickHouse demo setup.
+    servers = _load_demo_clickhouse_server()
+    print("\n🔧 Using ClickHouse MCP server config from:")
+    print("   - data/admins/mcp/mcp.json (if present), else demo fallback")
 
     print("\n📊 Initial cache state:")
     cache_info = get_mcp_cache_info()
@@ -103,6 +137,37 @@ async def test_mcp_caching():
         print(f"   Tool names: {[tool.name for tool in tools_1[:3]]}...")
     else:
         print("\n⚠️  WARNING: No tools loaded from MCP server")
+        return False
+
+    # Validate against demo ClickHouse instance shape.
+    tool_map = {tool.name: tool for tool in tools_1}
+    required = {"list_databases", "list_tables", "run_select_query"}
+    missing = required - set(tool_map)
+    if missing:
+        print(f"\n❌ FAILED: Missing required ClickHouse tools: {sorted(missing)}")
+        return False
+
+    print("\n🔍 Verifying demo ClickHouse dataset visibility...")
+    db_result = await tool_map["list_databases"].ainvoke({})
+    db_text = _extract_text_payload(db_result)
+    has_default_db = "\"default\"" in db_text or "\ndefault\n" in f"\n{db_text}\n"
+    if not has_default_db:
+        print("\n❌ FAILED: Expected demo database 'default' not found")
+        print(f"   list_databases output: {db_text[:400]}")
+        return False
+    print("✅ Found database: default")
+
+    tables_result = await tool_map["run_select_query"].ainvoke(
+        {"query": "SHOW TABLES FROM default LIMIT 20"}
+    )
+    tables_text = _extract_text_payload(tables_result)
+    has_queries = "queries" in tables_text
+    has_results = "results" in tables_text
+    if not (has_queries and has_results):
+        print("\n❌ FAILED: Expected demo tables 'queries' and 'results' not both present")
+        print(f"   SHOW TABLES output: {tables_text[:500]}")
+        return False
+    print("✅ Found demo tables: queries, results")
 
     print("\n" + "="*80)
     print("TEST COMPLETE")

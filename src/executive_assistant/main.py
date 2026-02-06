@@ -290,9 +290,29 @@ async def main() -> None:
 
             # Register notification handler for reminders
             async def http_notification_handler(thread_id, message):
-                """HTTP channel doesn't support push notifications yet."""
-                # HTTP clients would need to poll or use websockets
-                print(f"HTTP reminder notification (not delivered): {message}")
+                """Persist HTTP notification into conversation history."""
+                try:
+                    from langchain_core.messages import AIMessage
+
+                    # thread_id is expected to be "http:{conversation_id}"
+                    conversation_id = thread_id.split(":", 1)[1] if ":" in thread_id else thread_id
+                    await registry.log_message(
+                        conversation_id=thread_id,
+                        channel="http",
+                        message=AIMessage(content=f"🔔 {message}"),
+                        metadata={
+                            "notification": True,
+                            "notification_channel": "http",
+                            "http_conversation_id": conversation_id,
+                        },
+                    )
+                    logger.info(
+                        f'{format_log_context("system", component="http", channel="http", user=thread_id, conversation=conversation_id)} notification_persisted'
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f'{format_log_context("system", component="http", channel="http", user=thread_id)} notification_persist_failed error="{e}"'
+                    )
 
             register_notification_handler("http", http_notification_handler)
 

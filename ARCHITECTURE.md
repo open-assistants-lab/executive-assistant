@@ -90,7 +90,7 @@ Executive Assistant is a **multi-channel AI agent platform** built on LangGraph 
 - **ReAct Agent Pattern**: Reasoning → Action → Observation cycle
 - **Multi-Channel Support**: Telegram bot and HTTP REST API with SSE streaming
 - **Privacy-First Storage**: Thread-only context with per-thread data isolation
-- **Tool-Based Intelligence**: All 87 tools available in every conversation
+- **Tool-Based Intelligence**: All registered tools available in every conversation (count varies by configured MCP servers)
 - **Instincts System**: Automatic behavioral pattern learning with confidence scoring
 - **State Persistence**: PostgreSQL-backed checkpointing for conversation memory
 - **Token Tracking**: Automatic usage monitoring for cost control (provider-dependent)
@@ -228,17 +228,14 @@ The agent follows the **ReAct (Reasoning + Acting)** pattern:
 ```
 executive_assistant/
 ├── src/executive_assistant/                    # Main application package
-│   ├── agent/                     # Agent logic & graph
-│   │   ├── graph.py              # LangGraph StateGraph definition
-│   │   ├── nodes.py              # ReAct nodes: call_model, call_tools
+│   ├── agent/                     # Agent logic/runtime
 │   │   ├── state.py              # AgentState TypedDict
 │   │   ├── prompts.py            # System prompts for reasoning
 │   │   ├── langchain_agent.py    # LangChain agent runtime
 │   │   ├── status_middleware.py   # Real-time progress tracking
 │   │   ├── middleware_debug.py    # Debug middleware
 │   │   ├── todo_display.py       # Todo list display logic
-│   │   ├── topic_classifier.py   # Message classification
-│   │   ├── router.py             # Conditional edge routing
+│   │   ├── flow_mode.py          # Flow mode toggles
 │   │   ├── checkpoint_utils.py   # Checkpoint management
 │   │   └── langchain_state.py    # LangChain state wrapper
 │   │
@@ -368,18 +365,13 @@ executive_assistant/
 
 ### 1. Agent Layer (`src/executive_assistant/agent/`)
 
-**Purpose:** Implements the ReAct reasoning loop and manages agent state.
+**Purpose:** Implements the LangChain/LangGraph runtime, middleware, and agent state.
 
 **Key Files:**
-- `graph.py`: Defines LangGraph StateGraph with ReAct nodes
-- `nodes.py`: Core node implementations
-  - `call_model()`: Invokes LLM with conversation history
-  - `call_tools()`: Executes LangChain tools
-  - `increment_iterations()`: Tracks reasoning cycles
+- `langchain_agent.py`: Builds the runtime with middleware and tool normalization
 - `state.py`: AgentState TypedDict containing:
   - `messages`: Conversation history (with `add_messages` reducer)
-  - `iterations`: Loop counter (prevents infinite loops)
-  - `user_id`: Thread identifier (channel + channel user id)
+  - `thread_id`: Thread identifier (channel + channel user id)
   - `channel`: Source channel (telegram/http)
   - `structured_summary`: Topic-based conversation summary
   - `todos`: Task tracking list
@@ -758,7 +750,7 @@ data/
 - **All tools available by default** - No progressive disclosure filtering
   - Token overhead: ~10,500 tokens (5% of 200K context)
   - Prevents multi-step workflow breakage
-  - Removed: `get_tools_for_request()` (deprecated, caused tool loss mid-conversation)
+  - Deprecated: `get_tools_for_request()` (kept for compatibility; not used in runtime)
 - Categories:
   - File tools (11 tools): File operations
   - TDB tools (10 tools): Database operations
@@ -1474,7 +1466,7 @@ Typical token usage for a conversation:
 | Component | Token Count | Notes |
 |-----------|-------------|-------|
 | System prompt | ~50 tokens | "You are Jen, a personal AI assistant..." |
-| Tools (87 tools) | ~8,100 tokens | Tool names, descriptions, JSON schemas |
+| Tools (dynamic count) | Variable | Tool names, descriptions, JSON schemas |
 | Instincts (variable) | ~100-500 tokens | Learned behavioral patterns |
 | Conversation messages | Variable | Grows with each turn (±30-80 tokens per round) |
 | **Total (Round 1)** | ~8,250 tokens | System + tools + first user message |
@@ -1871,7 +1863,7 @@ This enables:
 - Human-in-the-loop approval for skill evolution
 
 **Tool Count:**
-- Increased from 83 to 87 tools (+4 instinct management tools)
+- Dynamic based on enabled features and MCP servers
 
 ### Key Changes in v1.1.0
 
@@ -1882,10 +1874,10 @@ This enables:
 - Enhanced error logging with full tracebacks at DEBUG level
 
 **Architecture Improvements:**
-- All 87 tools now available by default (~8,100 tokens = 4% of 200K context)
+- All registered tools are available by default (token cost depends on active toolset)
 - HTTP channel bypasses allowlist (frontend authentication pattern)
 - ThreadContextMiddleware ensures context propagation across async boundaries
-- Removed deprecated `get_tools_for_request()` function
+- Deprecated `get_tools_for_request()` in favor of loading all tools
 
 **New Components:**
 - `src/executive_assistant/agent/thread_context_middleware.py` - Context propagation middleware

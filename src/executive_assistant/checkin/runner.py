@@ -6,8 +6,7 @@ and send message if findings are important.
 
 from __future__ import annotations
 
-import asyncio
-from datetime import timezone
+from datetime import datetime, timezone
 from typing import Any
 
 from executive_assistant.checkin.analyzer import (
@@ -88,9 +87,9 @@ async def run_checkin(
         logger.error(f"Error analyzing check-in for {thread_id}: {e}")
         return None
 
-    # 5. Update last check-in time
-    now = asyncio.get_event_loop().time()
-    update_last_checkin(thread_id, str(now))
+    # 5. Update last check-in time (wall clock, UTC)
+    now_iso = datetime.now(timezone.utc).isoformat()
+    update_last_checkin(thread_id, now_iso)
 
     # 6. Return findings if important
     if findings and findings != "CHECKIN_OK":
@@ -110,18 +109,15 @@ async def send_checkin_message(thread_id: str, message: str, channel: str) -> No
         message: Message content
         channel: Channel to send through
     """
-    # This would need to integrate with the channel system
-    # For now, just log the message
-    logger.info(f"Check-in message for {thread_id} (channel={channel}):\n{message}")
+    from executive_assistant.scheduler import send_notification
 
-    # TODO: Implement actual message sending
-    # Would need to import channel senders
-    # if channel == "telegram":
-    #     from executive_assistant.channels.telegram import send_telegram_message
-    #     await send_telegram_message(thread_id, message)
-    # elif channel == "http":
-    #     # Store for HTTP poll
-    #     pass
+    success = await send_notification(thread_id, message, channel)
+    if success:
+        logger.info(f"Check-in message sent for {thread_id} (channel={channel})")
+    else:
+        logger.warning(
+            f"Check-in message delivery failed for {thread_id} (channel={channel})"
+        )
 
 
 async def run_checkin_and_send(
@@ -152,7 +148,10 @@ async def run_checkin_and_send(
         return False
 
 
-def should_run_checkin(config: CheckinConfig, last_run_time: float | None) -> bool:
+def should_run_checkin(
+    config: CheckinConfig,
+    last_run_time: float | str | None,
+) -> bool:
     """
     Check if check-in should run based on schedule.
 
@@ -184,9 +183,26 @@ def should_run_checkin(config: CheckinConfig, last_run_time: float | None) -> bo
         # Default to 30 minutes
         interval_seconds = 1800
 
+    # Parse last_run_time from either unix seconds or ISO datetime.
+    last_run_ts: float | None = None
+    if isinstance(last_run_time, (int, float)):
+        last_run_ts = float(last_run_time)
+    elif isinstance(last_run_time, str):
+        raw = last_run_time.strip()
+        if raw:
+            try:
+                last_run_ts = float(raw)
+            except ValueError:
+                try:
+                    # Backward-compatible: accept ISO strings (with optional trailing Z)
+                    iso_raw = raw.replace("Z", "+00:00")
+                    last_run_ts = datetime.fromisoformat(iso_raw).timestamp()
+                except ValueError:
+                    last_run_ts = None
+
     # Check if enough time has passed
-    if last_run_time:
-        elapsed = time.time() - last_run_time
+    if last_run_ts is not None:
+        elapsed = time.time() - last_run_ts
         if elapsed < interval_seconds:
             return False
 
