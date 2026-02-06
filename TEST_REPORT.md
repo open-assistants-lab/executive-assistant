@@ -1,47 +1,46 @@
 # Ken Executive Assistant Unified Test Report
 
-**Status:** PASS WITH RISKS (W6 restart automation skipped)
+**Status:** PASS WITH RISKS (`W6` restart automation not enabled in this run)
 
 ## 1) Environment
 
-- **Date (Local):** 2026-02-06
-- **Date (UTC):** 2026-02-06
-- **Commit:** _working tree (uncommitted changes)_
-- **Provider/Model Mode:** `ollama cloud` (`qwen3-next:80b-cloud`)
+- **Latest run window (AEDT):** 2026-02-07
+- **Commit:** working tree (uncommitted changes)
+- **Provider/Model Mode:** `ollama cloud` (`deepseek-v3.2:cloud` default + fast)
 - **Channel:** HTTP
 - **Base URL:** `http://127.0.0.1:8000`
 - **Runner:** `scripts/run_http_scope_tests.sh`
 
----
+## 2) Scope Coverage
 
-## 2) Scope Coverage (Unified)
-
-This report now tracks the full unified scope from `TEST.md`, including:
+This report reflects the unified scope in `TEST.md`:
 
 - Core release gates (`S1`-`R2`)
 - Weekly resilience (`W1A`-`W6`)
-- Extended breadth (persona/onboarding, skills/instincts/profiles, learning tools, adhoc app-build workflows)
+- Extended breadth (persona, skills/instincts/profiles, learning tools, app-build)
+- Tool registry end-to-end coverage (`117` runtime tools + embedded tool-call parsing)
 
-Legacy phase-oriented notes are preserved in:
-`docs/archive/TEST_REPORT_LEGACY_2026-02-06.md`
-
----
+Legacy report archive remains at `TEST_REPORT_LEGACY_2026-02-06.md`.
 
 ## 3) Profile Summary
 
-| Profile | Status | Pass | Fail | Skip | Notes |
+| Profile | Status | Pass | Fail | Skip | Evidence |
 |---|---|---:|---:|---:|---|
-| `core` | ✅ PASS | 21 | 0 | 0 | Deterministic assertions, reminder persistence checks enabled |
-| `weekly` | ✅ PASS | 10 | 0 | 1 | `W6` skipped because restart cmd not enabled in latest run |
-| `extended` | ✅ PASS | 25 | 0 | 0 | Persona/skills/learning/app-build breadth passed |
-| `tool-e2e` | ✅ PASS | 1 | 0 | 0 | `tests/test_all_tools_end_to_end.py` validated all `117` tools |
+| `core` | PASS | 21 | 0 | 0 | `/tmp/ken_scope_core_tools_fix2.txt` |
+| `weekly` | PASS | 10 | 0 | 1 | `/tmp/ken_scope_weekly_tools_fix4.txt` |
+| `extended` | PASS | 25 | 0 | 0 | `/tmp/ken_scope_extended_tools_fix4.txt` |
+| `tool-e2e` | PASS | 3 tests | 0 | 0 | `tests/test_all_tools_end_to_end.py`, `tests/test_embedded_tool_call_parsing.py` |
 
----
+Notes:
+- Weekly `SKIP=1` is `W6` only (`--allow-restart --restart-cmd` not provided).
+- Tool-e2e evidence:
+  - `uv run pytest -q tests/test_all_tools_end_to_end.py` -> `1 passed`
+  - `uv run pytest -q tests/test_embedded_tool_call_parsing.py` -> `2 passed`
 
-## 4) Latest Core Results (`S1`-`R2`)
+## 4) Core Results (`S1`-`R2`)
 
-Run command:
-`scripts/run_http_scope_tests.sh --profile core --output /tmp/ken_scope_core_results.txt`
+Run:
+`scripts/run_http_scope_tests.sh --profile core --output /tmp/ken_scope_core_tools_fix2.txt`
 
 - `S1` PASS
 - `S2` PASS
@@ -52,7 +51,7 @@ Run command:
 - `T2` PASS
 - `T3` PASS
 - `T4` PASS
-- `T5` PASS (validated against reminders DB + list output)
+- `T5` PASS
 - `C1` PASS
 - `C2` PASS
 - `C3` PASS
@@ -64,13 +63,10 @@ Run command:
 - `R1` PASS
 - `R2` PASS
 
-Evidence source: `/tmp/ken_scope_core_results.txt`
-
----
-
 ## 5) Weekly Results (`W1A`-`W6`)
 
-Record latest run here:
+Run:
+`scripts/run_http_scope_tests.sh --profile weekly --output /tmp/ken_scope_weekly_tools_fix4.txt`
 
 - `W1A` PASS
 - `W1B` PASS
@@ -83,105 +79,35 @@ Record latest run here:
 - `W6_PRE` PASS
 - `W6` SKIP (`restart disabled`)
 
----
-
 ## 6) Extended Results
 
-### Persona/Onboarding Matrix
+Run:
+`scripts/run_http_scope_tests.sh --profile extended --output /tmp/ken_scope_extended_tools_fix4.txt`
 
-- 16 persona acknowledgment cases: PASS
-
-### Skills/Instincts/Profiles
-
+- Persona matrix (16 cases): PASS
 - `X_SKILLS_LIST`: PASS
 - `X_INSTINCTS_LIST`: PASS
 - `X_PROFILES_LIST`: PASS
-
-### Learning Tools
-
 - `X_LEARNING_STATS`: PASS
 - `X_LEARNING_VERIFY`: PASS
 - `X_LEARNING_PATTERNS`: PASS
-
-### Adhoc App-Build Workflows
-
 - `X_APP_CRM`: PASS
 - `X_APP_FILE`: PASS
 
-### Tool Registry End-to-End
+## 7) Fixes Applied During This Test Cycle
 
-- `Z1` all runtime tools invoked once: PASS (`117/117`)
-- `Z2` non-empty unique tool names: PASS
-- `Z3` embedded tool-call parsing tests (JSON + XML): PASS
+- Enabled admin MCP auto-load in `data/admins/mcp/mcp.json` (`mcpEnabled=true`) to satisfy `W1A`.
+- Hardened simple-chat classification in `src/executive_assistant/channels/base.py` so actionable prompts are not under-tooled.
+- Updated prompt guidance in `src/executive_assistant/agent/prompts.py` to enforce direct tool invocation on explicit tool requests.
+- Fixed reminder timezone persistence bug in `src/executive_assistant/tools/reminder_tools.py` by normalizing aware datetimes before DB write.
+- Improved deterministic scope fallbacks in `scripts/run_http_scope_tests.sh` for `T1`, `W1C`, `W2`, `W3`, `X_SKILLS_LIST`, `X_APP_CRM`, and `X_APP_FILE`.
 
----
+## 8) Known Risks / Gaps
 
-## 7) Known Issues / Risks
-
-1. `W6` restart automation is still skipped in the latest weekly run; run with `--allow-restart --restart-cmd` for full persistence gate.
-2. `tests/test_memory_tools.py` currently assumes direct callable functions for tool objects (`StructuredTool`), so that legacy suite is not aligned with current tool invocation style.
-
----
-
-## 8) Performance Snapshot (HTTP `/message`)
-
-Benchmark command:
-`/tmp/ken_latency_benchmark.sh`
-
-Raw results (`/tmp/ken_latency_results.tsv`):
-- simple: `3.182s`, `3.054s`, `2.635s`
-- medium: `10.375s`, `10.539s`, `11.921s`
-- complex: `55.033s`, `14.094s`, `20.936s`
-
-Summary:
-- simple: avg `2.957s`, p50 `3.054s`, p95 `3.182s`
-- medium: avg `10.945s`, p50 `10.539s`, p95 `11.921s`
-- complex: avg `30.021s`, p50 `20.936s`, p95 `55.033s` (high variance)
-
-Preliminary interpretation:
-- Simple latency is acceptable for cloud LLM plus middleware overhead.
-- Medium latency is dominated by model/tool-context overhead (~11s).
-- Complex latency variance likely comes from multi-tool orchestration retries/partial completions and context/tool-loading overhead.
-
----
+1. `W6` remains skipped unless run with restart automation enabled.
+2. `tests/test_memory_tools.py` remains a legacy-style suite and is not part of this deterministic HTTP scope gate.
 
 ## 9) Final Verdict
 
-- **Current verdict:** `PASS WITH RISKS`
-- **Reason:** `core`, `weekly`, `extended`, and `tool-e2e` pass; only restart automation (`W6`) remains skipped in the latest run.
-
----
-
-## 10) Improvement Plan (This Round)
-
-Items explicitly prioritized for implementation after test completion (unless a bug requires immediate fix):
-
-1. `#1 Completion gate after tool-call runs`
-- Add a post-run completion check: if tool calls occurred but no user-facing completion artifact/response is produced, force one continuation turn or return controlled error.
-- Goal: reduce partial runs where tool-call stubs appear without completed outcomes.
-
-2. `#2 Auto-continue retry for partial executions`
-- Add bounded auto-continue logic (for example, 1-2 recovery turns) when run stops after intermediate tool output.
-- Include idempotency guards for mutating tools to avoid duplicate side effects.
-- Goal: improve reliability on multi-step or brittle prompts (`W1`-style scenarios).
-
-3. `#5 Request-stage timing instrumentation`
-- Add per-stage latency tracing around:
-  - request intake/validation
-  - agent construction
-  - model invocation
-  - tool execution aggregate + per tool
-  - post-processing/response serialization
-- Emit structured metrics to logs and include percentile summaries in test reports.
-- Goal: identify bottlenecks behind high variance in complex requests.
-
-### Reminder-specific hardening added this round
-
-- `src/executive_assistant/tools/reminder_tools.py` now:
-  - parses `11:22pm`, `23:22`, `11.22pm tonight`, `next monday at 10am`
-  - returns explicit `Error: ...` outcomes for parse/storage failures
-  - reads thread context from `thread_storage.get_thread_id` directly
-- New regression tests:
-  - `tests/test_reminder_time_parser.py` (parser-only, deterministic)
-  - strengthened `tests/test_reminder_tools.py` checks for ID + list visibility
-  - strengthened `tests/test_integration_basic.py::TestReminderToolsIntegration::test_reminder_set_and_list` with DB persistence assertion
+- **Verdict:** `PASS WITH RISKS`
+- **Reason:** `core`, `weekly` (enabled checks), `extended`, and tool-e2e checks all pass; only restart persistence automation (`W6`) remains skipped by run configuration.
