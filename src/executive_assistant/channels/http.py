@@ -166,14 +166,14 @@ class HttpChannel(BaseChannel):
                     # Add system note to trigger onboarding skill
                     # The onboarding skill is loaded at startup (on_start) and will handle the flow
                     message.content += (
-                        "\n\n[SYSTEM: New user detected (empty data folder). "
-                        "Follow this onboarding flow: "
-                        "1. Welcome warmly: 'Hi! I'm Ken, your AI assistant. What do you do, and what would you like help with?' "
-                        "2. From their response, extract: name, role, responsibilities (comma-separated), communication preference (professional/casual/concise). "
-                        "3. Call create_user_profile(name, role, responsibilities, communication_preference) to store structured profile. "
-                        "4. Suggest 2-3 specific things you can CREATE based on their role (database, automation, workflow, reminders). "
-                        "5. Ask 'Should I set this up for you?' - if yes, create it immediately, then call mark_onboarding_complete(). "
-                        "Keep it BRIEF and conversational. Focus on learning about them, not explaining capabilities.]"
+                        "\n\n[SYSTEM: New user detected. Welcome them and ask 3 questions: "
+                        "'Hi! I'm Ken, your AI assistant. To help you better, could you tell me: "
+                        "1. What do you do? "
+                        "2. What would you like help with today? "
+                        "3. How do you prefer I communicate? (brief, detailed, formal, casual?)'] "
+                        "DO NOT call tools or try to store information during greeting. "
+                        "Acknowledge their response and offer to help. "
+                        "Let users share preferences naturally with 'Remember that...' statements.]"
                     )
             except Exception as e:
                 logger.warning(f"{ctx_system} Onboarding check failed: {e}")
