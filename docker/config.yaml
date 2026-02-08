@@ -63,15 +63,15 @@ llm:
     # - deepseek-reasoner: Advanced reasoning, higher quality
 
   ollama:
-    default_model: deepseek-v3.2:cloud
-    fast_model: deepseek-v3.2:cloud
+    default_model: qwen3-next:80b-cloud
+    fast_model: qwen3-next:80b-cloud
     mode: cloud # cloud or local
     cloud_url: "https://ollama.com"
     local_url: "http://localhost:11434"
     # Tool Calling Compatibility (Ollama Cloud models):
     # ✅ Compatible (JSON Schema supported):
-    #   - deepseek-v3.1:671b-cloud (Recommended)
-    #   - glm-4.7:cloud, minimax-m2.1:cloud, gpt-oss:20b-cloud, qwen3-next:80b-cloud, kimi-k2.5:cloud
+    #   - qwen3-next:80b-cloud (Currently in use)
+    #   - deepseek-v3.1:671b-cloud, glm-4.7:cloud, minimax-m2.1:cloud, gpt-oss:20b-cloud, kimi-k2.5:cloud
     # ⚠️ NOT Compatible:
     #   - deepseek-v3.2:cloud (XML format only)
     #     For DeepSeek models, use the official DeepSeek provider instead:

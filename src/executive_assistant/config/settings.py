@@ -68,8 +68,8 @@ class Settings(BaseSettings):
     DEEPSEEK_FAST_MODEL: str | None = _yaml_field(
         "LLM_DEEPSEEK_FAST_MODEL", "deepseek-chat"
     )
-    OLLAMA_DEFAULT_MODEL: str | None = _yaml_field("LLM_OLLAMA_DEFAULT_MODEL", None)
-    OLLAMA_FAST_MODEL: str | None = _yaml_field("LLM_OLLAMA_FAST_MODEL", None)
+    OLLAMA_DEFAULT_MODEL: str | None = _yaml_field("LLM_OLLAMA_DEFAULT_MODEL", "qwen3-next:80b-cloud")
+    OLLAMA_FAST_MODEL: str | None = _yaml_field("LLM_OLLAMA_FAST_MODEL", "qwen3-next:80b-cloud")
     GEMINI_DEFAULT_MODEL: str | None = _yaml_field("LLM_GEMINI_DEFAULT_MODEL", None)
     GEMINI_FAST_MODEL: str | None = _yaml_field("LLM_GEMINI_FAST_MODEL", None)
     QWEN_DEFAULT_MODEL: str | None = _yaml_field("LLM_QWEN_DEFAULT_MODEL", None)
