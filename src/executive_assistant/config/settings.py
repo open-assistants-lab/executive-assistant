@@ -63,7 +63,7 @@ class Settings(BaseSettings):
     ZHIPU_DEFAULT_MODEL: str | None = _yaml_field("LLM_ZHIPU_DEFAULT_MODEL", None)
     ZHIPU_FAST_MODEL: str | None = _yaml_field("LLM_ZHIPU_FAST_MODEL", None)
     DEEPSEEK_DEFAULT_MODEL: str | None = _yaml_field(
-        "LLM_DEEPSEEK_DEFAULT_MODEL", "deepseek-chat"
+        "LLM_DEEPSEEK_DEFAULT_MODEL", "deepseek-reasoner"
     )
     DEEPSEEK_FAST_MODEL: str | None = _yaml_field(
         "LLM_DEEPSEEK_FAST_MODEL", "deepseek-chat"
