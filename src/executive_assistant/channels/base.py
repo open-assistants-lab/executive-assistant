@@ -5,7 +5,6 @@ import asyncio
 from collections import OrderedDict
 import contextvars
 import hashlib
-import html
 import json
 import re
 import time
@@ -897,82 +896,6 @@ class BaseChannel(ABC):
                         calls.append({"name": name, "arguments": arguments})
                 idx = end
 
-        def _extract_attr(attrs_text: str, attr_name: str) -> str | None:
-            match = re.search(
-                rf"{re.escape(attr_name)}\s*=\s*(?:\"([^\"]*)\"|'([^']*)')",
-                attrs_text,
-                flags=re.IGNORECASE,
-            )
-            if not match:
-                return None
-            return html.unescape(match.group(1) or match.group(2) or "").strip()
-
-        def _coerce_xml_param_value(raw: str, string_hint: str | None) -> Any:
-            value = html.unescape(raw).strip()
-            if string_hint and string_hint.lower() == "true":
-                return value
-            lowered = value.lower()
-            if lowered == "true":
-                return True
-            if lowered == "false":
-                return False
-            if lowered in {"null", "none"}:
-                return None
-            if re.fullmatch(r"-?\d+", value):
-                try:
-                    return int(value)
-                except ValueError:
-                    return value
-            if re.fullmatch(r"-?\d+\.\d+", value):
-                try:
-                    return float(value)
-                except ValueError:
-                    return value
-            if (value.startswith("{") and value.endswith("}")) or (value.startswith("[") and value.endswith("]")):
-                try:
-                    return json.loads(value)
-                except json.JSONDecodeError:
-                    return value
-            return value
-
-        def _scan_xml_function_calls(text: str) -> None:
-            # DeepSeek-style fallback:
-            # <function_calls><invoke name="tool"><parameter name="x">1</parameter></invoke></function_calls>
-            # Also handle variants:
-            # <functioncalls> ... </function_calls>
-            xml_blocks = re.findall(
-                r"<function_?calls\b[^>]*>\s*(.*?)\s*</function_?calls\s*>",
-                text,
-                flags=re.IGNORECASE | re.DOTALL,
-            )
-            for block in xml_blocks:
-                invoke_matches = re.finditer(
-                    r"<invoke\b([^>]*)>(.*?)</invoke>",
-                    block,
-                    flags=re.IGNORECASE | re.DOTALL,
-                )
-                for invoke_match in invoke_matches:
-                    invoke_attrs = invoke_match.group(1) or ""
-                    invoke_body = invoke_match.group(2) or ""
-                    tool_name = _extract_attr(invoke_attrs, "name")
-                    if not tool_name:
-                        continue
-                    args: dict[str, Any] = {}
-                    param_matches = re.finditer(
-                        r"<parameter\b([^>]*)>(.*?)</parameter>",
-                        invoke_body,
-                        flags=re.IGNORECASE | re.DOTALL,
-                    )
-                    for param_match in param_matches:
-                        param_attrs = param_match.group(1) or ""
-                        param_body = param_match.group(2) or ""
-                        arg_name = _extract_attr(param_attrs, "name")
-                        if not arg_name:
-                            continue
-                        string_hint = _extract_attr(param_attrs, "string")
-                        args[arg_name] = _coerce_xml_param_value(param_body, string_hint)
-                    calls.append({"name": tool_name, "arguments": args})
-
         # 1) `<tools>...</tools>` blocks
         blocks = re.findall(
             r"<tools\b[^>]*>\s*(.*?)\s*</tools\s*>",
@@ -981,9 +904,6 @@ class BaseChannel(ABC):
         )
         for block in blocks:
             _scan_json_objects(block)
-
-        # 1b) `<function_calls>...</function_calls>` XML blocks
-        _scan_xml_function_calls(content)
 
         # 2) fenced json code blocks
         code_blocks = re.findall(r"```json\s*(.*?)\s*```", content, flags=re.IGNORECASE | re.DOTALL)
@@ -1004,7 +924,7 @@ class BaseChannel(ABC):
             return False
         return bool(
             re.search(
-                r"<\s*(tools|function_?calls?|invoke|parameter)\b",
+                r"<\s*tools\b",
                 content,
                 flags=re.IGNORECASE,
             )
@@ -1023,8 +943,6 @@ class BaseChannel(ABC):
         if not stripped:
             return False
 
-        if re.fullmatch(r"(?is)\s*<function_?calls\b[^>]*>.*?</function_?calls\s*>\s*", stripped):
-            return True
         if re.fullmatch(r"(?is)\s*<tools\b[^>]*>.*?</tools\s*>\s*", stripped):
             return True
         if re.fullmatch(r"(?is)\s*```json\s*.*?```\s*", stripped):
@@ -1038,12 +956,7 @@ class BaseChannel(ABC):
             except json.JSONDecodeError:
                 pass
 
-        residual = re.sub(
-            r"(?is)<function_?calls\b[^>]*>.*?</function_?calls\s*>",
-            " ",
-            stripped,
-        )
-        residual = re.sub(r"(?is)<tools\b[^>]*>.*?</tools\s*>", " ", residual)
+        residual = re.sub(r"(?is)<tools\b[^>]*>.*?</tools\s*>", " ", stripped)
         residual = re.sub(r"(?is)```json\s*.*?```", " ", residual)
         residual = re.sub(r"\s+", " ", residual).strip()
 

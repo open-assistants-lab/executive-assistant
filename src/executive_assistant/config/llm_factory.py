@@ -43,7 +43,7 @@ MODEL_PATTERNS = {
 # Ollama Cloud models that do NOT support JSON Schema for tool calling
 # These models will fail when bind_tools() is called with JSON Schema format
 OLLAMA_INCOMPATIBLE_MODELS = {
-    "deepseek-v3.2:cloud": "Uses XML tool-calling format. Raw LangChain bind_tools() won't populate tool_calls without compatibility parsing.",
+    "deepseek-v3.2:cloud": "Uses XML tool-calling format. Use official DeepSeek provider (DEFAULT_LLM_PROVIDER=deepseek) for native tool calling support.",
 }
 
 # Ollama Cloud models with verified JSON Schema tool calling support

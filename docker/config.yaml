@@ -72,8 +72,10 @@ llm:
     # ✅ Compatible (JSON Schema supported):
     #   - deepseek-v3.1:671b-cloud (Recommended)
     #   - glm-4.7:cloud, minimax-m2.1:cloud, gpt-oss:20b-cloud, qwen3-next:80b-cloud, kimi-k2.5:cloud
-    # ⚠️ Special format:
-    #   - deepseek-v3.2:cloud (XML <function_calls>; supported via channel compatibility parser)
+    # ⚠️ NOT Compatible:
+    #   - deepseek-v3.2:cloud (XML format only)
+    #     For DeepSeek models, use the official DeepSeek provider instead:
+    #     Set DEFAULT_LLM_PROVIDER=deepseek and DEEPSEEK_API_KEY in .env
 
   # Gemini (Google)
   gemini:
