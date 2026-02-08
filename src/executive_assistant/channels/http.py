@@ -167,10 +167,12 @@ class HttpChannel(BaseChannel):
                     # The onboarding skill is loaded at startup (on_start) and will handle the flow
                     message.content += (
                         "\n\n[SYSTEM: New user detected - onboarding required. "
-                        "CRITICAL: Call write_todos FIRST with your onboarding plan. "
-                        "DO NOT include any greeting or conversational text in your response. "
-                        "The write_todos output will be shown to the user. "
-                        "In your NEXT message, you will ask the 5 onboarding questions.]"
+                        "CRITICAL onboarding flow: "
+                        "1. Call write_todos FIRST with your plan (5 steps: profile, timezone, instinct, complete, acknowledge) "
+                        "2. Ask 5 questions: name, role, responsibilities, communication preference, timezone "
+                        "3. AFTER receiving responses, call: create_user_profile, create_memory(timezone), create_instinct(communication), mark_onboarding_complete "
+                        "DO NOT include any greeting in your first response. "
+                        "The write_todos output will be shown to the user.]"
                     )
             except Exception as e:
                 logger.warning(f"{ctx_system} Onboarding check failed: {e}")
