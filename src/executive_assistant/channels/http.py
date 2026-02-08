@@ -166,16 +166,11 @@ class HttpChannel(BaseChannel):
                     # Add system note to trigger onboarding skill
                     # The onboarding skill is loaded at startup (on_start) and will handle the flow
                     message.content += (
-                        "\n\n[SYSTEM: New user detected. Welcome them and ask 5 questions: "
-                        "'Hi! I'm Ken, your AI assistant. To help you better, could you tell me: "
-                        "1. What do you do? "
-                        "2. What would you like help with today? "
-                        "3. How do you prefer I communicate? (brief, detailed, formal, casual?) "
-                        "4. What city are you in? (for timezone & geographical context) "
-                        "5. What language do you prefer?'] "
-                        "DO NOT call tools or try to store information during greeting. "
-                        "Acknowledge their response and offer to help. "
-                        "Let users share preferences naturally with 'Remember that...' statements.]"
+                        "\n\n[SYSTEM: New user detected - onboarding required. "
+                        "CRITICAL: Call write_todos FIRST with your onboarding plan. "
+                        "DO NOT include any greeting or conversational text in your response. "
+                        "The write_todos output will be shown to the user. "
+                        "In your NEXT message, you will ask the 5 onboarding questions.]"
                     )
             except Exception as e:
                 logger.warning(f"{ctx_system} Onboarding check failed: {e}")

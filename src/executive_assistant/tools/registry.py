@@ -183,6 +183,12 @@ async def get_memory_tools() -> list[BaseTool]:
     return _get()
 
 
+async def get_goals_tools() -> list[BaseTool]:
+    """Get Goals tools for user-facing goal CRUD operations."""
+    from executive_assistant.tools.goals_tools import get_goals_tools as _get
+    return _get()
+
+
 async def get_instinct_tools() -> list[BaseTool]:
     """Get Instinct tools for behavioral pattern learning."""
     from executive_assistant.tools.instinct_tools import get_instinct_tools as _get
@@ -350,6 +356,7 @@ async def get_all_tools() -> list[BaseTool]:
     all_tools.extend(await get_skills_tools())
     all_tools.extend(await get_vdb_tools())
     all_tools.extend(await get_memory_tools())
+    all_tools.extend(await get_goals_tools())
     all_tools.extend(await get_instinct_tools())
     all_tools.extend(await get_checkin_tools())
     all_tools.extend(await get_learning_tools())
@@ -501,6 +508,9 @@ async def get_tools_for_request(
 
     if _text_has_any(message_text, ["memory", "remember", "forget", "preference"]):
         tools.extend(await get_memory_tools())
+
+    if _text_has_any(message_text, ["goal", "goals", "objective", "milestone", "progress"]):
+        tools.extend(await get_goals_tools())
 
     if _text_has_any(message_text, ["reminder", "remind", "schedule"]):
         tools.extend(await get_reminder_tools())

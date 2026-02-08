@@ -17,7 +17,7 @@ Benefits:
 from __future__ import annotations
 
 import json
-import shutil
+import logging
 import sqlite3
 import uuid
 from datetime import datetime, timezone
@@ -26,6 +26,8 @@ from typing import Any
 
 from executive_assistant.config import settings
 from executive_assistant.storage.file_sandbox import get_thread_id
+
+logger = logging.getLogger(__name__)
 
 
 # Allowed instinct domains (same as JSON version)
@@ -80,13 +82,36 @@ class InstinctStorageSQLite:
     def __init__(self) -> None:
         pass
 
-    def _get_db_path(self, thread_id: str | None = None) -> Path:
-        """Get the SQLite database path for the current thread."""
+    @staticmethod
+    def _resolve_thread_id(thread_id: str | None = None) -> str:
         if thread_id is None:
             thread_id = get_thread_id()
-
         if thread_id is None:
             raise ValueError("No thread_id provided or in context")
+        return thread_id
+
+    @staticmethod
+    def _row_to_instinct(row: sqlite3.Row) -> dict[str, Any]:
+        return {
+            "id": row["id"],
+            "trigger": row["trigger"],
+            "action": row["action"],
+            "domain": row["domain"],
+            "source": row["source"],
+            "confidence": row["confidence"],
+            "status": row["status"],
+            "metadata": {
+                "occurrence_count": row["occurrence_count"],
+                "success_rate": row["success_rate"],
+                "last_triggered": row["last_triggered"],
+            },
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
+
+    def _get_db_path(self, thread_id: str | None = None) -> Path:
+        """Get the SQLite database path for the current thread."""
+        thread_id = self._resolve_thread_id(thread_id)
 
         instincts_dir = settings.get_thread_instincts_dir(thread_id)
         instincts_dir.mkdir(parents=True, exist_ok=True)
@@ -207,8 +232,7 @@ class InstinctStorageSQLite:
         instinct_id = str(uuid.uuid4())
         now = _utc_now()
 
-        if thread_id is None:
-            thread_id = get_thread_id()
+        thread_id = self._resolve_thread_id(thread_id)
 
         conn = self.get_connection(thread_id)
         try:
@@ -234,7 +258,7 @@ class InstinctStorageSQLite:
     def list_instincts(
         self,
         domain: str | None = None,
-        status: str = "enabled",
+        status: str | None = "enabled",
         min_confidence: float = 0.0,
         thread_id: str | None = None,
         apply_decay: bool = True,
@@ -252,8 +276,7 @@ class InstinctStorageSQLite:
         Returns:
             List of instincts
         """
-        if thread_id is None:
-            thread_id = get_thread_id()
+        thread_id = self._resolve_thread_id(thread_id)
 
         conn = self.get_connection(thread_id)
         try:
@@ -278,22 +301,7 @@ class InstinctStorageSQLite:
 
             results = []
             for row in rows:
-                instinct = {
-                    "id": row["id"],
-                    "trigger": row["trigger"],
-                    "action": row["action"],
-                    "domain": row["domain"],
-                    "source": row["source"],
-                    "confidence": row["confidence"],
-                    "status": row["status"],
-                    "metadata": {
-                        "occurrence_count": row["occurrence_count"],
-                        "success_rate": row["success_rate"],
-                        "last_triggered": row["last_triggered"],
-                    },
-                    "created_at": row["created_at"],
-                    "updated_at": row["updated_at"],
-                }
+                instinct = self._row_to_instinct(row)
 
                 # Apply temporal decay if enabled
                 if apply_decay:
@@ -314,35 +322,19 @@ class InstinctStorageSQLite:
 
     def get_instinct(self, instinct_id: str, thread_id: str | None = None) -> dict | None:
         """Get a specific instinct by ID."""
-        if thread_id is None:
-            thread_id = get_thread_id()
+        thread_id = self._resolve_thread_id(thread_id)
 
         conn = self.get_connection(thread_id)
         try:
             row = conn.execute(
-                "SELECT * FROM instincts WHERE id = ?",
-                (instinct_id,)
+                "SELECT * FROM instincts WHERE id = ? AND thread_id = ?",
+                (instinct_id, thread_id),
             ).fetchone()
 
             if not row:
                 return None
 
-            return {
-                "id": row["id"],
-                "trigger": row["trigger"],
-                "action": row["action"],
-                "domain": row["domain"],
-                "source": row["source"],
-                "confidence": row["confidence"],
-                "status": row["status"],
-                "metadata": {
-                    "occurrence_count": row["occurrence_count"],
-                    "success_rate": row["success_rate"],
-                    "last_triggered": row["last_triggered"],
-                },
-                "created_at": row["created_at"],
-                "updated_at": row["updated_at"],
-            }
+            return self._row_to_instinct(row)
         finally:
             conn.close()
 
@@ -367,15 +359,14 @@ class InstinctStorageSQLite:
         Returns:
             True if instinct exists, False otherwise
         """
-        if thread_id is None:
-            thread_id = get_thread_id()
+        thread_id = self._resolve_thread_id(thread_id)
 
         conn = self.get_connection(thread_id)
         try:
             # Get current confidence
             row = conn.execute(
-                "SELECT confidence FROM instincts WHERE id = ?",
-                (instinct_id,)
+                "SELECT confidence FROM instincts WHERE id = ? AND thread_id = ?",
+                (instinct_id, thread_id),
             ).fetchone()
 
             if not row:
@@ -388,16 +379,16 @@ class InstinctStorageSQLite:
             conn.execute("""
                 UPDATE instincts
                 SET confidence = ?, updated_at = ?
-                WHERE id = ?
-            """, (new_confidence, _utc_now(), instinct_id))
+                WHERE id = ? AND thread_id = ?
+            """, (new_confidence, _utc_now(), instinct_id, thread_id))
 
             # Auto-disable if confidence too low
             if new_confidence < 0.2:
                 conn.execute("""
                     UPDATE instincts
                     SET status = 'disabled', updated_at = ?
-                    WHERE id = ?
-                """, (_utc_now(), instinct_id))
+                    WHERE id = ? AND thread_id = ?
+                """, (_utc_now(), instinct_id, thread_id))
 
             conn.commit()
             return True
@@ -414,16 +405,15 @@ class InstinctStorageSQLite:
         if status not in ("enabled", "disabled"):
             raise ValueError(f"Status must be 'enabled' or 'disabled', got '{status}'")
 
-        if thread_id is None:
-            thread_id = get_thread_id()
+        thread_id = self._resolve_thread_id(thread_id)
 
         conn = self.get_connection(thread_id)
         try:
             cursor = conn.execute("""
                 UPDATE instincts
                 SET status = ?, updated_at = ?
-                WHERE id = ?
-            """, (status, _utc_now(), instinct_id))
+                WHERE id = ? AND thread_id = ?
+            """, (status, _utc_now(), instinct_id, thread_id))
 
             conn.commit()
             return cursor.rowcount > 0
@@ -432,12 +422,14 @@ class InstinctStorageSQLite:
 
     def delete_instinct(self, instinct_id: str, thread_id: str | None = None) -> bool:
         """Delete an instinct by ID."""
-        if thread_id is None:
-            thread_id = get_thread_id()
+        thread_id = self._resolve_thread_id(thread_id)
 
         conn = self.get_connection(thread_id)
         try:
-            cursor = conn.execute("DELETE FROM instincts WHERE id = ?", (instinct_id,))
+            cursor = conn.execute(
+                "DELETE FROM instincts WHERE id = ? AND thread_id = ?",
+                (instinct_id, thread_id),
+            )
             conn.commit()
             return cursor.rowcount > 0
         finally:
@@ -478,16 +470,15 @@ class InstinctStorageSQLite:
 
         # Update if significantly changed
         if abs(new_confidence - instinct["confidence"]) > 0.05:
-            if thread_id is None:
-                thread_id = get_thread_id()
+            thread_id = self._resolve_thread_id(thread_id)
 
             conn = self.get_connection(thread_id)
             try:
                 conn.execute("""
                     UPDATE instincts
                     SET confidence = ?, updated_at = ?
-                    WHERE id = ?
-                """, (new_confidence, _utc_now(), instinct_id))
+                    WHERE id = ? AND thread_id = ?
+                """, (new_confidence, _utc_now(), instinct_id, thread_id))
                 conn.commit()
             finally:
                 conn.close()
@@ -498,6 +489,7 @@ class InstinctStorageSQLite:
         self,
         instinct_id: str,
         thread_id: str | None = None,
+        confidence_boost: float = 0.05,
     ) -> None:
         """Record that an instinct was triggered and relevant."""
         instinct = self.get_instinct(instinct_id, thread_id)
@@ -506,8 +498,8 @@ class InstinctStorageSQLite:
 
         now = _utc_now()
 
-        if thread_id is None:
-            thread_id = get_thread_id()
+        thread_id = self._resolve_thread_id(thread_id)
+        bounded_boost = max(0.0, min(1.0, confidence_boost))
 
         conn = self.get_connection(thread_id)
         try:
@@ -518,14 +510,373 @@ class InstinctStorageSQLite:
                 UPDATE instincts
                 SET occurrence_count = ?,
                     last_triggered = ?,
-                    confidence = MIN(1.0, confidence + 0.05),
+                    confidence = MIN(1.0, confidence + ?),
                     updated_at = ?
-                WHERE id = ?
-            """, (occurrence_count, now, now, instinct_id))
+                WHERE id = ? AND thread_id = ?
+            """, (occurrence_count, now, bounded_boost, now, instinct_id, thread_id))
 
             conn.commit()
         finally:
             conn.close()
+
+    def _update_snapshot(self, instinct: dict[str, Any], thread_id: str | None = None) -> None:
+        """Compatibility upsert used by observer/calibrator flows."""
+        thread_id = self._resolve_thread_id(thread_id)
+        instinct_id = instinct.get("id")
+        if not instinct_id:
+            raise ValueError("instinct must include an id")
+
+        metadata = instinct.get("metadata", {})
+        now = _utc_now()
+
+        source = instinct.get("source", "session-observation")
+        if source not in _ALLOWED_SOURCES:
+            source = "session-observation"
+
+        status = instinct.get("status", "enabled")
+        if status not in ("enabled", "disabled"):
+            status = "enabled"
+
+        confidence = max(0.0, min(1.0, float(instinct.get("confidence", 0.5))))
+
+        conn = self.get_connection(thread_id)
+        try:
+            conn.execute(
+                """
+                INSERT INTO instincts (
+                    id, thread_id, trigger, action, domain, source, confidence, status,
+                    occurrence_count, success_rate, last_triggered, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    trigger=excluded.trigger,
+                    action=excluded.action,
+                    domain=excluded.domain,
+                    source=excluded.source,
+                    confidence=excluded.confidence,
+                    status=excluded.status,
+                    occurrence_count=excluded.occurrence_count,
+                    success_rate=excluded.success_rate,
+                    last_triggered=excluded.last_triggered,
+                    created_at=excluded.created_at,
+                    updated_at=excluded.updated_at
+                """,
+                (
+                    instinct_id,
+                    thread_id,
+                    instinct.get("trigger", ""),
+                    instinct.get("action", ""),
+                    instinct.get("domain", "workflow"),
+                    source,
+                    confidence,
+                    status,
+                    int(metadata.get("occurrence_count", 0) or 0),
+                    float(metadata.get("success_rate", 1.0) or 1.0),
+                    metadata.get("last_triggered"),
+                    instinct.get("created_at", now),
+                    instinct.get("updated_at", now),
+                ),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def get_applicable_instincts(
+        self,
+        context: str,
+        thread_id: str | None = None,
+        max_count: int = 5,
+    ) -> list[dict[str, Any]]:
+        instincts = self.list_instincts(
+            status="enabled",
+            min_confidence=0.5,
+            thread_id=thread_id,
+        )
+        context_lower = (context or "").lower()
+        if not context_lower:
+            return instincts[:max_count]
+
+        applicable: list[dict[str, Any]] = []
+        for instinct in instincts:
+            trigger_words = instinct["trigger"].lower().split()
+            if any(word in context_lower for word in trigger_words if len(word) > 3):
+                applicable.append(instinct)
+
+        applicable.sort(key=lambda x: x["confidence"], reverse=True)
+        return applicable[:max_count]
+
+    def get_stale_instincts(
+        self,
+        thread_id: str | None = None,
+        days_since_trigger: int = 30,
+        min_confidence: float = 0.5,
+    ) -> list[dict[str, Any]]:
+        instincts = self.list_instincts(
+            thread_id=thread_id,
+            min_confidence=min_confidence,
+            apply_decay=False,
+        )
+        stale: list[dict[str, Any]] = []
+        now = datetime.now(timezone.utc)
+
+        for instinct in instincts:
+            last_triggered_str = instinct.get("metadata", {}).get("last_triggered")
+            if not last_triggered_str:
+                enriched = dict(instinct)
+                enriched["days_since_trigger"] = 999
+                stale.append(enriched)
+                continue
+
+            try:
+                last_triggered = datetime.fromisoformat(last_triggered_str)
+                days = (now - last_triggered).days
+                if days >= days_since_trigger:
+                    enriched = dict(instinct)
+                    enriched["days_since_trigger"] = days
+                    stale.append(enriched)
+            except Exception:
+                enriched = dict(instinct)
+                enriched["days_since_trigger"] = 999
+                stale.append(enriched)
+
+        return stale
+
+    def cleanup_stale_instincts(
+        self,
+        thread_id: str | None = None,
+        days_since_trigger: int = 60,
+        min_confidence: float = 0.4,
+    ) -> int:
+        stale = self.get_stale_instincts(
+            thread_id=thread_id,
+            days_since_trigger=days_since_trigger,
+            min_confidence=min_confidence,
+        )
+        removed_count = 0
+
+        for instinct in stale:
+            occurrence_count = instinct.get("metadata", {}).get("occurrence_count", 0)
+            if occurrence_count < 3 and self.delete_instinct(instinct["id"], thread_id):
+                removed_count += 1
+                logger.info(
+                    "Cleaned stale instinct: %s (occurrence_count=%s, days_since_trigger=%s)",
+                    instinct["action"][:50],
+                    occurrence_count,
+                    instinct.get("days_since_trigger", 0),
+                )
+
+        return removed_count
+
+    @staticmethod
+    def _calculate_similarity(instinct_a: dict[str, Any], instinct_b: dict[str, Any]) -> float:
+        text_a = f"{instinct_a['trigger']} {instinct_a['action']}"
+        text_b = f"{instinct_b['trigger']} {instinct_b['action']}"
+
+        words_a = set(text_a.lower().split())
+        words_b = set(text_b.lower().split())
+        if not words_a or not words_b:
+            return 0.0
+
+        intersection = words_a & words_b
+        union = words_a | words_b
+        return len(intersection) / len(union)
+
+    def find_similar_instincts(
+        self,
+        thread_id: str | None = None,
+        similarity_threshold: float = 0.8,
+    ) -> list[list[dict[str, Any]]]:
+        instincts = self.list_instincts(
+            thread_id=thread_id,
+            apply_decay=False,
+        )
+        clusters: list[list[dict[str, Any]]] = []
+        used: set[int] = set()
+
+        for i, instinct_a in enumerate(instincts):
+            if i in used:
+                continue
+            cluster = [instinct_a]
+            used.add(i)
+            for j, instinct_b in enumerate(instincts[i + 1:], start=i + 1):
+                if j in used:
+                    continue
+                sim = self._calculate_similarity(instinct_a, instinct_b)
+                if sim >= similarity_threshold:
+                    cluster.append(instinct_b)
+                    used.add(j)
+            if len(cluster) > 1:
+                clusters.append(cluster)
+
+        return clusters
+
+    def merge_similar_instincts(
+        self,
+        thread_id: str | None = None,
+        similarity_threshold: float = 0.8,
+    ) -> dict[str, int]:
+        clusters = self.find_similar_instincts(
+            thread_id=thread_id,
+            similarity_threshold=similarity_threshold,
+        )
+        merged_count = 0
+        boosted_count = 0
+
+        for cluster in clusters:
+            cluster.sort(key=lambda x: x["confidence"], reverse=True)
+            keeper = cluster[0]
+
+            for instinct in cluster[1:]:
+                boost = instinct["confidence"] * 0.3
+                if boost > 0:
+                    self.reinforce_instinct(
+                        keeper["id"],
+                        thread_id=thread_id,
+                        confidence_boost=boost,
+                    )
+                    boosted_count += 1
+                if self.delete_instinct(instinct["id"], thread_id=thread_id):
+                    merged_count += 1
+
+        return {
+            "clusters_found": len(clusters),
+            "instincts_merged": merged_count,
+            "instincts_boosted": boosted_count,
+        }
+
+    def export_instincts(
+        self,
+        thread_id: str | None = None,
+        min_confidence: float = 0.0,
+        include_metadata: bool = True,
+    ) -> str:
+        instincts = self.list_instincts(
+            thread_id=thread_id,
+            status=None,
+            min_confidence=min_confidence,
+            apply_decay=False,
+        )
+        payload: dict[str, Any] = {
+            "version": "2.0",
+            "storage": "sqlite",
+            "exported_at": _utc_now(),
+            "thread_id": thread_id,
+            "total_instincts": len(instincts),
+            "instincts": [],
+        }
+
+        for instinct in instincts:
+            entry = {
+                "id": instinct["id"],
+                "trigger": instinct["trigger"],
+                "action": instinct["action"],
+                "domain": instinct["domain"],
+                "source": instinct["source"],
+                "confidence": instinct["confidence"],
+                "status": instinct["status"],
+                "created_at": instinct["created_at"],
+                "updated_at": instinct["updated_at"],
+            }
+            if include_metadata:
+                entry["metadata"] = instinct.get("metadata", {})
+            payload["instincts"].append(entry)
+
+        return json.dumps(payload, indent=2)
+
+    def import_instincts(
+        self,
+        json_data: str,
+        thread_id: str | None = None,
+        merge_strategy: str = "merge",
+        confidence_boost: float = 0.0,
+    ) -> dict[str, int]:
+        if merge_strategy not in {"replace", "merge"}:
+            raise ValueError("merge_strategy must be 'replace' or 'merge'")
+
+        data = json.loads(json_data)
+        instincts = data.get("instincts")
+        if not isinstance(instincts, list):
+            raise ValueError("Invalid import format: expected 'instincts' list")
+
+        target_thread = self._resolve_thread_id(thread_id)
+
+        if merge_strategy == "replace":
+            conn = self.get_connection(target_thread)
+            try:
+                conn.execute("DELETE FROM instincts WHERE thread_id = ?", (target_thread,))
+                conn.commit()
+            finally:
+                conn.close()
+
+        existing = self.list_instincts(
+            thread_id=target_thread,
+            status=None,
+            apply_decay=False,
+        )
+        existing_by_key = {(i["trigger"], i["action"]): i for i in existing}
+
+        imported_count = 0
+        skipped_count = 0
+        merged_count = 0
+
+        for item in instincts:
+            if not isinstance(item, dict):
+                skipped_count += 1
+                continue
+
+            trigger = item.get("trigger")
+            action = item.get("action")
+            domain = item.get("domain")
+            if not trigger or not action or not domain:
+                skipped_count += 1
+                continue
+
+            base_confidence = float(item.get("confidence", 0.5))
+            confidence = max(0.0, min(1.0, base_confidence + confidence_boost))
+            key = (trigger, action)
+
+            if merge_strategy == "merge" and key in existing_by_key:
+                existing_instinct = existing_by_key[key]
+                if confidence > existing_instinct["confidence"]:
+                    delta = confidence - existing_instinct["confidence"]
+                    self.reinforce_instinct(
+                        existing_instinct["id"],
+                        thread_id=target_thread,
+                        confidence_boost=delta,
+                    )
+                    merged_count += 1
+                else:
+                    skipped_count += 1
+                continue
+
+            instinct_id = self.create_instinct(
+                trigger=trigger,
+                action=action,
+                domain=domain,
+                source=item.get("source", "import"),
+                confidence=confidence,
+                thread_id=target_thread,
+            )
+            imported_count += 1
+
+            metadata = item.get("metadata") or {}
+            if metadata or item.get("status") or item.get("created_at") or item.get("updated_at"):
+                created = self.get_instinct(instinct_id, thread_id=target_thread)
+                if created:
+                    created["metadata"].update(metadata)
+                    if item.get("status"):
+                        created["status"] = item["status"]
+                    if item.get("created_at"):
+                        created["created_at"] = item["created_at"]
+                    if item.get("updated_at"):
+                        created["updated_at"] = item["updated_at"]
+                    self._update_snapshot(created, thread_id=target_thread)
+
+        return {
+            "imported": imported_count,
+            "skipped": skipped_count,
+            "merged": merged_count,
+            "total": imported_count + merged_count,
+        }
 
 
 _instinct_storage_sqlite = InstinctStorageSQLite()
