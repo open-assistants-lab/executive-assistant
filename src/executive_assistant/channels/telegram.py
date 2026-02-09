@@ -1076,6 +1076,9 @@ class TelegramChannel(BaseChannel):
                     await conn.execute("DELETE FROM scheduled_flows WHERE thread_id = $1", thread_id)
                 if scope in ("conversation", "all"):
                     await conn.execute("DELETE FROM checkpoints WHERE thread_id = $1", thread_id)
+                    # Also delete conversation history and messages to clear profile context
+                    await conn.execute("DELETE FROM messages WHERE conversation_id = $1", thread_id)
+                    await conn.execute("DELETE FROM conversations WHERE conversation_id = $1", thread_id)
             finally:
                 await conn.close()
 

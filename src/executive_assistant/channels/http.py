@@ -275,6 +275,23 @@ class HttpChannel(BaseChannel):
                     except Exception as e:
                         logger.warning(f"{ctx} Failed to delete user data: {e}")
 
+                # Delete PostgreSQL conversation history
+                if req.scope == "all":
+                    try:
+                        import asyncpg
+                        conn = await asyncpg.connect(settings.POSTGRES_URL)
+                        try:
+                            # Delete messages, conversations, and checkpoints
+                            await conn.execute("DELETE FROM messages WHERE conversation_id = $1", thread_id)
+                            await conn.execute("DELETE FROM conversations WHERE conversation_id = $1", thread_id)
+                            await conn.execute("DELETE FROM checkpoints WHERE thread_id = $1", thread_id)
+                            deleted.append("conversation history")
+                            logger.info(f"{ctx} Deleted conversation history")
+                        finally:
+                            await conn.close()
+                    except Exception as e:
+                        logger.warning(f"{ctx} Failed to delete conversation history: {e}")
+
                 # Mark force onboarding
                 if req.scope == "all":
                     try:
