@@ -19,6 +19,10 @@ from executive_assistant.storage.user_allowlist import is_authorized
 from loguru import logger
 
 
+# === STREAMING IMPROVEMENT: Track performance metrics ===
+FIRST_CHUNK_TIMEOUT = 2.0  # seconds before showing "Processing..." status
+
+
 class MessageRequest(BaseModel):
     """Request model for sending a message."""
 
@@ -603,11 +607,22 @@ class HttpChannel(BaseChannel):
         }
 
         request_start = time.perf_counter()
+
+        # === STREAMING IMPROVEMENT: Send early "Thinking..." status ===
+        try:
+            await self.send_status(batch[-1].conversation_id, "🤔 Thinking...")
+        except Exception as e:
+            logger.debug(f"Failed to send early status: {e}")
+
         build_start = time.perf_counter()
         request_agent, build_meta = await self._build_request_agent(batch[-1].content, batch[-1].conversation_id)
         build_agent_ms = (time.perf_counter() - build_start) * 1000.0
         first_response_ms: float | None = None
         embedded_seen: set[str] = set()
+
+        # === STREAMING IMPROVEMENT: Track timing for first chunk ===
+        processing_status_sent = False
+        stream_start = time.perf_counter()
 
         async def _fallback_status(step: int, tool_name: str, _args: dict[str, Any]) -> None:
             await self.send_status(batch[-1].conversation_id, f"🛠️ {step}: {tool_name}")
@@ -648,6 +663,17 @@ class HttpChannel(BaseChannel):
                     if output_tok:
                         total_output_tokens += output_tok
                 if hasattr(msg, "content") and msg.content and msg.content.strip():
+                    # === STREAMING IMPROVEMENT: Check timeout and send status if needed ===
+                    if first_response_ms is None and not processing_status_sent:
+                        elapsed = (time.perf_counter() - stream_start) * 1000.0
+                        if elapsed > FIRST_CHUNK_TIMEOUT * 1000:
+                            try:
+                                await self.send_status(batch[-1].conversation_id, "🔄 Processing...")
+                                processing_status_sent = True
+                                logger.debug(f"First chunk timeout after {elapsed:.0f}ms - sent Processing status")
+                            except Exception as e:
+                                logger.debug(f"Failed to send processing status: {e}")
+
                     chunk = MessageChunk(
                         content=msg.content,
                         role="assistant",
