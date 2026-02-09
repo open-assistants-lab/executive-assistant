@@ -14,6 +14,10 @@ agent:
 
 # Channels Configuration
 channels:
+  # Active channels (comma-separated: telegram, http)
+  # Override with EXECUTIVE_ASSISTANT_CHANNELS in .env if needed
+  active: telegram, http
+
   telegram:
     # webhook_url and webhook_secret should be in .env
     # Example:
@@ -236,6 +240,12 @@ middleware:
 logging:
   level: DEBUG # DEBUG, INFO, WARNING, ERROR, CRITICAL
   file: logs/executive_assistant.log # Optional log file path
+
+# System Configuration
+system:
+  # Timezone for the application (used for scheduling, timestamps, etc.)
+  # Override with TZ in .env if needed for your environment
+  timezone: UTC
 
 # OCR (Text Extraction from Images/PDFs)
 ocr:

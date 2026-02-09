@@ -355,6 +355,12 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = _yaml_field("LOGGING_LEVEL", "INFO")
     LOG_FILE: str | None = _yaml_field("LOGGING_FILE", None)
 
+    # Channels
+    EXECUTIVE_ASSISTANT_CHANNELS: str = _yaml_field("CHANNELS_ACTIVE", "telegram")
+
+    # System
+    TZ: str = _yaml_field("SYSTEM_TIMEZONE", "UTC")
+
     # Firecrawl (web scraping API - external service, configure in .env)
     FIRECRAWL_API_KEY: str | None = None
     FIRECRAWL_API_URL: str = "https://api.firecrawl.dev"

@@ -123,8 +123,9 @@ def config_verify() -> int:
 
 
 def get_channels():
-    """Get configured channels based on environment."""
-    channels_str = os.getenv("EXECUTIVE_ASSISTANT_CHANNELS", "telegram").lower()
+    """Get configured channels based on config.yaml or environment."""
+    from executive_assistant.config import settings
+    channels_str = settings.EXECUTIVE_ASSISTANT_CHANNELS.lower()
     return [c.strip() for c in channels_str.split(",")]
 
 
