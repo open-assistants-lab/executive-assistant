@@ -1,0 +1,13 @@
+{
+	# Optional: set for Let's Encrypt notifications.
+	email {$CADDY_ACME_EMAIL}
+}
+
+# Ken HTTP API/UI domain
+{$KEN_DOMAIN:localhost} {
+	encode zstd gzip
+	reverse_proxy ken:8000
+}
+
+# Langfuse runs outside this compose stack.
+# Keep LANGFUSE_DOMAIN in docker/.env for app configuration/integration.

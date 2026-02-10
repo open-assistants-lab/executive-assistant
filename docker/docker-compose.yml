@@ -41,6 +41,27 @@ services:
       timeout: 5s
       retries: 5
 
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    depends_on:
+      ken:
+        condition: service_started
+    environment:
+      # HTTP(S) domains proxied by Caddy
+      KEN_DOMAIN: ${KEN_DOMAIN:-localhost}
+      LANGFUSE_DOMAIN: ${LANGFUSE_DOMAIN:-langfuse.localhost}
+      CADDY_ACME_EMAIL: ${CADDY_ACME_EMAIL:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    ports:
+      - "80:80"
+      - "443:443"
+
 volumes:
   pgdata:
   ken_data:
+  caddy_data:
+  caddy_config:

@@ -77,6 +77,8 @@ Key variables:
 - `OPENAI_API_KEY` - OpenAI API key
 - `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB` - Database config
 - `EXECUTIVE_ASSISTANT_CHANNELS` - Channels to enable (telegram,http)
+- `KEN_DOMAIN`, `LANGFUSE_DOMAIN` - Caddy domains for HTTP routing
+- `LANGFUSE_PUBLIC_URL`, `LANGFUSE_NEXTAUTH_SECRET` - Langfuse web/auth config
 
 ### config.yaml (Mounted into container)
 
@@ -112,11 +114,29 @@ chmod -R u+rwX ./data/admins
 
 - `Dockerfile` - Container image definition
 - `docker-compose.yml` - Multi-container orchestration
+- `Caddyfile` - HTTP domain routing for `ken`
 - `build.sh` - Build and push image
 - `deploy.sh` - Deploy and restart services
 - `.env` - Environment configuration (not in git)
 - `config.yaml` - Application configuration
 - `migrations/` - Database migrations
+
+## Domain Access (Caddy + DNS)
+
+`caddy` is included in `docker-compose.yml` and proxies:
+- `KEN_DOMAIN` -> `ken:8000`
+
+Example:
+```bash
+# in docker/.env
+KEN_DOMAIN=ken.example.com
+LANGFUSE_DOMAIN=langfuse.example.com
+CADDY_ACME_EMAIL=admin@example.com
+```
+
+Postgres is TCP and is not proxied by Caddy in this configuration.
+Use DNS directly for the host and keep Postgres exposed on port `5432`, e.g.:
+- `postgres.example.com:5432`
 
 ## Troubleshooting
 
