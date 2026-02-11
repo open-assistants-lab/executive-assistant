@@ -630,12 +630,17 @@ class BaseChannel(ABC):
                         if output_tok:
                             total_output_tokens += output_tok
 
-                    # Send immediately, don't accumulate!
+                    # Send immediately, but skip intermediate responses (with tool_calls)
+                    # Only send final response without tool_calls to avoid user seeing duplicates
                     if isinstance(msg, AIMessage) and hasattr(msg, "content") and msg.content:
-                        await self.send_message(message.conversation_id, msg.content)
-                        messages_sent += 1
-                        if first_response_ms is None:
-                            first_response_ms = (time.perf_counter() - request_start) * 1000.0
+                        tool_calls = getattr(msg, "tool_calls", None)
+                        # Only send if this is a final response (no tool calls) or has content
+                        # Messages with tool_calls are intermediate steps - don't show them to user
+                        if not tool_calls or not msg.content.strip():
+                            await self.send_message(message.conversation_id, msg.content)
+                            messages_sent += 1
+                            if first_response_ms is None:
+                                first_response_ms = (time.perf_counter() - request_start) * 1000.0
 
                     # Log message if audit is enabled
                     if self.registry and (hasattr(msg, 'content') and msg.content or (hasattr(msg, 'tool_calls') and msg.tool_calls)):
