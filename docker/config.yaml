@@ -27,7 +27,7 @@ channels:
 # Admin Access Control
 admin:
   user_ids: [] # Comma-separated list of admin user IDs
-  thread_ids: [telegram:6282871705,http:admin] # Comma-separated list of admin thread IDs
+  thread_ids: [telegram:6282871705, http:admin] # Comma-separated list of admin thread IDs
 
 # ============================================================================
 # CORE INTELLIGENCE
@@ -53,15 +53,15 @@ llm:
     fast_model: glm-4.7-flash
 
   ollama:
-    default_model: deepseek-v3.2:cloud
-    fast_model: deepseek-v3.2:cloud
+    default_model: glm-5:cloud
+    fast_model: glm-5:cloud
     mode: cloud # cloud or local
     cloud_url: "https://ollama.com"
     local_url: "http://localhost:11434"
     # Tool Calling Compatibility (Ollama Cloud models):
     # ✅ Compatible (JSON Schema supported):
     #   - deepseek-v3.1:671b-cloud (Recommended)
-    #   - glm-4.7:cloud, minimax-m2.1:cloud, gpt-oss:20b-cloud, qwen3-next:80b-cloud, kimi-k2.5:cloud
+    #   - glm-5:cloud, minimax-m2.1:cloud, gpt-oss:20b-cloud, qwen3-next:80b-cloud, kimi-k2.5:cloud
     # ⚠️ Special format:
     #   - deepseek-v3.2:cloud (XML <function_calls>; supported via channel compatibility parser)
 
@@ -114,10 +114,10 @@ journal:
   # Rollup retention configuration (how many levels back to keep)
   # Levels: raw (0) → hourly (1) → weekly (2) → monthly (3) → yearly (4)
   retention:
-    hourly: 30  # Keep hourly rollups for 30 days
-    weekly: 52  # Keep weekly rollups for 52 weeks (1 year)
+    hourly: 30 # Keep hourly rollups for 30 days
+    weekly: 52 # Keep weekly rollups for 52 weeks (1 year)
     monthly: 84 # Keep monthly rollups for 84 months (7 years)
-    yearly: 7   # Keep yearly rollups for 7 years
+    yearly: 7 # Keep yearly rollups for 7 years
   # Auto-rollup settings
   auto_rollup:
     enabled: false # Set to true to enable automatic rollup creation
