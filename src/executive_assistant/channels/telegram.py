@@ -820,7 +820,12 @@ class TelegramChannel(BaseChannel):
             set_thread_id(thread_id)
             set_channel(channel)
             set_chat_type("private")
-            # Flow mode removed
+            set_flow_mode_active(is_flow_mode_enabled(batch[-1].conversation_id))
+
+            # Add Langfuse callback handler if enabled (includes thread_id as user_id)
+            from executive_assistant.logging import format_log_context
+            ctx_msg = format_log_context("message", channel=channel, user=thread_id, conversation=batch[-1].conversation_id, type="text")
+            BaseChannel._setup_langfuse_callbacks(config, thread_id, ctx_msg)
             # Bootstrap check-in defaults for this user so proactive scheduler can discover it.
             try:
                 from executive_assistant.checkin.config import get_checkin_config

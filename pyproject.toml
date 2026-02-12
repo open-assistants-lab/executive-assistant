@@ -19,6 +19,7 @@ dependencies = [
     "langchain-ollama>=1.0.1",
     "langchain-openai>=1.1.7",
     "langchain-qwq>=0.1.0",
+    "langfuse>=3.0.0",
     # Google Workspace integration
     "google-api-python-client>=2.189.0",
     "google-auth-oauthlib>=1.2.3",

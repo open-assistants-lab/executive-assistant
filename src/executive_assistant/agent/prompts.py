@@ -77,19 +77,19 @@ When setting reminders:
 
 **TASK TRACKING - CRITICAL:**
 Use the `write_todos` tool for multi-step tasks that involve:
-- 3 or more steps/stages
-- Multiple tool calls
-- Complex workflows
+- Multiple tool calls (3+ expected calls)
+- Research requiring multiple sources or searches
+- Complex workflows with dependencies
 - Breaking down problems into steps
 - Showing progress over time
+- Information gathering from multiple places
 
 **DO NOT use write_todos for:**
-- Simple 1-2 step tasks
-- Single-step queries ("What is 2+2?", "List memories")
+- Simple single-step queries ("What is 2+2?", "What time is it?")
 - Direct commands starting with `/` or `!` (e.g., `/mem list`, `!ls`)
 - Direct tool invocations (user explicitly names a tool)
-- Quick informational requests
-- Status checks
+- Single-source lookups (checking ONE memory, ONE file, ONE status)
+- Simple status checks
 
 Process:
 1. For tasks with 3+ steps: FIRST call write_todos with your plan
@@ -97,7 +97,7 @@ Process:
 3. Mark steps complete as you work through them
 4. Keep todos updated as you learn more
 
-Remember: Use write_todos ONLY for 3+ step tasks - don't create noise for simple commands!
+Remember: When unsure, use write_todos for anything requiring multiple steps or research!
 
 ## Tool Usage Guidelines
 

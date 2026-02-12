@@ -140,6 +140,41 @@ class BaseChannel(ABC):
             return True
         return False
 
+    @staticmethod
+    def _setup_langfuse_callbacks(config: dict, thread_id: str, ctx: str) -> dict:
+        """
+        Set up Langfuse callback handler for tracing.
+
+        Adds Langfuse callbacks to the config dict and sets thread_id as the user_id
+        for better trace attribution in Langfuse dashboard.
+
+        Args:
+            config: The agent config dict (will be modified in-place)
+            thread_id: Thread/conversation identifier (used as Langfuse user_id)
+            ctx: Log context string for debugging
+
+        Returns:
+            The modified config dict (same object as input)
+        """
+        try:
+            from executive_assistant.observability.langfuse_integration import get_callback_handler, is_enabled
+
+            logger.info(f"{ctx} Langfuse tracing check: is_enabled={is_enabled()}")
+            langfuse_handler = get_callback_handler()
+            logger.info(f"{ctx} Langfuse handler result: {type(langfuse_handler).__name__ if langfuse_handler else 'None'}")
+            if langfuse_handler:
+                config["callbacks"] = [langfuse_handler]
+                # Set thread_id as user_id for Langfuse trace attribution
+                config["metadata"] = config.get("metadata", {})
+                config["metadata"]["langfuse_user_id"] = thread_id
+                logger.info(f"{ctx} Langfuse tracing enabled - callbacks added to config (user_id={thread_id})")
+            else:
+                logger.warning(f"{ctx} Langfuse handler is None - tracing disabled")
+        except Exception as e:
+            logger.error(f"{ctx} Failed to setup Langfuse tracing: {e}", exc_info=True)
+
+        return config
+
     def get_channel_name(self) -> str:
         """Get the channel name (e.g., 'telegram', 'http', 'slack')."""
         return self.__class__.__name__.lower().replace("channel", "")
@@ -468,11 +503,15 @@ class BaseChannel(ABC):
             channel = self.__class__.__name__.lower().replace("channel", "")
             config = {"configurable": {"thread_id": thread_id}}
 
+            # Thread-only storage (thread_id is the storage identifier)
+            ctx = format_log_context("message", channel=channel, user=thread_id, conversation=message.conversation_id, type="text")
+
+            # Add Langfuse callback handler if enabled (includes thread_id as user_id)
+            self._setup_langfuse_callbacks(config, thread_id, ctx)
+
             # Set thread_id context for file sandbox operations
             set_thread_id(thread_id)
 
-            # Thread-only storage (thread_id is the storage identifier)
-            ctx = format_log_context("message", channel=channel, user=thread_id, conversation=message.conversation_id, type="text")
             logger.info(f'{ctx} recv text="{truncate_log_text(message.content)}"')
 
             # Thread-only context

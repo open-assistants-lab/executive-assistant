@@ -361,6 +361,15 @@ async def main() -> None:
             await channel.stop()
         logger.info(f'{format_log_context("system", component="shutdown")} stopping_scheduler')
         await stop_scheduler()
+
+        # Flush and shutdown Langfuse
+        try:
+            from executive_assistant.observability.langfuse_integration import shutdown_langfuse
+            logger.info(f'{format_log_context("system", component="shutdown")} flushing_langfuse')
+            shutdown_langfuse()
+        except Exception as e:
+            logger.debug(f'{format_log_context("system", component="shutdown")} langfuse_shutdown_failed: {e}')
+
         logger.info(f'{format_log_context("system", component="shutdown")} cleaning_up_resources')
         await cleanup_all()
         logger.info(f'{format_log_context("system", component="shutdown")} complete')

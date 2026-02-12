@@ -31,7 +31,7 @@ channels:
 # Admin Access Control
 admin:
   user_ids: [] # Comma-separated list of admin user IDs
-  thread_ids: [telegram:6282871705,http:admin] # Comma-separated list of admin thread IDs
+  thread_ids: [telegram:6282871705, http:admin] # Comma-separated list of admin thread IDs
 
 # ============================================================================
 # CORE INTELLIGENCE
@@ -67,19 +67,17 @@ llm:
     # - deepseek-reasoner: Advanced reasoning, higher quality (NOT compatible with tools)
 
   ollama:
-    default_model: qwen3-next:80b-cloud
-    fast_model: qwen3-next:80b-cloud
+    default_model: deepseek-v3.1:671b-cloud
+    fast_model: deepseek-v3.1:671b-cloud
     mode: cloud # cloud or local
     cloud_url: "https://ollama.com"
     local_url: "http://localhost:11434"
     # Tool Calling Compatibility (Ollama Cloud models):
     # ✅ Compatible (JSON Schema supported):
-    #   - qwen3-next:80b-cloud (Currently in use)
-    #   - deepseek-v3.1:671b-cloud, glm-4.7:cloud, minimax-m2.1:cloud, gpt-oss:20b-cloud, kimi-k2.5:cloud
-    # ⚠️ NOT Compatible:
-    #   - deepseek-v3.2:cloud (XML format only)
-    #     For DeepSeek models, use the official DeepSeek provider instead:
-    #     Set DEFAULT_LLM_PROVIDER=deepseek and DEEPSEEK_API_KEY in .env
+    #   - deepseek-v3.1:671b-cloud (Recommended)
+    #   - glm-5:cloud, minimax-m2.1:cloud, gpt-oss:20b-cloud, qwen3-next:80b-cloud, kimi-k2.5:cloud
+    # ⚠️ Special format:
+    #   - deepseek-v3.2:cloud (XML <function_calls>; supported via channel compatibility parser)
 
   # Gemini (Google)
   gemini:
@@ -130,10 +128,10 @@ journal:
   # Rollup retention configuration (how many levels back to keep)
   # Levels: raw (0) → hourly (1) → weekly (2) → monthly (3) → yearly (4)
   retention:
-    hourly: 30  # Keep hourly rollups for 30 days
-    weekly: 52  # Keep weekly rollups for 52 weeks (1 year)
+    hourly: 30 # Keep hourly rollups for 30 days
+    weekly: 52 # Keep weekly rollups for 52 weeks (1 year)
     monthly: 84 # Keep monthly rollups for 84 months (7 years)
-    yearly: 7   # Keep yearly rollups for 7 years
+    yearly: 7 # Keep yearly rollups for 7 years
   # Auto-rollup settings
   auto_rollup:
     enabled: false # Set to true to enable automatic rollup creation

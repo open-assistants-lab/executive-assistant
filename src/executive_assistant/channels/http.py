@@ -664,6 +664,12 @@ class HttpChannel(BaseChannel):
         self._reset_fallback_tool_call_metric()
 
         set_thread_id(thread_id)
+        # Set up context for logging
+        channel = "http"
+        ctx = format_log_context("message", channel=channel, user=thread_id, conversation=batch[-1].conversation_id, type="text")
+
+        # Add Langfuse callback handler if enabled (includes thread_id as user_id)
+        BaseChannel._setup_langfuse_callbacks(config, thread_id, ctx)
         # Bootstrap check-in defaults for this user so proactive scheduler can discover it.
         try:
             from executive_assistant.checkin.config import get_checkin_config
