@@ -445,6 +445,9 @@ class BaseChannel(ABC):
             channel = self.__class__.__name__.lower().replace("channel", "")
             config = {"configurable": {"thread_id": thread_id}}
 
+            # Thread-only storage (thread_id is the storage identifier)
+            ctx = format_log_context("message", channel=channel, user=thread_id, conversation=message.conversation_id, type="text")
+
             # Add Langfuse callback handler if enabled
             try:
                 from executive_assistant.observability.langfuse_integration import get_callback_handler
@@ -459,8 +462,6 @@ class BaseChannel(ABC):
             # Set thread_id context for file sandbox operations
             set_thread_id(thread_id)
 
-            # Thread-only storage (thread_id is the storage identifier)
-            ctx = format_log_context("message", channel=channel, user=thread_id, conversation=message.conversation_id, type="text")
             logger.info(f'{ctx} recv text="{truncate_log_text(message.content)}"')
 
             # Thread-only context
