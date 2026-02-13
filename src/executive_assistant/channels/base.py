@@ -351,7 +351,11 @@ class BaseChannel(ABC):
             tools = await get_all_tools()
         logger.debug("Building agent with tools: profile=%s count=%s", tool_profile, len(tools))
         model_variant = "fast" if self._is_planning_only(message_text) else "default"
-        system_prompt = get_system_prompt(self.get_channel_name(), thread_id=thread_id)
+        system_prompt = get_system_prompt(
+            channel=self.get_channel_name(),
+            thread_id=thread_id,
+            user_message=message_text,
+        )
         tools_sig = self._tools_signature(tools)
         prompt_sig = hashlib.sha256(system_prompt.encode("utf-8")).hexdigest()[:16]
         cache_thread_id = thread_id or f"{self.get_channel_name()}:{conversation_id}"
@@ -401,7 +405,9 @@ class BaseChannel(ABC):
         model = create_model()
         tools = await get_all_tools()
         checkpointer = await get_async_checkpointer()
-        system_prompt = get_system_prompt(self.__class__.__name__.replace("Channel", "").lower())
+        system_prompt = get_system_prompt(
+            channel=self.__class__.__name__.replace("Channel", "").lower()
+        )
 
         # Create new agent with this channel
         self.agent = create_langchain_agent(
@@ -554,7 +560,7 @@ class BaseChannel(ABC):
             try:
                 from executive_assistant.instincts.emotional_tracker import get_emotional_tracker
 
-                tracker = get_emotional_tracker()
+                tracker = get_emotional_tracker(thread_id)
                 # Get conversation length for context
                 history = self._get_conversation_history(message.conversation_id)
                 state = tracker.update_state(

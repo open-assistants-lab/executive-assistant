@@ -110,10 +110,11 @@ class EmotionalTracker:
         },
     }
 
-    def __init__(self) -> None:
+    def __init__(self, thread_id: str | None = None) -> None:
         # Current state and confidence
         self.current_state = EmotionalState.NEUTRAL
         self.confidence = 0.5
+        self.thread_id = thread_id
 
         # History (last 10 states)
         self.history: list[dict] = []
@@ -281,28 +282,40 @@ class EmotionalTracker:
         }
 
 
-# Singleton instance
-_emotional_tracker: Optional[EmotionalTracker] = None
+# Thread-aware singleton instances
+_emotional_trackers: dict[str, EmotionalTracker] = {}
+_fallback_emotional_tracker: Optional[EmotionalTracker] = None
 
 
-def get_emotional_tracker() -> EmotionalTracker:
+def get_emotional_tracker(thread_id: str | None = None) -> EmotionalTracker:
     """Get singleton emotional tracker instance.
 
     Returns:
         EmotionalTracker instance
     """
-    global _emotional_tracker
-    if _emotional_tracker is None:
-        _emotional_tracker = EmotionalTracker()
-    return _emotional_tracker
+    global _fallback_emotional_tracker
+    if not thread_id:
+        if _fallback_emotional_tracker is None:
+            _fallback_emotional_tracker = EmotionalTracker()
+        return _fallback_emotional_tracker
+
+    if thread_id not in _emotional_trackers:
+        _emotional_trackers[thread_id] = EmotionalTracker(thread_id=thread_id)
+    return _emotional_trackers[thread_id]
 
 
-def reset_emotional_tracker() -> EmotionalTracker:
+def reset_emotional_tracker(thread_id: str | None = None) -> EmotionalTracker:
     """Reset emotional tracker (mainly for testing).
 
     Returns:
         New EmotionalTracker instance
     """
-    global _emotional_tracker
-    _emotional_tracker = EmotionalTracker()
-    return _emotional_tracker
+    global _fallback_emotional_tracker
+    if not thread_id:
+        _fallback_emotional_tracker = EmotionalTracker()
+        return _fallback_emotional_tracker
+
+    _emotional_trackers.pop(thread_id, None)
+    tracker = EmotionalTracker(thread_id=thread_id)
+    _emotional_trackers[thread_id] = tracker
+    return tracker

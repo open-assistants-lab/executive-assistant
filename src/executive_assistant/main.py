@@ -23,10 +23,9 @@ from executive_assistant.storage.user_allowlist import allowlist_writable
 from executive_assistant.channels.telegram import TelegramChannel
 from executive_assistant.channels.http import HttpChannel
 from executive_assistant.agent.langchain_agent import create_langchain_agent
-from executive_assistant.skills import SkillsBuilder
-from executive_assistant.agent.prompts import get_default_prompt, get_channel_prompt, load_admin_prompt
+from executive_assistant.agent.prompts import get_system_prompt
 from executive_assistant.scheduler import start_scheduler, stop_scheduler, register_notification_handler
-from executive_assistant.skills import load_and_register_skills, get_skills_registry
+from executive_assistant.skills import get_skills_registry
 
 logger = logging.getLogger(__name__)
 
@@ -195,9 +194,6 @@ async def main() -> None:
     tools = await get_all_tools()
     print(f" Loaded {len(tools)} tools")
 
-    # Create skills builder (adds skill descriptions to system prompt)
-    skills_builder = SkillsBuilder(registry)
-
     # Create checkpointer
     checkpointer = await get_async_checkpointer()
     print(f" Checkpointer: {settings.CHECKPOINT_STORAGE}")
@@ -209,17 +205,8 @@ async def main() -> None:
     def build_agent(channel_name: str) -> Any:
         cache_key = f"langchain:{channel_name}"
         if cache_key not in agent_cache:
-            # Build prompt: admin -> system -> admin skills -> system skills -> channel
-            base_prompt = get_default_prompt()
-            admin_prompt = load_admin_prompt()
-            if admin_prompt:
-                base_prompt = f"{admin_prompt}\n\n{base_prompt}"
-            # Skills are loaded from registry by the builder (includes startup + admin skills)
-            system_prompt = skills_builder.build_prompt(base_prompt)
-            channel_prompt = get_channel_prompt(channel_name)
-            if channel_prompt:
-                system_prompt = f"{system_prompt}\n\n{channel_prompt}"
-            # Create agent with enhanced prompt
+            # Canonical system prompt composition (shared with request-time path).
+            system_prompt = get_system_prompt(channel=channel_name)
             agent_cache[cache_key] = create_langchain_agent(
                 model=model,
                 tools=tools,

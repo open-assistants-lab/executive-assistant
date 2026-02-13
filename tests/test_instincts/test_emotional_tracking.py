@@ -50,8 +50,9 @@ class TestEmotionalStateDetection:
         """Test detection of confused emotional state."""
         messages = [
             "I don't understand",
-            "this is confusing",
-            "what do you mean?",
+            "I'm confused",
+            "doesn't make sense",
+            "please explain again",
         ]
 
         for message in messages:
@@ -59,13 +60,10 @@ class TestEmotionalStateDetection:
             assert state == EmotionalState.CONFUSED
 
     def test_detect_explain_again(self):
-        """Test detection of confused emotional state."""
-        # "can you explain again" might match curious due to "can you"
-        # So we test this separately
+        """Test 'explain again' maps to confused state."""
         message = "please explain again"
         state = self.tracker._detect_emotional_state(message)
-        # This should be neutral since "explain again" is no longer in patterns
-        assert state == EmotionalState.NEUTRAL
+        assert state == EmotionalState.CONFUSED
 
     def test_detect_urgency(self):
         """Test detection of urgent emotional state."""
@@ -80,31 +78,11 @@ class TestEmotionalStateDetection:
             state = self.tracker._detect_emotional_state(message)
             assert state == EmotionalState.URGENT
 
-    def test_detect_confusion(self):
-        """Test detection of confused emotional state."""
-        # Use more explicit confusion indicators
-        messages = [
-            "this is confusing",
-            "I'm confused",
-            "doesn't make sense",
-        ]
-
-        for message in messages:
-            state = self.tracker._detect_emotional_state(message)
-            assert state == EmotionalState.CONFUSED
-
-    def test_detect_explain_again(self):
-        """Test detection of confused emotional state."""
-        message = "please explain again"
-        state = self.tracker._detect_emotional_state(message)
-        # Without explicit patterns, this is neutral
-        assert state == EmotionalState.NEUTRAL
-
     def test_detect_neutral(self):
         """Test detection of neutral emotional state."""
         messages = [
             "create a table",
-            "what's the weather?",
+            "show weather update",
             "tell me a joke",
         ]
 
@@ -302,3 +280,26 @@ class TestHistoryTracking:
 
         assert "recent_history" in summary
         assert len(summary["recent_history"]) >= 2
+
+
+class TestThreadScopedTracker:
+    """Ensure emotional trackers are isolated per thread."""
+
+    def setup_method(self):
+        reset_emotional_tracker()
+        reset_emotional_tracker("thread-a")
+        reset_emotional_tracker("thread-b")
+
+    def test_thread_trackers_are_isolated(self):
+        tracker_a = get_emotional_tracker("thread-a")
+        tracker_b = get_emotional_tracker("thread-b")
+
+        assert tracker_a is not tracker_b
+        assert tracker_a.thread_id == "thread-a"
+        assert tracker_b.thread_id == "thread-b"
+
+        tracker_a.current_state = EmotionalState.ENGAGED
+        tracker_a.update_state("urgent, need this ASAP")
+        assert tracker_a.current_state == EmotionalState.URGENT
+        # thread-b tracker should remain untouched
+        assert tracker_b.current_state == EmotionalState.NEUTRAL

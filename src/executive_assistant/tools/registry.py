@@ -12,6 +12,17 @@ _tools_cache: list[BaseTool] | None = None  # Cache for loaded tools
 _middleware_tools_cache: list[BaseTool] | None = None  # Cache for middleware tools
 
 
+_DESCRIPTION_SECTION_MARKERS = (
+    "\nargs:",
+    "\nparameters:",
+    "\nreturns:",
+    "\nraises:",
+    "\nexample:",
+    "\nexamples:",
+    "\nnotes:",
+)
+
+
 def _normalize_tool(tool):
     # Don't unwrap MCP tools (StructuredTool from langchain_mcp_adapters)
     # They're already properly formatted and unwrapping loses the tool name
@@ -26,6 +37,73 @@ def _normalize_tool(tool):
         if getattr(tool, "func", None):
             return tool.func
     return tool
+
+
+def _compact_tool_description(description: str, max_chars: int) -> str:
+    """Compact tool descriptions for lower prompt token overhead."""
+    if not description:
+        return description
+
+    text = description.replace("\r\n", "\n").strip()
+    if not text:
+        return text
+
+    # Drop code fences/examples and keep the summary portion.
+    text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
+    lower_text = text.lower()
+    cut_idx = len(text)
+    for marker in _DESCRIPTION_SECTION_MARKERS:
+        idx = lower_text.find(marker)
+        if idx != -1:
+            cut_idx = min(cut_idx, idx)
+    text = text[:cut_idx].strip()
+    text = re.sub(r"\s+", " ", text).strip()
+    if not text:
+        return ""
+
+    if max_chars > 0 and len(text) > max_chars:
+        text = text[: max_chars - 3].rstrip() + "..."
+    return text
+
+
+def _optimize_tools_for_prompt(
+    tools: list[BaseTool],
+    *,
+    enabled: bool | None = None,
+    max_chars: int | None = None,
+) -> list[BaseTool]:
+    """Normalize and compact tool descriptions to reduce prompt token overhead."""
+    if enabled is None or max_chars is None:
+        from executive_assistant.config import settings
+
+        enabled = settings.PROMPT_TOOL_DESCRIPTION_OPTIMIZE if enabled is None else enabled
+        max_chars = (
+            settings.PROMPT_TOOL_DESCRIPTION_MAX_CHARS if max_chars is None else max_chars
+        )
+
+    if not enabled:
+        return tools
+
+    optimized = 0
+    for tool in tools:
+        if not isinstance(tool, BaseTool):
+            continue
+        description = getattr(tool, "description", None)
+        if not isinstance(description, str) or not description.strip():
+            continue
+        compact = _compact_tool_description(description, max_chars=max_chars)
+        if not compact or compact == description:
+            continue
+        try:
+            setattr(tool, "description", compact)
+            optimized += 1
+        except Exception:
+            # Some tool implementations may prevent runtime mutation.
+            continue
+
+    if optimized:
+        logger.debug("Optimized %s tool descriptions for prompt budget", optimized)
+    return tools
 
 
 def _mcp_server_to_connection(server_config: dict) -> dict:
@@ -393,6 +471,7 @@ async def get_all_tools() -> list[BaseTool]:
     all_tools.extend(await load_mcp_tools_tiered())
 
     all_tools = [_normalize_tool(t) for t in all_tools]
+    all_tools = _optimize_tools_for_prompt(all_tools)
 
     # Cache the loaded tools
     _tools_cache = all_tools
@@ -501,7 +580,8 @@ async def get_tools_for_request(
         name = getattr(tool, "name", None) or getattr(tool, "__name__", None)
         if name and name not in deduped:
             deduped[name] = tool
-    return [_normalize_tool(t) for t in deduped.values()]
+    optimized = [_normalize_tool(t) for t in deduped.values()]
+    return _optimize_tools_for_prompt(optimized)
 
 
 async def load_mcp_tools_if_enabled() -> list[BaseTool]:

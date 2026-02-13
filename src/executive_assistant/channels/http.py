@@ -599,7 +599,11 @@ class HttpChannel(BaseChannel):
             embedded_seen: set[str] = set()
             request_start = time.perf_counter()
             build_start = time.perf_counter()
-            request_agent, build_meta = await self._build_request_agent(message.content, message.conversation_id)
+            request_agent, build_meta = await self._build_request_agent(
+                message.content,
+                message.conversation_id,
+                thread_id,
+            )
             build_agent_ms = (time.perf_counter() - build_start) * 1000.0
             first_response_ms: float | None = None
 
@@ -716,7 +720,11 @@ class HttpChannel(BaseChannel):
             logger.debug(f"Failed to send early status: {e}")
 
         build_start = time.perf_counter()
-        request_agent, build_meta = await self._build_request_agent(batch[-1].content, batch[-1].conversation_id)
+        request_agent, build_meta = await self._build_request_agent(
+            batch[-1].content,
+            batch[-1].conversation_id,
+            thread_id,
+        )
         build_agent_ms = (time.perf_counter() - build_start) * 1000.0
         first_response_ms: float | None = None
         embedded_seen: set[str] = set()

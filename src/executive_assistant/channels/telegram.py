@@ -873,7 +873,11 @@ class TelegramChannel(BaseChannel):
             message_count = 0
             embedded_seen: set[str] = set()
             build_start = time.perf_counter()
-            request_agent, build_meta = await self._build_request_agent(batch[-1].content, batch[-1].conversation_id)
+            request_agent, build_meta = await self._build_request_agent(
+                batch[-1].content,
+                batch[-1].conversation_id,
+                thread_id,
+            )
             build_agent_ms = (time.perf_counter() - build_start) * 1000.0
 
             async def _fallback_status(step: int, tool_name: str, _args: dict[str, Any]) -> None:

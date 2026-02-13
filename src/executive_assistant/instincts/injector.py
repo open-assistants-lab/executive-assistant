@@ -8,6 +8,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
+from executive_assistant.config import settings
 from executive_assistant.storage.instinct_storage import get_instinct_storage
 
 logger = logging.getLogger(__name__)
@@ -162,7 +163,7 @@ Adjust your explanations:
         self,
         thread_id: str,
         user_message: str | None = None,
-        min_confidence: float = 0.5,
+        min_confidence: float = 0.6,
         max_per_domain: int = None,  # None = adaptive
     ) -> str:
         """
@@ -171,7 +172,7 @@ Adjust your explanations:
         Args:
             thread_id: Thread identifier
             user_message: Current user message for context filtering (optional)
-            min_confidence: Minimum confidence threshold (default 0.5)
+            min_confidence: Minimum confidence threshold (default 0.6)
             max_per_domain: Maximum instincts to include per domain (default 3, None=adaptive)
 
         Returns:
@@ -272,9 +273,9 @@ Adjust your explanations:
 
             # Set max_per_domain based on quality thresholds
             if avg_confidence > 0.8:
-                max_per_domain = 5  # High quality: include more instincts
+                max_per_domain = 3  # High quality: include more instincts
             elif avg_confidence > 0.6:
-                max_per_domain = 3  # Medium quality: standard limit
+                max_per_domain = 2  # Medium quality: standard limit
             else:
                 max_per_domain = 1  # Lower quality: be conservative
 
@@ -302,9 +303,7 @@ Adjust your explanations:
         sections = []
 
         # Add header
-        sections.append("## Behavioral Patterns")
-        sections.append("")
-        sections.append(f"Apply these learned preferences from your interactions:")
+        sections.append("## Learned Preferences")
         sections.append("")
 
         # Add domain-specific sections
@@ -315,16 +314,15 @@ Adjust your explanations:
             actions = []
             for instinct in domain_instincts:
                 confidence = instinct["confidence"]
-                trigger = instinct["trigger"]
                 action = instinct["action"]
 
                 # Format based on confidence
                 if confidence >= 0.8:
-                    actions.append(f"- **{action}** (always apply)")
+                    actions.append(f"- {action}")
                 elif confidence >= 0.6:
                     actions.append(f"- {action}")
                 else:
-                    actions.append(f"- {action} (when: {trigger})")
+                    actions.append(f"- {action}")
 
             # Add domain section
             domain_name = domain.replace("_", " ").title()
@@ -332,7 +330,14 @@ Adjust your explanations:
             sections.extend(actions)
             sections.append("")
 
-        return "\n".join(sections)
+        context = "\n".join(sections)
+        max_tokens = settings.PROMPT_LAYER_CAP_INSTINCT_TOKENS
+        if max_tokens > 0:
+            max_chars = max_tokens * 4
+            if len(context) > max_chars:
+                context = context[:max_chars].rstrip()
+                context += "\n\n[...instincts truncated for prompt budget]"
+        return context
 
     def get_instincts_summary(
         self,

@@ -1,10 +1,10 @@
 """System prompts for the agent."""
 
-import time
-from pathlib import Path
+import logging
 
 from executive_assistant.config import settings
-from executive_assistant.storage.user_storage import UserPaths
+
+logger = logging.getLogger(__name__)
 
 TELEGRAM_APPENDIX = """Telegram Formatting:
 - Use short bullets or numbered lists
@@ -27,14 +27,146 @@ def get_channel_prompt(channel: str | None = None) -> str:
     return ""
 
 
+def _estimate_tokens(text: str) -> int:
+    """Approximate token count without model-specific tokenizer dependencies."""
+    if not text:
+        return 0
+    # Rough heuristic for GPT-style tokenization in English prose.
+    return max(1, (len(text) + 3) // 4)
+
+
+def _truncate_to_token_budget(text: str, max_tokens: int, layer_name: str) -> str:
+    """Truncate text to approximate token budget, preserving top-priority content."""
+    if not text or max_tokens <= 0:
+        return ""
+
+    if _estimate_tokens(text) <= max_tokens:
+        return text
+
+    target_chars = max_tokens * 4
+    truncated = text[:target_chars].rstrip()
+    if "\n" in truncated:
+        truncated = truncated.rsplit("\n", 1)[0].rstrip()
+    if not truncated:
+        return ""
+    return f"{truncated}\n\n[...{layer_name} truncated for prompt budget]"
+
+
+def _apply_layer_cap(text: str, max_tokens: int, layer_name: str) -> str:
+    """Apply per-layer cap with lightweight telemetry."""
+    if not text:
+        return ""
+    before = _estimate_tokens(text)
+    if before <= max_tokens:
+        return text
+    after = _truncate_to_token_budget(text, max_tokens, layer_name)
+    logger.debug(
+        "Prompt layer capped: layer=%s before=%s after=%s",
+        layer_name,
+        before,
+        _estimate_tokens(after),
+    )
+    return after
+
+
+def _apply_total_budget(layers: dict[str, str], max_total_tokens: int) -> dict[str, str]:
+    """Apply deterministic truncation order to keep total prompt under budget."""
+    if max_total_tokens <= 0:
+        return layers
+
+    total = sum(_estimate_tokens(text) for text in layers.values())
+    if total <= max_total_tokens:
+        return layers
+
+    # Lowest-priority guidance trimmed first.
+    trim_order = [
+        ("emotional", 0),
+        ("instincts", 40),
+        ("user_prompt", 60),
+        ("skills", 60),
+        ("admin", 120),
+    ]
+
+    updated = dict(layers)
+    excess = total - max_total_tokens
+    for layer_name, min_keep in trim_order:
+        text = updated.get(layer_name, "")
+        if not text:
+            continue
+        current_tokens = _estimate_tokens(text)
+        removable = max(current_tokens - min_keep, 0)
+        if removable <= 0:
+            continue
+
+        shrink = min(removable, excess)
+        target = current_tokens - shrink
+        updated[layer_name] = (
+            _truncate_to_token_budget(text, target, layer_name) if target > 0 else ""
+        )
+        excess -= shrink
+        if excess <= 0:
+            break
+
+    return updated
+
+
+def _log_prompt_telemetry(
+    channel: str | None,
+    thread_id: str | None,
+    layers: dict[str, str],
+) -> None:
+    """Emit per-layer prompt token telemetry for budget tracking."""
+    if not settings.PROMPT_TELEMETRY_ENABLED:
+        return
+
+    layer_tokens = {
+        name: _estimate_tokens(text)
+        for name, text in layers.items()
+        if text
+    }
+    total_tokens = sum(layer_tokens.values())
+    token_summary = ", ".join(f"{name}={count}" for name, count in layer_tokens.items())
+    log_msg = (
+        "System prompt telemetry: total_tokens=%s channel=%s thread_id=%s layers=[%s]"
+    )
+    args = (total_tokens, channel or "-", thread_id or "-", token_summary)
+
+    if total_tokens >= settings.PROMPT_ERROR_TOKENS:
+        logger.error(log_msg, *args)
+    elif total_tokens >= settings.PROMPT_WARN_TOKENS:
+        logger.warning(log_msg, *args)
+    else:
+        logger.debug(log_msg, *args)
+
+
+def load_skills_context() -> str:
+    """Load compact skill index for the system prompt."""
+    if not settings.PROMPT_INCLUDE_SKILLS_INDEX:
+        return ""
+
+    try:
+        from executive_assistant.skills.builder import SkillsBuilder
+        from executive_assistant.skills.registry import get_skills_registry
+
+        registry = get_skills_registry()
+        if not registry.list_all():
+            return ""
+
+        builder = SkillsBuilder(registry)
+        return builder.build_skills_section(include_startup_content=False)
+    except Exception as exc:
+        logger.debug("Failed to load skills context: %s", exc)
+        return ""
+
+
 def _get_telegram_prompt() -> str:
     """Get Telegram-specific system prompt with agent name."""
-    return f"{get_default_prompt()}\n\n{TELEGRAM_APPENDIX}"
+    return get_system_prompt(channel="telegram")
 
 
 def _get_http_prompt() -> str:
     """Get HTTP-specific system prompt with agent name."""
-    return f"{get_default_prompt()}\n\n{HTTP_APPENDIX}"
+    return get_system_prompt(channel="http")
 
 
 def get_default_prompt() -> str:
@@ -44,96 +176,22 @@ def get_default_prompt() -> str:
 Help with tasks, questions, and organizing information. Be clear and practical.
 If you can't do something with available tools, say so.
 
-**FIRST RESPONSE RULE:** When a user states their role for the FIRST TIME ("I'm a CEO", "I'm a developer", "I'm an analyst"), acknowledge it briefly.
+Core execution rules:
+- First role mention in a conversation: acknowledge briefly once, then continue normally without repeating role references.
+- Memory capture: when user says "remember", "I prefer", "always", "never", call `create_memory` (usually `memory_type="preference"`).
+- Memory retrieval: before reports/summaries/formatted outputs, search memories first and reflect found preferences in response style.
+- Reminder handling: use `reminder_set`; for relative times execute immediately; clarify timezone when ambiguous; confirm interpreted datetime/timezone.
+- Task tracking: use `write_todos` for multi-step work (typically 3+ tool calls, multi-source research, or dependent workflows). Skip it for simple queries, direct commands (`/`, `!`), explicit tool invocations, or single-source checks.
 
-IMPORTANT: Only acknowledge ONCE per conversation. If you've already learned their role (from memories or conversation history), do NOT repeat acknowledgment. Simply proceed with your actual response.
+Tool and response rules:
+- Prefer built-in tools over external suggestions.
+- If user explicitly requests `run <tool>()` / `use <tool>` / tool+args, call the requested tool first.
+- Be direct, practical, and outcome-focused.
 
-Examples:
-- "I'm a CEO" → "Thanks for letting me know. How can I help you today?"
-- "I'm a developer" → "Got it. What would you like to work on?"
-- "I'm an analyst" → "Understood. What can I help with?"
-
-After the FIRST acknowledgment, move directly to helping them without repeating role references like "I understand you're a tester" or "for your testing".
-
-**MEMORY CREATION - CRITICAL:**
-When users express preferences or say "Remember that...", "I prefer...", "Always...", "Never...":
-1. **MUST** use the `create_memory` tool to store it
-2. Do NOT just verbally acknowledge - ALWAYS call the tool
-3. Use memory_type="preference" and a descriptive key
-
-**MEMORY RETRIEVAL - CRITICAL:**
-Before generating reports, summaries, or formatted output:
-1. **ALWAYS** search memories first: `search_memories()` or `get_memory_by_key()`
-2. **Acknowledge preferences found** - if memory says "brief summaries", SAY "brief/short/summary" in your response
-3. **THEN** proceed - even if you need to ask for more info
-
-**REMINDER TIME HANDLING - CRITICAL:**
-When setting reminders:
-1. Use `reminder_set` and return its result to the user (success or explicit error).
-2. Prefer explicit formats when clarifying: `YYYY-MM-DD HH:MM` (or with timezone, e.g. `2026-02-06 23:22 Australia/Sydney`).
-3. If user timezone is missing and request is ambiguous, ask for timezone or use saved timezone memory if available.
-4. For relative times like "in 10 minutes", call `reminder_set` immediately using current/default timezone; do not block on timezone lookup.
-5. Confirm the interpreted scheduled time and timezone in the final response.
-
-**TASK TRACKING - CRITICAL:**
-Use the `write_todos` tool for multi-step tasks that involve:
-- Multiple tool calls (3+ expected calls)
-- Research requiring multiple sources or searches
-- Complex workflows with dependencies
-- Breaking down problems into steps
-- Showing progress over time
-- Information gathering from multiple places
-
-**DO NOT use write_todos for:**
-- Simple single-step queries ("What is 2+2?", "What time is it?")
-- Direct commands starting with `/` or `!` (e.g., `/mem list`, `!ls`)
-- Direct tool invocations (user explicitly names a tool)
-- Single-source lookups (checking ONE memory, ONE file, ONE status)
-- Simple status checks
-
-Process:
-1. For tasks with 3+ steps: FIRST call write_todos with your plan
-2. For commands/simple queries: Execute directly WITHOUT todos
-3. Mark steps complete as you work through them
-4. Keep todos updated as you learn more
-
-Remember: When unsure, use write_todos for anything requiring multiple steps or research!
-
-## Tool Usage Guidelines
-
-**PREFER BUILT-IN TOOLS**: Always try to use the tools you have available before suggesting external solutions or services. Your built-in tools can handle most tasks including:
-- Storing and retrieving information (use "data storage" or "memory" tools)
-- Searching the web
-- Managing reminders and tasks
-- Reading and writing files
-- Performing calculations
-
-**DIRECT TOOL REQUESTS - CRITICAL:** If the user explicitly says `run <tool>()`, `use <tool> now`, or provides a tool name with arguments, you MUST call that tool. Do not answer with explanation-only text before attempting the requested tool call.
-
-**STORAGE OPTIONS**: You have TWO scopes for data storage:
-- **Thread-scoped (default)**: Private to this conversation. Only you can access it.
-- **Shared (organization-wide)**: Accessible by all users. Perfect for announcements, shared data, company-wide knowledge.
-
-ALL storage tools support BOTH scopes:
-- Structured data storage: use `scope="shared"` for organization-wide tables
-- Knowledge search (VDB): use `scope="shared"` for shared knowledge bases
-- File storage: use `scope="shared"` for shared files
-
-When users want data visible to everyone, suggest using `scope="shared"`.
-
-**AVOID TECHNICAL JARGON**: Use user-friendly language that non-technical users can understand:
-- Instead of "TDB", "ADB", "VDB" → say "data storage", "agent memory", or "searchable knowledge"
-- Instead of "vector database" → say "knowledge search" or "semantic search"
-- Instead of "transactional database" → say "structured data storage" or "data tables"
-- Instead of "PostgreSQL" → say "database" or "data storage"
-- Instead of technical tool names → describe what the tool does (e.g., "save this information" instead of "use tdb_insert")
-
-**NO PYTHON CODE UNLESS REQUESTED**: Do not provide Python code as a solution unless the user explicitly asks for it. Most users are not developers and cannot run Python code. Instead:
-- Use your built-in tools to accomplish the task directly
-- Explain what you'll do in plain language
-- If you cannot complete a task with available tools, explain what's needed in user-friendly terms
-
-**BE DIRECT AND HELPFUL**: Focus on solving the user's problem using your available capabilities rather than explaining technical implementation details or suggesting workarounds the user cannot execute.
+Storage and language rules:
+- Storage scopes: `context` (thread-private) and `shared` (organization-wide). Suggest `shared` for org-visible data.
+- Avoid technical jargon in user-facing text; use plain language (e.g., "data storage", "knowledge search", "memory").
+- Do not provide Python code unless user explicitly asks for code.
 """
 
 
@@ -141,64 +199,64 @@ def get_system_prompt(
     channel: str | None = None,
     thread_id: str | None = None,
     user_message: str | None = None,
+    include_skills: bool | None = None,
 ) -> str:
-    """Get appropriate system prompt for the channel.
+    """Build canonical system prompt used by all runtime paths."""
+    include_skills_layer = (
+        settings.PROMPT_INCLUDE_SKILLS_INDEX if include_skills is None else include_skills
+    )
 
-    Merge order (highest priority last):
-    1. Admin prompt (global policies)
-    2. Base prompt (role definition)
-    3. User instincts (learned behavioral patterns)
-    4. Channel appendix (formatting constraints)
+    admin_prompt = _apply_layer_cap(
+        load_admin_prompt(),
+        settings.PROMPT_LAYER_CAP_ADMIN_TOKENS,
+        "admin",
+    )
+    base_prompt = get_default_prompt()
+    skills_prompt = ""
+    if include_skills_layer:
+        skills_prompt = _apply_layer_cap(
+            load_skills_context(),
+            settings.PROMPT_LAYER_CAP_SKILLS_TOKENS,
+            "skills",
+        )
 
-    Args:
-        channel: Channel type ('telegram', 'http', etc.)
-        thread_id: Thread identifier for user-specific content (optional)
-        user_message: Current user message for context-aware instinct filtering (optional)
+    instincts_prompt = ""
+    user_prompt = ""
+    emotional_prompt = ""
 
-    Returns:
-        Complete system prompt with all layers merged.
-    """
-    parts = []
-
-    # Layer 1: Admin prompt (optional, global)
-    admin_prompt = load_admin_prompt()
-    if admin_prompt:
-        parts.append(admin_prompt)
-
-    # Layer 2: Base prompt (required)
-    parts.append(get_default_prompt())
-
-    # Layer 3: User instincts (optional, per-thread)
     if thread_id:
-        # Try to load instincts first (preferred)
-        instincts_section = load_instincts_context(thread_id, user_message)
-        if instincts_section:
-            parts.append(instincts_section)
-        else:
-            # Fallback to deprecated user prompt for transition period
-            user_prompt = load_user_prompt(thread_id)
-            if user_prompt:
-                parts.append(user_prompt)
+        instincts_prompt = _apply_layer_cap(
+            load_instincts_context(thread_id, user_message),
+            settings.PROMPT_LAYER_CAP_INSTINCT_TOKENS,
+            "instincts",
+        )
+        if not instincts_prompt:
+            user_prompt = _apply_layer_cap(
+                load_user_prompt(thread_id),
+                settings.PROMPT_LAYER_CAP_USER_PROMPT_TOKENS,
+                "user_prompt",
+            )
+        emotional_prompt = _apply_layer_cap(
+            load_emotional_context(thread_id),
+            settings.PROMPT_LAYER_CAP_EMOTIONAL_TOKENS,
+            "emotional",
+        )
 
-    # Layer 4: Emotional state context (optional, per-conversation)
-    emotional_section = load_emotional_context()
-    if emotional_section:
-        parts.append(emotional_section)
+    channel_prompt = get_channel_prompt(channel)
 
-    # Layer 5: Channel appendix (optional)
-    appendix = get_channel_prompt(channel)
-    if appendix:
-        parts.append(appendix)
+    layers = {
+        "admin": admin_prompt,
+        "base": base_prompt,
+        "skills": skills_prompt,
+        "instincts": instincts_prompt,
+        "user_prompt": user_prompt,
+        "emotional": emotional_prompt,
+        "channel": channel_prompt,
+    }
+    layers = _apply_total_budget(layers, settings.PROMPT_MAX_SYSTEM_TOKENS)
+    _log_prompt_telemetry(channel=channel, thread_id=thread_id, layers=layers)
 
-    # Join all layers with double newlines
-    full_prompt = "\n\n".join(parts)
-
-    # Log system prompt for troubleshooting (debug level to avoid spamming)
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.debug(f"System prompt generated (thread_id={thread_id}, channel={channel}):\n{full_prompt[:2000]}...")
-
-    return full_prompt
+    return "\n\n".join(text for text in layers.values() if text)
 
 
 def load_instincts_context(thread_id: str, user_message: str | None = None) -> str:
@@ -222,30 +280,20 @@ def load_instincts_context(thread_id: str, user_message: str | None = None) -> s
 
 
 def load_user_prompt(thread_id: str) -> str:
-    """Load user prompt content (thread-specific, optional).
+    """Load user prompt content (thread-specific, optional)."""
+    from executive_assistant.storage.user_storage import UserPaths
 
-    Args:
-        thread_id: Thread identifier (e.g., "telegram:123456")
+    prompt_path = UserPaths.get_prompt_path(thread_id)
+    if not prompt_path.exists():
+        return ""
 
-    Returns:
-        Formatted user prompt if exists, empty string otherwise.
-    """
     try:
-        from executive_assistant.storage.user_storage import UserPaths
-
-        user_paths = UserPaths(thread_id)
-        prompt_path = user_paths.get_prompt_path()
-
-        if prompt_path.exists():
-            with open(prompt_path) as f:
-                return f.read()
+        return prompt_path.read_text(encoding="utf-8").strip()
     except Exception:
-        pass
-
-    return ""
+        return ""
 
 
-def load_emotional_context() -> str:
+def load_emotional_context(thread_id: str | None = None) -> str:
     """Load current emotional state as context for system prompt.
 
     Returns:
@@ -254,29 +302,10 @@ def load_emotional_context() -> str:
     try:
         from executive_assistant.instincts.emotional_tracker import get_emotional_tracker
 
-        tracker = get_emotional_tracker()
+        tracker = get_emotional_tracker(thread_id)
         return tracker.get_state_for_prompt()
     except Exception:
         # If emotional tracking fails, return empty (don't break the agent)
-        return ""
-
-
-def load_user_prompt(thread_id: str) -> str:
-    """Load user prompt content (thread-specific, optional).
-
-    Args:
-        thread_id: Thread identifier
-
-    Returns:
-        User prompt content if file exists, empty string otherwise.
-    """
-    prompt_path = UserPaths.get_prompt_path(thread_id)
-    if not prompt_path.exists():
-        return ""
-
-    try:
-        return prompt_path.read_text(encoding="utf-8").strip()
-    except Exception:
         return ""
 
 
@@ -344,6 +373,8 @@ def save_user_prompt(thread_id: str, prompt: str) -> tuple[bool, str]:
         return False, error_msg
 
     # Ensure directory exists
+    from executive_assistant.storage.user_storage import UserPaths
+
     prompt_path = UserPaths.get_prompt_path(thread_id)
     prompt_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -364,6 +395,8 @@ def delete_user_prompt(thread_id: str) -> tuple[bool, str]:
     Returns:
         Tuple of (success, message)
     """
+    from executive_assistant.storage.user_storage import UserPaths
+
     prompt_path = UserPaths.get_prompt_path(thread_id)
 
     if not prompt_path.exists():
