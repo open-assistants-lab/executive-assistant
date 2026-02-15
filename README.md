@@ -70,7 +70,7 @@ data/                           # DATA_PATH
     └── {user_id}/              # User-isolated data
         ├── .memory/            # Memory DB (SQLite + FTS5 + vec)
         ├── .journal/           # Journal DB
-        ├── .passwords/         # Encrypted password vault
+        ├── .vault/             # Encrypted secrets vault
         ├── skills/             # User-specific skills
         ├── .mcp.json           # User MCP servers
         └── projects/           # User project files

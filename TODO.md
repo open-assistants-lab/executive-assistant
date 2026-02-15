@@ -175,7 +175,7 @@ data/
         │   └── memory.db   # SQLite + FTS5 + vec
         ├── .journal/
         │   └── journal.db  # SQLite + FTS5 + vec
-        ├── .passwords/
+        ├── .vault/
         │   └── vault.db    # Encrypted SQLite
         ├── skills/         # User skills
         ├── .mcp.json       # User MCP servers
