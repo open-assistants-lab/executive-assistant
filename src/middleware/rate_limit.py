@@ -126,6 +126,14 @@ class RateLimitMiddleware(AgentMiddleware):
 
         return None
 
+    async def abefore_model(
+        self,
+        state: AgentState,
+        runtime: Runtime,
+    ) -> dict[str, Any] | None:
+        """Async version of rate limit check before model call."""
+        return self.before_model(state, runtime)
+
     def get_status(self, user_id: str | None = None) -> dict:
         """Get rate limit status for a user."""
         uid = user_id or self.default_user_id

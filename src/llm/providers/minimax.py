@@ -53,6 +53,11 @@ class MinimaxProvider(BaseLLMProvider):
 
         config = self.get_config(**kwargs)
 
+        # Add callbacks (e.g., Langfuse)
+        callbacks = self._get_callbacks()
+        if callbacks:
+            config["callbacks"] = callbacks
+
         # Minimax uses OpenAI-compatible API
         return ChatOpenAI(
             model=model,

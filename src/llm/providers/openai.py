@@ -38,4 +38,9 @@ class OpenAIProvider(BaseLLMProvider):
         if "api_key" in config:
             del config["api_key"]
 
+        # Add callbacks (e.g., Langfuse)
+        callbacks = self._get_callbacks()
+        if callbacks:
+            config["callbacks"] = callbacks
+
         return ChatOpenAI(api_key=self.api_key, **config)

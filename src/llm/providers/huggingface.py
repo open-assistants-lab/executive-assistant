@@ -38,6 +38,11 @@ class HuggingFaceProvider(BaseLLMProvider):
         if "api_key" in config:
             del config["api_key"]
 
+        # Add callbacks (e.g., Langfuse)
+        callbacks = self._get_callbacks()
+        if callbacks:
+            config["callbacks"] = callbacks
+
         llm = HuggingFaceEndpoint(
             repo_id=model,
             huggingfacehub_api_token=self.api_key,

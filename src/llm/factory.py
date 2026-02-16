@@ -112,23 +112,41 @@ class LLMFactory:
             ZhipuAIProvider,
         )
 
-        register_provider("openai", OpenAIProvider)
-        register_provider("anthropic", AnthropicProvider)
-        register_provider("google", GoogleProvider)
-        register_provider("azure", AzureProvider)
-        register_provider("groq", GroqProvider)
-        register_provider("ollama", OllamaProvider)
-        register_provider("mistral", MistralProvider)
-        register_provider("cohere", CohereProvider)
-        register_provider("together", TogetherProvider)
-        register_provider("fireworks", FireworksProvider)
-        register_provider("deepseek", DeepSeekProvider)
-        register_provider("xai", XAIProvider)
-        register_provider("huggingface", HuggingFaceProvider)
-        register_provider("openrouter", OpenRouterProvider)
-        register_provider("minimax", MinimaxProvider)
-        register_provider("qwen", QwenProvider)
-        register_provider("zhipuai", ZhipuAIProvider)
+        # Only register providers that are available (not None)
+        if OpenAIProvider:
+            register_provider("openai", OpenAIProvider)
+        if AnthropicProvider:
+            register_provider("anthropic", AnthropicProvider)
+        if GoogleProvider:
+            register_provider("google", GoogleProvider)
+        if AzureProvider:
+            register_provider("azure", AzureProvider)
+        if GroqProvider:
+            register_provider("groq", GroqProvider)
+        if OllamaProvider:
+            register_provider("ollama", OllamaProvider)
+        if MistralProvider:
+            register_provider("mistral", MistralProvider)
+        if CohereProvider:
+            register_provider("cohere", CohereProvider)
+        if TogetherProvider:
+            register_provider("together", TogetherProvider)
+        if FireworksProvider:
+            register_provider("fireworks", FireworksProvider)
+        if DeepSeekProvider:
+            register_provider("deepseek", DeepSeekProvider)
+        if XAIProvider:
+            register_provider("xai", XAIProvider)
+        if HuggingFaceProvider:
+            register_provider("huggingface", HuggingFaceProvider)
+        if OpenRouterProvider:
+            register_provider("openrouter", OpenRouterProvider)
+        if MinimaxProvider:
+            register_provider("minimax", MinimaxProvider)
+        if QwenProvider:
+            register_provider("qwen", QwenProvider)
+        if ZhipuAIProvider:
+            register_provider("zhipuai", ZhipuAIProvider)
 
     def create(
         self,

@@ -1,5 +1,5 @@
 from __future__ import annotations
 
-from src.agent.factory import create_ken_agent
+from src.agent.factory import create_ea_agent
 
-__all__ = ["create_ken_agent"]
+__all__ = ["create_ea_agent"]

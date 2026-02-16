@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 from langchain.agents.middleware import AgentMiddleware
 from langchain.messages import AIMessage
@@ -94,6 +94,14 @@ class CheckinMiddleware(AgentMiddleware):
 
         return None
 
+    async def abefore_model(
+        self,
+        state: AgentState,
+        runtime: Runtime,
+    ) -> dict[str, Any] | None:
+        """Async version of update last activity timestamp on user messages."""
+        return self.before_model(state, runtime)
+
     def wrap_model_call(
         self,
         request: ModelRequest,
@@ -110,6 +118,23 @@ class CheckinMiddleware(AgentMiddleware):
             return handler(request.override(system_message=new_system))
 
         return handler(request)
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
+    ) -> ModelResponse:
+        """Async version of inject check-in context if appropriate."""
+        messages = request.messages
+
+        is_idle = self._check_idle_time()
+
+        if is_idle and self._is_active_hours():
+            checkin_prompt = self._build_checkin_prompt()
+            new_system = self._append_checkin_context(request.system_message, checkin_prompt)
+            return await handler(request.override(system_message=new_system))
+
+        return await handler(request)
 
     def _check_idle_time(self) -> bool:
         """Check if user has been idle for threshold."""

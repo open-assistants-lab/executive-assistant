@@ -46,4 +46,9 @@ class OllamaProvider(BaseLLMProvider):
         config["model"] = model
         config["base_url"] = base_url
 
+        # Add callbacks (e.g., Langfuse)
+        callbacks = self._get_callbacks()
+        if callbacks:
+            config["callbacks"] = callbacks
+
         return ChatOllama(**config)

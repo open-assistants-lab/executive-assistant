@@ -1,0 +1,111 @@
+# Executive Assistant Configuration Schema
+# Location: /data/config.yaml (admin-managed only)
+# No user-level overrides - this file is managed by the deployment admin
+#
+# Environment variables are NOT used for middleware configuration.
+# Env vars are reserved for:
+# - API keys (e.g., OPENAI_API_KEY, TAVILY_API_KEY)
+# - URLs (e.g., DATABASE_URL, FIRECRAWL_BASE_URL)
+# - Deployment settings (e.g., APP_ENV, DATA_PATH)
+
+middleware:
+  # ===========================================================================
+  # Custom Middlewares
+  # ===========================================================================
+
+  # MemoryContextMiddleware - Inject memories into prompts
+  # Uses progressive disclosure to minimize token usage
+  memory_context:
+    enabled: true
+    max_memories: 5                      # Maximum memories to inject (1-50)
+    min_confidence: 0.7                  # Minimum confidence threshold (0.0-1.0)
+    include_types: null                  # Filter to specific types (null = all)
+                                        # Options: profile, contact, preference, schedule,
+                                        #          task, decision, insight, context, goal,
+                                        #          chat, feedback, personal
+
+  # MemoryLearningMiddleware - Extract memories from conversations
+  # Supports rule-based and LLM-based extraction
+  memory_learning:
+    enabled: true
+    auto_learn: true                     # Extract memories automatically
+    min_confidence: 0.6                  # Minimum confidence for saving (0.0-1.0)
+    extraction_model: null               # LLM for intelligent extraction
+                                        # Format: provider/model (e.g., openai/gpt-4o-mini)
+                                        # Null = rule-based extraction (no LLM)
+    max_memories_per_conversation: 10    # Maximum memories to extract per conversation
+
+  # LoggingMiddleware - Log agent activity for debugging and analytics
+  logging:
+    enabled: true
+    log_dir: "/data/logs"                # Log directory path
+    log_model_calls: true                # Log model calls
+    log_tool_calls: true                 # Log tool calls
+    log_memory_access: true              # Log memory access
+    log_errors: true                     # Log errors
+    log_format: "jsonl"                  # Log format: jsonl or json
+
+  # CheckinMiddleware - Periodic check-ins with the user
+  # Disabled by default - enable for proactive engagement
+  checkin:
+    enabled: false
+    interval_minutes: 30                 # Check-in interval (5-1440 minutes)
+    active_hours_start: 8                # Start of active hours (0-23, 24-hour format)
+    active_hours_end: 22                 # End of active hours (1-24, 24-hour format)
+    idle_threshold_hours: 8              # Idle hours before check-in (1-168)
+    checklist:                           # Check-in checklist items
+      - "Check for pending tasks"
+      - "Review recent conversations for follow-ups"
+      - "Summarize any completed work"
+
+  # RateLimitMiddleware - Rate limit agent requests per user
+  rate_limit:
+    enabled: true
+    max_model_calls_per_minute: 60       # Maximum model calls per minute (1-1000)
+    max_tool_calls_per_minute: 120       # Maximum tool calls per minute (1-2000)
+    window_seconds: 60                   # Rate limit time window (10-3600 seconds)
+
+  # ===========================================================================
+  # Built-in DeepAgents Middlewares
+  # ===========================================================================
+
+  # SummarizationMiddleware - Compress long conversations to save tokens
+  # Critical for effectiveness testing - target: >50% compression, 90%+ retention
+  summarization:
+    enabled: true
+    max_tokens: 4000                     # Maximum tokens after summarization (1000-32000)
+    threshold_tokens: 8000               # Trigger summarization when exceeded (2000-100000)
+    summary_model: null                  # Custom summarization model
+                                        # Format: provider/model (e.g., openai/gpt-4o-mini)
+                                        # Null = uses SUMMARIZATION_MODEL from env
+
+  # TodoListMiddleware - Manage todo lists for task tracking
+  todo_list:
+    enabled: true
+    max_todos: 100                       # Maximum todos allowed (10-1000)
+
+  # FilesystemMiddleware - Manage file operations in virtual filesystem
+  filesystem:
+    enabled: true
+    max_file_size_mb: 10                 # Maximum file size in MB (1-1000)
+
+  # SubagentMiddleware - Manage subagent delegation
+  subagent:
+    enabled: true
+    max_delegation_depth: 3              # Maximum subagent delegation depth (1-10)
+
+  # HumanInTheLoopMiddleware - Require user confirmations for actions
+  # Disabled by default - enable for additional safety
+  human_in_the_loop:
+    enabled: false
+    confirm_tool_calls: false            # Confirm tool calls
+    confirm_subagent_calls: true         # Confirm subagent calls
+
+  # ToolRetryMiddleware - Retry failed tool calls automatically
+  tool_retry:
+    enabled: true
+    max_retries: 3                       # Maximum retry attempts (0-10)
+    retry_on_errors:                     # Error types to retry
+      - "timeout"
+      - "rate_limit"
+      - "server_error"

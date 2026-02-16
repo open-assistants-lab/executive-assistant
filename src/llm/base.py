@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from langchain_core.language_models.chat_models import BaseChatModel
+    from langchain_core.callbacks import BaseCallbackHandler
 
 
 class BaseLLMProvider(ABC):
@@ -40,6 +41,34 @@ class BaseLLMProvider(ABC):
             A LangChain BaseChatModel instance
         """
         pass
+
+    def _get_callbacks(self) -> list[BaseCallbackHandler]:
+        """
+        Get callbacks to attach to the model.
+
+        Returns:
+            List of callback handlers (e.g., LangfuseCallbackHandler)
+        """
+        callbacks: list[BaseCallbackHandler] = []
+
+        # Add Langfuse callback if configured
+        try:
+            from src.config.settings import get_settings
+            from src.observability.langfuse import get_langfuse_client
+
+            settings = get_settings()
+            if settings.is_langfuse_configured:
+                from langfuse.callback import LangfuseCallbackHandler
+
+                client = get_langfuse_client()
+                if client.is_enabled():
+                    callbacks.append(LangfuseCallbackHandler())
+        except ImportError:
+            pass
+        except Exception:
+            pass
+
+        return callbacks
 
     @abstractmethod
     def is_available(self) -> bool:

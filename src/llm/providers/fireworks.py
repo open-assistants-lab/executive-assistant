@@ -38,4 +38,9 @@ class FireworksProvider(BaseLLMProvider):
         if "api_key" in config:
             del config["api_key"]
 
+        # Add callbacks (e.g., Langfuse)
+        callbacks = self._get_callbacks()
+        if callbacks:
+            config["callbacks"] = callbacks
+
         return ChatFireworks(fireworks_api_key=self.api_key, **config)

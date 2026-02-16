@@ -36,20 +36,37 @@ def message(
 
     from langchain_core.messages import HumanMessage
 
-    from src.agent import create_ken_agent
+    from src.agent import create_ea_agent
 
     settings = get_settings()
     thread_id = thread or f"{user_id}-cli"
 
     async def run() -> None:
-        async with create_ken_agent(settings, user_id=user_id) as ea_agent:
+        async with create_ea_agent(settings, user_id=user_id) as ea_agent:
             result = await ea_agent.ainvoke(
-                {"messages": [HumanMessage(content=text)]},
+                {
+                    "messages": [HumanMessage(content=text)],
+                    "middleware_activities": [],
+                },
                 config={"configurable": {"thread_id": thread_id}},
             )
 
         last_message = result["messages"][-1]
         content = last_message.content if hasattr(last_message, "content") else str(last_message)
+
+        # Show middleware activities if any
+        middleware_activities = result.get("middleware_activities", [])
+        if middleware_activities:
+            typer.echo("\n⚙️  Middleware Activities:")
+            for activity in middleware_activities:
+                status_icon = {"active": "⚙️", "completed": "✅", "skipped": "⏭️", "failed": "❌"}.get(
+                    activity["status"], "⚙️"
+                )
+                typer.echo(f"  {status_icon} {activity['name']}")
+                if activity.get("message"):
+                    typer.echo(f"      {activity['message']}")
+            typer.echo("")
+
         typer.echo(content)
 
     asyncio.run(run())
@@ -65,7 +82,7 @@ def interactive(
 
     from langchain_core.messages import HumanMessage
 
-    from src.agent import create_ken_agent
+    from src.agent import create_ea_agent
 
     settings = get_settings()
     agent_name = settings.agent_name
@@ -78,7 +95,7 @@ def interactive(
     async def interactive_loop() -> None:
         current_thread = thread_id
 
-        async with create_ken_agent(settings, user_id=user_id) as ea_agent:
+        async with create_ea_agent(settings, user_id=user_id) as ea_agent:
             while True:
                 try:
                     user_input = input("\nYou: ").strip()
@@ -97,7 +114,10 @@ def interactive(
                     continue
 
                 result = await ea_agent.ainvoke(
-                    {"messages": [HumanMessage(content=user_input)]},
+                    {
+                        "messages": [HumanMessage(content=user_input)],
+                        "middleware_activities": [],
+                    },
                     config={"configurable": {"thread_id": current_thread}},
                 )
 
@@ -105,6 +125,20 @@ def interactive(
                 content = (
                     last_message.content if hasattr(last_message, "content") else str(last_message)
                 )
+
+                # Show middleware activities if any
+                middleware_activities = result.get("middleware_activities", [])
+                if middleware_activities:
+                    typer.echo("\n⚙️  Middleware Activities:")
+                    for activity in middleware_activities:
+                        status_icon = {"active": "⚙️", "completed": "✅", "skipped": "⏭️", "failed": "❌"}.get(
+                            activity["status"], "⚙️"
+                        )
+                        typer.echo(f"  {status_icon} {activity['name']}")
+                        if activity.get("message"):
+                            typer.echo(f"      {activity['message']}")
+                    typer.echo("")
+
                 typer.echo(f"\n{agent_name}: {content}")
 
     asyncio.run(interactive_loop())

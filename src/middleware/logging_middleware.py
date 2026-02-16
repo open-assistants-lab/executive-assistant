@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 from langchain.agents.middleware import AgentMiddleware
 
@@ -161,6 +161,43 @@ class LoggingMiddleware(AgentMiddleware):
                 )
             raise
 
+    async def awrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
+    ) -> ModelResponse:
+        """Async wrap model call with timing and error logging."""
+        start_time = datetime.now(timezone.utc)
+
+        try:
+            response = await handler(request)
+
+            if self.log_model_calls:
+                duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+                self._log(
+                    "model_call_complete",
+                    {
+                        "duration_ms": round(duration_ms, 2),
+                        "message_count": len(request.messages),
+                        "success": True,
+                    },
+                )
+
+            return response
+
+        except Exception as e:
+            if self.log_errors:
+                duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+                self._log(
+                    "model_call_error",
+                    {
+                        "duration_ms": round(duration_ms, 2),
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                    },
+                )
+            raise
+
     def wrap_tool_call(
         self,
         request: ToolCallRequest,
@@ -186,6 +223,64 @@ class LoggingMiddleware(AgentMiddleware):
 
         try:
             result = handler(request)
+
+            duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+
+            result_preview = None
+            if hasattr(result, "content"):
+                result_preview = str(result.content)[:200]
+
+            self._log(
+                "tool_call_end",
+                {
+                    "tool": tool_name,
+                    "duration_ms": round(duration_ms, 2),
+                    "success": True,
+                    "result_preview": result_preview,
+                },
+            )
+
+            return result
+
+        except Exception as e:
+            duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+
+            self._log(
+                "tool_call_error",
+                {
+                    "tool": tool_name,
+                    "duration_ms": round(duration_ms, 2),
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                },
+            )
+            raise
+
+    async def awrap_tool_call(
+        self,
+        request: ToolCallRequest,
+        handler: Callable[[ToolCallRequest], Awaitable["ToolMessage | Command"]],
+    ) -> "ToolMessage | Command":
+        """Async wrap tool call with logging."""
+        if not self.log_tool_calls:
+            return await handler(request)
+
+        tool_call = request.tool_call
+        tool_name = tool_call.get("name", "unknown")
+        tool_args = tool_call.get("args", {})
+
+        start_time = datetime.now(timezone.utc)
+
+        self._log(
+            "tool_call_start",
+            {
+                "tool": tool_name,
+                "args": str(tool_args)[:200],
+            },
+        )
+
+        try:
+            result = await handler(request)
 
             duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 

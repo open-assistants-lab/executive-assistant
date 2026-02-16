@@ -31,6 +31,114 @@ make typecheck              # MyPy type checking
 make lint format test
 ```
 
+## Critical Guidelines for AI Coding Assistants
+
+### ALWAYS Find and Follow Official Documentation
+
+**THIS IS CRITICAL:** Before implementing any integration, using any library, or making architectural decisions, **you MUST find and read the official documentation first.**
+
+#### Why This Matters (Real Example)
+
+❌ **Wrong Approach (Langfuse integration investigation):**
+- Spent hours analyzing wrapper code
+- Assumed API patterns based on incomplete understanding
+- Created complex implementation plans
+- **Result:** Wasted time, incorrect solutions
+
+✅ **Correct Approach:**
+- Used Firecrawl MCP to fetch official Langfuse + LangChain docs
+- Discovered integration was already built-in
+- Implementation: 5 lines of code, 5 minutes
+- **Result:** Working solution, minimal code changes
+
+#### How to Use Firecrawl MCP
+
+You have access to Firecrawl MCP servers. **USE THEM** to fetch official documentation.
+
+**Available MCP Tools:**
+```python
+# Use the ToolSearch tool to find and load Firecrawl MCP tools
+ToolSearch("select:mcp__firecrawl__firecrawl_scrape")
+ToolSearch("select:mcp__firecrawl__firecrawl_search")
+ToolSearch("select:mcp__firecrawl__firecrawl_crawl")
+```
+
+**Example Workflow:**
+```python
+# Step 1: Search for official documentation
+mcp__firecrawl__firecrawl_search(
+    query="langfuse langchain integration official documentation"
+)
+
+# Step 2: Scrape the official documentation page
+mcp__firecrawl__firecrawl_scrape(
+    url="https://langfuse.com/integrations/frameworks/langchain"
+)
+
+# Step 3: Read and understand the official examples
+# Step 4: Implement according to official docs
+```
+
+#### Documentation Checklist
+
+Before implementing anything:
+- [ ] Used Firecrawl MCP to fetch official documentation
+- [ ] Read the official getting started guide
+- [ ] Checked API reference documentation
+- [ ] Reviewed official code examples
+- [ ] Verified version compatibility
+- [ ] Identified any migration paths
+
+#### Search Strategy
+
+**Always search for:**
+1. `"library_name official documentation"`
+2. `"library_name integration examples"`
+3. `"library_name github repository"`
+4. `"library_name API reference"`
+
+**Preferred sources (in order):**
+1. Official documentation site (docs.example.com)
+2. Official GitHub repository
+3. Official examples/tutorials
+4. API reference documentation
+
+#### Red Flags: STOP and Find Official Docs
+
+**Immediately stop and fetch official documentation if you're:**
+- Guessing API parameters or structure
+- Implementing based on StackOverflow/Reddit only
+- Copying code from unofficial sources
+- Unsure about version compatibility
+- Working on: observability, authentication, payments, databases, queues
+- **Any integration work**
+
+#### Examples: When Official Docs Saved Hours
+
+**Example 1: Langfuse Integration**
+- ❌ Assumed: Need `langfuse-langchain` package, complex wrapper code
+- ✅ Official docs: `CallbackHandler` built into `langfuse` package
+- Result: 5 lines vs 3-5 hours of work
+
+**Example 2: Any Future Integration**
+- Use Firecrawl MCP → Fetch docs → Understand official approach → Implement
+
+#### Built-in MCP Tools
+
+**Firecrawl:**
+- `mcp__firecrawl__firecrawl_scrape` - Scrape single page
+- `mcp__firecrawl__firecrawl_search` - Search then scrape
+- `mcp__firecrawl__firecrawl_crawl` - Crawl entire site
+- `mcp__firecrawl__firecrawl_map` - Get site structure
+
+**Loading MCP Tools:**
+```python
+# Use ToolSearch to discover and load MCP tools
+ToolSearch("firecrawl")
+```
+
+**Remember:** 10 minutes reading official documentation saves hours of incorrect implementation.
+
 ## Project Architecture
 
 ```
@@ -172,9 +280,8 @@ Per-user storage structure:
 ```
 /data/users/{user_id}/
 ├── .memory/
-│   └── memory.db           # SQLite + FTS5 + vec
-├── .journal/
-│   └── journal.db          # SQLite + FTS5 + vec
+│   ├── memory.db           # SQLite + FTS5
+│   └── chroma/             # ChromaDB (single collection)
 ├── .vault/
 │   └── vault.db            # Encrypted secrets vault
 ├── skills/                 # User-specific skills
@@ -321,3 +428,75 @@ class MyMiddleware(AgentMiddleware):
         # Post-model logic
         return None
 ```
+
+## Progressive Disclosure Pattern
+
+**Always apply progressive disclosure for token-heavy activities.**
+
+This pattern dramatically reduces token usage (~10x savings) by fetching only what's needed, when it's needed.
+
+### Core Principle
+
+Design tools, APIs, and interfaces to make it structurally difficult to waste tokens. The agent should:
+- Start with lightweight summaries/indices
+- Filter and narrow down before fetching details
+- Load full content only for validated, relevant items
+
+### Example: Memory Retrieval (3-Layer Workflow)
+
+```
+Layer 1: Search/Index → Get compact results with IDs (~50-100 tokens per item)
+Layer 2: Context/Timeline → Get chronological context (~100-200 tokens)
+Layer 3: Details → Fetch full details ONLY for filtered items (~500-1000 tokens per item)
+```
+
+```python
+# ❌ WRONG: Fetch everything upfront
+all_memories = memory_get_all()  # Could return 100+ items = 50,000+ tokens
+
+# ✅ RIGHT: Progressive disclosure
+results = memory_search(query="authentication", limit=10)  # ~500-1000 tokens
+relevant_ids = [r["id"] for r in results if r["type"] == "decision"]
+memories = memory_get(ids=relevant_ids)  # ~1500-3000 tokens for 3 items
+```
+
+### Example: Skill Loading (File-based Progressive Disclosure)
+
+Skills use filesystem-based progressive disclosure:
+- SKILL.md serves as overview (loaded when skill triggers)
+- Detailed content in separate files (loaded only when referenced)
+- Keep SKILL.md under 500 lines; split large content into reference files
+
+```
+skill/
+├── SKILL.md           # Overview, points to reference files
+└── reference/
+    ├── topic-a.md     # Loaded only when needed
+    └── topic-b.md     # Loaded only when needed
+```
+
+See: https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices
+
+### When to Apply
+
+| Activity | Progressive Disclosure Approach |
+|----------|--------------------------------|
+| **Memory retrieval** | Search → Filter → Get details |
+| **Document search** | Return snippets first, full content on demand |
+| **Code search** | Show file names + matches, then full files |
+| **Skill loading** | SKILL.md overview → reference files as needed |
+| **API responses** | Paginate, summarize, expand on request |
+| **Any large dataset** | Never return everything; paginate or filter first |
+
+### Token Cost Comparison
+
+| Approach | Tokens | Notes |
+|----------|--------|-------|
+| Fetch all 20 memories | 10,000-20,000 | ~10% relevant |
+| Search → Filter → Fetch 3 | 2,500-5,000 | 100% relevant |
+
+**Key insight:** Design tools/APIs to require narrowing (e.g., `memory_get()` requires IDs from search) rather than accepting broad queries.
+
+---
+
+**Documentation:** Always verify implementation patterns against official documentation before proceeding. See "General Guidelines > Always Follow Official Documentations" above.

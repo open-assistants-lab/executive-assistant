@@ -48,6 +48,11 @@ class AzureProvider(BaseLLMProvider):
         api_key = config.pop("api_key", self.api_key)
         base_url = config.pop("base_url", self.base_url)
 
+        # Add callbacks (e.g., Langfuse)
+        callbacks = self._get_callbacks()
+        if callbacks:
+            config["callbacks"] = callbacks
+
         return AzureChatOpenAI(
             api_key=api_key,
             azure_endpoint=base_url,

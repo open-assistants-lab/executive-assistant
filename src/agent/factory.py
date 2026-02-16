@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import datetime, timezone as dt_timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -12,7 +13,17 @@ from langchain_core.tools import tool
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
 from src.config.settings import Settings, get_settings
+from src.config.yaml_config import load_yaml_config_with_default
 from src.llm import get_llm
+from src.memory import (
+    MemoryStore,
+    MEMORY_WORKFLOW,
+    memory_search,
+    memory_timeline,
+    memory_get,
+    memory_save,
+    set_memory_store,
+)
 
 if TYPE_CHECKING:
     from langgraph.graph import CompiledStateGraph
@@ -260,6 +271,40 @@ def web_map(url: str, search_query: str | None = None) -> str:
         return f"Error mapping {url}: {e}"
 
 
+@tool
+def get_current_time(timezone: str = "UTC") -> str:
+    """Get the current time and date.
+
+    Args:
+        timezone: Timezone name (e.g., 'UTC', 'America/New_York', 'Europe/London').
+                 Defaults to 'UTC'.
+
+    Returns:
+        Current time in the specified timezone with date and time information.
+    """
+    from datetime import datetime as dt
+    from zoneinfo import ZoneInfo
+
+    try:
+        tz = ZoneInfo(timezone)
+        now = dt.now(tz)
+        return (
+            f"Current time in {timezone}:\n"
+            f"📅 Date: {now.strftime('%Y-%m-%d (%A)')}\n"
+            f"🕐 Time: {now.strftime('%H:%M:%S')}\n"
+            f"🌍 Full datetime: {now.strftime('%Y-%m-%d %H:%M:%S %Z')}"
+        )
+    except Exception:
+        # Fallback to UTC if timezone is invalid
+        now = dt.now(dt_timezone.utc)
+        return (
+            f"Current time in UTC (fallback, timezone '{timezone}' not found):\n"
+            f"📅 Date: {now.strftime('%Y-%m-%d (%A)')}\n"
+            f"🕐 Time: {now.strftime('%H:%M:%S')}\n"
+            f"🌍 Full datetime: {now.strftime('%Y-%m-%d %H:%M:%S UTC')}"
+        )
+
+
 def _get_model(settings: Settings):
     """Get the LLM model from settings."""
     provider, model = settings.llm.get_default_provider_model()
@@ -306,7 +351,7 @@ SUBAGENTS = [
 
 
 def _build_system_prompt(agent_name: str) -> str:
-    """Build the system prompt with the agent's name."""
+    """Build the system prompt with the agent's name and memory workflow."""
     return f"""You are {agent_name}, a deep agent with executive assistant capabilities.
 
 ## Filesystem Structure
@@ -315,22 +360,27 @@ def _build_system_prompt(agent_name: str) -> str:
 - `/workspace/` - Ephemeral workspace (cleared between threads)
 
 ## Capabilities
+- **Time & Date**: Get current time in any timezone using get_current_time
+- **Memory**: Remember and retrieve information about the user using memory tools
 - **Planning**: Break down complex tasks using the todo list
 - **File Operations**: Read, write, edit files in /user/ and /shared/
 - **Web Search**: Use web_search to find current information
 - **Web Scraping**: Use web_scrape, web_crawl, web_map for web data
 - **Subagents**: Delegate specialized work to coder, researcher, or planner
 
+{MEMORY_WORKFLOW}
+
 ## Guidelines
 1. Organize user data in /user/ (e.g., /user/memories/, /user/projects/)
 2. Check /shared/ for team resources and skills
-3. Save important information for future sessions
-4. Ask for clarification when uncertain about user needs
+3. Save important information about the user using memory_save
+4. Search memories before asking the user for information they may have already shared
+5. Ask for clarification when uncertain about user needs
 """
 
 
 @asynccontextmanager
-async def create_ken_agent(
+async def create_ea_agent(
     settings: Settings | None = None,
     user_id: str = "default",
     skills: list[str] | None = None,
@@ -349,13 +399,49 @@ async def create_ken_agent(
         settings = get_settings()
 
     model = _get_model(settings)
-    db_uri = settings.database_url
+    # Convert SQLAlchemy async URL to psycopg-compatible URL for LangGraph
+    db_uri = settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
     agent_name = settings.agent_name
+    user_path = settings.get_user_path(user_id)
+
+    # Load middleware configuration from YAML
+    config_path = settings.data_path / "config.yaml"
+    if config_path.exists():
+        try:
+            from src.config.middleware_settings import MiddlewareConfig
+
+            middleware_config = load_yaml_config_with_default(
+                path=config_path,
+                model_class=MiddlewareConfig,
+            )
+            # Merge with defaults (YAML values override defaults)
+            settings.middleware = settings.middleware.model_copy(
+                update=middleware_config.model_dump(exclude_unset=True)
+            )
+        except Exception:
+            # If config loading fails, use defaults
+            pass
+
+    memory_store = MemoryStore(user_id=user_id, data_path=user_path)
+    set_memory_store(memory_store)
 
     async with AsyncPostgresSaver.from_conn_string(db_uri) as checkpointer:
         await checkpointer.setup()
 
         skill_paths = skills if skills is not None else _collect_skill_paths(settings, user_id)
+
+        # Create middlewares from configuration
+        from src.middleware.factory import create_middleware_from_config
+
+        summarization_llm = get_llm(
+            *settings.llm.get_summarization_provider_model()
+        )
+        middlewares = create_middleware_from_config(
+            config=settings.middleware,
+            memory_store=memory_store,
+            user_id=user_id,
+            summarization_model=summarization_llm,
+        )
 
         agent_kwargs: dict[str, Any] = {
             "name": f"ea-{user_id}",
@@ -363,9 +449,56 @@ async def create_ken_agent(
             "system_prompt": _build_system_prompt(agent_name),
             "checkpointer": checkpointer,
             "backend": _make_user_backend_factory(user_id, settings.data_path),
-            "tools": [web_search, web_scrape, web_crawl, web_map],
+            "tools": [
+                get_current_time,
+                web_search,
+                web_scrape,
+                web_crawl,
+                web_map,
+                memory_search,
+                memory_timeline,
+                memory_get,
+                memory_save,
+            ],
             "subagents": SUBAGENTS,
+            "middleware": middlewares,
         }
+
+        # Add dynamic subagent tools
+        from src.agent.dynamic_subagents import (
+            create_specialized_subagent,
+            list_specialized_subagents,
+        )
+
+        # Extend system prompt to mention dynamic subagents
+        enhanced_system = _build_system_prompt(agent_name) + """
+
+## Dynamic Subagents
+
+You can create specialized subagents for topics that require deep, ongoing research:
+
+When to create a subagent:
+- User asks for "deep research" on a company, product, or topic
+- User asks follow-up questions about a previously researched topic
+- You need to perform multiple searches/scraping on the same entity
+- User says "create a researcher for..." or "make an expert on..."
+
+Available specializations:
+- **researcher**: Web searches, information gathering (default)
+- **analyst**: Data analysis, trends, comparisons
+- **coder**: Programming tasks
+- **writer**: Content creation
+
+Tools:
+- create_specialized_subagent(task, context, specialization) - Create a new specialized subagent
+- list_specialized_subagents() - List all created subagents
+
+The subagent will be cached and can be reused in future conversations, building persistent expertise on the topic.
+"""
+        agent_kwargs["system_prompt"] = enhanced_system
+
+        # Add dynamic subagent tools to the agent's tool list
+        agent_kwargs["tools"].extend([create_specialized_subagent, list_specialized_subagents])
 
         if skill_paths:
             agent_kwargs["skills"] = skill_paths

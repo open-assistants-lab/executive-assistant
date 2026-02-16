@@ -168,10 +168,13 @@ class TelegramBot:
         user_id: int,
         user_message: str,
     ) -> None:
-        """Handle message using deep agent."""
+        """Handle message using deep agent with intermediate updates."""
+        import json
+
         from langchain_core.messages import HumanMessage
 
-        from src.agent import create_ken_agent
+        from src.agent import create_ea_agent
+        from src.telegram.formatters import MessageUpdater
 
         provider, model = self._user_models.get(
             user_id, (self.default_provider, self.default_model)
@@ -181,18 +184,207 @@ class TelegramBot:
             settings = get_settings()
             thread_id = f"telegram-{user_id}"
 
-            async with create_ken_agent(settings, user_id=str(user_id)) as agent:
-                result = await agent.ainvoke(
-                    {"messages": [HumanMessage(content=user_message)]},
-                    config={"configurable": {"thread_id": thread_id}},
-                )
+            async with create_ea_agent(settings, user_id=str(user_id)) as agent:
+                # Start typing indicator immediately
+                await update.effective_message.chat.send_action(action="typing")
 
-            last_message = result["messages"][-1]
-            content = (
-                last_message.content if hasattr(last_message, "content") else str(last_message)
-            )
+                # Keep typing alive every few seconds
+                import asyncio
 
-            await update.effective_message.reply_text(content)
+                async def keep_typing():
+                    while True:
+                        try:
+                            await asyncio.sleep(3)
+                            await update.effective_message.chat.send_action(action="typing")
+                        except Exception:
+                            break
+
+                typing_task = asyncio.create_task(keep_typing())
+
+                # Track state during streaming
+                tool_calls_info = []
+                todos_list = []
+                middleware_activities = []
+                last_content = None
+                seen_todos = set()  # Track todos we've already shown
+                seen_middleware = set()  # Track middleware activities we've already shown
+                status_message = None  # Will be created when we have progress
+                updater = None
+
+                try:
+                    async for chunk in agent.astream(
+                        {
+                            "messages": [HumanMessage(content=user_message)],
+                            "middleware_activities": [],
+                        },
+                        config={"configurable": {"thread_id": thread_id}},
+                        stream_mode="values",
+                    ):
+                        # Track tool calls and update status message
+                        if "messages" in chunk and chunk["messages"]:
+                            last_msg = chunk["messages"][-1]
+
+                            # Track tool calls and show them to user
+                            if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
+                                for tool_call in last_msg.tool_calls:
+                                    tool_name = tool_call.get("name", "unknown")
+                                    tool_args = tool_call.get("args", {})
+                                    tool_id = tool_call.get("id", "")
+
+                                    if tool_id and not any(tc["id"] == tool_id for tc in tool_calls_info):
+                                        # Format subagent calls more informatively
+                                        display_name = tool_name
+                                        if tool_name == "task":
+                                            # This is a subagent delegation
+                                            agent = tool_args.get("agent", "")
+                                            task_desc = tool_args.get("task", "")
+                                            if agent:
+                                                # Capitalize agent name
+                                                agent_display = agent[0].upper() + agent[1:] if agent else "Agent"
+                                                display_name = f"{agent_display}"
+                                                if task_desc:
+                                                    # Truncate long task descriptions
+                                                    task_short = task_desc[:50] + "..." if len(task_desc) > 50 else task_desc
+                                                    display_name += f": {task_short}"
+
+                                        tool_calls_info.append({
+                                            "id": tool_id,
+                                            "name": tool_name,
+                                            "display_name": display_name,  # Use display_name for showing
+                                            "args": tool_args,
+                                        })
+                                        logger.info(f"Tool call: {display_name}")
+
+                                        # Create status message on first progress
+                                        if status_message is None:
+                                            status_text = updater.formatter.format_processing_status(
+                                                tool_calls_info,
+                                                todos_list,
+                                                middleware_activities,
+                                            ) if updater else ""
+                                            status_message = await update.effective_message.reply_text(
+                                                status_text or "⏳"
+                                            )
+                                            updater = MessageUpdater(status_message)
+
+                                        # Update status message with tool call and middleware
+                                        await updater.update_processing_status(
+                                            tool_calls_info,
+                                            todos_list,
+                                            middleware_activities,
+                                        )
+
+                        # Track todos and update status
+                        if "todos" in chunk and chunk["todos"]:
+                            todos = chunk["todos"]
+                            # Create a hash of the todos to detect changes
+                            todos_str = json.dumps(todos, sort_keys=True, default=str)
+                            if todos_str not in seen_todos:
+                                seen_todos.add(todos_str)
+                                todos_list = todos
+
+                                # Create status message on first progress
+                                if status_message is None:
+                                    from src.telegram.formatters import MessageFormatter
+
+                                    formatter = MessageFormatter()
+                                    status_text = formatter.format_processing_status(
+                                        tool_calls_info,
+                                        todos_list,
+                                        middleware_activities,
+                                    )
+                                    status_message = await update.effective_message.reply_text(
+                                        status_text or "⏳"
+                                    )
+                                    updater = MessageUpdater(status_message)
+
+                                # Update status message with todos and middleware
+                                await updater.update_processing_status(
+                                    tool_calls_info,
+                                    todos_list,
+                                    middleware_activities,
+                                )
+
+                        # Track middleware activities
+                        if "middleware_activities" in chunk and chunk["middleware_activities"]:
+                            for activity in chunk["middleware_activities"]:
+                                # Create a unique key for this activity
+                                activity_key = json.dumps(
+                                    {"name": activity["name"], "status": activity["status"]},
+                                    sort_keys=True,
+                                )
+                                if activity_key not in seen_middleware:
+                                    seen_middleware.add(activity_key)
+                                    # Update existing activity if same name and status
+                                    updated = False
+                                    for i, existing in enumerate(middleware_activities):
+                                        if existing["name"] == activity["name"]:
+                                            middleware_activities[i] = activity
+                                            updated = True
+                                            break
+                                    if not updated:
+                                        middleware_activities.append(activity)
+
+                                    logger.info(f"Middleware: {activity['name']} ({activity['status']})")
+
+                                    # Create status message on first progress
+                                    if status_message is None:
+                                        from src.telegram.formatters import MessageFormatter
+
+                                        formatter = MessageFormatter()
+                                        status_text = formatter.format_processing_status(
+                                            tool_calls_info,
+                                            todos_list,
+                                            middleware_activities,
+                                        )
+                                        status_message = await update.effective_message.reply_text(
+                                            status_text or "⏳"
+                                        )
+                                        updater = MessageUpdater(status_message)
+
+                                    # Update status message with middleware activity
+                                    await updater.update_processing_status(
+                                        tool_calls_info,
+                                        todos_list,
+                                        middleware_activities,
+                                    )
+
+                        # Save last content
+                        if "messages" in chunk and chunk["messages"]:
+                            last_msg = chunk["messages"][-1]
+                            if hasattr(last_msg, "content") and last_msg.content:
+                                # Skip intermediate tool results
+                                is_tool_result = (
+                                    chunk.get("messages", [])[-2].type == "tool"
+                                    if len(chunk.get("messages", [])) > 1
+                                    else False
+                                )
+                                if not is_tool_result:
+                                    last_content = last_msg.content
+
+                finally:
+                    # Stop typing indicator
+                    typing_task.cancel()
+                    try:
+                        await typing_task
+                    except asyncio.CancelledError:
+                        pass
+
+                # Send final response as a new message
+                if last_content:
+                    # If we have a status message, leave it and send new message
+                    from src.telegram.formatters import MessageFormatter
+
+                    formatter = MessageFormatter()
+                    response_text = formatter.format_final_response(
+                        tool_calls_info,
+                        last_content,
+                        todos_list if todos_list else None,
+                        middleware_activities if middleware_activities else None,
+                    )
+                    await update.effective_message.reply_text(response_text)
+                else:
+                    await update.effective_message.reply_text("✅ Done")
 
         except LLMError as e:
             logger.error(f"LLM error: {e}")
@@ -243,7 +435,7 @@ def create_bot() -> TelegramBot | None:
     settings = get_settings()
 
     if not settings.is_telegram_configured:
-        logger.info("Telegram bot not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_ENABLED.")
+        logger.info("Telegram bot not configured. Set TELEGRAM_BOT_TOKEN to enable.")
         return None
 
     provider, model = parse_model_string(settings.llm.default_model)

@@ -5,6 +5,8 @@ from pathlib import Path
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from src.config.middleware_settings import MiddlewareConfig
+
 
 def parse_model_string(model_string: str) -> tuple[str, str]:
     """
@@ -125,6 +127,10 @@ class Settings(BaseSettings):
 
     app: AppSettings = Field(default_factory=AppSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
+    middleware: MiddlewareConfig = Field(
+        default_factory=MiddlewareConfig,
+        description="Middleware configuration (loaded from YAML, not env vars)",
+    )
 
     database_url: str = Field(
         default="postgresql://agent:password@postgres:5432/agent",
@@ -152,7 +158,6 @@ class Settings(BaseSettings):
     langfuse_public_key: str | None = Field(default=None, description="Langfuse public key")
     langfuse_secret_key: str | None = Field(default=None, description="Langfuse secret key")
     langfuse_host: str = Field(default="https://cloud.langfuse.com", description="Langfuse host")
-    langfuse_enabled: bool = Field(default=False, description="Enable Langfuse tracing")
 
     google_client_id: str | None = Field(default=None, description="Google OAuth client ID")
     google_client_secret: str | None = Field(default=None, description="Google OAuth client secret")
@@ -166,11 +171,14 @@ class Settings(BaseSettings):
     api_port: int = Field(default=8000, description="API server port")
 
     telegram_bot_token: str | None = Field(default=None, description="Telegram bot token")
-    telegram_enabled: bool = Field(default=False, description="Enable Telegram bot")
 
     tavily_api_key: str | None = Field(default=None, description="Tavily API key for web search")
 
     firecrawl_api_key: str | None = Field(default=None, description="Firecrawl API key")
+    firecrawl_base_url: str = Field(
+        default="https://api.firecrawl.dev",
+        description="Firecrawl base URL"
+    )
 
     agent_name: str = Field(
         default="Executive Assistant",
@@ -179,11 +187,11 @@ class Settings(BaseSettings):
 
     @property
     def is_langfuse_configured(self) -> bool:
-        return bool(self.langfuse_enabled and self.langfuse_public_key and self.langfuse_secret_key)
+        return bool(self.langfuse_public_key and self.langfuse_secret_key)
 
     @property
     def is_telegram_configured(self) -> bool:
-        return bool(self.telegram_enabled and self.telegram_bot_token)
+        return bool(self.telegram_bot_token)
 
     @property
     def is_google_oauth_configured(self) -> bool:
