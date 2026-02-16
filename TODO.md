@@ -422,6 +422,138 @@ data/
 
 ---
 
+## 🚀 CLI Experience Improvements
+
+**Goal:** Improve `uv run ea cli` to match deepagents CLI experience
+
+**Reference:** https://docs.langchain.com/oss/python/deepagents/cli/overview
+
+### Phase 1: Basic CLI UX (1-2 days)
+
+**Core improvements:**
+- [ ] Command history (up/down arrows) using `prompt_toolkit`
+- [ ] Better input handling with `prompt_toolkit.PromptSession`
+- [ ] Rich output formatting with `rich` library
+  - Colored output
+  - Progress bars for long operations
+  - Better tables for structured data
+- [ ] Auto-completion for commands
+- [ ] Multi-line input support
+
+**Slash commands:**
+- [ ] `/model [provider:model]` - Switch LLM mid-session
+- [ ] `/clear` - Reset conversation thread
+- [ ] `/exit` or `/quit` - Exit CLI
+- [ ] `/help` - Show available commands
+- [ ] `/config` - Show current configuration
+
+**Implementation:**
+```python
+from prompt_toolkit import PromptSession
+from prompt_toolkit.history import FileHistory
+from rich.console import Console
+from rich.markdown import Markdown
+
+# Command history
+history = FileHistory(os.path.expanduser("~/.ea-history"))
+session = PromptSession(history=history)
+
+# Rich formatting
+console = Console()
+
+# Slash command parser
+def handle_slash_command(command: str):
+    if command.startswith("/model"):
+        # Switch model
+        pass
+    elif command.startswith("/clear"):
+        # Reset thread
+        pass
+    # etc.
+```
+
+### Phase 2: Skills System (1-2 weeks)
+
+**What deepagents CLI does:**
+- Scans `~/.deepagents/<agent>/skills/` and `.deepagents/skills/` for `SKILL.md` files
+- Extracts skill name and description from frontmatter
+- Matches user queries to relevant skills (LLM-based matching)
+- Dynamically loads and injects skills into conversation
+- Auto-updates skills with `/remember` command
+
+**Our adaptation needed:**
+- [ ] Design skill storage structure (where to store skills?)
+  - Option 1: `/data/users/{user_id}/skills/` (user-specific)
+  - Option 2: Project `.skills/` directory (git-based discovery)
+  - Option 3: Hybrid of both
+- [ ] Skill discovery system
+  - Scan skill directories for `SKILL.md` files
+  - Extract metadata (name, description, tags)
+  - Index skills for retrieval
+- [ ] Skill matching logic
+  - LLM-based matching (send query + skill list to LLM)
+  - Or keyword matching (faster, less accurate)
+  - Hybrid approach (keyword pre-filter + LLM rank)
+- [ ] Dynamic skill injection
+  - Inject matched skills into system prompt
+  - Handle skill conflicts/overlaps
+  - Manage skill lifecycle
+- [ ] Skill CRUD operations
+  - `skills create <name> [--project]` - Create new skill
+  - `skills list [--project]` - List available skills
+  - `skills info <name>` - Show skill details
+  - `skills delete <name>` - Remove skill
+- [ ] `/remember` command
+  - Review conversation context
+  - Identify new information to learn
+  - Update relevant skills automatically
+
+**Key differences from deepagents:**
+- We have our own memory system (don't need AGENTS.md)
+- Our agent architecture is different (deepagents SDK with custom prompts)
+- Our tool set is different (web search, memory, filesystem, etc.)
+
+### Phase 3: Advanced Features (Optional)
+
+**Multi-agent support:**
+- [ ] Named agents with separate configs
+- [ ] `--agent <name>` flag to switch agents
+- [ ] Agent isolation (separate memories, skills, configs)
+
+**Remote sandboxes:**
+- [ ] Integration with Modal, Runloop, Daytona
+- [ ] `--sandbox <provider>` flag
+- [ ] Sandbox setup scripts
+- [ ] Code execution in isolated environments
+
+**Auto-approve mode:**
+- [ ] `--auto-approve` flag to skip human-in-the-loop
+- [ ] Configurable tool approval lists
+- [ ] Dangerous tools always require approval
+
+### Success Criteria
+
+**Phase 1:**
+- [ ] Command history works (up/down arrows)
+- [ ] Slash commands work
+- [ ] Output is nicely formatted with colors
+- [ ] Model switching works mid-session
+
+**Phase 2:**
+- [ ] Skills are discovered and indexed
+- [ ] Skills are matched to relevant queries
+- [ ] Skills are injected into prompts
+- [ ] `/remember` updates skills
+- [ ] Skills improve over time
+
+**Testing:**
+- [ ] Manual CLI testing
+- [ ] Unit tests for slash commands
+- [ ] Integration tests for skill system
+- [ ] User acceptance testing
+
+---
+
 ## 📖 Reference: claude-mem Learnings
 
 ### Key Patterns to Adopt
