@@ -73,11 +73,11 @@ def message(
 
 
 @app.command()
-def interactive(
+def cli(
     user_id: Annotated[str, typer.Option("--user", "-u", help="User ID")] = "default",
     thread: Annotated[str | None, typer.Option("--thread", "-t", help="Thread ID")] = None,
 ) -> None:
-    """Start interactive conversation with your Executive Assistant."""
+    """Start an interactive CLI session with your Executive Assistant."""
     import asyncio
 
     from langchain_core.messages import HumanMessage
@@ -156,12 +156,12 @@ def models() -> None:
 
 
 @app.command()
-def serve(
+def http(
     host: Annotated[str, typer.Option("--host", "-h")] = "0.0.0.0",
     port: Annotated[int, typer.Option("--port", "-p")] = 8000,
     reload: Annotated[bool, typer.Option("--reload")] = False,
 ) -> None:
-    """Start the API server."""
+    """Start the HTTP API server."""
     import uvicorn
 
     settings = get_settings()

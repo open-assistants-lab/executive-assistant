@@ -47,22 +47,30 @@ class BaseLLMProvider(ABC):
         Get callbacks to attach to the model.
 
         Returns:
-            List of callback handlers (e.g., LangfuseCallbackHandler)
+            List of callback handlers (e.g., Langfuse CallbackHandler)
         """
         callbacks: list[BaseCallbackHandler] = []
 
         # Add Langfuse callback if configured
         try:
             from src.config.settings import get_settings
-            from src.observability.langfuse import get_langfuse_client
 
             settings = get_settings()
             if settings.is_langfuse_configured:
-                from langfuse.callback import LangfuseCallbackHandler
+                from langfuse import Langfuse
+                from langfuse.langchain import CallbackHandler
 
-                client = get_langfuse_client()
-                if client.is_enabled():
-                    callbacks.append(LangfuseCallbackHandler())
+                # Initialize Langfuse client with credentials (singleton)
+                # This creates the singleton client that CallbackHandler will use
+                Langfuse(
+                    public_key=settings.langfuse_public_key,
+                    secret_key=settings.langfuse_secret_key,
+                    host=settings.langfuse_host,
+                )
+
+                # CallbackHandler automatically uses the singleton client
+                # No constructor args needed in v3
+                callbacks.append(CallbackHandler())
         except ImportError:
             pass
         except Exception:

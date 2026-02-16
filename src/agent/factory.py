@@ -464,41 +464,8 @@ async def create_ea_agent(
             "middleware": middlewares,
         }
 
-        # Add dynamic subagent tools
-        from src.agent.dynamic_subagents import (
-            create_specialized_subagent,
-            list_specialized_subagents,
-        )
-
-        # Extend system prompt to mention dynamic subagents
-        enhanced_system = _build_system_prompt(agent_name) + """
-
-## Dynamic Subagents
-
-You can create specialized subagents for topics that require deep, ongoing research:
-
-When to create a subagent:
-- User asks for "deep research" on a company, product, or topic
-- User asks follow-up questions about a previously researched topic
-- You need to perform multiple searches/scraping on the same entity
-- User says "create a researcher for..." or "make an expert on..."
-
-Available specializations:
-- **researcher**: Web searches, information gathering (default)
-- **analyst**: Data analysis, trends, comparisons
-- **coder**: Programming tasks
-- **writer**: Content creation
-
-Tools:
-- create_specialized_subagent(task, context, specialization) - Create a new specialized subagent
-- list_specialized_subagents() - List all created subagents
-
-The subagent will be cached and can be reused in future conversations, building persistent expertise on the topic.
-"""
-        agent_kwargs["system_prompt"] = enhanced_system
-
-        # Add dynamic subagent tools to the agent's tool list
-        agent_kwargs["tools"].extend([create_specialized_subagent, list_specialized_subagents])
+        # Set system prompt
+        agent_kwargs["system_prompt"] = _build_system_prompt(agent_name)
 
         if skill_paths:
             agent_kwargs["skills"] = skill_paths
