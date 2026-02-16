@@ -64,9 +64,12 @@ class TelegramBot:
 
         user = update.effective_user
         user_name = user.first_name if user else "there"
+        user_id = user.id if user else "unknown"
 
         settings = get_settings()
         agent_name = settings.agent_name
+
+        logger.info(f"📱 /start command - User: {user_name} (ID: {user_id})")
 
         await update.effective_message.reply_text(
             f"Hello {user_name}! I'm {agent_name}, your AI assistant.\n\n"
@@ -76,6 +79,8 @@ class TelegramBot:
             "/help - Show this message\n\n"
             "Just send me a message to start chatting!"
         )
+
+        logger.info(f"✓ Sent welcome message to {user_name} (ID: {user_id})")
 
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /help command."""
@@ -97,25 +102,35 @@ class TelegramBot:
         if not update.effective_message or not update.effective_user:
             return
 
-        user_id = update.effective_user.id
+        user = update.effective_user
+        user_id = user.id
+        user_name = user.first_name if user else f"User_{user_id}"
+
+        logger.info(f"⚙️ /model command from {user_name} (ID: {user_id})")
 
         if not context.args:
             current = self._user_models.get(user_id, (self.default_provider, self.default_model))
+            logger.info(f"   Current model: {current[0]}/{current[1]}")
             await update.effective_message.reply_text(
                 f"Current model: {current[0]}/{current[1]}\n\n"
-                "Usage: /model <provider/model>\n"
-                "Example: /model anthropic/claude-3-5-sonnet-20241022"
+                "Usage: /model <provider:model>\n"
+                "Example: /model anthropic:claude-sonnet-4-5-20250929\n"
+                "Available providers: openai, anthropic, google, groq, ollama, etc."
             )
             return
 
         model_string = " ".join(context.args)
+        logger.info(f"   Requested model: {model_string}")
+
         try:
             provider, model = parse_model_string(model_string)
             self._user_models[user_id] = (provider, model)
+            logger.info(f"✓ Model changed: {provider}/{model}")
             await update.effective_message.reply_text(f"Model changed to: {provider}/{model}")
         except ValueError as e:
+            logger.warning(f"✗ Invalid model format: {model_string}")
             await update.effective_message.reply_text(
-                f"Invalid model format. Use: provider/model\nError: {e}"
+                f"Invalid model format. Use: provider:model\nError: {e}"
             )
 
     async def agent_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -148,7 +163,15 @@ class TelegramBot:
         if not update.effective_message:
             return
 
+        user = update.effective_user
+        user_id = user.id
+        user_name = user.first_name if user else f"User_{user_id}"
+
+        logger.info(f"🗑️ /clear command from {user_name} (ID: {user_id})")
+
         context.user_data["messages"] = []
+
+        logger.info(f"✓ Conversation history cleared for {user_name} (ID: {user_id})")
         await update.effective_message.reply_text("Conversation history cleared.")
 
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -156,8 +179,13 @@ class TelegramBot:
         if not update.effective_message or not update.effective_user:
             return
 
-        user_id = update.effective_user.id
+        user = update.effective_user
+        user_id = user.id
+        user_name = user.first_name if user else f"User_{user_id}"
         user_message = update.effective_message.text
+
+        logger.info(f"📨 Message received from {user_name} (ID: {user_id})")
+        logger.info(f"   Message: {user_message[:100]}{'...' if len(user_message) > 100 else ''}")
 
         await self._handle_deep_agent(update, context, user_id, user_message)
 
@@ -180,9 +208,13 @@ class TelegramBot:
             user_id, (self.default_provider, self.default_model)
         )
 
+        logger.info(f"🤖 Processing with model: {provider}/{model}")
+
         try:
             settings = get_settings()
             thread_id = f"telegram-{user_id}"
+
+            logger.info(f"📂 Thread ID: {thread_id}")
 
             async with create_ea_agent(settings, user_id=str(user_id)) as agent:
                 # Start typing indicator immediately
@@ -382,42 +414,74 @@ class TelegramBot:
                         todos_list if todos_list else None,
                         middleware_activities if middleware_activities else None,
                     )
+
+                    response_preview = response_text[:100] + "..." if len(response_text) > 100 else response_text
+                    logger.info(f"✓ Sending response to user (ID: {user_id})")
+                    logger.info(f"   Response preview: {response_preview}")
+
                     await update.effective_message.reply_text(response_text)
                 else:
+                    logger.info(f"✓ Sent completion message to user (ID: {user_id})")
                     await update.effective_message.reply_text("✅ Done")
 
+            logger.info(f"✅ Message handling complete for user (ID: {user_id})")
+
         except LLMError as e:
-            logger.error(f"LLM error: {e}")
+            logger.error(f"❌ LLM error for user {user_id}: {e}")
+            logger.error(f"   Provider: {provider}, Model: {model}")
             await update.effective_message.reply_text(f"Sorry, I encountered an error: {e.message}")
         except Exception as e:
-            logger.error(f"Unexpected error: {e}")
+            logger.exception(f"❌ Unexpected error for user {user_id}: {e}")
             await update.effective_message.reply_text(
                 "Sorry, an unexpected error occurred. Please try again."
             )
 
     async def start(self) -> None:
         """Start the bot."""
+        logger.info("🔌 Initializing Telegram application...")
         await self.application.initialize()
-        await self.application.start()
+        logger.info("✓ Application initialized")
+
+        logger.info("🔄 Starting bot updater...")
         await self.application.updater.start_polling()
+        logger.info("✓ Bot is now polling for messages")
 
     async def stop(self) -> None:
         """Stop the bot."""
+        logger.info("🛑 Stopping Telegram bot...")
         if self.application.updater:
+            logger.info("  Stopping updater...")
             await self.application.updater.stop()
+            logger.info("  ✓ Updater stopped")
+
+        logger.info("  Stopping application...")
         await self.application.stop()
+        logger.info("  ✓ Application stopped")
+
+        logger.info("  Shutting down...")
         await self.application.shutdown()
+        logger.info("  ✓ Shutdown complete")
 
     async def run(self) -> None:
         """Run the bot (blocking)."""
+        logger.info("="*60)
+        logger.info("🚀 Starting Executive Assistant Telegram Bot")
+        logger.info("="*60)
+        logger.info(f"Default model: {self.default_provider}/{self.default_model}")
+        logger.info(f"Token: {self.token[:20]}...{self.token[-4:]}")
+        logger.info("Bot is now polling for messages...")
+        logger.info("="*60)
+
         await self.start()
         try:
             while True:
                 await asyncio.sleep(1)
         except asyncio.CancelledError:
+            logger.info("🛑 Bot shutdown requested")
             pass
         finally:
             await self.stop()
+            logger.info("✓ Bot stopped gracefully")
 
 
 _bot: TelegramBot | None = None
