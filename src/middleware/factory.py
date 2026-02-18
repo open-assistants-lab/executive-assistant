@@ -10,21 +10,22 @@ Usage:
         config=settings.middleware,
         memory_store=store,
         user_id=user_id,
-        summarization_model=summarization_llm
     )
 """
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 from src.config.middleware_settings import MiddlewareConfig
 from src.config.settings import parse_model_string
 from src.llm import get_llm
 
+logger = logging.getLogger(__name__)
+
 if TYPE_CHECKING:
     from langchain.agents.middleware import AgentMiddleware
-    from langchain_core.language_models.chat_models import BaseChatModel
 
     try:
         from src.memory import MemoryStore
@@ -36,7 +37,6 @@ def create_middleware_from_config(
     config: MiddlewareConfig,
     memory_store: MemoryStore | None = None,
     user_id: str = "default",
-    summarization_model: BaseChatModel | None = None,
 ) -> list[AgentMiddleware]:
     """Create middleware instances from configuration.
 
@@ -47,7 +47,6 @@ def create_middleware_from_config(
         config: Middleware configuration
         memory_store: Memory store instance (for memory middlewares)
         user_id: User ID for logging and rate limiting
-        summarization_model: LLM for summarization (if summarization enabled)
 
     Returns:
         List of enabled middleware instances
@@ -62,7 +61,7 @@ def create_middleware_from_config(
             config=settings.middleware,
             memory_store=memory_store,
             user_id="user-123",
-            summarization_model=summarization_llm
+            # No per-request summarization model init needed; deepagents handles this.
         )
         ```
     """
@@ -77,12 +76,13 @@ def create_middleware_from_config(
     # Memory Context Middleware
     if config.memory_context.enabled:
         if memory_store is None:
-            raise ValueError(
-                "memory_store is required when memory_context middleware is enabled"
-            )
+            raise ValueError("memory_store is required when memory_context middleware is enabled")
 
         from src.middleware.memory_context import MemoryContextMiddleware
 
+        logger.info(
+            f"[MiddlewareFactory] Creating MemoryContextMiddleware: max_memories={config.memory_context.max_memories}, min_confidence={config.memory_context.min_confidence}"
+        )
         middlewares.append(
             MemoryContextMiddleware(
                 memory_store=memory_store,
@@ -91,13 +91,14 @@ def create_middleware_from_config(
                 include_types=config.memory_context.include_types,
             )
         )
+        logger.info(
+            f"[MiddlewareFactory] MemoryContextMiddleware added, total middlewares: {len(middlewares)}"
+        )
 
     # Memory Learning Middleware
     if config.memory_learning.enabled:
         if memory_store is None:
-            raise ValueError(
-                "memory_store is required when memory_learning middleware is enabled"
-            )
+            raise ValueError("memory_store is required when memory_learning middleware is enabled")
 
         from src.middleware.memory_learning import MemoryLearningMiddleware
 
@@ -157,91 +158,57 @@ def create_middleware_from_config(
             )
         )
 
+    # Checkpoint cleanup is intentionally disabled from the active stack.
+    # The deepagents summarization middleware maintains checkpoint integrity.
+    if config.checkpoint_cleanup.enabled:
+        logger.info(
+            "[MiddlewareFactory] checkpoint_cleanup.enabled=true, "
+            "but CheckpointCleanupMiddleware is disabled in runtime."
+        )
+
+    # Todo Display Middleware
+    # This is a DISPLAY-ONLY middleware that enhances todo list presentation.
+    # It does NOT modify todo state - TodoListMiddleware handles that.
+    # This middleware runs AFTER the agent to enhance how todos are displayed.
+    if config.todo_display.enabled:
+        from src.middleware.todo_display import TodoDisplayMiddleware
+
+        logger.info(f"[MiddlewareFactory] Creating TodoDisplayMiddleware")
+        middlewares.append(
+            TodoDisplayMiddleware(
+                enable_progress_tracking=config.todo_display.enable_progress_tracking,
+                auto_mark_complete=config.todo_display.auto_mark_complete,
+            )
+        )
+        logger.info(
+            f"[MiddlewareFactory] TodoDisplayMiddleware added, total middlewares: {len(middlewares)}"
+        )
+
+    # Tool display is intentionally handled by channel-specific streaming renderers
+    # (Telegram + HTTP SSE) to avoid duplicate/conflicting output.
+    if config.tool_display.enabled:
+        logger.info(
+            "[MiddlewareFactory] tool_display.enabled=true, "
+            "but ToolDisplayMiddleware is disabled in runtime."
+        )
+
     # =============================================================================
     # Built-in DeepAgents Middlewares
     # =============================================================================
-
-    # SummarizationMiddleware (prioritize for effectiveness testing)
-    if config.summarization.enabled:
-        try:
-            from deepagents.middleware import SummarizationMiddleware
-        except ImportError:
-            # deepagents might not have this middleware
-            pass
-        else:
-            model = summarization_model
-            if not model and config.summarization.summary_model:
-                provider, model_name = parse_model_string(config.summarization.summary_model)
-                model = get_llm(provider=provider, model=model_name)
-
-            middlewares.append(
-                SummarizationMiddleware(
-                    model=model,  # positional argument
-                    backend=model,  # keyword argument
-                    max_tokens=config.summarization.max_tokens,
-                    threshold_tokens=config.summarization.threshold_tokens,
-                )
-            )
-
-    # TodoListMiddleware
-    if config.todo_list.enabled:
-        try:
-            from deepagents.middleware import TodoListMiddleware
-        except ImportError:
-            pass
-        else:
-            middlewares.append(
-                TodoListMiddleware(max_todos=config.todo_list.max_todos)
-            )
-
-    # FilesystemMiddleware
-    if config.filesystem.enabled:
-        try:
-            from deepagents.middleware import FilesystemMiddleware
-        except ImportError:
-            pass
-        else:
-            middlewares.append(
-                FilesystemMiddleware(max_file_size_mb=config.filesystem.max_file_size_mb)
-            )
-
-    # SubagentMiddleware
-    if config.subagent.enabled:
-        try:
-            from deepagents.middleware import SubagentMiddleware
-        except ImportError:
-            pass
-        else:
-            middlewares.append(
-                SubagentMiddleware(max_delegation_depth=config.subagent.max_delegation_depth)
-            )
-
-    # HumanInTheLoopMiddleware
-    if config.human_in_the_loop.enabled:
-        try:
-            from deepagents.middleware import HumanInTheLoopMiddleware
-        except ImportError:
-            pass
-        else:
-            middlewares.append(
-                HumanInTheLoopMiddleware(
-                    confirm_tool_calls=config.human_in_the_loop.confirm_tool_calls,
-                    confirm_subagent_calls=config.human_in_the_loop.confirm_subagent_calls,
-                )
-            )
-
-    # ToolRetryMiddleware
-    if config.tool_retry.enabled:
-        try:
-            from deepagents.middleware import ToolRetryMiddleware
-        except ImportError:
-            pass
-        else:
-            middlewares.append(
-                ToolRetryMiddleware(
-                    max_retries=config.tool_retry.max_retries,
-                    retry_on_errors=config.tool_retry.retry_on_errors,
-                )
-            )
+    # NOTE: The following middlewares are BUILT-IN to create_deep_agent's standard
+    # stack and are always enabled. Configuration parameters for these middlewares
+    # are applied via the model's profile attribute (see agent factory).
+    #
+    # Built-in middlewares (always included):
+    # - TodoListMiddleware (not configurable via this factory)
+    # - FilesystemMiddleware (not configurable via this factory)
+    # - SubAgentMiddleware (not configurable via this factory)
+    # - SummarizationMiddleware (configured via model.profile in agent factory)
+    # - ToolRetryMiddleware (not configurable via this factory)
+    # - AnthropicPromptCachingMiddleware (not configurable via this factory)
+    # - PatchToolCallsMiddleware (not configurable via this factory)
+    #
+    # The 'middleware' parameter only accepts ADDITIONAL middleware beyond the
+    # standard stack. Therefore, we DO NOT add built-in middlewares here.
 
     return middlewares

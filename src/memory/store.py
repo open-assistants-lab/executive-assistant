@@ -272,67 +272,91 @@ class MemoryStore:
         return cursor.rowcount > 0
 
     def search(self, params: MemorySearchParams) -> list[MemorySearchResult]:
-        """Search memories (Layer 1 - index only).
+        """Search memories using hybrid search (FTS5 + semantic in parallel).
 
-        Uses hybrid search: FTS5 for keywords + ChromaDB for semantic.
+        Both FTS5 and semantic search run in parallel, results are merged.
         """
-        fts_results = self._search_fts(params)
+        fts_results: list[MemorySearchResult] = []
+        semantic_results: list[MemorySearchResult] = []
 
+        # Run FTS5 search
+        try:
+            fts_results = self._search_fts(params)
+        except Exception:
+            pass
+
+        # Run semantic search in parallel
         if params.query:
-            semantic_results = self._search_semantic(params.query, params.limit)
-            fts_results = self._merge_results(fts_results, semantic_results)
+            try:
+                semantic_results = self._search_semantic(params.query, params.limit)
+            except Exception:
+                pass
 
-        return fts_results[: params.limit]
+        # Merge results from both searches
+        combined = fts_results + semantic_results
+
+        # Deduplicate by ID, keeping first occurrence (FTS has higher priority)
+        seen: set[str] = set()
+        unique_results: list[MemorySearchResult] = []
+        for r in combined:
+            if r.id not in seen:
+                seen.add(r.id)
+                unique_results.append(r)
+
+        return unique_results[: params.limit]
 
     def _search_fts(self, params: MemorySearchParams) -> list[MemorySearchResult]:
         """Full-text search using FTS5."""
         cursor = self.conn.cursor()
-
-        conditions = ["archived = 0"]
-        query_params: list[Any] = []
+        conditions: list[str] = ["archived = 0"]
+        args: list[Any] = []
 
         if params.type:
             conditions.append("type = ?")
-            query_params.append(params.type.value)
+            args.append(params.type.value)
 
         if params.project:
             conditions.append("project = ?")
-            query_params.append(params.project)
+            args.append(params.project)
 
         if params.date_start:
             conditions.append("occurred_at >= ?")
-            query_params.append(params.date_start)
+            args.append(params.date_start)
 
         if params.date_end:
             conditions.append("occurred_at <= ?")
-            query_params.append(params.date_end)
+            args.append(params.date_end)
 
-        order_clause = "created_at DESC"
-        if params.order_by == "date_asc":
-            order_clause = "created_at ASC"
+        order_clause = "created_at ASC" if params.order_by == "date_asc" else "created_at DESC"
+        where_clause = " AND ".join(conditions) if conditions else "1=1"
 
         if params.query:
-            escaped = params.query.replace('"', '""')
-            sql = f"""
+            sql = """
                 SELECT m.id, m.title, m.type, m.project, m.occurred_at, m.created_at, m.confidence
                 FROM memories m
-                JOIN memories_fts fts ON m.rowid = fts.rowid
-                WHERE memories_fts MATCH ? AND {" AND ".join(conditions)}
+                JOIN memories_fts ON m.rowid = memories_fts.rowid
+                WHERE memories_fts MATCH ?
+                AND {where_clause}
                 ORDER BY bm25(memories_fts)
                 LIMIT ? OFFSET ?
-            """
-            query_params = [escaped] + query_params + [params.limit, params.offset]
+            """.format(where_clause=where_clause)
+
+            query_args: list[Any] = [params.query, *args, params.limit, params.offset]
+            try:
+                cursor.execute(sql, query_args)
+            except sqlite3.OperationalError:
+                # If user query is invalid FTS syntax, retry as a quoted phrase.
+                fallback_query = f'"{params.query.replace("\"", "\"\"")}"'
+                cursor.execute(sql, [fallback_query, *args, params.limit, params.offset])
         else:
             sql = f"""
                 SELECT id, title, type, project, occurred_at, created_at, confidence
                 FROM memories
-                WHERE {" AND ".join(conditions)}
+                WHERE {where_clause}
                 ORDER BY {order_clause}
                 LIMIT ? OFFSET ?
             """
-            query_params.extend([params.limit, params.offset])
-
-        cursor.execute(sql, query_params)
+            cursor.execute(sql, [*args, params.limit, params.offset])
         rows = cursor.fetchall()
 
         return [

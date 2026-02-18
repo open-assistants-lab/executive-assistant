@@ -49,7 +49,9 @@ from src.memory.tools import (
     memory_timeline,
     memory_get,
     memory_save,
+    memory_delete,
     set_memory_store,
+    reset_memory_store,
     get_memory_store,
     MEMORY_WORKFLOW,
 )
@@ -69,10 +71,12 @@ __all__ = [
     "MemoryUpdate",
     "MemoryStore",
     "get_memory_store",
+    "memory_delete",
     "memory_get",
     "memory_save",
     "memory_search",
     "memory_timeline",
+    "reset_memory_store",
     "set_memory_store",
     "MEMORY_WORKFLOW",
 ]

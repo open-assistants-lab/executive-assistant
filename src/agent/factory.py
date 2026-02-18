@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -13,15 +12,16 @@ from langchain_core.tools import tool
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
 from src.config.settings import Settings, get_settings
-from src.config.yaml_config import load_yaml_config_with_default
 from src.llm import get_llm
 from src.memory import (
     MemoryStore,
     MEMORY_WORKFLOW,
-    memory_search,
-    memory_timeline,
+    memory_delete,
     memory_get,
     memory_save,
+    memory_search,
+    memory_timeline,
+    reset_memory_store,
     set_memory_store,
 )
 
@@ -35,6 +35,9 @@ class AgentContext:
     project_id: str | None = None
 
 
+_checkpointer_setup_done = False
+
+
 def _make_user_backend_factory(user_id: str, data_path: Path):
     """Create a backend factory with user-isolated filesystem routes.
 
@@ -42,6 +45,7 @@ def _make_user_backend_factory(user_id: str, data_path: Path):
 
     Routes:
         /user/*     → /data/users/{user_id}/ (user's private data)
+        /conversation_history/* → /data/users/{user_id}/.conversation_history/ (persistent summaries)
         /shared/*   → /data/shared/ (team-shared resources)
         /*          → StateBackend (ephemeral workspace, per-thread)
 
@@ -55,9 +59,11 @@ def _make_user_backend_factory(user_id: str, data_path: Path):
         Backend factory function for create_deep_agent
     """
     user_dir = data_path / "users" / user_id
+    conversation_history_dir = user_dir / ".conversation_history"
     shared_dir = data_path / "shared"
 
     user_dir.mkdir(parents=True, exist_ok=True)
+    conversation_history_dir.mkdir(parents=True, exist_ok=True)
     shared_dir.mkdir(parents=True, exist_ok=True)
 
     def make_backend(runtime) -> CompositeBackend:
@@ -66,6 +72,10 @@ def _make_user_backend_factory(user_id: str, data_path: Path):
             routes={
                 "/user/": FilesystemBackend(
                     root_dir=str(user_dir),
+                    virtual_mode=True,
+                ),
+                "/conversation_history/": FilesystemBackend(
+                    root_dir=str(conversation_history_dir),
                     virtual_mode=True,
                 ),
                 "/shared/": FilesystemBackend(
@@ -305,10 +315,25 @@ def get_current_time(timezone: str = "UTC") -> str:
         )
 
 
-def _get_model(settings: Settings):
-    """Get the LLM model from settings."""
-    provider, model = settings.llm.get_default_provider_model()
+def _get_model(
+    settings: Settings,
+    model_override: tuple[str, str] | None = None,
+):
+    """Get the LLM model from settings or per-user override."""
+    if model_override:
+        provider, model = model_override
+    else:
+        provider, model = settings.llm.get_default_provider_model()
     return get_llm(provider=provider, model=model)
+
+
+async def _ensure_checkpointer_setup(checkpointer: AsyncPostgresSaver) -> None:
+    """Run LangGraph checkpoint schema setup once per process."""
+    global _checkpointer_setup_done
+    if _checkpointer_setup_done:
+        return
+    await checkpointer.setup()
+    _checkpointer_setup_done = True
 
 
 def _collect_skill_paths(settings: Settings, user_id: str) -> list[str]:
@@ -335,17 +360,33 @@ SUBAGENTS = [
     {
         "name": "coder",
         "description": "Write, debug, and refactor code. Use for programming tasks.",
-        "system_prompt": "You are a specialized coding assistant. Write clean, well-documented code.",
+        "system_prompt": """You are a specialized coding assistant. Write clean, well-documented code.
+
+CRITICAL - Filesystem Path Rules:
+- Virtual `/user/` maps to real path `./data/users/{user_id}/` (persistent storage)
+- ALWAYS create code files with `/user/` prefix: `/user/projects/weather/code.py`
+- Files at root level (no prefix) are LOST after conversation
+- Use `/shared/` for reusable code templates""",
     },
     {
         "name": "researcher",
         "description": "Search the web and gather information. Use for research tasks.",
-        "system_prompt": "You are a specialized research assistant. Gather and synthesize information from web search and scraping tools.",
+        "system_prompt": """You are a specialized research assistant. Gather and synthesize information from web search and scraping tools.
+
+CRITICAL - Filesystem Path Rules:
+- Virtual `/user/` maps to real path `./data/users/{user_id}/` (persistent storage)
+- ALWAYS save research with `/user/` prefix: `/user/research/topic.md`
+- Use `/shared/` for team knowledge base articles""",
     },
     {
         "name": "planner",
         "description": "Break down complex tasks into actionable steps. Use for planning.",
-        "system_prompt": "You are a specialized planning assistant. Analyze and organize complex tasks into manageable steps.",
+        "system_prompt": """You are a specialized planning assistant. Analyze and organize complex tasks into manageable steps.
+
+CRITICAL - Filesystem Path Rules:
+- Virtual `/user/` maps to real path `./data/users/{user_id}/` (persistent storage)
+- ALWAYS save plans with `/user/` prefix: `/user/plans/project-plan.md`
+- Use `/shared/` for project templates""",
     },
 ]
 
@@ -354,16 +395,33 @@ def _build_system_prompt(agent_name: str) -> str:
     """Build the system prompt with the agent's name and memory workflow."""
     return f"""You are {agent_name}, a deep agent with executive assistant capabilities.
 
-## Filesystem Structure
-- `/user/` - Your private data directory (organize as needed: memories, projects, notes)
-- `/shared/` - Team-shared resources (skills, knowledge base, templates)
-- `/workspace/` - Ephemeral workspace (cleared between threads)
+## Filesystem Structure (CRITICAL - Read This!)
+You work with a VIRTUAL filesystem that maps to REAL disk paths:
+
+### Virtual Path → Real Path Mapping
+- `/user/` → `./data/users/{{user_id}}/` (YOUR PERSISTENT STORAGE)
+- `/shared/` → `./data/shared/` (team-shared resources)
+- (no prefix) → Ephemeral memory (CLEARED after conversation, DO NOT USE for persistence)
+
+### Examples
+| What You Create | Virtual Path | Real Disk Path |
+|----------------|--------------|----------------|
+| Personal project file | `/user/projects/weather/forecast.md` | `./data/users/{{user_id}}/projects/weather/forecast.md` |
+| Meeting notes | `/user/notes/meeting-2026-02-17.md` | `./data/users/{{user_id}}/notes/meeting-2026-02-17.md` |
+| Reusable skill | `/shared/skills/weather-forecast.md` | `./data/shared/skills/weather-forecast.md` |
+| ❌ WRONG (will be lost) | `/skills/weather/sydney.md` | (ephemeral, deleted after conversation)
+
+### Golden Rules
+1. **ALWAYS** start file paths with `/user/` for personal files (this ensures persistence)
+2. **ALWAYS** start with `/shared/` for team artifacts (visible to all users)
+3. **NEVER** create files at root level - they WILL BE LOST after the conversation ends
+4. If you want to keep something, use `/user/` prefix - no exceptions!
 
 ## Capabilities
 - **Time & Date**: Get current time in any timezone using get_current_time
 - **Memory**: Remember and retrieve information about the user using memory tools
 - **Planning**: Break down complex tasks using the todo list
-- **File Operations**: Read, write, edit files in /user/ and /shared/
+- **File Operations**: Read, write, edit files (remember `/user/` prefix!)
 - **Web Search**: Use web_search to find current information
 - **Web Scraping**: Use web_scrape, web_crawl, web_map for web data
 - **Subagents**: Delegate specialized work to coder, researcher, or planner
@@ -371,11 +429,12 @@ def _build_system_prompt(agent_name: str) -> str:
 {MEMORY_WORKFLOW}
 
 ## Guidelines
-1. Organize user data in /user/ (e.g., /user/memories/, /user/projects/)
-2. Check /shared/ for team resources and skills
-3. Save important information about the user using memory_save
-4. Search memories before asking the user for information they may have already shared
-5. Ask for clarification when uncertain about user needs
+1. **CRITICAL**: Always create files with `/user/` prefix for persistence (e.g., `/user/projects/...`)
+2. Organize user data in `/user/` with clear structure: `/user/memories/`, `/user/projects/`, `/user/notes/`
+3. Check `/shared/` for team resources and skills
+4. Save important information about the user using memory_save
+5. Search memories before asking the user for information they may have already shared
+6. Ask for clarification when uncertain about user needs
 """
 
 
@@ -383,6 +442,7 @@ def _build_system_prompt(agent_name: str) -> str:
 async def create_ea_agent(
     settings: Settings | None = None,
     user_id: str = "default",
+    model_override: tuple[str, str] | None = None,
     skills: list[str] | None = None,
 ) -> AsyncIterator[CompiledStateGraph]:
     """Create an Executive Assistant deep agent with Postgres checkpoints and user-isolated memory.
@@ -390,6 +450,7 @@ async def create_ea_agent(
     Args:
         settings: Application settings (defaults to global settings)
         user_id: User identifier for memory isolation
+        model_override: Optional per-user model override `(provider, model)`
         skills: Override skill paths (if None, uses three-tier skill system)
 
     Yields:
@@ -398,78 +459,82 @@ async def create_ea_agent(
     if settings is None:
         settings = get_settings()
 
-    model = _get_model(settings)
+    model = _get_model(settings, model_override=model_override)
+
+    # Set model profile for summarization middleware
+    # The SummarizationMiddleware (built-in to create_deep_agent) uses
+    # _compute_summarization_defaults(model) which checks model.profile["max_input_tokens"]
+    # to calculate trigger threshold (85% of max tokens). If profile is None, it defaults
+    # to 170,000 tokens trigger, which is too high.
+    # We set the profile based on the configured threshold_tokens to control when summarization triggers.
+    if hasattr(model, "profile"):
+        # Calculate max_input_tokens from threshold_tokens
+        # trigger = 0.85 * max_input_tokens, so max_input_tokens = threshold / 0.85
+        threshold = settings.middleware.summarization.threshold_tokens
+        max_input_tokens = int(threshold / 0.85)  # Round to nearest integer
+
+        model.profile = {"max_input_tokens": max_input_tokens}
+
     # Convert SQLAlchemy async URL to psycopg-compatible URL for LangGraph
     db_uri = settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
     agent_name = settings.agent_name
     user_path = settings.get_user_path(user_id)
 
-    # Load middleware configuration from YAML
-    config_path = settings.data_path / "config.yaml"
-    if config_path.exists():
-        try:
-            from src.config.middleware_settings import MiddlewareConfig
-
-            middleware_config = load_yaml_config_with_default(
-                path=config_path,
-                model_class=MiddlewareConfig,
-            )
-            # Merge with defaults (YAML values override defaults)
-            settings.middleware = settings.middleware.model_copy(
-                update=middleware_config.model_dump(exclude_unset=True)
-            )
-        except Exception:
-            # If config loading fails, use defaults
-            pass
-
     memory_store = MemoryStore(user_id=user_id, data_path=user_path)
-    set_memory_store(memory_store)
+    memory_store_token = set_memory_store(memory_store)
 
-    async with AsyncPostgresSaver.from_conn_string(db_uri) as checkpointer:
-        await checkpointer.setup()
+    try:
+        async with AsyncPostgresSaver.from_conn_string(db_uri) as checkpointer:
+            await _ensure_checkpointer_setup(checkpointer)
 
-        skill_paths = skills if skills is not None else _collect_skill_paths(settings, user_id)
+            skill_paths = skills if skills is not None else _collect_skill_paths(settings, user_id)
 
-        # Create middlewares from configuration
-        from src.middleware.factory import create_middleware_from_config
+            # Create middlewares from configuration
+            from src.middleware.factory import create_middleware_from_config
+            import logging
 
-        summarization_llm = get_llm(
-            *settings.llm.get_summarization_provider_model()
-        )
-        middlewares = create_middleware_from_config(
-            config=settings.middleware,
-            memory_store=memory_store,
-            user_id=user_id,
-            summarization_model=summarization_llm,
-        )
+            logger = logging.getLogger(__name__)
 
-        agent_kwargs: dict[str, Any] = {
-            "name": f"ea-{user_id}",
-            "model": model,
-            "system_prompt": _build_system_prompt(agent_name),
-            "checkpointer": checkpointer,
-            "backend": _make_user_backend_factory(user_id, settings.data_path),
-            "tools": [
-                get_current_time,
-                web_search,
-                web_scrape,
-                web_crawl,
-                web_map,
-                memory_search,
-                memory_timeline,
-                memory_get,
-                memory_save,
-            ],
-            "subagents": SUBAGENTS,
-            "middleware": middlewares,
-        }
+            logger.info("[AgentFactory] Creating middlewares for user %s...", user_id)
+            middlewares = create_middleware_from_config(
+                config=settings.middleware,
+                memory_store=memory_store,
+                user_id=user_id,
+            )
+            logger.info("[AgentFactory] Created %s middlewares", len(middlewares))
 
-        # Set system prompt
-        agent_kwargs["system_prompt"] = _build_system_prompt(agent_name)
+            agent_kwargs: dict[str, Any] = {
+                "name": f"ea-{user_id}",
+                "model": model,
+                "system_prompt": _build_system_prompt(agent_name),
+                "checkpointer": checkpointer,
+                "backend": _make_user_backend_factory(user_id, settings.data_path),
+                "tools": [
+                    get_current_time,
+                    web_search,
+                    web_scrape,
+                    web_crawl,
+                    web_map,
+                    memory_search,
+                    memory_timeline,
+                    memory_get,
+                    memory_save,
+                    memory_delete,
+                ],
+                "subagents": SUBAGENTS,
+            }
 
-        if skill_paths:
-            agent_kwargs["skills"] = skill_paths
+            # Only add middleware if we have any
+            if middlewares:
+                agent_kwargs["middleware"] = middlewares
 
-        agent = create_deep_agent(**agent_kwargs)
+            if skill_paths:
+                agent_kwargs["skills"] = skill_paths
 
-        yield agent
+            agent = create_deep_agent(**agent_kwargs)
+            yield agent
+    finally:
+        try:
+            memory_store.close()
+        finally:
+            reset_memory_store(memory_store_token)

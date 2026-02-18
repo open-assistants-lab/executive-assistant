@@ -10,6 +10,7 @@ ALWAYS follow the 3-layer workflow to minimize token usage.
 
 from __future__ import annotations
 
+from contextvars import ContextVar, Token
 from pathlib import Path
 from typing import Any
 
@@ -141,19 +142,23 @@ def _format_memory_details(memories: list[Any]) -> str:
     return "\n".join(lines)
 
 
-# Memory store context - set by agent factory
-_current_store: MemoryStore | None = None
+# Memory store context - set by agent factory (context-local to avoid cross-request leakage)
+_current_store_var: ContextVar[MemoryStore | None] = ContextVar("memory_store", default=None)
 
 
-def set_memory_store(store: MemoryStore) -> None:
-    """Set the current memory store context."""
-    global _current_store
-    _current_store = store
+def set_memory_store(store: MemoryStore) -> Token[MemoryStore | None]:
+    """Set the current memory store context for this execution context."""
+    return _current_store_var.set(store)
+
+
+def reset_memory_store(token: Token[MemoryStore | None]) -> None:
+    """Reset the current memory store context using a token from set_memory_store."""
+    _current_store_var.reset(token)
 
 
 def get_memory_store() -> MemoryStore | None:
     """Get the current memory store context."""
-    return _current_store
+    return _current_store_var.get()
 
 
 @tool
@@ -187,7 +192,8 @@ def memory_search(
         memory_search(query="authentication decision", type="decision", limit=10)
         # Returns IDs, then use: memory_get(ids=["mem-abc123", "mem-def456"])
     """
-    if _current_store is None:
+    store = get_memory_store()
+    if store is None:
         return "Error: Memory store not initialized."
 
     try:
@@ -205,7 +211,7 @@ def memory_search(
         limit=min(limit, 100),
     )
 
-    results = _current_store.search(params)
+    results = store.search(params)
     return _format_search_results(results)
 
 
@@ -235,7 +241,8 @@ def memory_timeline(
     Example:
         memory_timeline(anchor_id="mem-abc123", depth_before=5, depth_after=5)
     """
-    if _current_store is None:
+    store = get_memory_store()
+    if store is None:
         return "Error: Memory store not initialized."
 
     if not anchor_id and not query:
@@ -250,7 +257,7 @@ def memory_timeline(
     )
 
     try:
-        timeline = _current_store.timeline(params)
+        timeline = store.timeline(params)
         return _format_timeline(timeline)
     except ValueError as e:
         return f"Error: {e}"
@@ -277,7 +284,8 @@ def memory_get(ids: list[str]) -> str:
     WARNING: Avoid fetching many memories at once. Start with memory_search
     to identify the most relevant IDs, then fetch only those.
     """
-    if _current_store is None:
+    store = get_memory_store()
+    if store is None:
         return "Error: Memory store not initialized."
 
     if not ids:
@@ -286,7 +294,7 @@ def memory_get(ids: list[str]) -> str:
     if len(ids) > 20:
         return f"Error: Too many IDs ({len(ids)}). Maximum 20 per call. Use memory_search to filter first."
 
-    memories = _current_store.get_batch(ids)
+    memories = store.get_batch(ids)
 
     if not memories:
         return f"No memories found with IDs: {ids}"
@@ -349,7 +357,8 @@ def memory_save(
             confidence=0.9,
         )
     """
-    if _current_store is None:
+    store = get_memory_store()
+    if store is None:
         return "Error: Memory store not initialized."
 
     try:
@@ -389,9 +398,36 @@ def memory_save(
         source=memory_source,
     )
 
-    memory = _current_store.add(data)
+    memory = store.add(data)
 
     return f"Memory saved successfully.\n\nID: {memory.id}\nType: {memory.type.value}\nTitle: {memory.title}"
+
+
+@tool
+def memory_delete(
+    memory_id: str,
+) -> str:
+    """Delete (archive) a memory by ID.
+
+    Args:
+        memory_id: The ID of the memory to delete (e.g., "mem-abc123")
+
+    Returns:
+        Confirmation message.
+
+    Example:
+        memory_delete(memory_id="mem-abc123")
+    """
+    store = get_memory_store()
+    if store is None:
+        return "Error: Memory store not initialized."
+
+    success = store.delete(memory_id)
+
+    if success:
+        return f"Memory {memory_id} has been deleted (archived)."
+    else:
+        return f"Memory {memory_id} not found or already deleted."
 
 
 MEMORY_WORKFLOW = """
@@ -409,6 +445,9 @@ MEMORY_WORKFLOW = """
    - ONLY for filtered, relevant IDs
    - Batch multiple IDs in single call
    - NEVER fetch without filtering first
+
+4. **memory_delete(memory_id)** → Delete archived memory
+   - Use to remove incorrect or outdated memories
 
 **Token savings**: 3-layer approach uses ~10x fewer tokens than fetching everything.
 """
