@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from src.config.middleware_settings import MiddlewareConfig
+
+logger = logging.getLogger(__name__)
 
 
 def parse_model_string(model_string: str) -> tuple[str, str]:
@@ -113,8 +116,24 @@ class AppSettings(BaseSettings):
     )
 
     env: str = Field(default="development", description="Application environment")
-    debug: bool = Field(default=True, description="Debug mode")
+    debug: bool = Field(default=True, description="Enable application debug mode")
+    hot_reload: bool = Field(default=True, description="Enable auto-reload on code changes")
     secret_key: str = Field(default="change-me-in-production", description="Application secret key")
+
+
+class DisplaySettings(BaseModel):
+    verbose: bool = Field(default=False, description="Show verbose execution details")
+
+
+class YamlAppSettings(BaseModel):
+    debug: bool = Field(default=False, description="Enable FastAPI debug mode")
+    log_level: str = Field(default="INFO", description="Application log level")
+    display: DisplaySettings = Field(default_factory=DisplaySettings)
+
+
+class YamlRootConfig(BaseModel):
+    app: YamlAppSettings = Field(default_factory=YamlAppSettings)
+    middleware: MiddlewareConfig = Field(default_factory=MiddlewareConfig)
 
 
 class Settings(BaseSettings):
@@ -130,6 +149,11 @@ class Settings(BaseSettings):
     middleware: MiddlewareConfig = Field(
         default_factory=MiddlewareConfig,
         description="Middleware configuration (loaded from YAML, not env vars)",
+    )
+    # log_level loads from YAML config (via AppConfig)
+    log_level: str = Field(default="INFO", description="Logging level (from YAML config only)")
+    display_verbose: bool = Field(
+        default=False, description="Show agent thinking, tool args, execution details"
     )
 
     database_url: str = Field(
@@ -176,8 +200,7 @@ class Settings(BaseSettings):
 
     firecrawl_api_key: str | None = Field(default=None, description="Firecrawl API key")
     firecrawl_base_url: str = Field(
-        default="https://api.firecrawl.dev",
-        description="Firecrawl base URL"
+        default="https://api.firecrawl.dev", description="Firecrawl base URL"
     )
 
     agent_name: str = Field(
@@ -205,10 +228,38 @@ class Settings(BaseSettings):
 _settings: Settings | None = None
 
 
+def _config_path_candidates(data_path: Path) -> list[Path]:
+    """Return config path candidates in priority order."""
+    repo_root = Path(__file__).resolve().parents[2]
+    return [repo_root / "config.yaml", data_path / "config.yaml"]
+
+
+def apply_yaml_overrides(settings: Settings) -> None:
+    """Apply admin-managed YAML config to runtime settings."""
+    from src.config.yaml_config import load_yaml_config
+
+    for config_path in _config_path_candidates(settings.data_path):
+        if not config_path.exists():
+            continue
+        try:
+            root_config = load_yaml_config(path=config_path, model_class=YamlRootConfig)
+        except Exception as exc:
+            logger.warning("Failed to load config from %s: %s", config_path, exc)
+            continue
+
+        settings.middleware = root_config.middleware
+        settings.log_level = root_config.app.log_level
+        settings.display_verbose = root_config.app.display.verbose
+        settings.app.debug = root_config.app.debug
+        logger.info("Loaded admin config from %s", config_path)
+        return
+
+
 def get_settings() -> Settings:
     global _settings
     if _settings is None:
         _settings = Settings()
+        apply_yaml_overrides(_settings)
     return _settings
 
 

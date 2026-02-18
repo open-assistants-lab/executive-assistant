@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -12,6 +13,8 @@ from langchain.messages import AIMessage
 if TYPE_CHECKING:
     from langchain.agents.middleware import AgentState
     from langgraph.runtime import Runtime
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -132,7 +135,25 @@ class RateLimitMiddleware(AgentMiddleware):
         runtime: Runtime,
     ) -> dict[str, Any] | None:
         """Async version of rate limit check before model call."""
-        return self.before_model(state, runtime)
+        user_id = self._get_user_id(state)
+        allowed, remaining = self._check_model_limit(user_id)
+
+        logger.debug(f"[RateLimitMiddleware] Model call check for user '{user_id}': allowed={allowed}, remaining={remaining}")
+
+        if not allowed:
+            retry_after = self.window_seconds
+            logger.warning(f"[RateLimitMiddleware] Rate limit exceeded for user '{user_id}', retry after {retry_after}s")
+            return {
+                "messages": [
+                    AIMessage(
+                        content=f"Rate limit exceeded. Please wait {retry_after} seconds before trying again."
+                    )
+                ],
+                "jump_to": "end",
+            }
+
+        self._record_model_call(user_id)
+        return None
 
     def get_status(self, user_id: str | None = None) -> dict:
         """Get rate limit status for a user."""

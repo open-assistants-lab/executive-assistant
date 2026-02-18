@@ -51,8 +51,32 @@ class MessageFormatter:
         # Show todos if available
         if todos:
             status += "📋 **Plan:**\n"
-            for todo in todos[:5]:  # Show max 5 todos
-                status += f"• {todo}\n"
+            for i, todo in enumerate(todos[:5], 1):  # Show max 5 todos
+                # Handle enhanced todos from TodoDisplayMiddleware (with display_status)
+                if isinstance(todo, dict) and "display_status" in todo:
+                    # Enhanced todo with display_status from TodoDisplayMiddleware
+                    content = todo.get("content", str(todo))
+                    display_status = todo.get("display_status", "pending")
+                    status_emoji = {
+                        "pending": "⏳",
+                        "in_progress": "🔄",
+                        "completed": "✅",
+                        "failed": "❌",
+                    }.get(display_status, "⏳")
+                    status += f"{i}. {status_emoji} {content}\n"
+                # Handle regular dict todos
+                elif isinstance(todo, dict):
+                    content = todo.get("content", str(todo))
+                    status_emoji = {
+                        "pending": "⏳",
+                        "in_progress": "🔄",
+                        "completed": "✅",
+                        "failed": "❌",
+                    }.get(todo.get("status", "pending"), "⏳")
+                    status += f"{i}. {status_emoji} {content}\n"
+                # Handle string todos
+                else:
+                    status += f"{i}. {todo}\n"
             if len(todos) > 5:
                 status += f"... and {len(todos) - 5} more\n"
 
@@ -60,12 +84,66 @@ class MessageFormatter:
         if tool_calls:
             if status and not middleware_activities:
                 status += "\n"
-            for tc in tool_calls:
+            for i, tc in enumerate(tool_calls, 1):
                 # Use display_name if available (for subagents), otherwise use name
                 display = tc.get("display_name", tc["name"])
-                status += f"🔧 {display}\n"
+
+                # Check if tool is completed (has result)
+                is_completed = tc.get("completed", False)
+
+                if is_completed:
+                    # Completed tool - show with checkmark
+                    duration = tc.get("duration_ms", 0)
+                    status += f"✅ {i}. {display}"
+                    if duration:
+                        status += f" ({duration:.0f}ms)"
+                    status += "\n"
+
+                    # Show result preview if available
+                    if tc.get("result_preview"):
+                        result = tc["result_preview"]
+                        # Truncate result preview further
+                        if len(result) > 80:
+                            result = result[:80] + "..."
+                        status += f"   └─ {result}\n"
+                else:
+                    # In-progress tool - show with wrench
+                    status += f"🔧 {i}. {display}\n"
+
+                    # Show args if available (human-friendly format)
+                    args = tc.get("args", {})
+                    if args:
+                        # Format args in a human-friendly way
+                        args_str = MessageFormatter._format_tool_args(args)
+                        if args_str:
+                            status += f"   └─ {args_str}\n"
 
         return status
+
+    @staticmethod
+    def _format_tool_args(args: dict) -> str:
+        """Format tool arguments in a human-friendly way."""
+        if not args:
+            return ""
+
+        # Filter out internal/empty args
+        filtered = {
+            k: v for k, v in args.items() if v not in (None, "", [], {}) and not k.startswith("_")
+        }
+
+        if not filtered:
+            return ""
+
+        # Format as key=value pairs, truncate long values
+        parts = []
+        for k, v in filtered.items():
+            v_str = str(v)
+            # Truncate long values
+            if len(v_str) > 30:
+                v_str = v_str[:30] + "..."
+            parts.append(f"{k}={v_str}")
+
+        return ", ".join(parts)
 
     @staticmethod
     def _format_middleware_activity(activity: dict) -> str:
@@ -98,11 +176,31 @@ class MessageFormatter:
         return result
 
     @staticmethod
+    def format_tool_call(tool_name: str, tool_args: dict, tool_id: str = "") -> str:
+        """Format a single tool call for display."""
+        # Format args in human-friendly way
+        args_str = MessageFormatter._format_tool_args(tool_args)
+
+        if args_str:
+            return f"🔧 **{tool_name}**\n   └─ {args_str}"
+        else:
+            return f"🔧 **{tool_name}**"
+
+    @staticmethod
+    def format_tool_result(tool_name: str, result_preview: str, duration_ms: float = 0) -> str:
+        """Format a tool result for display."""
+        duration_str = f" ({duration_ms:.0f}ms)" if duration_ms else ""
+        result_text = result_preview[:80] + "..." if len(result_preview) > 80 else result_preview
+
+        return f"✅ **{tool_name}**{duration_str}\n   └─ {result_text}"
+
+    @staticmethod
     def format_final_response(
         tool_calls: list[dict],
         content: str,
         todos: list[str] | None = None,
         middleware_activities: list[dict] | None = None,
+        reasoning: str | None = None,
     ) -> str:
         """Format final response (just the content, no tool/middleware summary).
 
@@ -113,17 +211,32 @@ class MessageFormatter:
             content: The agent's response content
             todos: Optional list of todo items (not used in final response)
             middleware_activities: Optional list of middleware activities (not used in final response)
+            reasoning: Optional LLM reasoning/thinking process to display
 
         Returns:
-            Formatted final message (just the content)
+            Formatted final message (just the content, with reasoning if available)
         """
+        # Build response with optional reasoning section
+        response_parts = []
+
+        # Add reasoning if available (before the main response)
+        if reasoning and reasoning.strip():
+            response_parts.append(f"💭 **Thinking Process:**\n{reasoning}\n")
+
         # Add agent response (truncate if too long for Telegram)
         # Telegram message limit is 4096 characters
         MAX_LENGTH = 4000  # Leave some buffer
-        if len(content) > MAX_LENGTH:
-            content = content[:MAX_LENGTH - 50] + "\n\n... (truncated, too long)"
 
-        return content
+        # Account for reasoning in length calculation
+        reasoning_length = len(response_parts[0]) if response_parts else 0
+        remaining_length = MAX_LENGTH - reasoning_length - 50  # Leave buffer for truncation message
+
+        if len(content) > remaining_length:
+            content = content[:remaining_length] + "\n\n... (truncated, too long)"
+
+        response_parts.append(content)
+
+        return "\n".join(response_parts)
 
     @staticmethod
     def format_done_message() -> str:
@@ -163,7 +276,9 @@ class MessageUpdater:
         Returns:
             True if update succeeded, False otherwise
         """
-        status_text = self.formatter.format_processing_status(tool_calls, todos, middleware_activities)
+        status_text = self.formatter.format_processing_status(
+            tool_calls, todos, middleware_activities
+        )
         try:
             await self.message.edit_text(status_text)
             return True
@@ -179,6 +294,7 @@ class MessageUpdater:
         content: str,
         todos: list[str] | None = None,
         middleware_activities: list[dict] | None = None,
+        reasoning: str | None = None,
     ) -> bool:
         """Update the message with final response.
 
@@ -187,12 +303,13 @@ class MessageUpdater:
             content: The agent's final response content
             todos: Optional list of todo items
             middleware_activities: Optional list of middleware activity dicts
+            reasoning: Optional LLM reasoning/thinking process
 
         Returns:
             True if update succeeded, False otherwise
         """
         response_text = self.formatter.format_final_response(
-            tool_calls, content, todos, middleware_activities
+            tool_calls, content, todos, middleware_activities, reasoning
         )
         try:
             await self.message.edit_text(response_text)

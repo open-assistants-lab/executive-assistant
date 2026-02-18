@@ -298,7 +298,7 @@ Update `src/agent/factory.py` to wrap agent execution:
 
 ```python
 @asynccontextmanager
-async def create_ken_agent(...):
+async def create_ea_agent(...):
     from src.observability.langfuse import get_langfuse_client
 
     client = get_langfuse_client()
@@ -390,7 +390,7 @@ class OpenAIProvider(BaseLLMProvider):
 
 ```bash
 # Run the agent
-uv run ken serve
+uv run ea http
 
 # Send a message
 curl -X POST http://localhost:8000/message \

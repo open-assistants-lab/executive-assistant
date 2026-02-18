@@ -120,6 +120,7 @@ uv run ea acp
 AGENT_NAME=Executive Assistant
 
 # Default model (format: provider/model-name)
+# Fast examples: openai/gpt-5-nano, anthropic/claude-haiku-4-5, google/gemini-2.5-flash-lite, groq/openai/gpt-oss-20b
 DEFAULT_MODEL=ollama/qwen3-coder-next
 
 # Database for checkpoints

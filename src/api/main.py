@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
@@ -13,6 +14,13 @@ from src.storage.postgres import get_postgres_connection
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    force=True  # Override any existing configuration
+)
 
 
 @asynccontextmanager
@@ -30,10 +38,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
+    settings = get_settings()
+
+    # app.debug is admin-configured via YAML; DEBUG log level also enables debug mode.
+    debug_mode = settings.app.debug or settings.log_level == "DEBUG"
+
     app = FastAPI(
-        title="Ken Agent API",
-        description="Enterprise-ready personal agent with multi-LLM support",
+        title="Executive Assistant API",
+        description="Enterprise-ready AI assistant with memory, tools, and multi-LLM support",
         version="0.1.0",
+        debug=debug_mode,
         lifespan=lifespan,
     )
 
@@ -56,10 +70,11 @@ def create_app() -> FastAPI:
             },
         )
 
-    from src.api.routes import chat, health
+    from src.api.routes import chat, commands, health
 
     app.include_router(health.router, prefix="/api/v1", tags=["health"])
     app.include_router(chat.router, prefix="/api/v1", tags=["chat"])
+    app.include_router(commands.router, prefix="/api/v1", tags=["commands"])
 
     return app
 
@@ -76,7 +91,7 @@ def run_server() -> None:
         "src.api.main:app",
         host=settings.api_host,
         port=settings.api_port,
-        reload=settings.app.debug,
+        reload=settings.app.hot_reload,
     )
 
 

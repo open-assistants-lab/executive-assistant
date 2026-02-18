@@ -299,7 +299,7 @@ async def http_client_with_running_server():
     # Start server in background
     # Note: This requires the server to be startable via CLI
     proc = subprocess.Popen(
-        ["uv", "run", "ken", "serve", "--port", "8765"],
+        ["uv", "run", "ea", "http", "--port", "8765"],
         cwd="/Users/eddy/Developer/Langgraph/executive-assistant",
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -356,4 +356,3 @@ def long_conversation_for_summarization():
             f"Message {i}: Mike is handling the backend API with Python and FastAPI",
         ])
     return messages
-

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Awaitable, Callable
@@ -13,6 +14,8 @@ if TYPE_CHECKING:
     from langchain.messages import ToolMessage
     from langgraph.runtime import Runtime
     from langgraph.types import Command
+
+logger = logging.getLogger(__name__)
 
 
 class LoggingMiddleware(AgentMiddleware):
@@ -45,6 +48,7 @@ class LoggingMiddleware(AgentMiddleware):
         self.log_errors = log_errors
 
         self.log_dir.mkdir(parents=True, exist_ok=True)
+        logger.debug(f"[LoggingMiddleware] Initialized for user '{user_id}', log_dir={self.log_dir}")
 
     def _get_log_file(self) -> Path:
         """Get log file path for today."""
@@ -167,6 +171,7 @@ class LoggingMiddleware(AgentMiddleware):
         handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelResponse:
         """Async wrap model call with timing and error logging."""
+        logger.debug("[LoggingMiddleware] awrap_model_call called")
         start_time = datetime.now(timezone.utc)
 
         try:
@@ -174,6 +179,7 @@ class LoggingMiddleware(AgentMiddleware):
 
             if self.log_model_calls:
                 duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+                logger.debug(f"[LoggingMiddleware] Model call completed in {duration_ms:.2f}ms")
                 self._log(
                     "model_call_complete",
                     {
@@ -188,6 +194,7 @@ class LoggingMiddleware(AgentMiddleware):
         except Exception as e:
             if self.log_errors:
                 duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+                logger.debug(f"[LoggingMiddleware] Model call failed after {duration_ms:.2f}ms: {e}")
                 self._log(
                     "model_call_error",
                     {
@@ -269,6 +276,8 @@ class LoggingMiddleware(AgentMiddleware):
         tool_name = tool_call.get("name", "unknown")
         tool_args = tool_call.get("args", {})
 
+        logger.debug(f"[LoggingMiddleware] Tool call started: {tool_name}")
+
         start_time = datetime.now(timezone.utc)
 
         self._log(
@@ -288,6 +297,8 @@ class LoggingMiddleware(AgentMiddleware):
             if hasattr(result, "content"):
                 result_preview = str(result.content)[:200]
 
+            logger.debug(f"[LoggingMiddleware] Tool call completed: {tool_name} ({duration_ms:.2f}ms)")
+
             self._log(
                 "tool_call_end",
                 {
@@ -302,6 +313,8 @@ class LoggingMiddleware(AgentMiddleware):
 
         except Exception as e:
             duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+
+            logger.debug(f"[LoggingMiddleware] Tool call failed: {tool_name} - {e}")
 
             self._log(
                 "tool_call_error",

@@ -11,6 +11,7 @@ Memory types: profile, contact, preference, schedule, task, decision,
 from __future__ import annotations
 
 import json
+import logging
 import re
 from datetime import datetime, timezone as dt_timezone
 from typing import TYPE_CHECKING, Any
@@ -22,6 +23,8 @@ from src.memory import MemoryStore, MemoryCreate, MemoryType, MemorySource
 if TYPE_CHECKING:
     from langchain.agents.middleware import AgentState
     from langgraph.runtime import Runtime
+
+logger = logging.getLogger(__name__)
 
 
 class MemoryLearningMiddleware(AgentMiddleware):
@@ -85,7 +88,41 @@ class MemoryLearningMiddleware(AgentMiddleware):
         runtime: Runtime,
     ) -> dict[str, Any] | None:
         """Async version of memory extraction after agent completes."""
-        return self.after_agent(state, runtime)
+        if not self.auto_learn or not self.memory_store:
+            logger.debug("[MemoryLearning] Skipped (auto_learn=%s, memory_store=%s)", self.auto_learn, self.memory_store is not None)
+            return None
+
+        messages = state.get("messages", [])
+        if len(messages) < 2:
+            logger.debug("[MemoryLearning] Skipped (not enough messages)")
+            return None
+
+        try:
+            logger.debug("[MemoryLearning] Extracting memories from conversation...")
+            memories = self._extract_memories(messages)
+            logger.debug(f"[MemoryLearning] Found {len(memories)} candidate memories")
+
+            saved_count = 0
+            for memory_data in memories:
+                if memory_data.get("confidence", 0) >= self.min_confidence:
+                    memory_id = self._save_memory(memory_data)
+                    if memory_id:
+                        saved_count += 1
+                        logger.debug(f"   ✓ Saved: {memory_data.get('type', 'unknown')} - {memory_data.get('title', 'no title')} (confidence: {memory_data.get('confidence', 0):.2f})")
+                    else:
+                        logger.debug(f"   ✗ Failed to save: {memory_data.get('type', 'unknown')} - {memory_data.get('title', 'no title')}")
+                else:
+                    logger.debug(f"   ⊘ Skipping low-confidence memory: {memory_data.get('type', 'unknown')} - {memory_data.get('title', 'no title')} (confidence: {memory_data.get('confidence', 0):.2f} < {self.min_confidence})")
+
+            if saved_count == 0:
+                logger.debug("[MemoryLearning] No memories met confidence threshold")
+            else:
+                logger.debug(f"[MemoryLearning] Saved {saved_count} memories")
+
+        except Exception as e:
+            logger.error(f"[MemoryLearning] Error: {e}")
+
+        return None
 
     def _extract_memories(self, messages: list) -> list[dict]:
         """Extract memories from conversation messages."""

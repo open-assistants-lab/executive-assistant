@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 # Custom Middleware Configurations
 # =============================================================================
 
+
 class MemoryContextConfig(BaseModel):
     """Configuration for MemoryContextMiddleware.
 
@@ -30,7 +31,9 @@ class MemoryContextConfig(BaseModel):
 
     enabled: bool = Field(default=True, description="Enable memory context injection")
     max_memories: int = Field(default=5, ge=1, le=50, description="Maximum memories to inject")
-    min_confidence: float = Field(default=0.7, ge=0.0, le=1.0, description="Minimum confidence threshold")
+    min_confidence: float = Field(
+        default=0.7, ge=0.0, le=1.0, description="Minimum confidence threshold"
+    )
     include_types: list[str] | None = Field(
         default=None,
         description="Filter to specific memory types (null = all types)",
@@ -149,118 +152,110 @@ class RateLimitConfig(BaseModel):
     )
 
 
+class CheckpointCleanupConfig(BaseModel):
+    """Configuration for CheckpointCleanupMiddleware.
+
+    Removes old messages from checkpoint after summarization to prevent database bloat.
+    """
+
+    enabled: bool = Field(
+        default=False,
+        description="Disabled in runtime; retained for backward-compatible config parsing",
+    )
+    keep_buffer_messages: int = Field(
+        default=5,
+        ge=0,
+        le=50,
+        description="Number of messages to keep before summary as context buffer",
+    )
+    backup_enabled: bool = Field(
+        default=True,
+        description="Keep conversation history file in virtual filesystem as backup",
+    )
+
+
+class TodoDisplayConfig(BaseModel):
+    """Configuration for TodoDisplayMiddleware.
+
+    Enhances todo list display with progress tracking and status indicators.
+    This is a DISPLAY-ONLY middleware - it doesn't modify todo state.
+    """
+
+    enabled: bool = Field(default=True, description="Enable enhanced todo display")
+    enable_progress_tracking: bool = Field(
+        default=True,
+        description="Track tool calls and update todo progress automatically",
+    )
+    auto_mark_complete: bool = Field(
+        default=False,
+        description="Automatically mark todos as complete when tools finish (conservative)",
+    )
+
+
+class ToolDisplayConfig(BaseModel):
+    """Configuration for ToolDisplayMiddleware.
+
+    Displays tool calls and results as separate messages in real-time.
+    """
+
+    enabled: bool = Field(
+        default=False,
+        description="Disabled in runtime; channel renderers handle tool display",
+    )
+    show_args: bool = Field(default=True, description="Show tool arguments")
+    show_result: bool = Field(default=True, description="Show tool result preview")
+    show_duration: bool = Field(default=True, description="Show execution duration")
+    show_thinking: bool = Field(default=True, description="Show agent thinking before tool calls")
+
+
 # =============================================================================
 # Built-in DeepAgents Middleware Configurations
 # =============================================================================
+# NOTE: The following middlewares are BUILT-IN to create_deep_agent and are
+# always enabled in the standard stack with hardcoded parameters.
+#
+# Built-in middlewares (always included, NOT configurable via this system):
+# - FilesystemMiddleware (deepagents) - tool_token_limit_before_evict=20000
+# - SubAgentMiddleware (deepagents) - no configurable parameters
+# - SummarizationMiddleware (deepagents) - trigger/keep computed from model.profile
+# - AnthropicPromptCachingMiddleware - hardcoded
+# - PatchToolCallsMiddleware - hardcoded
+#
+# The configuration below only controls SummarizationMiddleware trigger/keep
+# behavior via model.profile setting. Other middlewares use their defaults.
+
 
 class SummarizationConfig(BaseModel):
     """Configuration for SummarizationMiddleware (from deepagents).
 
     Compresses long conversations to save tokens.
-    This is a critical middleware for effectiveness testing.
+    This middleware is always enabled in the standard stack.
+
+    The trigger threshold is controlled by setting model.profile["max_input_tokens"]
+    in the agent factory, which causes _compute_summarization_defaults() to use:
+    - trigger = ("fraction", 0.85) of max_input_tokens
+    - keep = ("fraction", 0.10) of max_input_tokens
+
+    Configured threshold_tokens determines the max_input_tokens value:
+    max_input_tokens = threshold_tokens / 0.85
+
+    Note: trim_tokens_to_summarize and summary_prompt are hardcoded in create_deep_agent
+    and cannot be configured via this system.
     """
 
-    enabled: bool = Field(default=False, description="Enable conversation summarization")
-    max_tokens: int = Field(
-        default=4000,
-        ge=1000,
-        le=32000,
-        description="Maximum tokens after summarization",
-    )
     threshold_tokens: int = Field(
         default=8000,
         ge=2000,
         le=100000,
-        description="Trigger summarization when conversation exceeds this",
-    )
-    summary_model: str | None = Field(
-        default=None,
-        description="Custom summarization model (provider/model format). "
-                    "Uses SUMMARIZATION_MODEL from env if null.",
-    )
-
-
-class TodoListConfig(BaseModel):
-    """Configuration for TodoListMiddleware (from deepagents).
-
-    Manages todo lists for task tracking.
-    """
-
-    enabled: bool = Field(default=True, description="Enable todo list middleware")
-    max_todos: int = Field(
-        default=100,
-        ge=10,
-        le=1000,
-        description="Maximum todos allowed",
-    )
-
-
-class FilesystemConfig(BaseModel):
-    """Configuration for FilesystemMiddleware (from deepagents).
-
-    Manages file operations in the virtual filesystem.
-    """
-
-    enabled: bool = Field(default=False, description="Enable filesystem middleware")
-    max_file_size_mb: int = Field(
-        default=10,
-        ge=1,
-        le=1000,
-        description="Maximum file size in MB",
-    )
-
-
-class SubagentConfig(BaseModel):
-    """Configuration for SubagentMiddleware (from deepagents).
-
-    Manages subagent delegation.
-    """
-
-    enabled: bool = Field(default=True, description="Enable subagent middleware")
-    max_delegation_depth: int = Field(
-        default=3,
-        ge=1,
-        le=10,
-        description="Maximum subagent delegation depth",
-    )
-
-
-class HumanInTheLoopConfig(BaseModel):
-    """Configuration for HumanInTheLoopMiddleware (from deepagents).
-
-    Requires user confirmations for certain actions.
-    """
-
-    enabled: bool = Field(default=False, description="Enable human-in-the-loop confirmations")
-    confirm_tool_calls: bool = Field(default=False, description="Confirm tool calls")
-    confirm_subagent_calls: bool = Field(
-        default=True,
-        description="Confirm subagent calls",
-    )
-
-
-class ToolRetryConfig(BaseModel):
-    """Configuration for ToolRetryMiddleware (from deepagents).
-
-    Retries failed tool calls automatically.
-    """
-
-    enabled: bool = Field(default=True, description="Enable tool retry middleware")
-    max_retries: int = Field(
-        default=3,
-        ge=0,
-        le=10,
-        description="Maximum retry attempts",
-    )
-    retry_on_errors: list[str] = Field(
-        default_factory=lambda: ["timeout", "rate_limit", "server_error"],
-        description="Error types to retry",
+        description="Trigger summarization when conversation exceeds this. "
+        "Sets model.profile max_input_tokens to threshold/0.85",
     )
 
 
 # =============================================================================
 # Main Middleware Configuration
 # =============================================================================
+
 
 class MiddlewareConfig(BaseModel):
     """Configuration for all middlewares.
@@ -290,29 +285,22 @@ class MiddlewareConfig(BaseModel):
         default_factory=RateLimitConfig,
         description="Rate limiting configuration",
     )
+    checkpoint_cleanup: CheckpointCleanupConfig = Field(
+        default_factory=CheckpointCleanupConfig,
+        description="Checkpoint cleanup configuration (removes summarized messages)",
+    )
+    todo_display: TodoDisplayConfig = Field(
+        default_factory=TodoDisplayConfig,
+        description="Todo display configuration (enhances todo list presentation)",
+    )
+    tool_display: ToolDisplayConfig = Field(
+        default_factory=ToolDisplayConfig,
+        description="Tool display configuration (shows tool calls/results in real-time)",
+    )
 
-    # Built-in deepagents middlewares
+    # Built-in deepagents middlewares (always enabled)
+    # Only summarization trigger is configurable via model.profile
     summarization: SummarizationConfig = Field(
         default_factory=SummarizationConfig,
-        description="Summarization middleware configuration",
-    )
-    todo_list: TodoListConfig = Field(
-        default_factory=TodoListConfig,
-        description="Todo list middleware configuration",
-    )
-    filesystem: FilesystemConfig = Field(
-        default_factory=FilesystemConfig,
-        description="Filesystem middleware configuration",
-    )
-    subagent: SubagentConfig = Field(
-        default_factory=SubagentConfig,
-        description="Subagent middleware configuration",
-    )
-    human_in_the_loop: HumanInTheLoopConfig = Field(
-        default_factory=HumanInTheLoopConfig,
-        description="Human-in-the-loop middleware configuration",
-    )
-    tool_retry: ToolRetryConfig = Field(
-        default_factory=ToolRetryConfig,
-        description="Tool retry middleware configuration",
+        description="Summarization middleware configuration (always enabled)",
     )

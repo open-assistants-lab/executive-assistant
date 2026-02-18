@@ -8,6 +8,7 @@ Uses progressive disclosure to minimize token usage:
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 from langchain.agents.middleware import AgentMiddleware
@@ -17,6 +18,8 @@ from src.memory import MemoryStore, MemorySearchParams
 
 if TYPE_CHECKING:
     from langchain.agents.middleware import ModelRequest, ModelResponse
+
+logger = logging.getLogger(__name__)
 
 
 class MemoryContextMiddleware(AgentMiddleware):
@@ -77,17 +80,29 @@ class MemoryContextMiddleware(AgentMiddleware):
         handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelResponse:
         """Async version of memory context injection."""
+        logger.info(
+            f"[MemoryContext] Called - memory_store={self.memory_store is not None}, enabled={self.max_memories} memories"
+        )
+
         if not self.memory_store:
             return await handler(request)
 
         query = self._extract_query(request)
+        logger.info(f"[MemoryContext] Query extracted: '{query}'")
         if not query:
+            logger.debug("[MemoryContext] No query extracted")
             return await handler(request)
 
         memories = self._search_memories(query)
+        logger.info(f"[MemoryContext] Search returned {len(memories)} memories")
 
         if not memories:
+            logger.info(f"[MemoryContext] No memories found (min_confidence={self.min_confidence})")
             return await handler(request)
+
+        logger.info(f"[MemoryContext] Injecting {len(memories)} memories")
+        for memory in memories:
+            logger.info(f"   - {memory.type}: {memory.title} (confidence: {memory.confidence:.2f})")
 
         memory_context = self._format_memories(memories)
         new_system = self._inject_context(request.system_message, memory_context)
@@ -109,6 +124,7 @@ class MemoryContextMiddleware(AgentMiddleware):
 
     def _search_memories(self, query: str) -> list[Any]:
         """Search memory store for relevant memories (Layer 1 - index only)."""
+        logger.info(f"[MemoryContext] Searching for: '{query}'")
         try:
             params = MemorySearchParams(
                 query=query,
@@ -118,8 +134,14 @@ class MemoryContextMiddleware(AgentMiddleware):
                 pass
 
             results = self.memory_store.search(params)
-            return [r for r in results if r.confidence >= self.min_confidence]
-        except Exception:
+            logger.info(f"[MemoryContext] Raw search results: {len(results)}")
+            filtered = [r for r in results if r.confidence >= self.min_confidence]
+            logger.info(
+                f"[MemoryContext] Filtered by confidence >= {self.min_confidence}: {len(filtered)}"
+            )
+            return filtered
+        except Exception as e:
+            logger.info(f"[MemoryContext] Search error: {e}")
             return []
 
     def _format_memories(self, memories: list[Any]) -> str:

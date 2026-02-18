@@ -1,7 +1,7 @@
-.PHONY: help install dev test test-unit test-integration lint format clean docker-postgres serve telegram
+.PHONY: help install dev test test-unit test-integration lint format clean docker-postgres serve telegram ea
 
 help:
-	@echo "Ken Agent - Available Commands"
+	@echo "Executive Assistant Agent - Available Commands"
 	@echo "=============================="
 	@echo ""
 	@echo "Setup:"
@@ -22,7 +22,7 @@ help:
 	@echo "Running (with uv):"
 	@echo "  serve          Start API server locally (uv run)"
 	@echo "  telegram       Start Telegram bot (uv run)"
-	@echo "  ken            Run CLI (uv run ken --help)"
+	@echo "  ea             Run CLI (uv run ea --help)"
 	@echo ""
 	@echo "Docker (Postgres only for dev):"
 	@echo "  docker-postgres Start only Postgres container for local dev"
@@ -65,16 +65,16 @@ typecheck:
 	uv run mypy src/
 
 docker-postgres:
-	docker run -d --name ken-postgres \
-		-e POSTGRES_USER=ken \
+	docker run -d --name ea-postgres \
+		-e POSTGRES_USER=ea \
 		-e POSTGRES_PASSWORD=testpassword123 \
-		-e POSTGRES_DB=ken_db \
+		-e POSTGRES_DB=ea_db \
 		-p 5432:5432 \
 		postgres:16-alpine
 
 docker-stop:
-	docker stop ken-postgres || true
-	docker rm ken-postgres || true
+	docker stop ea-postgres || true
+	docker rm ea-postgres || true
 
 docker-up:
 	docker compose -f docker/docker-compose.yml up -d --build
@@ -94,8 +94,8 @@ serve:
 telegram:
 	uv run python -m src.telegram.bot
 
-ken:
-	uv run ken $(ARGS)
+ea:
+	uv run ea $(ARGS)
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true

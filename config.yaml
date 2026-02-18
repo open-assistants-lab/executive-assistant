@@ -8,6 +8,26 @@
 # - URLs (e.g., DATABASE_URL, FIRECRAWL_BASE_URL)
 # - Deployment settings (e.g., APP_ENV, DATA_PATH)
 
+# ===========================================================================
+# Application Configuration
+# ===========================================================================
+
+app:
+  debug: false                          # Enable FastAPI debug mode (error details, verbose responses)
+                                        # Auto-enabled when log_level=DEBUG in production build
+  log_level: "INFO"                    # Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+                                        # Error details & FastAPI verbosity only shown if log_level = DEBUG
+
+  # User-facing display settings
+  display:
+    verbose: true                       # Show agent thinking, tool args, and execution details
+                                        # When true: shows response_preview, tool args, tool duration
+                                        # When false: minimal output (just final response)
+
+# ===========================================================================
+# Middleware Configuration
+# ===========================================================================
+
 middleware:
   # ===========================================================================
   # Custom Middlewares
@@ -20,9 +40,6 @@ middleware:
     max_memories: 5                      # Maximum memories to inject (1-50)
     min_confidence: 0.7                  # Minimum confidence threshold (0.0-1.0)
     include_types: null                  # Filter to specific types (null = all)
-                                        # Options: profile, contact, preference, schedule,
-                                        #          task, decision, insight, context, goal,
-                                        #          chat, feedback, personal
 
   # MemoryLearningMiddleware - Extract memories from conversations
   # Supports rule-based and LLM-based extraction
@@ -37,7 +54,7 @@ middleware:
 
   # LoggingMiddleware - Log agent activity for debugging and analytics
   logging:
-    enabled: true
+    enabled: false
     log_dir: "/data/logs"                # Log directory path
     log_model_calls: true                # Log model calls
     log_tool_calls: true                 # Log tool calls
@@ -65,47 +82,45 @@ middleware:
     max_tool_calls_per_minute: 120       # Maximum tool calls per minute (1-2000)
     window_seconds: 60                   # Rate limit time window (10-3600 seconds)
 
+  # CheckpointCleanupMiddleware - Remove summarized messages from checkpoint
+  # Runs AFTER SummarizationMiddleware to prevent database bloat
+  checkpoint_cleanup:
+    enabled: false                        # Disabled in runtime (kept for backward-compatible config)
+    keep_buffer_messages: 5              # Messages to keep before summary (0-50)
+    backup_enabled: true                  # Keep conversation history file in filesystem
+
+  # Todo Display Middleware (DISPLAY-ONLY, doesn't modify todo state)
+  # Enhances todo list presentation with progress tracking
+  todo_display:
+    enabled: true                         # Enable enhanced todo display
+    enable_progress_tracking: true        # Track tool calls and update progress
+    auto_mark_complete: false             # Auto-mark todos as complete (conservative)
+
+  # Tool Display Middleware - Display tool calls and results in real-time
+  # NOTE: Currently disabled - the telegram bot handles tool display directly
+  tool_display:
+    enabled: false                        # Enable tool display
+    show_args: true                       # Show tool arguments
+    show_result: true                     # Show tool result preview
+    show_duration: true                   # Show execution duration
+    show_thinking: true                   # Show agent thinking before tool calls
+
   # ===========================================================================
   # Built-in DeepAgents Middlewares
   # ===========================================================================
+  # NOTE: The following middlewares are BUILT-IN to create_deep_agent and are
+  # always enabled in the standard stack with hardcoded parameters.
+  #
+  # Built-in middlewares (always included, NOT configurable):
+  # - FilesystemMiddleware (tool_token_limit_before_evict=20000, hardcoded)
+  # - SubAgentMiddleware (no configurable parameters)
+  # - SummarizationMiddleware (trigger computed from model.profile)
+  # - AnthropicPromptCachingMiddleware (hardcoded)
+  # - PatchToolCallsMiddleware (hardcoded)
+  #
+  # Only summarization trigger threshold is configurable via model.profile:
 
   # SummarizationMiddleware - Compress long conversations to save tokens
-  # Critical for effectiveness testing - target: >50% compression, 90%+ retention
+  # Trigger threshold is controlled by setting model.profile["max_input_tokens"]
   summarization:
-    enabled: true
-    max_tokens: 4000                     # Maximum tokens after summarization (1000-32000)
     threshold_tokens: 8000               # Trigger summarization when exceeded (2000-100000)
-    summary_model: null                  # Custom summarization model
-                                        # Format: provider/model (e.g., openai/gpt-4o-mini)
-                                        # Null = uses SUMMARIZATION_MODEL from env
-
-  # TodoListMiddleware - Manage todo lists for task tracking
-  todo_list:
-    enabled: true
-    max_todos: 100                       # Maximum todos allowed (10-1000)
-
-  # FilesystemMiddleware - Manage file operations in virtual filesystem
-  filesystem:
-    enabled: true
-    max_file_size_mb: 10                 # Maximum file size in MB (1-1000)
-
-  # SubagentMiddleware - Manage subagent delegation
-  subagent:
-    enabled: true
-    max_delegation_depth: 3              # Maximum subagent delegation depth (1-10)
-
-  # HumanInTheLoopMiddleware - Require user confirmations for actions
-  # Disabled by default - enable for additional safety
-  human_in_the_loop:
-    enabled: false
-    confirm_tool_calls: false            # Confirm tool calls
-    confirm_subagent_calls: true         # Confirm subagent calls
-
-  # ToolRetryMiddleware - Retry failed tool calls automatically
-  tool_retry:
-    enabled: true
-    max_retries: 3                       # Maximum retry attempts (0-10)
-    retry_on_errors:                     # Error types to retry
-      - "timeout"
-      - "rate_limit"
-      - "server_error"

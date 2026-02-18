@@ -106,7 +106,7 @@ response = await agent.ainvoke(
 # src/agent/factory.py
 
 @asynccontextmanager
-async def create_ken_agent(
+async def create_ea_agent(
     settings: Settings | None = None,
     user_id: str = "default",
     skills: list[str] | None = None,
@@ -168,7 +168,7 @@ async def send_message(message: str, user_id: str = "default"):
     # Create handler
     langfuse_handler = CallbackHandler()
 
-    async with create_ken_agent(user_id=user_id) as agent:
+    async with create_ea_agent(user_id=user_id) as agent:
         response = await agent.ainvoke(
             {"messages": [HumanMessage(content=message)]},
             config={
@@ -204,7 +204,7 @@ async def send_message(message: str, user_id: str = "default"):
 ```python
 # src/agent/factory.py - Enable tracing at agent level
 @asynccontextmanager
-async def create_ken_agent(...):
+async def create_ea_agent(...):
     # Always enable Langfuse at agent level
     from langfuse import get_client
     from langfuse.langchain import CallbackHandler
@@ -235,7 +235,7 @@ async def send_message(message: str, user_id: str = "default"):
             session_id=f"session-{uuid4()}"
         )
 
-        async with create_ken_agent(user_id=user_id) as agent:
+        async with create_ea_agent(user_id=user_id) as agent:
             response = await agent.ainvoke(
                 {"messages": [HumanMessage(content=message)]}
             )
@@ -263,7 +263,7 @@ async def send_message(message: str, user_id: str = "default"):
 from langfuse import get_client
 from langfuse.langchain import CallbackHandler
 
-# In create_ken_agent(), before agent_kwargs:
+# In create_ea_agent(), before agent_kwargs:
 # Create Langfuse callback handler
 callbacks = []
 if settings.langfuse_enabled:
@@ -279,7 +279,7 @@ agent_kwargs["callbacks"] = callbacks
 
 ```bash
 # Start the agent
-uv run ken serve
+uv run ea http
 
 # Send a test message
 curl -X POST http://localhost:8000/message \
@@ -340,7 +340,7 @@ async def send_message(
         )
 
         # Invoke agent (already has callbacks from agent factory)
-        async with create_ken_agent(user_id=user_id) as agent:
+        async with create_ea_agent(user_id=user_id) as agent:
             response = await agent.ainvoke(
                 {"messages": [HumanMessage(content=message)]}
             )
@@ -356,7 +356,7 @@ async def send_message(
 ## Testing Checklist
 
 - [ ] Update `src/agent/factory.py` with CallbackHandler
-- [ ] Start agent: `uv run ken serve`
+- [ ] Start agent: `uv run ea http`
 - [ ] Send test message via API
 - [ ] Verify traces appear in Langfuse dashboard
 - [ ] Check trace contains:
@@ -472,7 +472,7 @@ If user_id/session_id not appearing:
 from langfuse import get_client
 from langfuse.langchain import CallbackHandler
 
-# ... in create_ken_agent() ...
+# ... in create_ea_agent() ...
 if settings.langfuse_enabled:
     _ = get_client()
     callbacks = [CallbackHandler()]

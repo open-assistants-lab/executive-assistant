@@ -44,7 +44,7 @@ Tracking implementation progress for the Executive Assistant deep agent.
 - [x] Agent factory with Postgres checkpoints
 - [x] CompositeBackend with FilesystemBackend
 - [x] User-isolated storage (`/user/`, `/shared/`)
-- [x] System prompts for Ken
+- [x] System prompts for Executive Assistant
 
 ### Web Tools
 - [x] Tavily web search
@@ -64,7 +64,7 @@ Tracking implementation progress for the Executive Assistant deep agent.
 - [x] Message endpoints (`/message`, `/message/stream`)
 - [x] Summarize endpoint (`/summarize`)
 - [x] Telegram bot (deep agent only, removed simple mode)
-- [x] CLI with Typer (`ken message`, `ken interactive`, `ken serve`)
+- [x] CLI with Typer (`ea message`, `ea cli`, `ea http`)
 - [x] ACP server for IDE integration
 - [x] Consolidated to deep agent only (removed simple LLM endpoints)
 
@@ -176,7 +176,487 @@ Tracking implementation progress for the Executive Assistant deep agent.
 
 ## 🚧 In Progress
 
-(Nothing currently in progress)
+### Phase 7: Daily Checkpoint Rotation + Progressive Disclosure History
+
+**Goal:** Support long-term usage (1+ year) with fast resume times while preserving conversation context across thread boundaries using progressive disclosure.
+
+#### Architecture
+
+**Progressive Disclosure (3 Layers):**
+
+```
+Layer 1: Compact index (~50 tokens)
+  └─ history_list() → Show available dates with brief titles
+
+Layer 2: Load specific checkpoint on demand (~5,000 tokens)
+  └─ history_load(date) → Full conversation from that date
+
+Layer 3: Full replay (same as Layer 2)
+  └─ Checkpoint already loaded, agent processes full context
+```
+
+**Example Usage:**
+
+```
+User: "What did we work on yesterday?"
+→ Agent: history_list() → ["2026-02-17: Auth debugging", "2026-02-16: Planning"]
+→ Agent: history_load("2026-02-17") → Gets full conversation
+→ Agent: Answers with exact details from yesterday
+
+User: "What did we decide about the tech stack?"
+→ Agent: Searches memory (already has decision: "Chose React")
+→ Agent: Answers from memory (no checkpoint load needed)
+```
+
+#### Implementation Tasks
+
+**Part 1: Daily Checkpoint Rotation**
+- [ ] Update `src/agent/factory.py` to use date-based thread IDs
+  ```python
+  async def get_or_create_thread_id(user_id: str, db_uri: str) -> str:
+      """Get existing thread for today, or create new one."""
+      from datetime import datetime
+      import asyncpg
+
+      date_key = datetime.now().strftime("%Y-%m-%d")
+      thread_id = f"{user_id}-{date_key}"
+
+      # Check if thread already has checkpoints
+      async with asyncpg.connect(db_uri) as conn:
+          row = await conn.fetchrow(
+              "SELECT 1 FROM checkpoints WHERE thread_id = $1 LIMIT 1",
+              thread_id
+          )
+
+          if row:
+              # Thread exists, reuse it
+              return thread_id
+
+      # Thread doesn't exist yet, will be created on first invoke
+      return thread_id
+
+  # Usage in agent factory:
+  async def create_ea_agent(...):
+      thread_id = await get_or_create_thread_id(user_id, settings.database_url)
+      config = {"configurable": {"thread_id": thread_id}}
+      # ... create agent with config ...
+  ```
+- [ ] Thread metadata tracking:
+  - Store date, message count, title/summary for each thread
+  - Table: `thread_metadata (user_id, thread_id, date, message_count, title, created_at, last_updated)`
+  - Update metadata after each checkpoint save
+  ```python
+  async def update_thread_metadata(user_id: str, thread_id: str, messages: list, db_uri: str):
+      """Update thread metadata after checkpoint save."""
+      import asyncpg
+
+      # Generate title from first user message
+      title = "Conversation"
+      for msg in messages:
+          if msg.type == "human":
+              title = msg.content[:50] + ("..." if len(msg.content) > 50 else "")
+              break
+
+      async with asyncpg.connect(db_uri) as conn:
+          await conn.execute("""
+              INSERT INTO thread_metadata (user_id, thread_id, date, message_count, title, created_at, last_updated)
+              VALUES ($1, $2, CURRENT_DATE, $3, $4, NOW(), NOW())
+              ON CONFLICT (thread_id) DO UPDATE SET
+                  message_count = $3,
+                  last_updated = NOW()
+          """, user_id, thread_id, len(messages), title)
+  ```
+- [ ] Migrate existing checkpoints to new format:
+  - Script: `scripts/migrate_to_daily_threads.py`
+  - Archive existing checkpoints by date
+  - Generate thread metadata from existing checkpoints
+- [ ] Update all interfaces to use date-based thread IDs:
+  - Telegram bot: `src/telegram/bot.py`
+  - HTTP API: `src/api/routes/chat.py`
+  - CLI: `src/cli/main.py`
+
+**Part 2: Progressive Disclosure Tools**
+- [ ] Create `src/tools/history.py`:
+  ```python
+  """Progressive disclosure tools for conversation history."""
+
+  import asyncpg
+  from langchain_core.tools import tool
+  from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+
+  # Tool factory that injects dependencies
+  def create_history_tools(db_uri: str, get_user_id: callable):
+      """Create history tools with database and user_id access."""
+
+      @tool
+      async def history_list(days: int = 7) -> str:
+          """List available conversation checkpoints by date.
+
+          Returns compact index of recent conversations with titles/topics.
+          Use this to see what conversations are available before loading.
+
+          Args:
+              days: Number of recent days to list (default: 7)
+
+          Returns:
+              Formatted list of dates with conversation topics
+          """
+          user_id = get_user_id()
+
+          async with asyncpg.connect(db_uri) as conn:
+              rows = await conn.fetch("""
+                  SELECT thread_id, date, message_count, title
+                  FROM thread_metadata
+                  WHERE user_id = $1
+                    AND date >= CURRENT_DATE - INTERVAL '1 day' * $2
+                  ORDER BY date DESC
+              """, user_id, days)
+
+              if not rows:
+                  return f"No conversations found in the last {days} days."
+
+              lines = [f"Recent conversations (last {days} days):"]
+              for r in rows:
+                  lines.append(f"  - {r['date']}: {r['title']} ({r['message_count']} messages)")
+
+              return "\n".join(lines)
+
+      @tool
+      async def history_load(date: str) -> str:
+          """Load full conversation from specific date.
+
+          Use AFTER history_list() to see available dates.
+          WARNING: This loads ~50-100 messages (~5,000 tokens).
+
+          Args:
+              date: Date in YYYY-MM-DD format (e.g., "2026-02-17")
+
+          Returns:
+              Full conversation history from that day's checkpoint
+          """
+          user_id = get_user_id()
+          thread_id = f"{user_id}-{date}"
+
+          async with AsyncPostgresSaver.from_conn_string(db_uri) as checkpointer:
+              config = {"configurable": {"thread_id": thread_id}}
+              checkpoint_tuple = await checkpointer.aget_tuple(config)
+
+              if not checkpoint_tuple:
+                  return f"No conversation found for {date}"
+
+              # Extract messages from checkpoint
+              checkpoint = checkpoint_tuple.checkpoint
+              channel_values = checkpoint.get("channel_values", {})
+              messages = channel_values.get("messages", [])
+
+              # Format messages for agent
+              formatted = [f"Conversation from {date}:"]
+              for msg in messages:
+                  if msg.type == "human":
+                      content = msg.content[:100] + ("..." if len(msg.content) > 100 else "")
+                      formatted.append(f"  User: {content}")
+                  elif msg.type == "ai":
+                      if hasattr(msg, "tool_calls") and msg.tool_calls:
+                          tools = ", ".join([tc.get("name", "unknown") for tc in msg.tool_calls])
+                          formatted.append(f"  Assistant: [Tools: {tools}]")
+                      else:
+                          content = msg.content[:100] + ("..." if len(msg.content) > 100 else "")
+                          formatted.append(f"  Assistant: {content}")
+
+              return "\n".join(formatted)
+
+      @tool
+      async def history_search(query: str, days: int = 30) -> str:
+          """Search across recent conversations.
+
+          Searches thread metadata titles for matching conversations.
+
+          Args:
+              query: Search query (e.g., "auth module")
+              days: Search within last N days (default: 30)
+
+          Returns:
+              Relevant conversation snippets with dates
+          """
+          user_id = get_user_id()
+
+          async with asyncpg.connect(db_uri) as conn:
+              rows = await conn.fetch("""
+                  SELECT thread_id, date, title
+                  FROM thread_metadata
+                  WHERE user_id = $1
+                    AND date >= CURRENT_DATE - INTERVAL '1 day' * $2
+                    AND title ILIKE $3
+                  ORDER BY date DESC
+                  LIMIT 5
+              """, user_id, days, f"%{query}%")
+
+              if not rows:
+                  return f"No conversations matching '{query}' found in the last {days} days."
+
+              lines = [f"Conversations matching '{query}':"]
+              for r in rows:
+                  lines.append(f"  - {r['date']}: {r['title']}")
+
+              return "\n".join(lines)
+
+      return [history_list, history_load, history_search]
+  ```
+
+- [ ] Update agent factory to register tools:
+  ```python
+  # In src/agent/factory.py
+  from src.tools.history import create_history_tools
+
+  async def create_ea_agent(...):
+      # ... existing code ...
+
+      # Create history tools with user_id context
+      def get_user_id():
+          return user_id
+
+      history_tools = create_history_tools(
+          db_uri=settings.database_url,
+          get_user_id=get_user_id
+      )
+
+      agent_kwargs = {
+          "tools": [
+              get_current_time,
+              web_search,
+              # ... existing tools ...
+              *history_tools,  # Add history tools
+          ],
+          # ... other kwargs ...
+      }
+  ```
+
+**Part 3: Thread Metadata Storage**
+- [ ] Add thread metadata table to PostgreSQL:
+  ```sql
+  CREATE TABLE thread_metadata (
+      user_id TEXT NOT NULL,
+      thread_id TEXT PRIMARY KEY,
+      date TEXT NOT NULL,  -- YYYY-MM-DD
+      message_count INTEGER DEFAULT 0,
+      title TEXT,  -- Generated from first user message
+      created_at TEXT NOT NULL,
+      last_updated TEXT NOT NULL
+  );
+
+  CREATE INDEX idx_thread_metadata_user_date
+    ON thread_metadata(user_id, date DESC);
+
+  CREATE INDEX idx_thread_metadata_user_search
+    ON thread_metadata(user_id, title);
+  ```
+- [ ] Update metadata after each checkpoint save:
+  - Implemented in `update_thread_metadata()` above
+  - Title generated from first user message (no LLM needed)
+  - Message count updated on each checkpoint
+
+**Part 4: System Prompt Integration**
+- [ ] Update system prompt in `src/agent/factory.py`:
+  ```python
+  def _build_system_prompt(agent_name: str) -> str:
+      return f"""You are {agent_name}, a deep agent with executive assistant capabilities.
+
+  ## Conversation History
+  You have access to past conversations via progressive disclosure:
+  - history_list(days) → See available conversations
+  - history_load(date) → Load full conversation from specific date
+  - history_search(query) → Search across conversations
+
+  Recent context is automatically available. For older conversations,
+  use history_list() to see what's available, then history_load() if needed.
+
+  ## Filesystem Structure (CRITICAL - Read This!)
+  ...
+  """
+  ```
+
+**Part 5: Configuration**
+- [ ] Add checkpoint rotation config to `src/config/settings.py`:
+  ```python
+  from pydantic import Field
+
+  class CheckpointConfig(BaseModel):
+      """Checkpoint rotation and progressive disclosure configuration."""
+
+      rotation_strategy: Literal["daily", "weekly", "monthly"] = Field(
+          default="daily",
+          description="Thread rotation strategy: daily, weekly, or monthly"
+      )
+      enable_progressive_disclosure: bool = Field(
+          default=True,
+          description="Enable progressive disclosure tools for history access"
+      )
+      history_retention_days: int = Field(
+          default=365,
+          description="Keep thread metadata for N days (cleanup after this)"
+      )
+
+  class Settings(BaseSettings):
+      ...
+      checkpoint: CheckpointConfig = Field(default_factory=CheckpointConfig)
+  ```
+- [ ] Add to `config.yaml`:
+  ```yaml
+  checkpoint:
+    rotation_strategy: daily  # daily | weekly | monthly
+    enable_progressive_disclosure: true
+    history_retention_days: 365
+  ```
+
+**Part 6: Thread Metadata Tracking Middleware**
+- [ ] Create `src/middleware/thread_metadata.py`:
+  ```python
+  """Middleware to track thread metadata after checkpoint saves."""
+
+  import asyncpg
+  from langchain.agents.middleware import AgentMiddleware
+  from typing import TYPE_CHECKING
+
+  if TYPE_CHECKING:
+      from langchain.agents.middleware import AgentState
+      from langgraph.runtime import Runtime
+
+  class ThreadMetadataMiddleware(AgentMiddleware):
+      """Track thread metadata (message count, title) after checkpoint saves."""
+
+      def __init__(self, db_uri: str, user_id: str):
+          super().__init__()
+          self.db_uri = db_uri
+          self.user_id = user_id
+
+      async def aafter_agent(self, state: AgentState, runtime: Runtime) -> dict | None:
+          """Update thread metadata after agent execution."""
+          messages = state.get("messages", [])
+          if not messages:
+              return None
+
+          # Get thread_id from config
+          thread_id = runtime.config.get("configurable", {}).get("thread_id")
+          if not thread_id:
+              return None
+
+          # Generate title from first user message
+          title = "Conversation"
+          for msg in messages:
+              if msg.type == "human":
+                  title = msg.content[:50] + ("..." if len(msg.content) > 50 else "")
+                  break
+
+          # Update metadata
+          async with asyncpg.connect(self.db_uri) as conn:
+              await conn.execute("""
+                  INSERT INTO thread_metadata (user_id, thread_id, date, message_count, title, created_at, last_updated)
+                  VALUES ($1, $2, CURRENT_DATE, $3, $4, NOW(), NOW())
+                  ON CONFLICT (thread_id) DO UPDATE SET
+                      message_count = $3,
+                      last_updated = NOW()
+              """, self.user_id, thread_id, len(messages), title)
+
+          return None  # No state updates needed
+  ```
+- [ ] Integrate middleware into agent factory:
+  ```python
+  # In src/agent/factory.py
+  from src.middleware.thread_metadata import ThreadMetadataMiddleware
+
+  async def create_ea_agent(...):
+      # ... existing code ...
+
+      middlewares = create_middleware_from_config(
+          config=settings.middleware,
+          memory_store=memory_store,
+          user_id=user_id,
+          summarization_model=summarization_llm,
+      )
+
+      # Add thread metadata tracking middleware
+      middlewares.append(
+          ThreadMetadataMiddleware(
+              db_uri=settings.database_url,
+              user_id=user_id
+          )
+      )
+
+      agent_kwargs["middleware"] = middlewares
+      # ...
+  ```
+
+**Part 6: Testing**
+- [ ] Unit tests for thread ID generation:
+  - `test_get_thread_id()` → Verify format and consistency
+  - `test_thread_id_same_day()` → Same thread ID within same day
+  - `test_thread_id_next_day()` → Different thread ID next day
+- [ ] Unit tests for progressive disclosure tools:
+  - `test_history_list()` → Verify format and ordering
+  - `test_history_load()` → Verify checkpoint replay
+  - `test_history_search()` → Verify search functionality
+- [ ] Integration tests:
+  - `test_daily_rotation()` → Send messages across day boundary
+  - `test_thread_persistence()` → Verify same thread used within day
+  - `test_tool_usage()` → Agent uses history_list() and history_load()
+- [ ] Manual testing scenarios:
+  - Send messages, wait for day rollover, verify new thread
+  - Ask "what did we work on yesterday?" → Agent loads yesterday
+  - Ask "search for auth decisions" → Agent searches across threads
+
+**Part 7: Migration**
+- [ ] Migration script: `scripts/migrate_to_daily_threads.py`
+  ```python
+  # For each user:
+  # 1. Get existing thread checkpoint
+  # 2. Extract messages and metadata
+  # 3. Determine date from first message
+  # 4. Create new thread_id with date format
+  # 5. Copy checkpoint to new thread_id
+  # 6. Generate thread title
+  # 7. Insert into thread_metadata table
+  ```
+- [ ] Rollback plan:
+  - Backup existing checkpoints before migration
+  - Keep old thread_ids as aliases in metadata
+  - Script to revert if needed
+
+#### Benefits
+
+| Aspect | Before | After |
+|--------|--------|-------|
+| **Checkpoint size** | 10,000+ messages (unbounded) | ~50-100 messages (bounded) |
+| **Resume time** | 5-10s (grows linearly) | <100ms (constant) |
+| **Long-term access** | Slow (replay huge checkpoint) | Progressive (load on demand) |
+| **Token efficiency** | ~1,000 (always summarized) | ~50 base + 5,000 on demand |
+| **Complexity** | Simple | Simple (no summaries needed) |
+| **Context preservation** | ✅ Full history | ✅ Full history (in checkpoints) |
+
+#### Success Criteria
+
+- [ ] Daily rotation works automatically (no manual thread management)
+- [ ] Resume time stays <100ms even after 1 year of usage
+- [ ] Progressive disclosure tools work correctly
+- [ ] Agent can answer "what did we work on yesterday?" by loading checkpoint
+- [ ] Thread metadata stored and queryable
+- [ ] Memory system captures decisions/tasks (already working)
+- [ ] Migration from existing threads is smooth
+- [ ] Configuration via YAML works
+
+#### Files to Create
+
+- `src/tools/history.py` - Progressive disclosure tools
+- `src/middleware/thread_metadata.py` - Thread metadata tracking middleware
+- `scripts/migrate_to_daily_threads.py` - Migration script
+
+#### Files to Modify
+
+- `src/agent/factory.py` - Update thread ID logic, system prompt, add middleware
+- `src/telegram/bot.py` - Use date-based thread IDs
+- `src/api/routes/chat.py` - Use date-based thread IDs
+- `src/cli/main.py` - Use date-based thread IDs
+- `src/config/settings.py` - Add checkpoint config
+- `src/middleware/factory.py` - Add ThreadMetadataMiddleware to stack (optional)
 
 ---
 
@@ -392,7 +872,7 @@ data/
 | HumanInTheLoopMiddleware | 📋 | For skill confirmation |
 | ToolRetryMiddleware | 📋 | Retry failed tools |
 
-### Custom (Ken-specific)
+### Custom (Executive Assistant-specific)
 | Middleware | Status | Purpose |
 |------------|--------|---------|
 | MemoryContextMiddleware | ✅ v2 | Progressive disclosure |
@@ -594,4 +1074,4 @@ def handle_slash_command(command: str):
 
 ---
 
-Last updated: 2026-02-16
+Last updated: 2026-02-18

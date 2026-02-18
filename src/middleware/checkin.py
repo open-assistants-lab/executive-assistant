@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
@@ -9,6 +10,8 @@ from langchain.messages import AIMessage
 if TYPE_CHECKING:
     from langchain.agents.middleware import AgentState, ModelRequest, ModelResponse
     from langgraph.runtime import Runtime
+
+logger = logging.getLogger(__name__)
 
 
 class CheckinMiddleware(AgentMiddleware):
@@ -100,6 +103,8 @@ class CheckinMiddleware(AgentMiddleware):
         runtime: Runtime,
     ) -> dict[str, Any] | None:
         """Async version of update last activity timestamp on user messages."""
+        if self._is_user_initiated(state):
+            logger.debug("[CheckinMiddleware] User activity detected, updating timestamp")
         return self.before_model(state, runtime)
 
     def wrap_model_call(
@@ -128,8 +133,12 @@ class CheckinMiddleware(AgentMiddleware):
         messages = request.messages
 
         is_idle = self._check_idle_time()
+        is_active = self._is_active_hours()
 
-        if is_idle and self._is_active_hours():
+        logger.debug(f"[CheckinMiddleware] awrap_model_call: idle={is_idle}, active_hours={is_active}")
+
+        if is_idle and is_active:
+            logger.debug("[CheckinMiddleware] Injecting check-in prompt")
             checkin_prompt = self._build_checkin_prompt()
             new_system = self._append_checkin_context(request.system_message, checkin_prompt)
             return await handler(request.override(system_message=new_system))

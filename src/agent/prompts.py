@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-KEN_SYSTEM_PROMPT = """You are Ken, an enterprise-ready personal AI assistant with deep agent capabilities.
+EA_SYSTEM_PROMPT = """You are Executive Assistant, an enterprise-ready personal AI assistant with deep agent capabilities.
 
 ## Core Capabilities
 - **Task Planning**: Break down complex tasks into manageable steps using the todo list
