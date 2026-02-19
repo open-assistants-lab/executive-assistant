@@ -71,12 +71,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Get agent and invoke
     agent = get_agent()
     logger = get_logger()
+    handler = logger.langfuse_handler
 
     await update.message.chat.send_action("typing")
 
     try:
+        # Build config with Langfuse handler if available
+        config = {}
+        if handler:
+            config["callbacks"] = [handler]
+
         with logger.timer("agent", {"message": text, "user_id": user_id}, channel="telegram"):
-            result = await agent.ainvoke({"messages": _user_messages[user_id]})
+            result = await agent.ainvoke(
+                {"messages": _user_messages[user_id]}, config=config if config else None
+            )
 
         response = result["messages"][-1].content
         _user_messages[user_id].append(AIMessage(content=response))

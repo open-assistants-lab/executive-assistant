@@ -42,6 +42,9 @@ class Logger:
         self.level = LogLevel[config.level.upper()]
         self.json_dir = Path(config.json_dir)
 
+        # Stats - must be initialized first
+        self._log_count = 0
+
         if self.enabled:
             self.json_dir.mkdir(parents=True, exist_ok=True)
 
@@ -49,9 +52,6 @@ class Logger:
         self.langfuse = None
         self.langfuse_handler = None
         self._init_langfuse()
-
-        # Stats
-        self._log_count = 0
 
     def _init_langfuse(self):
         """Initialize Langfuse with callback handler."""
@@ -67,17 +67,11 @@ class Logger:
 
         if public_key and secret_key:
             try:
-                from langfuse import Langfuse
+                from langfuse import get_client
                 from langfuse.langchain import CallbackHandler
 
-                self.langfuse = Langfuse(
-                    public_key=public_key,
-                    secret_key=secret_key,
-                    host=host,
-                )
-                self.langfuse_handler = CallbackHandler(
-                    langfuse=self.langfuse,
-                )
+                self.langfuse = get_client()
+                self.langfuse_handler = CallbackHandler()
                 self.info("logger", {"event": "langfuse_initialized"})
             except Exception as e:
                 self.warning("logger", {"event": "langfuse_init_failed", "error": str(e)})

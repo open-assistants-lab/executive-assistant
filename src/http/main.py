@@ -84,9 +84,17 @@ async def message(req: MessageRequest) -> MessageResponse:
     try:
         agent = get_agent()
         logger = get_logger()
+        handler = logger.langfuse_handler
+
+        # Build config with Langfuse handler if available
+        config = {}
+        if handler:
+            config["callbacks"] = [handler]
 
         with logger.timer("agent", {"message": req.message}, channel="http"):
-            result = await agent.ainvoke({"messages": [HumanMessage(content=req.message)]})
+            result = await agent.ainvoke(
+                {"messages": [HumanMessage(content=req.message)]}, config=config if config else None
+            )
 
         response = result["messages"][-1].content
 

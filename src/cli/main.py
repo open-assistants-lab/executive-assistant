@@ -137,12 +137,21 @@ class ExecutiveAssistantCLI:
                 console.print("[dim]Thinking...[/dim]")
 
                 logger = get_logger()
+                handler = logger.langfuse_handler
+
+                # Build config with Langfuse handler if available
+                config = {}
+                if handler:
+                    config["callbacks"] = [handler]
+
                 with logger.timer(
                     "agent",
                     {"message": user_input, "message_count": len(self.messages)},
                     channel="cli",
                 ):
-                    result = await self.agent.ainvoke({"messages": self.messages})
+                    result = await self.agent.ainvoke(
+                        {"messages": self.messages}, config=config if config else None
+                    )
 
                 response = result["messages"][-1].content
                 self.messages.append(AIMessage(content=response))

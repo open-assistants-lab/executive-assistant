@@ -36,7 +36,7 @@ observability:
     level: "info"  # debug, info, warning, error
     json_dir: "data/logs"
   langfuse:
-    enabled: false
+    enabled: true
     public_key: ""  # Set via env var
     secret_key: ""  # Set via env var
     host: "https://cloud.langfuse.com"
