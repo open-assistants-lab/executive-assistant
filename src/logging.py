@@ -63,7 +63,10 @@ class Logger:
         public_key = os.environ.get("LANGFUSE_PUBLIC_KEY") or config.public_key
         secret_key = os.environ.get("LANGFUSE_SECRET_KEY") or config.secret_key
         host = os.environ.get("LANGFUSE_HOST") or config.host
-        environment = os.environ.get("LANGFUSE_ENVIRONMENT") or config.environment
+
+        # Set tracing environment from config or env var
+        if config.environment:
+            os.environ["LANGFUSE_TRACING_ENVIRONMENT"] = config.environment
 
         if public_key and secret_key:
             try:
@@ -72,12 +75,14 @@ class Logger:
 
                 self.langfuse = get_client(
                     host=host if host else None,
-                    environment=environment if environment else None,
                 )
                 self.langfuse_handler = CallbackHandler()
                 self.info(
                     "logger",
-                    {"event": "langfuse_initialized", "environment": environment or "production"},
+                    {
+                        "event": "langfuse_initialized",
+                        "environment": os.environ.get("LANGFUSE_TRACING_ENVIRONMENT", "default"),
+                    },
                 )
             except Exception as e:
                 self.warning("logger", {"event": "langfuse_init_failed", "error": str(e)})
