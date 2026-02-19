@@ -63,15 +63,22 @@ class Logger:
         public_key = os.environ.get("LANGFUSE_PUBLIC_KEY") or config.public_key
         secret_key = os.environ.get("LANGFUSE_SECRET_KEY") or config.secret_key
         host = os.environ.get("LANGFUSE_HOST") or config.host
+        environment = os.environ.get("LANGFUSE_ENVIRONMENT") or config.environment
 
         if public_key and secret_key:
             try:
                 from langfuse import get_client
                 from langfuse.langchain import CallbackHandler
 
-                self.langfuse = get_client()
+                self.langfuse = get_client(
+                    host=host if host else None,
+                    environment=environment if environment else None,
+                )
                 self.langfuse_handler = CallbackHandler()
-                self.info("logger", {"event": "langfuse_initialized"})
+                self.info(
+                    "logger",
+                    {"event": "langfuse_initialized", "environment": environment or "production"},
+                )
             except Exception as e:
                 self.warning("logger", {"event": "langfuse_init_failed", "error": str(e)})
 

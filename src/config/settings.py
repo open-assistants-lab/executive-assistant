@@ -1,8 +1,6 @@
 """Settings module for Executive Assistant."""
 
-import os
 from pathlib import Path
-from typing import Optional
 
 import yaml
 from pydantic import Field
@@ -95,6 +93,7 @@ class LangfuseConfig(_BaseSettings):
     public_key: str = ""
     secret_key: str = ""
     host: str = "https://cloud.langfuse.com"
+    environment: str = ""  # production, development, staging
 
     class Config:
         env_prefix = "LANGFUSE_"
@@ -197,7 +196,7 @@ class AppConfig(_BaseSettings):
         extra = "ignore"
 
 
-_config: Optional[AppConfig] = None
+_config: AppConfig | None = None
 
 
 def get_settings() -> AppConfig:
