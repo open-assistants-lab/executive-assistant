@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from src.agents.factory import get_agent_factory
 from src.llm import create_model_from_config
+from src.logging import get_logger
 from langchain_core.messages import HumanMessage, AIMessage
 
 
@@ -82,8 +83,10 @@ async def message(req: MessageRequest) -> MessageResponse:
     """Send a message to the agent."""
     try:
         agent = get_agent()
+        logger = get_logger()
 
-        result = await agent.ainvoke({"messages": [HumanMessage(content=req.message)]})
+        with logger.timer("agent", {"message": req.message}):
+            result = await agent.ainvoke({"messages": [HumanMessage(content=req.message)]})
 
         response = result["messages"][-1].content
         return MessageResponse(response=response)

@@ -31,6 +31,10 @@ memory:
 
 # Observability
 observability:
+  logging:
+    enabled: true
+    level: "info"  # debug, info, warning, error
+    json_dir: "data/logs"
   langfuse:
     enabled: false
     public_key: ""  # Set via env var

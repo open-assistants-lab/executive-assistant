@@ -9,10 +9,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 from src.agents.factory import get_agent_factory
 from src.llm import create_model_from_config
+from src.logging import get_logger
 from langchain_core.messages import HumanMessage, AIMessage
 
 # Global state
@@ -58,7 +58,7 @@ async def clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle incoming messages."""
-    user_id = update.effective_user.id
+    user_id = str(update.effective_user.id)
     text = update.message.text
 
     # Initialize user messages if needed
@@ -70,11 +70,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Get agent and invoke
     agent = get_agent()
+    logger = get_logger()
 
     await update.message.chat.send_action("typing")
 
     try:
-        result = await agent.ainvoke({"messages": _user_messages[user_id]})
+        with logger.timer("agent", {"message": text, "user_id": user_id}):
+            result = await agent.ainvoke({"messages": _user_messages[user_id]})
 
         response = result["messages"][-1].content
         _user_messages[user_id].append(AIMessage(content=response))

@@ -15,6 +15,7 @@ from rich.panel import Panel
 
 from src.llm import create_model_from_config
 from src.agents.factory import get_agent_factory
+from src.logging import get_logger, timer
 from langchain_core.messages import HumanMessage, AIMessage
 
 console = Console()
@@ -135,7 +136,15 @@ class ExecutiveAssistantCLI:
 
                 console.print("[dim]Thinking...[/dim]")
 
-                result = await self.agent.ainvoke({"messages": self.messages})
+                logger = get_logger()
+                with logger.timer(
+                    "agent",
+                    {
+                        "message": user_input,
+                        "message_count": len(self.messages),
+                    },
+                ):
+                    result = await self.agent.ainvoke({"messages": self.messages})
 
                 response = result["messages"][-1].content
                 self.messages.append(AIMessage(content=response))

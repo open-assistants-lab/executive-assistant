@@ -100,9 +100,21 @@ class LangfuseConfig(_BaseSettings):
         env_prefix = "LANGFUSE_"
 
 
+class LoggingConfig(_BaseSettings):
+    """Logging configuration."""
+
+    enabled: bool = True
+    level: str = "info"  # debug, info, warning, error
+    json_dir: str = "data/logs"
+
+    class Config:
+        env_prefix = "LOGGING_"
+
+
 class ObservabilityConfig(_BaseSettings):
     """Observability configuration."""
 
+    logging: LoggingConfig = Field(default_factory=LoggingConfig)
     langfuse: LangfuseConfig = Field(default_factory=LangfuseConfig)
 
 
