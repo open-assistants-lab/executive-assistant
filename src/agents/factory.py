@@ -1,0 +1,98 @@
+"""Agent factory for Executive Assistant."""
+
+from typing import Any, Optional, Sequence
+
+from langchain.agents import create_agent
+from langchain_core.language_models import BaseChatModel
+from langgraph.checkpoint.base import BaseCheckpointSaver
+
+from src.config import get_settings
+
+
+class AgentFactory:
+    """Factory for creating Executive Assistant agents."""
+
+    def __init__(
+        self,
+        checkpointer: Optional[BaseCheckpointSaver] = None,
+    ):
+        """Initialize agent factory.
+
+        Args:
+            checkpointer: LangGraph checkpointer for conversation persistence
+        """
+        self.checkpointer = checkpointer
+
+    def create(
+        self,
+        model: BaseChatModel,
+        tools: Sequence[Any] | None = None,
+        system_prompt: str | None = None,
+    ) -> Any:
+        """Create an agent using LangChain create_agent().
+
+        Args:
+            model: Chat model to use
+            tools: List of tools available to the agent
+            system_prompt: System prompt for the agent
+
+        Returns:
+            Compiled LangGraph agent
+        """
+        # Create the agent (no middleware for now)
+        agent = create_agent(
+            model=model,
+            tools=tools or [],
+            system_prompt=system_prompt,
+        )
+
+        # Compile with checkpointer if provided
+        if self.checkpointer:
+            agent = agent.compile(checkpointer=self.checkpointer)
+
+        return agent
+
+    def create_with_default_tools(
+        self,
+        model: BaseChatModel,
+        tools: Sequence[Any] | None = None,
+        system_prompt: str | None = None,
+    ) -> Any:
+        """Create agent with default tools.
+
+        Args:
+            model: Chat model to use
+            tools: Additional tools to add
+            system_prompt: System prompt
+
+        Returns:
+            Compiled agent
+        """
+        return self.create(
+            model=model,
+            tools=tools,
+            system_prompt=system_prompt,
+        )
+
+
+# Singleton instance
+_agent_factory: Optional[AgentFactory] = None
+
+
+def get_agent_factory(
+    checkpointer: Optional[BaseCheckpointSaver] = None,
+) -> AgentFactory:
+    """Get or create agent factory.
+
+    Args:
+        checkpointer: LangGraph checkpointer for conversation persistence
+
+    Returns:
+        AgentFactory instance
+    """
+    global _agent_factory
+    if _agent_factory is None:
+        _agent_factory = AgentFactory(
+            checkpointer=checkpointer,
+        )
+    return _agent_factory

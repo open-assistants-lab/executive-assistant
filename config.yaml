@@ -1,126 +1,62 @@
-# Executive Assistant Configuration Schema
-# Location: /data/config.yaml (admin-managed only)
-# No user-level overrides - this file is managed by the deployment admin
-#
-# Environment variables are NOT used for middleware configuration.
-# Env vars are reserved for:
-# - API keys (e.g., OPENAI_API_KEY, TAVILY_API_KEY)
-# - URLs (e.g., DATABASE_URL, FIRECRAWL_BASE_URL)
-# - Deployment settings (e.g., APP_ENV, DATA_PATH)
+# Agent Configuration
+agent:
+  name: "Executive Assistant"
+  model: "ollama:minimax-m2.5"
 
-# ===========================================================================
-# Application Configuration
-# ===========================================================================
+# Database
+database:
+  host: "localhost"
+  port: 5432
+  name: "executive_assistant"
+  user: "postgres"
+  password: ""  # Set via env var DB_PASSWORD
+  pool_size: 10
 
-app:
-  debug: false                          # Enable FastAPI debug mode (error details, verbose responses)
-                                        # Auto-enabled when log_level=DEBUG in production build
-  log_level: "INFO"                    # Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL
-                                        # Error details & FastAPI verbosity only shown if log_level = DEBUG
-
-  # User-facing display settings
-  display:
-    verbose: true                       # Show agent thinking, tool args, and execution details
-                                        # When true: shows response_preview, tool args, tool duration
-                                        # When false: minimal output (just final response)
-
-# ===========================================================================
-# Middleware Configuration
-# ===========================================================================
-
-middleware:
-  # ===========================================================================
-  # Custom Middlewares
-  # ===========================================================================
-
-  # MemoryContextMiddleware - Inject memories into prompts
-  # Uses progressive disclosure to minimize token usage
-  memory_context:
+# Memory / Checkpointing
+memory:
+  # Checkpointer: LangGraph PostgresSaver
+  checkpointer:
     enabled: true
-    max_memories: 5                      # Maximum memories to inject (1-50)
-    min_confidence: 0.7                  # Minimum confidence threshold (0.0-1.0)
-    include_types: null                  # Filter to specific types (null = all)
-
-  # MemoryLearningMiddleware - Extract memories from conversations
-  # Supports rule-based and LLM-based extraction
-  memory_learning:
+  
+  # Long-term store: LangGraph PostgresStore
+  store:
     enabled: true
-    auto_learn: true                     # Extract memories automatically
-    min_confidence: 0.6                  # Minimum confidence for saving (0.0-1.0)
-    extraction_model: null               # LLM for intelligent extraction
-                                        # Format: provider/model (e.g., openai/gpt-4o-mini)
-                                        # Null = rule-based extraction (no LLM)
-    max_memories_per_conversation: 10    # Maximum memories to extract per conversation
-
-  # LoggingMiddleware - Log agent activity for debugging and analytics
-  logging:
-    enabled: false
-    log_dir: "/data/logs"                # Log directory path
-    log_model_calls: true                # Log model calls
-    log_tool_calls: true                 # Log tool calls
-    log_memory_access: true              # Log memory access
-    log_errors: true                     # Log errors
-    log_format: "jsonl"                  # Log format: jsonl or json
-
-  # CheckinMiddleware - Periodic check-ins with the user
-  # Disabled by default - enable for proactive engagement
-  checkin:
-    enabled: false
-    interval_minutes: 30                 # Check-in interval (5-1440 minutes)
-    active_hours_start: 8                # Start of active hours (0-23, 24-hour format)
-    active_hours_end: 22                 # End of active hours (1-24, 24-hour format)
-    idle_threshold_hours: 8              # Idle hours before check-in (1-168)
-    checklist:                           # Check-in checklist items
-      - "Check for pending tasks"
-      - "Review recent conversations for follow-ups"
-      - "Summarize any completed work"
-
-  # RateLimitMiddleware - Rate limit agent requests per user
-  rate_limit:
-    enabled: true
-    max_model_calls_per_minute: 60       # Maximum model calls per minute (1-1000)
-    max_tool_calls_per_minute: 120       # Maximum tool calls per minute (1-2000)
-    window_seconds: 60                   # Rate limit time window (10-3600 seconds)
-
-  # CheckpointCleanupMiddleware - Remove summarized messages from checkpoint
-  # Runs AFTER SummarizationMiddleware to prevent database bloat
-  checkpoint_cleanup:
-    enabled: false                        # Disabled in runtime (kept for backward-compatible config)
-    keep_buffer_messages: 5              # Messages to keep before summary (0-50)
-    backup_enabled: true                  # Keep conversation history file in filesystem
-
-  # Todo Display Middleware (DISPLAY-ONLY, doesn't modify todo state)
-  # Enhances todo list presentation with progress tracking
-  todo_display:
-    enabled: true                         # Enable enhanced todo display
-    enable_progress_tracking: true        # Track tool calls and update progress
-    auto_mark_complete: false             # Auto-mark todos as complete (conservative)
-
-  # Tool Display Middleware - Display tool calls and results in real-time
-  # NOTE: Currently disabled - the telegram bot handles tool display directly
-  tool_display:
-    enabled: false                        # Enable tool display
-    show_args: true                       # Show tool arguments
-    show_result: true                     # Show tool result preview
-    show_duration: true                   # Show execution duration
-    show_thinking: true                   # Show agent thinking before tool calls
-
-  # ===========================================================================
-  # Built-in DeepAgents Middlewares
-  # ===========================================================================
-  # NOTE: The following middlewares are BUILT-IN to create_deep_agent and are
-  # always enabled in the standard stack with hardcoded parameters.
-  #
-  # Built-in middlewares (always included, NOT configurable):
-  # - FilesystemMiddleware (tool_token_limit_before_evict=20000, hardcoded)
-  # - SubAgentMiddleware (no configurable parameters)
-  # - SummarizationMiddleware (trigger computed from model.profile)
-  # - AnthropicPromptCachingMiddleware (hardcoded)
-  # - PatchToolCallsMiddleware (hardcoded)
-  #
-  # Only summarization trigger threshold is configurable via model.profile:
-
-  # SummarizationMiddleware - Compress long conversations to save tokens
-  # Trigger threshold is controlled by setting model.profile["max_input_tokens"]
+  
+  # Summarization: LangChain SummarizationMiddleware
   summarization:
-    threshold_tokens: 8000               # Trigger summarization when exceeded (2000-100000)
+    enabled: true
+    trigger_tokens: 4000
+    keep_messages: 20
+    model: "ollama:minimax-m2.5"
+
+# Observability
+observability:
+  langfuse:
+    enabled: false
+    public_key: ""  # Set via env var
+    secret_key: ""  # Set via env var
+    host: "https://cloud.langfuse.com"
+
+# API Server
+api:
+  host: "0.0.0.0"
+  port: 8000
+  reload: false
+  workers: 1  # Single-threaded per user constraint
+
+# CLI
+cli:
+  history_file: "~/.ea_history"
+  prompt: "> "
+
+# Tools
+tools:
+  firecrawl:
+    api_key: ""  # Set via env var FIRECRAWL_API_KEY
+  max_retries: 3
+  timeout: 30
+
+# Skills
+skills:
+  directory: "src/skills"
+  user_directory: "data/users/{user_id}/skills"

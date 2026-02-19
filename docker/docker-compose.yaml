@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: ea_postgres
+    environment:
+      POSTGRES_USER: ea
+      POSTGRES_PASSWORD: testpassword123
+      POSTGRES_DB: ea_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ea"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: ea_app
+    environment:
+      DATABASE_URL: postgresql+asyncpg://ea:testpassword123@postgres:5432/ea_db
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-https://ollama.com}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ../data:/app/data
+
+volumes:
+  postgres_data:
