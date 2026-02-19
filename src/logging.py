@@ -109,14 +109,14 @@ class Logger:
         if not self._should_log(log_level):
             return
 
-        # Add standard fields
+        # Add standard fields - match original format
         log_entry = {
-            "timestamp": datetime.now().isoformat(),
-            "level": log_level.name.lower(),
-            "event": event,
+            "timestamp": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z",
             "user_id": user_id,
+            "event": event,
+            "level": log_level.name.lower(),
             "channel": channel,
-            **self._redact(data),
+            "data": self._redact(data),
         }
 
         # Write to JSONL
