@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 from src.agents.factory import get_agent_factory
 from src.llm import create_model_from_config
