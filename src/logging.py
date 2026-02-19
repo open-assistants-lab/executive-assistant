@@ -70,11 +70,13 @@ class Logger:
 
         if public_key and secret_key:
             try:
-                from langfuse import get_client
+                from langfuse import Langfuse
                 from langfuse.langchain import CallbackHandler
 
-                self.langfuse = get_client(
-                    host=host if host else None,
+                self.langfuse = Langfuse(
+                    public_key=public_key,
+                    secret_key=secret_key,
+                    host=host if host and host != "https://cloud.langfuse.com" else None,
                 )
                 self.langfuse_handler = CallbackHandler()
                 self.info(
