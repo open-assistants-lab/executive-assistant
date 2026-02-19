@@ -143,11 +143,22 @@ class ExecutiveAssistantCLI:
                         "message": user_input,
                         "message_count": len(self.messages),
                     },
+                    channel="cli",
                 ):
                     result = await self.agent.ainvoke({"messages": self.messages})
 
                 response = result["messages"][-1].content
                 self.messages.append(AIMessage(content=response))
+
+                # Log response
+                logger.info(
+                    "agent.response",
+                    {
+                        "response": response[:500],  # Truncate for log
+                        "response_length": len(response),
+                    },
+                    channel="cli",
+                )
 
                 console.print()
                 console.print(Markdown(response))

@@ -75,11 +75,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.chat.send_action("typing")
 
     try:
-        with logger.timer("agent", {"message": text, "user_id": user_id}):
+        with logger.timer("agent", {"message": text, "user_id": user_id}, channel="telegram"):
             result = await agent.ainvoke({"messages": _user_messages[user_id]})
 
         response = result["messages"][-1].content
         _user_messages[user_id].append(AIMessage(content=response))
+
+        # Log response
+        logger.info(
+            "agent.response",
+            {"response": response[:500], "response_length": len(response)},
+            user_id=user_id,
+            channel="telegram",
+        )
 
         await update.message.reply_text(response)
 

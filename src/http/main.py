@@ -85,10 +85,18 @@ async def message(req: MessageRequest) -> MessageResponse:
         agent = get_agent()
         logger = get_logger()
 
-        with logger.timer("agent", {"message": req.message}):
+        with logger.timer("agent", {"message": req.message}, channel="http"):
             result = await agent.ainvoke({"messages": [HumanMessage(content=req.message)]})
 
         response = result["messages"][-1].content
+
+        # Log response
+        logger.info(
+            "agent.response",
+            {"response": response[:500], "response_length": len(response)},
+            channel="http",
+        )
+
         return MessageResponse(response=response)
 
     except Exception as e:
