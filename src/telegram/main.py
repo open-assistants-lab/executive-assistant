@@ -84,7 +84,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Log response
         logger.info(
             "agent.response",
-            {"response": response[:500], "response_length": len(response)},
+            {"response": response},
             user_id=user_id,
             channel="telegram",
         )

@@ -93,7 +93,7 @@ async def message(req: MessageRequest) -> MessageResponse:
         # Log response
         logger.info(
             "agent.response",
-            {"response": response[:500], "response_length": len(response)},
+            {"response": response},
             channel="http",
         )
 

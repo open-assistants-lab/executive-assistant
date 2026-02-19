@@ -139,10 +139,7 @@ class ExecutiveAssistantCLI:
                 logger = get_logger()
                 with logger.timer(
                     "agent",
-                    {
-                        "message": user_input,
-                        "message_count": len(self.messages),
-                    },
+                    {"message": user_input, "message_count": len(self.messages)},
                     channel="cli",
                 ):
                     result = await self.agent.ainvoke({"messages": self.messages})
@@ -153,10 +150,7 @@ class ExecutiveAssistantCLI:
                 # Log response
                 logger.info(
                     "agent.response",
-                    {
-                        "response": response[:500],  # Truncate for log
-                        "response_length": len(response),
-                    },
+                    {"response": response},
                     channel="cli",
                 )
 
