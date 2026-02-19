@@ -1,7 +1,7 @@
 """LLM providers for Executive Assistant."""
 
 import os
-from typing import Any, Optional
+from typing import Any
 
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
@@ -11,7 +11,7 @@ from src.config import get_settings
 
 def create_ollama_cloud_model(
     model: str = "minimax-m2.5",
-    api_key: Optional[str] = None,
+    api_key: str | None = None,
     base_url: str = "https://ollama.com",
     **kwargs: Any,
 ) -> BaseChatModel:
@@ -34,7 +34,7 @@ def create_ollama_cloud_model(
 
 
 def create_openai_model(
-    model: str = "gpt-4o", api_key: Optional[str] = None, **kwargs: Any
+    model: str = "gpt-4o", api_key: str | None = None, **kwargs: Any
 ) -> BaseChatModel:
     """Create OpenAI chat model.
 
@@ -51,7 +51,7 @@ def create_openai_model(
 
 
 def create_anthropic_model(
-    model: str = "claude-sonnet-4-20250514", api_key: Optional[str] = None, **kwargs: Any
+    model: str = "claude-sonnet-4-20250514", api_key: str | None = None, **kwargs: Any
 ) -> BaseChatModel:
     """Create Anthropic chat model.
 
@@ -67,7 +67,7 @@ def create_anthropic_model(
     return init_chat_model(model=model, model_provider="anthropic", api_key=api_key, **kwargs)
 
 
-def create_model_from_config(config_model: Optional[str] = None) -> BaseChatModel:
+def create_model_from_config(config_model: str | None = None) -> BaseChatModel:
     """Create a model based on configuration.
 
     Args:

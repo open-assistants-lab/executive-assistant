@@ -1,12 +1,11 @@
 """Database manager for Executive Assistant."""
 
-import os
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, Optional
+from typing import Optional
 
 import asyncpg
 from langgraph.checkpoint.postgres import PostgresSaver
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 
 from src.config import get_settings
@@ -18,8 +17,8 @@ class DatabaseManager:
     """Manages database connections and checkpointer."""
 
     _instance: Optional["DatabaseManager"] = None
-    _pool: Optional[asyncpg.Pool] = None
-    _checkpointer: Optional[PostgresSaver] = None
+    _pool: asyncpg.Pool | None = None
+    _checkpointer: PostgresSaver | None = None
 
     def __new__(cls) -> "DatabaseManager":
         if cls._instance is None:

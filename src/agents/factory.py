@@ -1,12 +1,11 @@
 """Agent factory for Executive Assistant."""
 
-from typing import Any, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from langchain.agents import create_agent
 from langchain_core.language_models import BaseChatModel
 from langgraph.checkpoint.base import BaseCheckpointSaver
-
-from src.config import get_settings
 
 
 class AgentFactory:
@@ -14,7 +13,7 @@ class AgentFactory:
 
     def __init__(
         self,
-        checkpointer: Optional[BaseCheckpointSaver] = None,
+        checkpointer: BaseCheckpointSaver | None = None,
     ):
         """Initialize agent factory.
 
@@ -76,11 +75,11 @@ class AgentFactory:
 
 
 # Singleton instance
-_agent_factory: Optional[AgentFactory] = None
+_agent_factory: AgentFactory | None = None
 
 
 def get_agent_factory(
-    checkpointer: Optional[BaseCheckpointSaver] = None,
+    checkpointer: BaseCheckpointSaver | None = None,
 ) -> AgentFactory:
     """Get or create agent factory.
 

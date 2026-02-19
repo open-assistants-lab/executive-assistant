@@ -9,7 +9,7 @@ database:
   port: 5432
   name: "executive_assistant"
   user: "postgres"
-  password: ""  # Set via env var DB_PASSWORD
+  password: "" # Set via env var DB_PASSWORD
   pool_size: 10
 
 # Memory / Checkpointing
@@ -17,11 +17,11 @@ memory:
   # Checkpointer: LangGraph PostgresSaver
   checkpointer:
     enabled: true
-  
+
   # Long-term store: LangGraph PostgresStore
   store:
     enabled: true
-  
+
   # Summarization: LangChain SummarizationMiddleware
   summarization:
     enabled: true
@@ -33,20 +33,21 @@ memory:
 observability:
   logging:
     enabled: true
-    level: "info"  # debug, info, warning, error
+    level: "info" # debug, info, warning, error
     json_dir: "data/logs"
   langfuse:
     enabled: true
-    public_key: ""  # Set via env var
-    secret_key: ""  # Set via env var
+    public_key: "" # Set via env var
+    secret_key: "" # Set via env var
     host: "https://cloud.langfuse.com"
+    environment: "development" # production, development, staging (per Langfuse docs).
 
 # API Server
 api:
   host: "0.0.0.0"
   port: 8000
   reload: false
-  workers: 1  # Single-threaded per user constraint
+  workers: 1 # Single-threaded per user constraint
 
 # CLI
 cli:
@@ -56,7 +57,7 @@ cli:
 # Tools
 tools:
   firecrawl:
-    api_key: ""  # Set via env var FIRECRAWL_API_KEY
+    api_key: "" # Set via env var FIRECRAWL_API_KEY
   max_retries: 3
   timeout: 30
 

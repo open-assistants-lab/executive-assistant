@@ -1,10 +1,6 @@
 """User storage for Executive Assistant."""
 
-import os
 from pathlib import Path
-from typing import Optional
-
-from src.config import get_settings
 
 
 class UserStorage:

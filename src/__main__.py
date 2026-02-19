@@ -1,7 +1,7 @@
 """Executive Assistant - Main CLI entry point."""
 
-import sys
 import argparse
+import sys
 
 # Load environment variables
 from dotenv import load_dotenv
