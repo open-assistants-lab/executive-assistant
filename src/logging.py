@@ -1,15 +1,14 @@
 """Logging module for Executive Assistant - Best practices implementation."""
 
-import os
 import json
+import logging as stdlib_logging
+import os
 import time
 import uuid
-import logging as stdlib_logging
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Optional
 from contextlib import contextmanager
+from datetime import datetime
 from enum import IntEnum
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -146,7 +145,7 @@ class Logger:
     def timer(
         self,
         event: str,
-        data: Optional[dict] = None,
+        data: dict | None = None,
         user_id: str = "default",
         channel: str = "cli",
         level: int = LogLevel.INFO,
@@ -183,7 +182,7 @@ class Logger:
 
 
 # Global logger instance
-_logger: Optional[Logger] = None
+_logger: Logger | None = None
 
 
 def get_logger() -> Logger:
@@ -202,7 +201,7 @@ def log_event(event: str, data: dict, user_id: str = "default", channel: str = "
 @contextmanager
 def timer(
     event: str,
-    data: Optional[dict] = None,
+    data: dict | None = None,
     user_id: str = "default",
     channel: str = "cli",
     level: int = LogLevel.INFO,

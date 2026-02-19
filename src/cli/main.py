@@ -1,22 +1,21 @@
 """Executive Assistant CLI - A terminal agent similar to Deep Agents CLI."""
 
 import asyncio
-import os
 import sys
-from pathlib import Path
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
+from langchain_core.messages import AIMessage, HumanMessage
+from langfuse import propagate_attributes
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 
-from src.llm import create_model_from_config
 from src.agents.factory import get_agent_factory
-from src.logging import get_logger, timer
-from langchain_core.messages import HumanMessage, AIMessage
+from src.llm import create_model_from_config
+from src.logging import get_logger
 
 console = Console()
 
@@ -149,9 +148,10 @@ class ExecutiveAssistantCLI:
                     {"message": user_input, "message_count": len(self.messages)},
                     channel="cli",
                 ):
-                    result = await self.agent.ainvoke(
-                        {"messages": self.messages}, config=config if config else None
-                    )
+                    with propagate_attributes(user_id="default"):
+                        result = await self.agent.ainvoke(
+                            {"messages": self.messages}, config=config if config else None
+                        )
 
                 response = result["messages"][-1].content
                 self.messages.append(AIMessage(content=response))

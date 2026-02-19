@@ -1,22 +1,23 @@
 """HTTP server for Executive Assistant."""
 
-import asyncio
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
+from langchain_core.messages import HumanMessage
+from langfuse import propagate_attributes
 from pydantic import BaseModel
 
 from src.agents.factory import get_agent_factory
 from src.llm import create_model_from_config
 from src.logging import get_logger
-from langchain_core.messages import HumanMessage, AIMessage
 
 
 class MessageRequest(BaseModel):
     message: str
     model: str | None = None
+    user_id: str | None = None
 
 
 class MessageResponse(BaseModel):
@@ -85,16 +86,19 @@ async def message(req: MessageRequest) -> MessageResponse:
         agent = get_agent()
         logger = get_logger()
         handler = logger.langfuse_handler
+        user_id = req.user_id or "default"
 
         # Build config with Langfuse handler if available
         config = {}
         if handler:
             config["callbacks"] = [handler]
 
-        with logger.timer("agent", {"message": req.message}, channel="http"):
-            result = await agent.ainvoke(
-                {"messages": [HumanMessage(content=req.message)]}, config=config if config else None
-            )
+        with logger.timer("agent", {"message": req.message, "user_id": user_id}, channel="http"):
+            with propagate_attributes(user_id=user_id):
+                result = await agent.ainvoke(
+                    {"messages": [HumanMessage(content=req.message)]},
+                    config=config if config else None,
+                )
 
         response = result["messages"][-1].content
 

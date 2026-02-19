@@ -1,20 +1,20 @@
 """Telegram bot for Executive Assistant."""
 
-import os
 import asyncio
-from typing import Optional
+import os
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from langchain_core.messages import AIMessage, HumanMessage
+from langfuse import propagate_attributes
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 from src.agents.factory import get_agent_factory
 from src.llm import create_model_from_config
 from src.logging import get_logger
-from langchain_core.messages import HumanMessage, AIMessage
+from telegram import Update
 
 # Global state
 _agent = None
@@ -83,9 +83,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             config["callbacks"] = [handler]
 
         with logger.timer("agent", {"message": text, "user_id": user_id}, channel="telegram"):
-            result = await agent.ainvoke(
-                {"messages": _user_messages[user_id]}, config=config if config else None
-            )
+            with propagate_attributes(user_id=user_id):
+                result = await agent.ainvoke(
+                    {"messages": _user_messages[user_id]}, config=config if config else None
+                )
 
         response = result["messages"][-1].content
         _user_messages[user_id].append(AIMessage(content=response))
