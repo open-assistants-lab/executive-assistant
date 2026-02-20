@@ -15,7 +15,7 @@ from rich.panel import Panel
 
 from src.agents.factory import get_agent_factory
 from src.llm import create_model_from_config
-from src.logging import get_logger
+from src.app_logging import get_logger
 from src.storage.checkpoint import init_checkpoint_manager
 from src.storage.conversation import get_conversation_store
 

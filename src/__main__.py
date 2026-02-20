@@ -34,9 +34,10 @@ def main():
 
         http_run()
     elif args.command == "telegram":
-        from src.telegram.main import run_bot
+        import asyncio
+        from src.telegram.main import main as telegram_main
 
-        run_bot()
+        asyncio.run(telegram_main())
     else:
         parser.print_help()
         sys.exit(1)

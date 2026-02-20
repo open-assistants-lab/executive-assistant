@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from src.config import get_settings
-from src.logging import get_logger
+from src.app_logging import get_logger
 
 
 class CheckpointManager:

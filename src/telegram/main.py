@@ -13,8 +13,9 @@ from langfuse import propagate_attributes
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 from src.agents.factory import get_agent_factory
+from src.config import get_settings
 from src.llm import create_model_from_config
-from src.logging import get_logger
+from src.app_logging import get_logger
 from src.storage.checkpoint import init_checkpoint_manager
 from src.storage.conversation import get_conversation_store
 from telegram import Update
@@ -39,14 +40,29 @@ async def get_checkpoint_manager(user_id: str):
 
 
 def get_model():
-    """Get or create model."""
+    """Get or create model, return (provider, model_name)."""
     global _model
     if _model is None:
+        settings = get_settings()
+        model_str = settings.agent.model
+        if ":" in model_str:
+            provider, model_name = model_str.split(":", 1)
+        else:
+            provider = "ollama"
+            model_name = model_str
         _model = create_model_from_config()
-    return _model
+    else:
+        settings = get_settings()
+        model_str = settings.agent.model
+        if ":" in model_str:
+            provider, model_name = model_str.split(":", 1)
+        else:
+            provider = "ollama"
+            model_name = model_str
+    return provider, model_name
 
 
-async def handle_update(update: Update) -> None:
+async def handle_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle incoming Telegram update."""
     if not update.message:
         return
@@ -131,15 +147,29 @@ async def run_polling(token: str):
     """Run bot in polling mode."""
     global _app
 
-    _app = Application.builder().token(token).build()
+    provider, model_name = get_model()
+    print(f"✓ Provider: {provider}")
+    print(f"✓ Model: {model_name}")
 
+    _app = Application.builder().token(token).build()
     _app.add_handler(CommandHandler("start", start))
     _app.add_handler(CommandHandler("help", help_command))
     _app.add_handler(CommandHandler("reset", reset))
     _app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_update))
 
-    print("Starting Telegram bot in POLLING mode...")
-    await _app.run_polling(allowed_updates=Update.ALL_TYPES)
+    await _app.initialize()
+    await _app.start()
+    await _app.updater.start_polling(allowed_updates=Update.ALL_TYPES)
+    print("Telegram bot is running...")
+
+    try:
+        while True:
+            await asyncio.sleep(3600)
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        pass
+    finally:
+        await _app.updater.stop()
+        await _app.stop()
 
 
 async def run_webhook(token: str, webhook_url: str, secret: str):
