@@ -14,12 +14,21 @@ from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandl
 from src.agents.factory import get_agent_factory
 from src.llm import create_model_from_config
 from src.logging import get_logger
+from src.storage.checkpoint import init_checkpoint_manager
+from src.storage.conversation import get_conversation_store
 from telegram import Update
 
 # Global state
 _agent = None
 _model = None
-_user_messages: dict[int, list] = {}
+_checkpoint_managers: dict[str, any] = {}
+
+
+async def get_checkpoint_manager(user_id: str):
+    """Get or create checkpoint manager for user."""
+    if user_id not in _checkpoint_managers:
+        _checkpoint_managers[user_id] = await init_checkpoint_manager(user_id)
+    return _checkpoint_managers[user_id]
 
 
 def get_agent():
@@ -46,15 +55,28 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /help command."""
     await update.message.reply_text(
-        "Commands:\n/start - Start the bot\n/help - Show this help\n/clear - Clear conversation"
+        "Commands:\n/start - Start the bot\n/help - Show this help\n/reset - Clear conversation"
     )
 
 
 async def clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /clear command."""
-    user_id = update.effective_user.id
-    _user_messages[user_id] = []
-    await update.message.reply_text("Conversation cleared!")
+    user_id = str(update.effective_user.id)
+    # Note: messages are kept in DuckDB for history, this just clears agent memory
+    await update.message.reply_text(
+        "Note: Your conversation history is preserved. To delete, use /reset."
+    )
+
+
+async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /reset command - clears conversation."""
+    user_id = str(update.effective_user.id)
+
+    # Delete checkpoint
+    checkpoint_mgr = await get_checkpoint_manager(user_id)
+    await checkpoint_mgr.delete_thread()
+
+    await update.message.reply_text("Conversation reset! Starting fresh.")
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -62,36 +84,61 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     text = update.message.text
 
-    # Initialize user messages if needed
-    if user_id not in _user_messages:
-        _user_messages[user_id] = []
+    # Get conversation store and checkpoint manager
+    conversation = get_conversation_store(user_id)
 
-    # Add user message
-    _user_messages[user_id].append(HumanMessage(content=text))
+    # Add user message to conversation store
+    conversation.add_message("user", text)
 
-    # Get agent and invoke
-    agent = get_agent()
-    logger = get_logger()
-    handler = logger.langfuse_handler
+    # Get messages from conversation store
+    recent_messages = conversation.get_recent_messages(50)
+
+    # Get or init checkpoint manager
+    checkpoint_manager = await get_checkpoint_manager(user_id)
 
     await update.message.chat.send_action("typing")
 
     try:
-        # Build config with Langfuse handler if available
-        config = {}
+        # Build config with checkpoint and Langfuse
+        config = {"configurable": {"thread_id": user_id}}
+
+        logger = get_logger()
+        handler = logger.langfuse_handler
         if handler:
             config["callbacks"] = [handler]
 
+        # Get agent with checkpointer
+        agent = get_agent()
+        from src.agents.factory import get_agent_factory
+
+        factory = get_agent_factory(checkpointer=checkpoint_manager.checkpointer)
+        agent_with_checkpoint = factory.create(
+            model=_model,
+            tools=[],
+            system_prompt="You are a helpful executive assistant. Be concise.",
+            checkpointer=checkpoint_manager.checkpointer,
+        )
+
         with logger.timer("agent", {"message": text, "user_id": user_id}, channel="telegram"):
             with propagate_attributes(user_id=user_id):
-                result = await agent.ainvoke(
-                    {"messages": _user_messages[user_id]}, config=config if config else None
+                result = await agent_with_checkpoint.ainvoke(
+                    {
+                        "messages": [
+                            HumanMessage(content=m.content)
+                            if m.role == "user"
+                            else AIMessage(content=m.content)
+                            for m in recent_messages
+                        ]
+                        + [HumanMessage(content=text)]
+                    },
+                    config=config,
                 )
 
         response = result["messages"][-1].content
-        _user_messages[user_id].append(AIMessage(content=response))
 
-        # Log response
+        # Store assistant response
+        conversation.add_message("assistant", response)
+
         logger.info(
             "agent.response",
             {"response": response},
@@ -133,7 +180,7 @@ def run_bot(token: str | None = None):
     # Add handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("clear", clear))
+    application.add_handler(CommandHandler("reset", reset))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     # Run

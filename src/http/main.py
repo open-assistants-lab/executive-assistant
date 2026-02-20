@@ -5,13 +5,15 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langfuse import propagate_attributes
 from pydantic import BaseModel
 
 from src.agents.factory import get_agent_factory
 from src.llm import create_model_from_config
 from src.logging import get_logger
+from src.storage.checkpoint import init_checkpoint_manager
+from src.storage.conversation import get_conversation_store
 
 
 class MessageRequest(BaseModel):
@@ -28,6 +30,14 @@ class MessageResponse(BaseModel):
 # Global state
 _agent = None
 _model = None
+_checkpoint_managers: dict[str, any] = {}
+
+
+async def get_checkpoint_manager(user_id: str):
+    """Get or create checkpoint manager for user."""
+    if user_id not in _checkpoint_managers:
+        _checkpoint_managers[user_id] = await init_checkpoint_manager(user_id)
+    return _checkpoint_managers[user_id]
 
 
 def get_agent():
@@ -83,24 +93,48 @@ async def ready():
 async def message(req: MessageRequest) -> MessageResponse:
     """Send a message to the agent."""
     try:
-        agent = get_agent()
-        logger = get_logger()
-        handler = logger.langfuse_handler
         user_id = req.user_id or "default"
 
-        # Build config with Langfuse handler if available
-        config = {}
+        # Get conversation store and checkpoint manager
+        conversation = get_conversation_store(user_id)
+        conversation.add_message("user", req.message)
+        recent_messages = conversation.get_recent_messages(50)
+
+        checkpoint_manager = await get_checkpoint_manager(user_id)
+
+        logger = get_logger()
+        handler = logger.langfuse_handler
+
+        # Build config
+        config = {"configurable": {"thread_id": user_id}}
         if handler:
             config["callbacks"] = [handler]
+
+        # Create agent with checkpointer
+        factory = get_agent_factory(checkpointer=checkpoint_manager.checkpointer)
+        agent = factory.create(
+            model=_model,
+            tools=[],
+            system_prompt="You are a helpful executive assistant.",
+        )
 
         with logger.timer("agent", {"message": req.message, "user_id": user_id}, channel="http"):
             with propagate_attributes(user_id=user_id):
                 result = await agent.ainvoke(
-                    {"messages": [HumanMessage(content=req.message)]},
-                    config=config if config else None,
+                    {
+                        "messages": [
+                            HumanMessage(content=m.content)
+                            if m.role == "user"
+                            else AIMessage(content=m.content)
+                            for m in recent_messages
+                        ]
+                        + [HumanMessage(content=req.message)]
+                    },
+                    config=config,
                 )
 
         response = result["messages"][-1].content
+        conversation.add_message("assistant", response)
 
         # Log response
         logger.info(
@@ -119,11 +153,35 @@ async def message(req: MessageRequest) -> MessageResponse:
 async def message_stream(req: MessageRequest):
     """Send a message and stream response."""
     try:
-        agent = get_agent()
+        user_id = req.user_id or "default"
+
+        conversation = get_conversation_store(user_id)
+        conversation.add_message("user", req.message)
+        recent_messages = conversation.get_recent_messages(50)
+
+        checkpoint_manager = await get_checkpoint_manager(user_id)
+
+        factory = get_agent_factory(checkpointer=checkpoint_manager.checkpointer)
+        agent = factory.create(
+            model=_model,
+            tools=[],
+            system_prompt="You are a helpful executive assistant.",
+        )
 
         async def generate():
-            result = await agent.ainvoke({"messages": [HumanMessage(content=req.message)]})
+            result = await agent.ainvoke(
+                {
+                    "messages": [
+                        HumanMessage(content=m.content)
+                        if m.role == "user"
+                        else AIMessage(content=m.content)
+                        for m in recent_messages
+                    ]
+                    + [HumanMessage(content=req.message)]
+                }
+            )
             response = result["messages"][-1].content
+            conversation.add_message("assistant", response)
             yield f"data: {response}\n\n"
 
         return StreamingResponse(generate(), media_type="text/event-stream")
