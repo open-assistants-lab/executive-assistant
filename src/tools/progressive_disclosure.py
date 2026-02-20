@@ -6,7 +6,6 @@ from typing import Any
 
 from langchain_core.tools import tool
 
-from src.logging import get_logger
 from src.storage.conversation import get_conversation_store
 
 
@@ -17,7 +16,6 @@ class ProgressiveDisclosureTool:
         self.user_id = user_id
         self.conversation = get_conversation_store(user_id)
         self.model = model
-        self.logger = get_logger()
 
     def _get_embedding(self, text: str) -> list[float]:
         """Get embedding for text."""
@@ -54,13 +52,6 @@ class ProgressiveDisclosureTool:
         Returns:
             Formatted conversation history
         """
-        self.logger.info(
-            "tool.call",
-            {"tool": "get_conversation_history", "days": days, "date_str": date_str},
-            user_id=self.user_id,
-            channel="agent",
-        )
-
         if date_str:
             try:
                 target_date = date.fromisoformat(date_str)
@@ -74,17 +65,6 @@ class ProgressiveDisclosureTool:
                 result = f"Conversation on {date_str}:\n"
                 for msg in messages:
                     result += f"- {msg.role}: {msg.content[:200]}\n"
-
-                self.logger.info(
-                    "tool.result",
-                    {
-                        "tool": "get_conversation_history",
-                        "date_str": date_str,
-                        "messages_count": len(messages),
-                    },
-                    user_id=self.user_id,
-                    channel="agent",
-                )
                 return result
 
             except ValueError:
@@ -98,13 +78,6 @@ class ProgressiveDisclosureTool:
         result = f"Recent conversation (last {days} days):\n\n"
         for msg in recent:
             result += f"- {msg.role}: {msg.content[:150]}\n"
-
-        self.logger.info(
-            "tool.result",
-            {"tool": "get_conversation_history", "days": days, "messages_count": len(recent)},
-            user_id=self.user_id,
-            channel="agent",
-        )
 
         return result
 
@@ -123,22 +96,8 @@ class ProgressiveDisclosureTool:
         Returns:
             Search results
         """
-        self.logger.info(
-            "tool.call",
-            {"tool": "search_conversation_hybrid", "query": query},
-            user_id=self.user_id,
-            channel="agent",
-        )
-
         embedding = self._get_embedding(query)
         results = self.conversation.search_hybrid(query, embedding, limit=20)
-
-        self.logger.info(
-            "tool.result",
-            {"tool": "search_conversation_hybrid", "query": query, "results_count": len(results)},
-            user_id=self.user_id,
-            channel="agent",
-        )
 
         if not results:
             return f"No messages found for '{query}'"
