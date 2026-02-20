@@ -9,6 +9,7 @@ from langchain_core.language_models import BaseChatModel
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
 from src.config import get_settings
+from src.llm import create_model_from_config
 
 
 class AgentFactory:
@@ -28,7 +29,7 @@ class AgentFactory:
         self.checkpointer = checkpointer
         self.enable_summarization = enable_summarization
 
-    def _get_middleware(self) -> list[Any]:
+    def _get_middleware(self, model: BaseChatModel) -> list[Any]:
         """Get middleware list for the agent."""
         middleware = []
 
@@ -39,7 +40,7 @@ class AgentFactory:
             if summary_config.enabled:
                 middleware.append(
                     SummarizationMiddleware(
-                        model=summary_config.model,
+                        model=model,
                         trigger=("tokens", summary_config.trigger_tokens),
                         keep=("messages", summary_config.keep_messages),
                     )
@@ -69,21 +70,19 @@ class AgentFactory:
         """
         effective_checkpointer = checkpointer or self.checkpointer
 
-        middleware = self._get_middleware()
-        if enable_summarization is not None:
-            enable_summary = enable_summarization
-        else:
-            enable_summary = self.enable_summarization
+        if enable_summarization is None:
+            enable_summarization = self.enable_summarization
 
-        if enable_summary and not middleware:
-            middleware = self._get_middleware()
+        middleware = []
+        if enable_summarization:
+            middleware = self._get_middleware(model)
 
         agent = create_agent(
             model=model,
             tools=tools or [],
             system_prompt=system_prompt,
             checkpointer=effective_checkpointer,
-            middleware=middleware if middleware else None,
+            middleware=middleware if middleware else [],
         )
 
         return agent

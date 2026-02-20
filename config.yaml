@@ -34,8 +34,7 @@ memory:
   summarization:
     enabled: true
     trigger_tokens: 4000
-    keep_messages: 20
-    model: "ollama:minimax-m2.5"
+    keep_messages: 10
 
 # Observability
 observability:
