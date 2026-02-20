@@ -52,7 +52,7 @@ class CheckpointerConfig(_BaseSettings):
     """Checkpointer configuration."""
 
     enabled: bool = True
-    retention_days: int = 7
+    retention_days: int = 0  # 0 = no checkpoints, -1 = keep forever, N = keep N days
 
     class Config:
         env_prefix = "CHECKPOINT_"
