@@ -16,6 +16,8 @@ from rich.panel import Panel
 from src.agents.factory import get_agent_factory
 from src.llm import create_model_from_config
 from src.logging import get_logger
+from src.storage.checkpoint import init_checkpoint_manager
+from src.storage.conversation import get_conversation_store
 
 console = Console()
 
@@ -31,22 +33,27 @@ class ExecutiveAssistantCLI:
         "/exit": "Exit the CLI",
     }
 
-    def __init__(self):
+    def __init__(self, user_id: str = "default"):
+        self.user_id = user_id
         self.model = None
         self.agent = None
         self.messages = []
+        self.conversation = get_conversation_store(user_id)
+        self.config = {"configurable": {"thread_id": user_id}}
 
-    def setup(self):
+    async def setup(self):
         """Initialize the agent."""
         console.print("[bold cyan]Initializing Executive Assistant...[/bold cyan]")
 
         self.model = create_model_from_config()
         model_name = getattr(self.model, "model", "unknown")
-        provider = getattr(self.model, "_provider", "ollama")  # Default to ollama
+        provider = getattr(self.model, "_provider", "ollama")
         console.print(f"[green]✓[/green] Provider: {provider}")
         console.print(f"[green]✓[/green] Model: {model_name}")
 
-        factory = get_agent_factory()
+
+        checkpoint_manager = await init_checkpoint_manager(self.user_id)
+        factory = get_agent_factory(checkpointer=checkpoint_manager.checkpointer)
         self.agent = factory.create(
             model=self.model,
             tools=[],
@@ -109,7 +116,7 @@ class ExecutiveAssistantCLI:
 
     async def run(self):
         """Run the CLI."""
-        self.setup()
+        await self.setup()
 
         console.print(
             Panel(
@@ -132,14 +139,14 @@ class ExecutiveAssistantCLI:
                         continue
 
                 self.messages.append(HumanMessage(content=user_input))
+                self.conversation.add_message("user", user_input)
 
                 console.print("[dim]Thinking...[/dim]")
 
                 logger = get_logger()
                 handler = logger.langfuse_handler
 
-                # Build config with Langfuse handler if available
-                config = {}
+                config = {"configurable": {"thread_id": self.user_id}}
                 if handler:
                     config["callbacks"] = [handler]
 
@@ -148,13 +155,14 @@ class ExecutiveAssistantCLI:
                     {"message": user_input, "message_count": len(self.messages)},
                     channel="cli",
                 ):
-                    with propagate_attributes(user_id="default"):
+                    with propagate_attributes(user_id=self.user_id):
                         result = await self.agent.ainvoke(
-                            {"messages": self.messages}, config=config if config else None
+                            {"messages": self.messages}, config=config
                         )
 
                 response = result["messages"][-1].content
                 self.messages.append(AIMessage(content=response))
+                self.conversation.add_message("assistant", response)
 
                 # Log response
                 logger.info(

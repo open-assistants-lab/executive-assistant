@@ -52,9 +52,31 @@ class CheckpointerConfig(_BaseSettings):
     """Checkpointer configuration."""
 
     enabled: bool = True
+    retention_days: int = 7
 
     class Config:
         env_prefix = "CHECKPOINT_"
+
+
+class MessagesConfig(_BaseSettings):
+    """Messages (long-term) configuration."""
+
+    enabled: bool = True
+    path: str = "data/users/{user_id}/.conversation/messages.duckdb"
+
+    class Config:
+        env_prefix = "MESSAGES_"
+
+
+class JournalConfig(_BaseSettings):
+    """Journal (daily summaries) configuration."""
+
+    enabled: bool = True
+    path: str = "data/users/{user_id}/.conversation/journal.duckdb"
+    model: str = "ollama:minimax-m2.5"  # Model for summarizing
+
+    class Config:
+        env_prefix = "JOURNAL_"
 
 
 class StoreConfig(_BaseSettings):
@@ -67,7 +89,7 @@ class StoreConfig(_BaseSettings):
 
 
 class SummarizationConfig(_BaseSettings):
-    """Summarization middleware configuration."""
+    """Summarization middleware configuration (short-term token reduction)."""
 
     enabled: bool = True
     trigger_tokens: int = 4000
@@ -82,6 +104,8 @@ class MemoryConfig(_BaseSettings):
     """Memory configuration."""
 
     checkpointer: CheckpointerConfig = Field(default_factory=CheckpointerConfig)
+    messages: MessagesConfig = Field(default_factory=MessagesConfig)
+    journal: JournalConfig = Field(default_factory=JournalConfig)
     store: StoreConfig = Field(default_factory=StoreConfig)
     summarization: SummarizationConfig = Field(default_factory=SummarizationConfig)
 

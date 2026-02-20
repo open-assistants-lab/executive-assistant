@@ -27,6 +27,7 @@ class AgentFactory:
         model: BaseChatModel,
         tools: Sequence[Any] | None = None,
         system_prompt: str | None = None,
+        checkpointer: BaseCheckpointSaver | None = None,
     ) -> Any:
         """Create an agent using LangChain create_agent().
 
@@ -34,20 +35,19 @@ class AgentFactory:
             model: Chat model to use
             tools: List of tools available to the agent
             system_prompt: System prompt for the agent
+            checkpointer: Optional checkpointer for conversation persistence
 
         Returns:
             Compiled LangGraph agent
         """
-        # Create the agent (no middleware for now)
+        effective_checkpointer = checkpointer or self.checkpointer
+
         agent = create_agent(
             model=model,
             tools=tools or [],
             system_prompt=system_prompt,
+            checkpointer=effective_checkpointer,
         )
-
-        # Compile with checkpointer if provided
-        if self.checkpointer:
-            agent = agent.compile(checkpointer=self.checkpointer)
 
         return agent
 
@@ -56,6 +56,7 @@ class AgentFactory:
         model: BaseChatModel,
         tools: Sequence[Any] | None = None,
         system_prompt: str | None = None,
+        checkpointer: BaseCheckpointSaver | None = None,
     ) -> Any:
         """Create agent with default tools.
 
@@ -63,6 +64,7 @@ class AgentFactory:
             model: Chat model to use
             tools: Additional tools to add
             system_prompt: System prompt
+            checkpointer: Optional checkpointer override
 
         Returns:
             Compiled agent
@@ -71,11 +73,8 @@ class AgentFactory:
             model=model,
             tools=tools,
             system_prompt=system_prompt,
+            checkpointer=checkpointer,
         )
-
-
-# Singleton instance
-_agent_factory: AgentFactory | None = None
 
 
 def get_agent_factory(
@@ -84,14 +83,9 @@ def get_agent_factory(
     """Get or create agent factory.
 
     Args:
-        checkpointer: LangGraph checkpointer for conversation persistence
+        checkpointer: Default checkpointer for all agents
 
     Returns:
         AgentFactory instance
     """
-    global _agent_factory
-    if _agent_factory is None:
-        _agent_factory = AgentFactory(
-            checkpointer=checkpointer,
-        )
-    return _agent_factory
+    return AgentFactory(checkpointer=checkpointer)

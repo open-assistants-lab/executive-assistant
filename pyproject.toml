@@ -9,7 +9,7 @@ dependencies = [
     "langchain-core>=1.2.0",
     "langchain-ollama>=0.1.0",
     "langgraph>=1.0.0",
-    "langgraph-checkpoint-postgres>=3.0.0",
+    "langgraph-checkpoint-sqlite>=3.0.0",
     "pydantic>=2.10.0",
     "pydantic-settings>=2.7.0",
     "python-dotenv>=1.0.0",
@@ -27,6 +27,7 @@ dependencies = [
     "python-telegram-bot>=21.0",
     "langfuse>=3.14.0",
     "firecrawl-py>=2.0.0",
+    "duckdb>=1.0.0",
 ]
 
 [project.optional-dependencies]

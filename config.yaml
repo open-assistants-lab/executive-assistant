@@ -14,15 +14,23 @@ database:
 
 # Memory / Checkpointing
 memory:
-  # Checkpointer: LangGraph PostgresSaver
+  # Checkpointer: LangGraph SQLite
   checkpointer:
     enabled: true
+    retention_days: 7  # Keep checkpoints for N days
 
-  # Long-term store: LangGraph PostgresStore
-  store:
+  # Long-term message storage
+  messages:
     enabled: true
+    path: "data/users/{user_id}/.conversation/messages.duckdb"
 
-  # Summarization: LangChain SummarizationMiddleware
+  # Daily journal (summaries)
+  journal:
+    enabled: true
+    path: "data/users/{user_id}/.conversation/journal.duckdb"
+    model: "ollama:minimax-m2.5"  # Model for daily summarization
+
+  # Summarization: LangChain SummarizationMiddleware (short-term token reduction)
   summarization:
     enabled: true
     trigger_tokens: 4000

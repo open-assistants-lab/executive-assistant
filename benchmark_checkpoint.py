@@ -1,4 +1,4 @@
-"""Benchmark script to measure agent response time."""
+"""Benchmark script to measure agent response time with checkpoint support."""
 
 import asyncio
 import time
@@ -11,46 +11,25 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from src.llm import create_model_from_config
 from src.agents.factory import get_agent_factory
+from src.storage.conversation import get_conversation_store
+from src.storage.checkpoint import init_checkpoint_manager
 from langchain_core.messages import HumanMessage, AIMessage
 
 
-async def benchmark_single(message: str, iterations: int = 3):
-    """Benchmark single agent response time."""
-    print(f"Benchmarking: '{message}'")
-    print(f"Iterations: {iterations}\n")
-
-    model = create_model_from_config()
-    factory = get_agent_factory()
-    agent = factory.create(
-        model=model,
-        tools=[],
-        system_prompt="You are a helpful assistant. Be concise.",
-    )
-
-    times = []
-    for i in range(iterations):
-        start = time.time()
-        result = await agent.ainvoke({"messages": [HumanMessage(content=message)]})
-        elapsed = time.time() - start
-        times.append(elapsed)
-        response = result["messages"][-1].content
-        print(f"  Run {i + 1}: {elapsed:.2f}s")
-        print(f"  Response: {response[:80]}...")
-        print()
-
-    avg = sum(times) / len(times)
-    print(f"Average: {avg:.2f}s")
-    return avg
-
-
-async def benchmark_conversation(message_count: int = 10):
+async def benchmark_conversation(message_count: int = 10, user_id: str = "benchmark"):
     """Benchmark agent with conversation history (simulates real usage)."""
     print(f"\n{'=' * 60}")
     print(f"Conversation Benchmark: {message_count} messages")
     print(f"{'=' * 60}\n")
 
+    # Initialize storage
+    conversation = get_conversation_store(user_id)
+
+    # Initialize checkpoint manager
+    checkpoint_manager = await init_checkpoint_manager(user_id)
+
     model = create_model_from_config()
-    factory = get_agent_factory()
+    factory = get_agent_factory(checkpointer=checkpoint_manager.checkpointer)
     agent = factory.create(
         model=model,
         tools=[],
@@ -77,14 +56,21 @@ async def benchmark_conversation(message_count: int = 10):
         msg = test_messages[i]
         print(f"Message {i + 1}: {msg}")
 
+        # Store user message
+        conversation.add_message("user", msg)
+        messages.append(HumanMessage(content=msg))
+
         start = time.time()
-        result = await agent.ainvoke({"messages": messages + [HumanMessage(content=msg)]})
+        config = {"configurable": {"thread_id": user_id}}
+        result = await agent.ainvoke({"messages": messages}, config=config)
         elapsed = time.time() - start
         response_times.append(elapsed)
 
         response = result["messages"][-1].content
-        messages.append(HumanMessage(content=msg))
         messages.append(AIMessage(content=response))
+
+        # Store assistant message
+        conversation.add_message("assistant", response)
 
         print(f"  Response time: {elapsed:.2f}s")
         print(f"  Response: {response[:60]}...")
@@ -112,19 +98,14 @@ async def benchmark_conversation(message_count: int = 10):
 
 async def main():
     print("=" * 60)
-    print("Agent Response Time Benchmark")
+    print("Agent Response Time Benchmark (With Checkpoint)")
     print("=" * 60 + "\n")
-
-    # Single message benchmarks
-    print("--- Single Message Benchmarks ---\n")
-    await benchmark_single("What is 2 + 2?", 3)
-    await benchmark_single("Explain what AI is in one sentence.", 3)
 
     # Conversation benchmark (10 messages)
     result = await benchmark_conversation(10)
 
     print("=" * 60)
-    print("Baseline established!")
+    print("Benchmark complete!")
     print("=" * 60)
 
     return result
