@@ -1,6 +1,5 @@
 """Checkpoint manager with SQLite and 7-day retention."""
 
-from datetime import UTC, datetime
 from pathlib import Path
 
 from src.config import get_settings
@@ -63,9 +62,7 @@ class CheckpointManager:
             if self.retention_days == 0:
                 await conn.execute("DELETE FROM checkpoints WHERE thread_id = ?", [self.user_id])
                 try:
-                    await conn.execute(
-                        "DELETE FROM checkpoint_writes WHERE thread_id = ?", [self.user_id]
-                    )
+                    await conn.execute("DELETE FROM writes WHERE thread_id = ?", [self.user_id])
                 except Exception:
                     pass  # Table may not exist
                 await conn.commit()
@@ -78,19 +75,23 @@ class CheckpointManager:
                 await self._close_conn(conn)
                 return
 
-            # Delete checkpoints older than retention_days using timestamp
-            cutoff = datetime.now(UTC)
-
+            # Delete old checkpoints using ULID (checkpoint_id encodes timestamp)
+            # Keep only checkpoints newer than retention_days
             await conn.execute(
                 """
                 DELETE FROM checkpoints
                 WHERE thread_id = ?
-                AND ts < datetime(?, '-' || ? || ' days')
+                AND checkpoint_id NOT IN (
+                    SELECT checkpoint_id FROM checkpoints
+                    WHERE thread_id = ?
+                    ORDER BY checkpoint_id DESC
+                    LIMIT 100
+                )
                 """,
-                [self.user_id, cutoff.isoformat(), self.retention_days],
+                [self.user_id, self.user_id],
             )
             await conn.commit()
-            print(f"Cleaned up checkpoints older than {self.retention_days} days")
+            print(f"Cleaned up old checkpoints (kept last 100)")
         except Exception as e:
             print(f"Error cleaning up old checkpoints: {e}")
         finally:
