@@ -7,12 +7,11 @@ from src.storage.checkpoint import (
 )
 from src.storage.conversation import (
     ConversationStore,
-    JournalEntry,
     Message,
+    SearchResult,
     get_conversation_store,
 )
 from src.storage.database import DatabaseManager, get_database, init_db
-from src.storage.rollup import DailyRollup, run_daily_rollup
 from src.storage.user_storage import UserStorage, get_user_storage
 
 __all__ = [
@@ -24,10 +23,8 @@ __all__ = [
     "ConversationStore",
     "get_conversation_store",
     "Message",
-    "JournalEntry",
+    "SearchResult",
     "CheckpointManager",
     "get_checkpoint_manager",
     "init_checkpoint_manager",
-    "DailyRollup",
-    "run_daily_rollup",
 ]

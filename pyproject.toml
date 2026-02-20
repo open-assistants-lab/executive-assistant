@@ -28,6 +28,7 @@ dependencies = [
     "langfuse>=3.14.0",
     "firecrawl-py>=2.0.0",
     "duckdb>=1.0.0",
+    "sqlite-vec>=0.1.6",
 ]
 
 [project.optional-dependencies]

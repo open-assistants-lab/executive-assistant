@@ -46,3 +46,10 @@ htmlcov/
 # Logs
 logs/
 .env.bak
+
+# Benchmarks
+docs/benchmarks/*.py
+*.duckdb
+*.duckdb.wal
+*.db
+

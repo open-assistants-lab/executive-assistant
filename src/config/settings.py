@@ -59,24 +59,14 @@ class CheckpointerConfig(_BaseSettings):
 
 
 class MessagesConfig(_BaseSettings):
-    """Messages (long-term) configuration."""
+    """Messages (long-term) configuration using SQLite + FTS5."""
 
     enabled: bool = True
-    path: str = "data/users/{user_id}/.conversation/messages.duckdb"
+    path: str = "data/users/{user_id}/.conversation/messages.db"
+    vector_path: str = "data/users/{user_id}/.conversation/vectors"
 
     class Config:
         env_prefix = "MESSAGES_"
-
-
-class JournalConfig(_BaseSettings):
-    """Journal (daily summaries) configuration."""
-
-    enabled: bool = True
-    path: str = "data/users/{user_id}/.conversation/journal.duckdb"
-    model: str = "ollama:minimax-m2.5"  # Model for summarizing
-
-    class Config:
-        env_prefix = "JOURNAL_"
 
 
 class StoreConfig(_BaseSettings):
@@ -105,7 +95,6 @@ class MemoryConfig(_BaseSettings):
 
     checkpointer: CheckpointerConfig = Field(default_factory=CheckpointerConfig)
     messages: MessagesConfig = Field(default_factory=MessagesConfig)
-    journal: JournalConfig = Field(default_factory=JournalConfig)
     store: StoreConfig = Field(default_factory=StoreConfig)
     summarization: SummarizationConfig = Field(default_factory=SummarizationConfig)
 
