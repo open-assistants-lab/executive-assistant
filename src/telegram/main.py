@@ -40,25 +40,22 @@ async def get_checkpoint_manager(user_id: str):
 
 
 def get_model():
-    """Get or create model, return (provider, model_name)."""
+    """Get or create model."""
     global _model
     if _model is None:
-        settings = get_settings()
-        model_str = settings.agent.model
-        if ":" in model_str:
-            provider, model_name = model_str.split(":", 1)
-        else:
-            provider = "ollama"
-            model_name = model_str
         _model = create_model_from_config()
+    return _model
+
+
+def get_model_info():
+    """Get model provider and name for display."""
+    settings = get_settings()
+    model_str = settings.agent.model
+    if ":" in model_str:
+        provider, model_name = model_str.split(":", 1)
     else:
-        settings = get_settings()
-        model_str = settings.agent.model
-        if ":" in model_str:
-            provider, model_name = model_str.split(":", 1)
-        else:
-            provider = "ollama"
-            model_name = model_str
+        provider = "ollama"
+        model_name = model_str
     return provider, model_name
 
 
@@ -147,7 +144,7 @@ async def run_polling(token: str):
     """Run bot in polling mode."""
     global _app
 
-    provider, model_name = get_model()
+    provider, model_name = get_model_info()
     print(f"✓ Provider: {provider}")
     print(f"✓ Model: {model_name}")
 
