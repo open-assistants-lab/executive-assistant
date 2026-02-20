@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from src.config import get_settings
+from src.logging import get_logger
 
 
 class CheckpointManager:
@@ -22,6 +23,7 @@ class CheckpointManager:
 
         self.db_path = str(base_path.resolve() / "checkpoints.db")
         self.retention_days = config.retention_days
+        self._logger = get_logger()
 
         self._checkpointer = None
         self._initialized = False
@@ -66,7 +68,11 @@ class CheckpointManager:
                 except Exception:
                     pass  # Table may not exist
                 await conn.commit()
-                print(f"Deleted all checkpoints for user {self.user_id} (retention=0)")
+                self._logger.info(
+                    "checkpoint.cleanup",
+                    {"event": "deleted_all", "user_id": self.user_id, "retention_days": 0},
+                    channel="system",
+                )
                 await self._close_conn(conn)
                 return
 
@@ -91,9 +97,17 @@ class CheckpointManager:
                 [self.user_id, self.user_id],
             )
             await conn.commit()
-            print(f"Cleaned up old checkpoints (kept last 100)")
+            self._logger.info(
+                "checkpoint.cleanup",
+                {"event": "cleaned", "user_id": self.user_id, "kept": 100},
+                channel="system",
+            )
         except Exception as e:
-            print(f"Error cleaning up old checkpoints: {e}")
+            self._logger.warning(
+                "checkpoint.cleanup",
+                {"event": "error", "user_id": self.user_id, "error": str(e)},
+                channel="system",
+            )
         finally:
             await self._close_conn(conn)
 
