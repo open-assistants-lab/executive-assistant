@@ -200,9 +200,16 @@ class ConversationStore:
         return search_results
 
     def search_hybrid(
-        self, query: str, query_embedding: list[float], limit: int = 10, fts_weight: float = 0.5
+        self,
+        query: str,
+        query_embedding: list[float],
+        limit: int = 10,
+        fts_weight: float = 0.5,
+        recency_weight: float = 0.3,
     ) -> list[SearchResult]:
-        """Combined keyword + vector search."""
+        """Combined keyword + vector + recency search."""
+        now = datetime.now()
+
         fts_results = {
             r.id: (r, 1.0 / (abs(r.score) + 1)) for r in self.search_keyword(query, limit * 2)
         }
@@ -213,8 +220,21 @@ class ConversationStore:
         for msg_id in all_ids:
             fts_score = fts_results.get(msg_id, (None, 0))[1]
             vec_score = vec_results.get(msg_id, (None, 0))[1]
-            combined_score = fts_weight * fts_score + (1 - fts_weight) * vec_score
+
+            # Relevance score (keyword + vector)
+            relevance = fts_weight * fts_score + (1 - fts_weight) * vec_score
+
+            # Get timestamp for recency
             result = fts_results.get(msg_id, vec_results.get(msg_id, (None, 0)))[0]
+            if result:
+                days_ago = (now - result.ts).days
+                recency = 1.0 / (1 + days_ago / 30)  # Decay over months
+            else:
+                recency = 0
+
+            # Combined score: relevance + recency
+            combined_score = (relevance * (1 - recency_weight)) + (recency * recency_weight)
+
             if result:
                 combined.append(
                     SearchResult(
