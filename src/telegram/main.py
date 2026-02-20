@@ -1,4 +1,4 @@
-"""Telegram bot for Executive Assistant."""
+"""Telegram bot for Executive Assistant - supports polling and webhook."""
 
 import asyncio
 import os
@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from fastapi import FastAPI, HTTPException, Request
 from langchain_core.messages import AIMessage, HumanMessage
 from langfuse import propagate_attributes
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
@@ -18,31 +19,90 @@ from src.storage.checkpoint import init_checkpoint_manager
 from src.storage.conversation import get_conversation_store
 from telegram import Update
 
-# Global state
-_agent = None
+logger = get_logger()
+
+TELEGRAM_MODE = os.environ.get("TELEGRAM_MODE", "polling")  # "polling" or "webhook"
+TELEGRAM_WEBHOOK_URL = os.environ.get("TELEGRAM_WEBHOOK_URL", "")
+TELEGRAM_SECRET = os.environ.get("TELEGRAM_SECRET", "")
+
+_app: Application | None = None
 _model = None
-_checkpoint_managers: dict[str, any] = {}
+_checkpoint_managers: dict[str, "asyncio.Lock"] = {}
 
 
 async def get_checkpoint_manager(user_id: str):
-    """Get or create checkpoint manager for user."""
+    """Get or create checkpoint manager for user with lock."""
     if user_id not in _checkpoint_managers:
+        _checkpoint_managers[user_id] = asyncio.Lock()
         _checkpoint_managers[user_id] = await init_checkpoint_manager(user_id)
     return _checkpoint_managers[user_id]
 
 
-def get_agent():
-    """Get or create agent."""
-    global _agent, _model
-    if _agent is None:
+def get_model():
+    """Get or create model."""
+    global _model
+    if _model is None:
         _model = create_model_from_config()
-        factory = get_agent_factory()
-        _agent = factory.create(
-            model=_model,
-            tools=[],
-            system_prompt="You are a helpful executive assistant. Be concise.",
+    return _model
+
+
+async def handle_update(update: Update) -> None:
+    """Handle incoming Telegram update."""
+    if not update.message:
+        return
+
+    user_id = str(update.effective_user.id)
+    text = update.message.text
+
+    conversation = get_conversation_store(user_id)
+    conversation.add_message("user", text)
+
+    recent_messages = conversation.get_recent_messages(50)
+
+    checkpoint_manager = await get_checkpoint_manager(user_id)
+
+    await update.message.chat.send_action("typing")
+
+    try:
+        from src.tools.progressive_disclosure import create_progressive_disclosure_tools
+
+        config = {"configurable": {"thread_id": user_id}}
+
+        handler = logger.langfuse_handler
+        if handler:
+            config["callbacks"] = [handler]
+
+        model = get_model()
+        tools = create_progressive_disclosure_tools(user_id)
+        factory = get_agent_factory(checkpointer=checkpoint_manager.checkpointer)
+        agent = factory.create(
+            model=model,
+            tools=tools,
+            system_prompt="You are a helpful executive assistant. Be concise. Use the conversation history tools when user asks about past conversations.",
+            checkpointer=checkpoint_manager.checkpointer,
         )
-    return _agent
+
+        with propagate_attributes(user_id=user_id):
+            result = await agent.ainvoke(
+                {
+                    "messages": [
+                        HumanMessage(content=m.content)
+                        if m.role == "user"
+                        else AIMessage(content=m.content)
+                        for m in recent_messages
+                    ]
+                    + [HumanMessage(content=text)]
+                },
+                config=config,
+            )
+
+        response = result["messages"][-1].content
+        conversation.add_message("assistant", response)
+
+        await update.message.reply_text(response)
+
+    except Exception as e:
+        await update.message.reply_text(f"Error: {str(e)}")
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -59,132 +119,80 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /clear command."""
-    user_id = str(update.effective_user.id)
-    # Note: messages are kept in DuckDB for history, this just clears agent memory
-    await update.message.reply_text(
-        "Note: Your conversation history is preserved. To delete, use /reset."
-    )
-
-
 async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /reset command - clears conversation."""
+    """Handle /reset command."""
     user_id = str(update.effective_user.id)
-
-    # Delete checkpoint
     checkpoint_mgr = await get_checkpoint_manager(user_id)
     await checkpoint_mgr.delete_thread()
-
     await update.message.reply_text("Conversation reset! Starting fresh.")
 
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle incoming messages."""
-    user_id = str(update.effective_user.id)
-    text = update.message.text
+async def run_polling(token: str):
+    """Run bot in polling mode."""
+    global _app
 
-    # Get conversation store and checkpoint manager
-    conversation = get_conversation_store(user_id)
+    _app = Application.builder().token(token).build()
 
-    # Add user message to conversation store
-    conversation.add_message("user", text)
+    _app.add_handler(CommandHandler("start", start))
+    _app.add_handler(CommandHandler("help", help_command))
+    _app.add_handler(CommandHandler("reset", reset))
+    _app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_update))
 
-    # Get messages from conversation store
-    recent_messages = conversation.get_recent_messages(50)
+    print("Starting Telegram bot in POLLING mode...")
+    await _app.run_polling(allowed_updates=Update.ALL_TYPES)
 
-    # Get or init checkpoint manager
-    checkpoint_manager = await get_checkpoint_manager(user_id)
 
-    await update.message.chat.send_action("typing")
+async def run_webhook(token: str, webhook_url: str, secret: str):
+    """Run bot in webhook mode with FastAPI."""
+    global _app
 
-    try:
-        # Build config with checkpoint and Langfuse
-        config = {"configurable": {"thread_id": user_id}}
+    _app = Application.builder().token(token).build()
 
-        logger = get_logger()
-        handler = logger.langfuse_handler
-        if handler:
-            config["callbacks"] = [handler]
+    _app.add_handler(CommandHandler("start", start))
+    _app.add_handler(CommandHandler("help", help_command))
+    _app.add_handler(CommandHandler("reset", reset))
+    _app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_update))
 
-        # Get agent with checkpointer
-        agent = get_agent()
-        from src.agents.factory import get_agent_factory
+    await _app.initialize()
 
-        factory = get_agent_factory(checkpointer=checkpoint_manager.checkpointer)
-        agent_with_checkpoint = factory.create(
-            model=_model,
-            tools=[],
-            system_prompt="You are a helpful executive assistant. Be concise.",
-            checkpointer=checkpoint_manager.checkpointer,
+    if secret:
+        await _app.bot.set_webhook(
+            url=f"{webhook_url}/webhook",
+            secret_token=secret,
         )
+    else:
+        await _app.bot.set_webhook(url=f"{webhook_url}/webhook")
 
-        with logger.timer("agent", {"message": text, "user_id": user_id}, channel="telegram"):
-            with propagate_attributes(user_id=user_id):
-                result = await agent_with_checkpoint.ainvoke(
-                    {
-                        "messages": [
-                            HumanMessage(content=m.content)
-                            if m.role == "user"
-                            else AIMessage(content=m.content)
-                            for m in recent_messages
-                        ]
-                        + [HumanMessage(content=text)]
-                    },
-                    config=config,
-                )
+    print("Starting Telegram bot in WEBHOOK mode...")
+    print(f"Webhook URL: {webhook_url}/webhook")
 
-        response = result["messages"][-1].content
+    fastapi_app = FastAPI(title="Telegram Webhook")
 
-        # Store assistant response
-        conversation.add_message("assistant", response)
+    @fastapi_app.post("/webhook")
+    async def webhook(request: Request):
+        """Handle incoming webhook."""
+        if secret:
+            secret_token = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
+            if secret_token != secret:
+                raise HTTPException(status_code=403, detail="Invalid secret")
 
-        logger.info(
-            "agent.response",
-            {"response": response},
-            user_id=user_id,
-            channel="telegram",
-        )
+        body = await request.body()
+        await _app.update_persisted(update=Update.de_json(data=body, bot=_app.bot))
 
-        await update.message.reply_text(response)
+        return {"ok": True}
 
-    except Exception as e:
-        await update.message.reply_text(f"Error: {str(e)}")
+    @fastapi_app.get("/health")
+    async def health():
+        return {"status": "healthy"}
 
+    import uvicorn
 
-def run_bot(token: str | None = None):
-    """Run the Telegram bot."""
-    token = token or os.environ.get("TELEGRAM_BOT_TOKEN")
+    webhook_host = os.environ.get("WEBHOOK_HOST", "0.0.0.0")
+    webhook_port = int(os.environ.get("WEBHOOK_PORT", "8080"))
 
-    if not token:
-        raise ValueError("TELEGRAM_BOT_TOKEN not set")
-
-    # Initialize agent
-    global _agent, _model
-    _model = create_model_from_config()
-    model_name = getattr(_model, "model", "unknown")
-    provider = getattr(_model, "_provider", "ollama")
-    print(f"Provider: {provider}")
-    print(f"Model: {model_name}")
-
-    factory = get_agent_factory()
-    _agent = factory.create(
-        model=_model,
-        tools=[],
-        system_prompt="You are a helpful executive assistant. Be concise.",
-    )
-    print("Agent ready")
-
-    application = Application.builder().token(token).build()
-
-    # Add handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("reset", reset))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    # Run
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    config = uvicorn.Config(fastapi_app, host=webhook_host, port=webhook_port, log_level="info")
+    server = uvicorn.Server(config)
+    await server.serve()
 
 
 async def main():
@@ -194,7 +202,16 @@ async def main():
         print("TELEGRAM_BOT_TOKEN not set in environment")
         return
 
-    await run_bot(token)
+    mode = TELEGRAM_MODE.lower()
+
+    if mode == "webhook":
+        if not TELEGRAM_WEBHOOK_URL:
+            print("TELEGRAM_WEBHOOK_URL not set - falling back to polling")
+            await run_polling(token)
+        else:
+            await run_webhook(token, TELEGRAM_WEBHOOK_URL, TELEGRAM_SECRET)
+    else:
+        await run_polling(token)
 
 
 if __name__ == "__main__":

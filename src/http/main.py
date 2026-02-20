@@ -97,10 +97,13 @@ async def message(req: MessageRequest) -> MessageResponse:
 
         # Get conversation store and checkpoint manager
         conversation = get_conversation_store(user_id)
+        from src.tools.progressive_disclosure import create_progressive_disclosure_tools
+
         conversation.add_message("user", req.message)
         recent_messages = conversation.get_recent_messages(50)
 
         checkpoint_manager = await get_checkpoint_manager(user_id)
+        tools = create_progressive_disclosure_tools(user_id)
 
         logger = get_logger()
         handler = logger.langfuse_handler
@@ -114,8 +117,8 @@ async def message(req: MessageRequest) -> MessageResponse:
         factory = get_agent_factory(checkpointer=checkpoint_manager.checkpointer)
         agent = factory.create(
             model=_model,
-            tools=[],
-            system_prompt="You are a helpful executive assistant.",
+            tools=tools,
+            system_prompt="You are a helpful executive assistant. Use the conversation history tools when user asks about past conversations.",
         )
 
         with logger.timer("agent", {"message": req.message, "user_id": user_id}, channel="http"):
@@ -155,17 +158,20 @@ async def message_stream(req: MessageRequest):
     try:
         user_id = req.user_id or "default"
 
+        from src.tools.progressive_disclosure import create_progressive_disclosure_tools
+
         conversation = get_conversation_store(user_id)
         conversation.add_message("user", req.message)
         recent_messages = conversation.get_recent_messages(50)
 
         checkpoint_manager = await get_checkpoint_manager(user_id)
+        tools = create_progressive_disclosure_tools(user_id)
 
         factory = get_agent_factory(checkpointer=checkpoint_manager.checkpointer)
         agent = factory.create(
             model=_model,
-            tools=[],
-            system_prompt="You are a helpful executive assistant.",
+            tools=tools,
+            system_prompt="You are a helpful executive assistant. Use the conversation history tools when user asks about past conversations.",
         )
 
         async def generate():

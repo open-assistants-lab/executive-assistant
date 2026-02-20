@@ -51,13 +51,15 @@ class ExecutiveAssistantCLI:
         console.print(f"[green]✓[/green] Provider: {provider}")
         console.print(f"[green]✓[/green] Model: {model_name}")
 
+        from src.tools.progressive_disclosure import create_progressive_disclosure_tools
 
         checkpoint_manager = await init_checkpoint_manager(self.user_id)
+        tools = create_progressive_disclosure_tools(self.user_id)
         factory = get_agent_factory(checkpointer=checkpoint_manager.checkpointer)
         self.agent = factory.create(
             model=self.model,
-            tools=[],
-            system_prompt="You are a helpful executive assistant. Be concise and helpful.",
+            tools=tools,
+            system_prompt="You are a helpful executive assistant. Be concise and helpful. Use the conversation history tools when user asks about past conversations.",
         )
         console.print("[green]✓[/green] Agent ready")
 
