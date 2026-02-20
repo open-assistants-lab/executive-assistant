@@ -10,6 +10,9 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 
 from src.config import get_settings
 from src.llm import create_model_from_config
+from src.app_logging import get_logger
+
+logger = get_logger()
 
 
 class AgentFactory:
@@ -44,6 +47,15 @@ class AgentFactory:
                         trigger=("tokens", summary_config.trigger_tokens),
                         keep=("messages", summary_config.keep_messages),
                     )
+                )
+                logger.info(
+                    "summarization.middleware.configured",
+                    {
+                        "trigger_tokens": summary_config.trigger_tokens,
+                        "keep_messages": summary_config.keep_messages,
+                        "model": str(model),
+                    },
+                    channel="agent",
                 )
 
         return middleware
