@@ -4,7 +4,11 @@ from collections.abc import Sequence
 from typing import Any
 
 from langchain.agents import create_agent
-from langchain.agents.middleware import HumanInTheLoopMiddleware, SummarizationMiddleware
+from langchain.agents.middleware import (
+    HumanInTheLoopMiddleware,
+    SummarizationMiddleware,
+    TodoListMiddleware,
+)
 from langchain_core.language_models import BaseChatModel
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
@@ -58,6 +62,27 @@ class AgentFactory:
                     channel="agent",
                 )
 
+        # TodoList middleware for automatic task decomposition
+        todo_config = getattr(settings, "todo_list", None)
+        if todo_config and getattr(todo_config, "enabled", False):
+            middleware.append(
+                TodoListMiddleware(
+                    system_prompt=getattr(todo_config, "system_prompt", None) or None,
+                    tool_description=getattr(todo_config, "tool_description", None) or None,
+                )
+            )
+            logger.info(
+                "todolist.middleware.configured",
+                {"enabled": True},
+                channel="agent",
+            )
+        else:
+            logger.info(
+                "todolist.middleware.disabled",
+                {"enabled": False},
+                channel="agent",
+            )
+
         # HITL middleware for filesystem delete and shell commands
         filesystem_config = settings.filesystem
         shell_config = settings.shell_tool
@@ -70,11 +95,6 @@ class AgentFactory:
             interrupt_config["delete_file"] = {
                 "allowed_decisions": ["approve", "edit", "reject"],
             }
-
-        # Add todo delete tool
-        interrupt_config["todo_delete"] = {
-            "allowed_decisions": ["approve", "reject"],
-        }
 
         # Add shell hitl commands
         if shell_config.enabled and shell_config.hitl_commands:

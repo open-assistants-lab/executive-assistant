@@ -95,3 +95,9 @@ shell_tool:
     - rmdir
   timeout_seconds: 30
   max_output_kb: 100
+
+# TodoList - Automatic task decomposition middleware
+todo_list:
+  enabled: false  # Enable to automatically decompose complex tasks into subtasks
+  # system_prompt: ""  # Custom prompt for task planning (optional)
+  # tool_description: ""  # Custom description for write_todos tool (optional)

@@ -204,6 +204,21 @@ class ShellToolConfig(_BaseSettings):
         extra = "ignore"
 
 
+class TodoListConfig(_BaseSettings):
+    """TodoList middleware configuration.
+
+    Provides automatic task decomposition for complex multi-step tasks.
+    """
+
+    enabled: bool = False  # Disabled by default
+    system_prompt: str = ""  # Custom prompt for guiding task planning
+    tool_description: str = ""  # Custom description for write_todos tool
+
+    class Config:
+        env_prefix = "TODOLIST_"
+        extra = "ignore"
+
+
 class AppConfig(_BaseSettings):
     """Main application configuration."""
 
@@ -217,6 +232,7 @@ class AppConfig(_BaseSettings):
     skills: SkillsConfig = Field(default_factory=SkillsConfig)
     filesystem: FilesystemConfig = Field(default_factory=FilesystemConfig)
     shell_tool: ShellToolConfig = Field(default_factory=ShellToolConfig)
+    todo_list: TodoListConfig = Field(default_factory=TodoListConfig)
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "AppConfig":
