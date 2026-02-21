@@ -13,10 +13,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 
-from src.agents.factory import get_agent_factory
-from src.llm import create_model_from_config
-from src.app_logging import get_logger
-from src.storage.checkpoint import init_checkpoint_manager
+from src.agents.manager import get_agent, get_checkpoint_manager
 from src.storage.conversation import get_conversation_store
 
 console = Console()
@@ -35,32 +32,16 @@ class ExecutiveAssistantCLI:
 
     def __init__(self, user_id: str = "default"):
         self.user_id = user_id
-        self.model = None
         self.agent = None
         self.messages = []
         self.conversation = get_conversation_store(user_id)
-        self.config = {"configurable": {"thread_id": user_id}}
 
     async def setup(self):
         """Initialize the agent."""
         console.print("[bold cyan]Initializing Executive Assistant...[/bold cyan]")
 
-        self.model = create_model_from_config()
-        model_name = getattr(self.model, "model", "unknown")
-        provider = getattr(self.model, "_provider", "ollama")
-        console.print(f"[green]✓[/green] Provider: {provider}")
-        console.print(f"[green]✓[/green] Model: {model_name}")
-
-        from src.tools.progressive_disclosure import create_progressive_disclosure_tools
-
-        checkpoint_manager = await init_checkpoint_manager(self.user_id)
-        tools = create_progressive_disclosure_tools(self.user_id)
-        factory = get_agent_factory(checkpointer=checkpoint_manager.checkpointer)
-        self.agent = factory.create(
-            model=self.model,
-            tools=tools,
-            system_prompt="You are a helpful executive assistant. Be concise and helpful. Use the conversation history tools when user asks about past conversations.",
-        )
+        checkpoint_manager = await get_checkpoint_manager(self.user_id)
+        self.agent = get_agent(self.user_id, checkpointer=checkpoint_manager.checkpointer)
         console.print("[green]✓[/green] Agent ready")
 
     async def handle_slash_command(self, command: str) -> bool:
@@ -84,24 +65,7 @@ class ExecutiveAssistantCLI:
 
     async def handle_model_command(self, command: str):
         """Handle /model command."""
-        parts = command.strip().split()
-        if len(parts) < 2:
-            console.print("[yellow]Usage: /model provider:model[/yellow]")
-            return
-
-        new_model = parts[1]
-        try:
-            console.print(f"[yellow]Switching to {new_model}...[/yellow]")
-            self.model = create_model_from_config(new_model)
-            factory = get_agent_factory()
-            self.agent = factory.create(
-                model=self.model,
-                tools=[],
-                system_prompt="You are a helpful executive assistant.",
-            )
-            console.print(f"[green]✓[/green] Switched to {new_model}")
-        except Exception as e:
-            console.print(f"[red]Failed: {e}[/red]")
+        console.print("[yellow]Model switching not supported in shared agent mode[/yellow]")
 
     def show_help(self):
         """Show help message."""
@@ -145,6 +109,8 @@ class ExecutiveAssistantCLI:
 
                 console.print("[dim]Thinking...[/dim]")
 
+                from src.app_logging import get_logger
+
                 logger = get_logger()
                 handler = logger.langfuse_handler
 
@@ -152,7 +118,9 @@ class ExecutiveAssistantCLI:
                 if handler:
                     config["callbacks"] = [handler]
 
-                with logger.timer(
+                from src.app_logging import timer
+
+                with timer(
                     "agent",
                     {"message": user_input, "message_count": len(self.messages)},
                     channel="cli",
@@ -166,7 +134,6 @@ class ExecutiveAssistantCLI:
                 self.messages.append(AIMessage(content=response))
                 self.conversation.add_message("assistant", response)
 
-                # Log response
                 logger.info(
                     "agent.response",
                     {"response": response},
@@ -182,7 +149,10 @@ class ExecutiveAssistantCLI:
                 console.print("\n[yellow]Goodbye![/yellow]")
                 break
             except Exception as e:
+                import traceback
+
                 console.print(f"[red]Error: {e}[/red]")
+                console.print(f"[red]{traceback.format_exc()}[/red]")
 
 
 async def run():

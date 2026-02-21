@@ -1,7 +1,7 @@
 # Agent Configuration
 agent:
   name: "Executive Assistant"
-  model: "ollama:minimax-m2.5"
+  model: "ollama-cloud:minimax-m2.5"
 
 # Database
 database:
@@ -72,3 +72,26 @@ tools:
 skills:
   directory: "src/skills"
   user_directory: "data/users/{user_id}/skills"
+
+# Filesystem
+filesystem:
+  enabled: true
+  root_path: "data/users/{user_id}/files"
+  max_file_size_mb: 10
+
+# Shell
+shell_tool:
+  enabled: true
+  allowed_commands:
+    - python
+    - python3
+    - node
+    - echo
+    - date
+    - whoami
+    - pwd
+  hitl_commands:
+    - rm
+    - rmdir
+  timeout_seconds: 30
+  max_output_kb: 100

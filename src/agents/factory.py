@@ -4,13 +4,12 @@ from collections.abc import Sequence
 from typing import Any
 
 from langchain.agents import create_agent
-from langchain.agents.middleware import SummarizationMiddleware
+from langchain.agents.middleware import HumanInTheLoopMiddleware, SummarizationMiddleware
 from langchain_core.language_models import BaseChatModel
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
-from src.config import get_settings
-from src.llm import create_model_from_config
 from src.app_logging import get_logger
+from src.config import get_settings
 
 logger = get_logger()
 
@@ -35,9 +34,10 @@ class AgentFactory:
     def _get_middleware(self, model: BaseChatModel) -> list[Any]:
         """Get middleware list for the agent."""
         middleware = []
+        settings = get_settings()
 
+        # Summarization middleware
         if self.enable_summarization:
-            settings = get_settings()
             summary_config = settings.memory.summarization
 
             if summary_config.enabled:
@@ -57,6 +57,34 @@ class AgentFactory:
                     },
                     channel="agent",
                 )
+
+        # HITL middleware for filesystem delete and shell commands
+        filesystem_config = settings.filesystem
+        shell_config = settings.shell_tool
+
+        # Build interrupt config for tools requiring approval
+        interrupt_config = {}
+
+        # Add filesystem delete tool
+        if filesystem_config.enabled:
+            interrupt_config["delete_file"] = {
+                "allowed_decisions": ["approve", "edit", "reject"],
+            }
+
+        # Add shell hitl commands
+        if shell_config.enabled and shell_config.hitl_commands:
+            # For now, just enable HITL on run_shell for dangerous commands
+            interrupt_config["run_shell"] = {
+                "allowed_decisions": ["approve", "reject"],
+            }
+
+        if interrupt_config:
+            middleware.append(HumanInTheLoopMiddleware(interrupt_on=interrupt_config))
+            logger.info(
+                "hitl.middleware.configured",
+                {"interrupt_on": list(interrupt_config.keys())},
+                channel="agent",
+            )
 
         return middleware
 

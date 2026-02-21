@@ -5,8 +5,30 @@ from typing import Any
 
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
+from langchain_ollama import ChatOllama
 
 from src.config import get_settings
+
+
+def create_ollama_local_model(
+    model: str = "llama3.2",
+    base_url: str = "http://localhost:11434",
+    **kwargs: Any,
+) -> BaseChatModel:
+    """Create local Ollama chat model.
+
+    Args:
+        model: Model name (e.g., "llama3.2", "qwen2.5-coder:14b")
+        base_url: Ollama server URL (default: http://localhost:11434)
+
+    Returns:
+        Initialized chat model
+    """
+    return ChatOllama(
+        model=model,
+        base_url=base_url,
+        **kwargs,
+    )
 
 
 def create_ollama_cloud_model(
@@ -88,6 +110,8 @@ def create_model_from_config(config_model: str | None = None) -> BaseChatModel:
 
     # Create model based on provider
     if provider == "ollama":
+        return create_ollama_cloud_model(model=model_name)
+    elif provider == "ollama-cloud":
         return create_ollama_cloud_model(model=model_name)
     elif provider == "openai":
         return create_openai_model(model=model_name)

@@ -9,10 +9,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langfuse import propagate_attributes
 from pydantic import BaseModel
 
-from src.agents.factory import get_agent_factory
-from src.llm import create_model_from_config
-from src.app_logging import get_logger
-from src.storage.checkpoint import init_checkpoint_manager
+from src.agents.manager import get_agent, get_checkpoint_manager
 from src.storage.conversation import get_conversation_store
 
 
@@ -27,46 +24,12 @@ class MessageResponse(BaseModel):
     error: str | None = None
 
 
-# Global state
-_agent = None
-_model = None
-_checkpoint_managers: dict[str, any] = {}
-
-
-async def get_checkpoint_manager(user_id: str):
-    """Get or create checkpoint manager for user."""
-    if user_id not in _checkpoint_managers:
-        _checkpoint_managers[user_id] = await init_checkpoint_manager(user_id)
-    return _checkpoint_managers[user_id]
-
-
-def get_agent():
-    """Get or create agent."""
-    global _agent, _model
-    if _agent is None:
-        _model = create_model_from_config()
-        model_name = getattr(_model, "model", "unknown")
-        provider = getattr(_model, "_provider", "ollama")
-        print(f"Provider: {provider}")
-        print(f"Model: {model_name}")
-
-        factory = get_agent_factory()
-        _agent = factory.create(
-            model=_model,
-            tools=[],
-            system_prompt="You are a helpful executive assistant.",
-        )
-        print("Agent ready")
-    return _agent
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan context manager."""
-    get_agent()  # Initialize agent on startup
+    get_agent("default")  # Initialize agent on startup
     print("HTTP server ready")
     yield
-    # Cleanup on shutdown
 
 
 app = FastAPI(
@@ -95,33 +58,25 @@ async def message(req: MessageRequest) -> MessageResponse:
     try:
         user_id = req.user_id or "default"
 
-        # Get conversation store and checkpoint manager
         conversation = get_conversation_store(user_id)
-        from src.tools.progressive_disclosure import create_progressive_disclosure_tools
-
         conversation.add_message("user", req.message)
         recent_messages = conversation.get_recent_messages(50)
 
         checkpoint_manager = await get_checkpoint_manager(user_id)
-        tools = create_progressive_disclosure_tools(user_id)
+        agent = get_agent(user_id, checkpointer=checkpoint_manager.checkpointer)
+
+        from src.app_logging import get_logger
 
         logger = get_logger()
         handler = logger.langfuse_handler
 
-        # Build config
         config = {"configurable": {"thread_id": user_id}}
         if handler:
             config["callbacks"] = [handler]
 
-        # Create agent with checkpointer
-        factory = get_agent_factory(checkpointer=checkpoint_manager.checkpointer)
-        agent = factory.create(
-            model=_model,
-            tools=tools,
-            system_prompt="You are a helpful executive assistant. Use the conversation history tools when user asks about past conversations.",
-        )
+        from src.app_logging import timer
 
-        with logger.timer("agent", {"message": req.message, "user_id": user_id}, channel="http"):
+        with timer("agent", {"message": req.message, "user_id": user_id}, channel="http"):
             with propagate_attributes(user_id=user_id):
                 result = await agent.ainvoke(
                     {
@@ -139,7 +94,6 @@ async def message(req: MessageRequest) -> MessageResponse:
         response = result["messages"][-1].content
         conversation.add_message("assistant", response)
 
-        # Log response
         logger.info(
             "agent.response",
             {"response": response},
@@ -158,21 +112,12 @@ async def message_stream(req: MessageRequest):
     try:
         user_id = req.user_id or "default"
 
-        from src.tools.progressive_disclosure import create_progressive_disclosure_tools
-
         conversation = get_conversation_store(user_id)
         conversation.add_message("user", req.message)
         recent_messages = conversation.get_recent_messages(50)
 
         checkpoint_manager = await get_checkpoint_manager(user_id)
-        tools = create_progressive_disclosure_tools(user_id)
-
-        factory = get_agent_factory(checkpointer=checkpoint_manager.checkpointer)
-        agent = factory.create(
-            model=_model,
-            tools=tools,
-            system_prompt="You are a helpful executive assistant. Use the conversation history tools when user asks about past conversations.",
-        )
+        agent = get_agent(user_id, checkpointer=checkpoint_manager.checkpointer)
 
         async def generate():
             result = await agent.ainvoke(

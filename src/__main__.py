@@ -35,6 +35,7 @@ def main():
         http_run()
     elif args.command == "telegram":
         import asyncio
+
         from src.telegram.main import main as telegram_main
 
         asyncio.run(telegram_main())
