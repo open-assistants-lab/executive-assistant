@@ -40,6 +40,7 @@ def get_default_tools(user_id: str) -> list[Any]:
     )
     from src.tools.memory import get_conversation_history, search_conversation_hybrid
     from src.tools.shell import run_shell
+    from src.tools.todo import todo_add, todo_complete, todo_delete, todo_list
 
     return [
         get_conversation_history,
@@ -52,6 +53,10 @@ def get_default_tools(user_id: str) -> list[Any]:
         glob_search,
         grep_search,
         run_shell,
+        todo_add,
+        todo_list,
+        todo_complete,
+        todo_delete,
     ]
 
 
@@ -103,6 +108,12 @@ Current user_id: {user_id}
    - run_shell: Run shell commands like `echo`, `python`, `node`, etc.
    - Use this when user wants to run commands, scripts, or get system info
    - DANGEROUS commands (rm, rmdir) require human approval
+
+4. **Todo tools** - Manage tasks/todos:
+   - todo_add: Add a new task
+   - todo_list: List tasks (filter by status: all, pending, completed)
+   - todo_complete: Mark a task as completed
+   - todo_delete: Delete a task (REQUIRES human approval first)
 
 IMPORTANT: Always use the default user_id parameter (already set to {user_id})."""
         )

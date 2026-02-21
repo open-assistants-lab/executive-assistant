@@ -71,6 +71,11 @@ class AgentFactory:
                 "allowed_decisions": ["approve", "edit", "reject"],
             }
 
+        # Add todo delete tool
+        interrupt_config["todo_delete"] = {
+            "allowed_decisions": ["approve", "reject"],
+        }
+
         # Add shell hitl commands
         if shell_config.enabled and shell_config.hitl_commands:
             # For now, just enable HITL on run_shell for dangerous commands
