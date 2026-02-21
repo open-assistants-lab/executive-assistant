@@ -60,7 +60,11 @@ def get_agent(
     tools: list[Any] | None = None,
     checkpointer: BaseCheckpointSaver | None = None,
 ) -> Any:
-    """Get or create agent for user (shared across all channels).
+    """Get or create agent for user (shared across channels).
+
+    NOTE: To avoid caching bugs, always use consistent parameters.
+    If you need a different checkpointer, use a different user_id
+    or call reset_agent() first.
 
     Args:
         user_id: User identifier
@@ -71,6 +75,22 @@ def get_agent(
         Compiled LangGraph agent
     """
     key = user_id
+
+    # Check if we have a cached agent and validate checkpointer hasn't changed
+    if key in _agents:
+        existing_agent = _agents[key]
+        existing_checkpointer = getattr(existing_agent, "checkpointer", None)
+
+        # If checkpointer changed, invalidate cache to avoid bugs
+        if existing_checkpointer is not checkpointer:
+            if checkpointer is not None:
+                # User explicitly wants a checkpointer but cached agent doesn't have one
+                # Create new agent with the requested checkpointer
+                del _agents[key]
+            elif existing_checkpointer is not None:
+                # Cached has checkpointer but user doesn't want one
+                # Create new agent without checkpointer
+                del _agents[key]
 
     if key not in _agents:
         model = get_model()
