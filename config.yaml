@@ -75,22 +75,18 @@ skills:
 # Filesystem
 filesystem:
   enabled: true
-  root_path: "data/users/{user_id}/files"
+  root_path: "data/users/{user_id}/workspace"
   max_file_size_mb: 10
 
 # Shell
 shell_tool:
   enabled: true
   allowed_commands:
-    - python
     - python3
     - node
     - echo
     - date
     - whoami
     - pwd
-  hitl_commands:
-    - rm
-    - rmdir
   timeout_seconds: 30
   max_output_kb: 100

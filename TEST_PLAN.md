@@ -161,7 +161,7 @@ data/users/{user_id}/.conversation/
 
 **Implementation:**
 - Each user has separate:
-  - Files: `data/users/{user_id}/files/`
+  - Files: `data/users/{user_id}/workspace/`
   - Skills: `data/users/{user_id}/skills/`
   - Checkpoint: Separate thread_id per user
   - Memory: Separate SQLite/ChromaDB per user

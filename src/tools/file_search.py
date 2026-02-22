@@ -21,12 +21,15 @@ def _get_root_path(user_id: str) -> Path:
 def _resolve_path(path: str | None, user_id: str) -> Path:
     """Resolve path relative to user's root."""
     root = _get_root_path(user_id)
+    # Ensure root is absolute for proper comparison
+    root = root.resolve()
+
     if path is None:
         return root
 
     resolved = (root / path).resolve()
 
-    if not str(resolved).startswith(str(root)):
+    if not resolved.is_relative_to(root):
         raise ValueError(f"Path outside user directory: {path}")
 
     return resolved

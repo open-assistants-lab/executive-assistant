@@ -180,7 +180,7 @@ class FilesystemConfig(_BaseSettings):
     """Filesystem tools configuration."""
 
     enabled: bool = True
-    root_path: str = "data/users/{user_id}/files"
+    root_path: str = "data/users/{user_id}/workspace"
     max_file_size_mb: int = 10
 
     class Config:
@@ -193,9 +193,8 @@ class ShellToolConfig(_BaseSettings):
 
     enabled: bool = True
     allowed_commands: list[str] = Field(
-        default_factory=lambda: ["python", "python3", "node", "echo", "date", "whoami", "pwd"]
+        default_factory=lambda: ["python3", "node", "echo", "date", "whoami", "pwd"]
     )
-    hitl_commands: list[str] = Field(default_factory=lambda: ["rm", "rmdir"])
     timeout_seconds: int = 30
     max_output_kb: int = 100
 

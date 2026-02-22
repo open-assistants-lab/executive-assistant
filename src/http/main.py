@@ -94,17 +94,41 @@ async def message(req: MessageRequest) -> MessageResponse:
         # Extract response - handle tool messages properly
         messages = result.get("messages", [])
 
-        # Find the last AI message content (not tool message)
+        # Find the last AI message with actual content
         response = None
+        tool_results = []
+        ai_has_tool_calls = False
+
+        # First pass: collect tool results and check for tool calls
+        for msg in messages:
+            msg_type = getattr(msg, "type", None)
+            if msg_type == "tool":
+                content = getattr(msg, "content", None)
+                if content:
+                    tool_results.append(content)
+            elif msg_type == "ai":
+                if getattr(msg, "tool_calls", None):
+                    ai_has_tool_calls = True
+
+        # Second pass: find AI response
         for msg in reversed(messages):
             msg_type = getattr(msg, "type", None)
+            content = getattr(msg, "content", None)
             if msg_type == "ai":
-                # Skip messages that are just tool calls
-                if not getattr(msg, "tool_calls", None):
-                    response = getattr(msg, "content", None)
+                tool_calls = getattr(msg, "tool_calls", None)
+                # If AI has tool calls and we have results, use results
+                if tool_calls and tool_results:
+                    response = "\n".join(tool_results)
                     break
-            elif msg_type == "human":
-                break
+                # If AI has tool calls but no results yet, show tool names
+                if tool_calls:
+                    tool_names = [tc.get("name", "unknown") for tc in tool_calls]
+                    response = f"Tool(s) executed: {', '.join(tool_names)}"
+                    break
+                # If AI has content, use it
+                if content and content.strip():
+                    response = content
+                    break
 
         if not response:
             response = "Task completed."

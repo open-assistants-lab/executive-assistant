@@ -80,12 +80,10 @@ class AgentFactory:
                 "allowed_decisions": ["approve", "edit", "reject"],
             }
 
-        # Add shell hitl commands
-        if shell_config.enabled and shell_config.hitl_commands:
-            # For now, just enable HITL on run_shell for dangerous commands
-            interrupt_config["run_shell"] = {
-                "allowed_decisions": ["approve", "reject"],
-            }
+        # Note: We don't add run_shell to HITL middleware here because
+        # the shell tool itself handles allowed commands check internally
+        # and returns appropriate error messages. HITL is only for delete_file
+        # which requires human approval before ANY deletion.
 
         if interrupt_config:
             middleware.append(HumanInTheLoopMiddleware(interrupt_on=interrupt_config))

@@ -11,7 +11,6 @@ from src.config import get_settings
 logger = get_logger()
 
 DEFAULT_ALLOWED_COMMANDS = {
-    "python",
     "python3",
     "node",
     "echo",
@@ -28,13 +27,11 @@ def _get_shell_config():
     if shell_config:
         return {
             "allowed_commands": set(shell_config.allowed_commands),
-            "hitl_commands": set(getattr(shell_config, "hitl_commands", [])),
             "timeout_seconds": getattr(shell_config, "timeout_seconds", 30),
             "max_output_kb": getattr(shell_config, "max_output_kb", 100),
         }
     return {
         "allowed_commands": DEFAULT_ALLOWED_COMMANDS,
-        "hitl_commands": set(),
         "timeout_seconds": 30,
         "max_output_kb": 100,
     }
@@ -48,24 +45,18 @@ def _get_root_path(user_id: str) -> Path:
     return root
 
 
-def _is_allowed(cmd: str, user_id: str = "default") -> tuple[bool, bool]:
+def _is_allowed(cmd: str) -> bool:
     """Check if command is allowed.
 
     Returns:
-        (is_allowed, needs_approval)
+        True if allowed, False otherwise
     """
     config = _get_shell_config()
     allowed = config["allowed_commands"]
-    hitl = config["hitl_commands"]
 
     cmd_base = cmd.split()[0] if cmd.split() else ""
 
-    if cmd_base in allowed:
-        return True, False
-    if cmd_base in hitl:
-        return True, True
-
-    return False, False
+    return cmd_base in allowed
 
 
 @tool
@@ -81,14 +72,11 @@ def run_shell(command: str, user_id: str = "default") -> str:
     """
     try:
         cmd_base = command.split()[0] if command.split() else ""
-        is_allowed_cmd, needs_approval = _is_allowed(cmd_base, user_id)
+        is_allowed_cmd = _is_allowed(cmd_base)
 
         if not is_allowed_cmd:
             config = _get_shell_config()
             return f"Command not allowed: {cmd_base}. Allowed: {', '.join(sorted(config['allowed_commands']))}"
-
-        if needs_approval:
-            return f"[HITL_REQUIRED] Command '{cmd_base}' requires approval. Please confirm to proceed."
 
         root_path = _get_root_path(user_id)
         config = _get_shell_config()
