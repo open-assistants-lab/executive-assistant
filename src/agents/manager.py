@@ -40,6 +40,7 @@ def get_default_tools(user_id: str) -> list[Any]:
     )
     from src.tools.memory import get_conversation_history, search_conversation_hybrid
     from src.tools.shell import run_shell
+    from src.tools.todo import write_todos
 
     return [
         get_conversation_history,
@@ -52,6 +53,7 @@ def get_default_tools(user_id: str) -> list[Any]:
         glob_search,
         grep_search,
         run_shell,
+        write_todos,
     ]
 
 
@@ -75,22 +77,6 @@ def get_agent(
         Compiled LangGraph agent
     """
     key = user_id
-
-    # Check if we have a cached agent and validate checkpointer hasn't changed
-    if key in _agents:
-        existing_agent = _agents[key]
-        existing_checkpointer = getattr(existing_agent, "checkpointer", None)
-
-        # If checkpointer changed, invalidate cache to avoid bugs
-        if existing_checkpointer is not checkpointer:
-            if checkpointer is not None:
-                # User explicitly wants a checkpointer but cached agent doesn't have one
-                # Create new agent with the requested checkpointer
-                del _agents[key]
-            elif existing_checkpointer is not None:
-                # Cached has checkpointer but user doesn't want one
-                # Create new agent without checkpointer
-                del _agents[key]
 
     if key not in _agents:
         model = get_model()
@@ -123,6 +109,13 @@ Current user_id: {user_id}
    - run_shell: Run shell commands like `echo`, `python`, `node`, etc.
    - Use this when user wants to run commands, scripts, or get system info
    - DANGEROUS commands (rm, rmdir) require human approval
+
+4. **Todo tool** - Track tasks during complex multi-step operations:
+   - write_todos: Manage todo list with actions: list/add/update/delete/replace
+   - ALWAYS call write_todos with action="list" at the END of your response to show current todos
+   - NEVER modify todos without showing the updated list
+   - Use for multi-step tasks (e.g., "plan a trip", "refactor codebase", "research topic")
+   - After ANY todo modification (add/update/delete/replace), you MUST immediately call write_todos(action="list") to display the updated list
 
 IMPORTANT: Always use the default user_id parameter (already set to {user_id})."""
         )

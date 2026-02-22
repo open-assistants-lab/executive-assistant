@@ -13,7 +13,8 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 
-from src.agents.manager import get_agent, get_checkpoint_manager
+from src.agents.manager import get_agent
+from src.storage import init_checkpoint_manager
 from src.storage.conversation import get_conversation_store
 
 console = Console()
@@ -30,7 +31,7 @@ class ExecutiveAssistantCLI:
         "/exit": "Exit the CLI",
     }
 
-    def __init__(self, user_id: str = "default"):
+    def __init__(self, user_id: str = "cli"):
         self.user_id = user_id
         self.agent = None
         self.messages = []
@@ -40,7 +41,7 @@ class ExecutiveAssistantCLI:
         """Initialize the agent."""
         console.print("[bold cyan]Initializing Executive Assistant...[/bold cyan]")
 
-        checkpoint_manager = await get_checkpoint_manager(self.user_id)
+        checkpoint_manager = await init_checkpoint_manager(self.user_id)
         self.agent = get_agent(self.user_id, checkpointer=checkpoint_manager.checkpointer)
         console.print("[green]✓[/green] Agent ready")
 
@@ -151,8 +152,9 @@ class ExecutiveAssistantCLI:
             except Exception as e:
                 import traceback
 
+                tb = traceback.format_exc()
                 console.print(f"[red]Error: {e}[/red]")
-                console.print(f"[red]{traceback.format_exc()}[/red]")
+                console.print(f"[dim]{tb[-500:]}[/dim]")
 
 
 async def run():
