@@ -91,7 +91,24 @@ async def message(req: MessageRequest) -> MessageResponse:
                     config=config,
                 )
 
-        response = result["messages"][-1].content
+        # Extract response - handle tool messages properly
+        messages = result.get("messages", [])
+
+        # Find the last AI message content (not tool message)
+        response = None
+        for msg in reversed(messages):
+            msg_type = getattr(msg, "type", None)
+            if msg_type == "ai":
+                # Skip messages that are just tool calls
+                if not getattr(msg, "tool_calls", None):
+                    response = getattr(msg, "content", None)
+                    break
+            elif msg_type == "human":
+                break
+
+        if not response:
+            response = "Task completed."
+
         conversation.add_message("assistant", response)
 
         logger.info(

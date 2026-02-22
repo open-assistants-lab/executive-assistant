@@ -30,6 +30,7 @@ def get_model() -> BaseChatModel:
 
 def get_default_tools(user_id: str) -> list[Any]:
     """Get default tools for a user with proper user_id binding."""
+    from src.skills.example_constrained_tool import write_sql_query
     from src.tools.file_search import glob_search, grep_search
     from src.tools.filesystem import (
         delete_file,
@@ -54,6 +55,7 @@ def get_default_tools(user_id: str) -> list[Any]:
         grep_search,
         run_shell,
         write_todos,
+        write_sql_query,  # Example constrained tool
     ]
 
 
@@ -90,7 +92,7 @@ def get_agent(
             base_prompt
             + f"""
 
-Current user_id: {user_id}
+user_id: {user_id}
 
 ## Available Tools:
 
@@ -110,17 +112,17 @@ Current user_id: {user_id}
    - Use this when user wants to run commands, scripts, or get system info
    - DANGEROUS commands (rm, rmdir) require human approval
 
-4. **Todo tool** - Track tasks during complex multi-step operations:
-   - write_todos: Manage todo list with actions: list/add/update/delete/replace
-   - ALWAYS call write_todos with action="list" at the END of your response to show current todos
-   - NEVER modify todos without showing the updated list
-   - Use for multi-step tasks (e.g., "plan a trip", "refactor codebase", "research topic")
-   - After ANY todo modification (add/update/delete/replace), you MUST immediately call write_todos(action="list") to display the updated list
+        4. **Todo tool** - Track tasks during complex multi-step operations:
+           - write_todos: Manage todo list with actions: list/add/update/delete/replace
+           - ALWAYS call write_todos with action="list" at the END of your response to show current todos
+           - NEVER modify todos without showing the updated list
+           - Use for multi-step tasks (e.g., "plan a trip", "refactor codebase", "research topic")
+           - After ANY todo modification (add/update/delete/replace), you MUST immediately call write_todos(action="list") to display the updated list
 
 IMPORTANT: Always use the default user_id parameter (already set to {user_id})."""
         )
 
-        factory = get_agent_factory(checkpointer=checkpointer)
+        factory = get_agent_factory(checkpointer=checkpointer, enable_skills=True, user_id=user_id)
         _agents[key] = factory.create(
             model=model,
             tools=effective_tools,

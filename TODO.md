@@ -49,10 +49,88 @@ Tracking implementation progress for the Executive Assistant agent.
 - [ ] Firecrawl map
 - [ ] Firecrawl search
 
-### Built-in Skills
-- [ ] Coding skill (`src/skills/coding/`)
-- [ ] Research skill (`src/skills/research/`)
-- [ ] Writing skill (`src/skills/writing/`)
+### Skills System (Agent Skills Compatible)
+
+**Reference:**
+- https://docs.langchain.com/oss/python/langchain/multi-agent/skills-sql-assistant
+- https://agentskills.io/specification
+- https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview
+
+**Purpose & Benefit:**
+
+Skills enable progressive disclosure - loading specialized information on-demand rather than upfront. Based on Agent Skills spec.
+
+**Directory Structure:**
+
+```
+src/skills/{skill_name}/           # System skills
+└── SKILL.md                       # YAML frontmatter + markdown body
+
+data/users/{user_id}/skills/{skill_name}/  # User skills
+└── SKILL.md
+```
+
+**SKILL.md Format:**
+
+```yaml
+---
+name: pdf-processing
+description: Extract text and tables from PDF files, fill forms, merge documents.
+---
+
+# Instructions
+[Full skill content here]
+```
+
+**Progressive Disclosure (3 Levels):**
+
+| Level | When | Our Implementation |
+|-------|------|-------------------|
+| Level 1: Metadata (~100 tokens) | Startup | SkillMiddleware → system prompt |
+| Level 2: Instructions | On trigger | load_skill tool → returns SKILL.md |
+| Level 3: Resources | As needed | Search within skill content |
+
+**Architecture:**
+
+1. **SkillMiddleware** (`before_agent` hook)
+   - Loads skill metadata (name + description) from system + user skills
+   - Injects into system prompt at runtime
+   - Enables live refresh for skill updates
+
+2. **load_skill tool**
+   - Returns full SKILL.md content when triggered
+   - Progressive disclosure: description in prompt, content via tool
+   - Optional: track loaded skills in custom state
+
+3. **Constrained tools** (mandatory)
+   - Tools that require specific skill to be loaded first
+   - Check `runtime.state.get("skills_loaded", [])`
+   - Return error if skill not loaded, guide agent to load it
+
+**Skill Validation:**
+
+- Use [skills-ref](https://github.com/agentskills/agentskills/tree/main/skills-ref) for validation
+- Future: Add `validate_skill` CLI command for troubleshooting
+
+**User Management:**
+
+- File-based: Create/edit SKILL.md in user skills directory
+- CLI: `ea skill list`, `ea skill add`, `ea skill remove`
+- API: `GET/POST/PUT/DELETE /skills`
+
+**Implementation Steps:**
+
+- [ ] Create skill schema (SKILL.md parser with YAML frontmatter)
+- [ ] Implement skill storage layer (file-based, directory scanning)
+- [ ] Implement skill registry (combine system + user skills)
+- [ ] Create SkillMiddleware with `before_agent` hook
+- [ ] Implement `load_skill` tool
+- [ ] Implement custom state for tracking loaded skills
+- [ ] Implement skill-gated tool pattern
+- [ ] Add CLI commands for skill management
+- [ ] Add API endpoints for skill management
+- [ ] Add `validate_skill` command (future)
+- [ ] Create sample system skills
 
 ### API & Interfaces
 - [ ] FastAPI application with lifespan

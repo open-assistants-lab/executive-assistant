@@ -96,6 +96,17 @@ def write_todos(
         # Replace entire todo list (useful for planning)
         write_todos.invoke({"todos": [{"content": "Step 1", "status": "pending"}, {"content": "Step 2", "status": "pending"}], "action": "replace", "user_id": "default"})
     """
+    # Log ALL calls for debugging
+    logger.info(
+        "write_todos.called",
+        {
+            "action": action,
+            "user_id": user_id,
+            "content": content,
+            "todos_count": len(todos) if todos else 0,
+        },
+    )
+
     user_todos = _get_user_todos(user_id)
 
     if action == "list":

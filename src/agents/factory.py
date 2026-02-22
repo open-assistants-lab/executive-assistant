@@ -7,7 +7,6 @@ from langchain.agents import create_agent
 from langchain.agents.middleware import (
     HumanInTheLoopMiddleware,
     SummarizationMiddleware,
-    TodoListMiddleware,
 )
 from langchain_core.language_models import BaseChatModel
 from langgraph.checkpoint.base import BaseCheckpointSaver
@@ -25,15 +24,21 @@ class AgentFactory:
         self,
         checkpointer: BaseCheckpointSaver | None = None,
         enable_summarization: bool = True,
+        enable_skills: bool = True,
+        user_id: str | None = None,
     ):
         """Initialize agent factory.
 
         Args:
             checkpointer: LangGraph checkpointer for conversation persistence
             enable_summarization: Whether to enable summarization middleware
+            enable_skills: Whether to enable skills middleware and tools
+            user_id: User ID for loading user-specific skills
         """
         self.checkpointer = checkpointer
         self.enable_summarization = enable_summarization
+        self.enable_skills = enable_skills
+        self.user_id = user_id
 
     def _get_middleware(self, model: BaseChatModel) -> list[Any]:
         """Get middleware list for the agent."""
@@ -61,27 +66,6 @@ class AgentFactory:
                     },
                     channel="agent",
                 )
-
-        # TodoList middleware for automatic task decomposition
-        todo_config = getattr(settings, "todo_list", None)
-        if todo_config and getattr(todo_config, "enabled", False):
-            middleware.append(
-                TodoListMiddleware(
-                    system_prompt=getattr(todo_config, "system_prompt", None) or None,
-                    tool_description=getattr(todo_config, "tool_description", None) or None,
-                )
-            )
-            logger.info(
-                "todolist.middleware.configured",
-                {"enabled": True},
-                channel="agent",
-            )
-        else:
-            logger.info(
-                "todolist.middleware.disabled",
-                {"enabled": False},
-                channel="agent",
-            )
 
         # HITL middleware for filesystem delete and shell commands
         filesystem_config = settings.filesystem
@@ -120,6 +104,7 @@ class AgentFactory:
         system_prompt: str | None = None,
         checkpointer: BaseCheckpointSaver | None = None,
         enable_summarization: bool | None = None,
+        enable_skills: bool | None = None,
     ) -> Any:
         """Create an agent using LangChain create_agent().
 
@@ -129,6 +114,7 @@ class AgentFactory:
             system_prompt: System prompt for the agent
             checkpointer: Optional checkpointer for conversation persistence
             enable_summarization: Override summarization setting
+            enable_skills: Override skills setting
 
         Returns:
             Compiled LangGraph agent
@@ -137,14 +123,46 @@ class AgentFactory:
 
         if enable_summarization is None:
             enable_summarization = self.enable_summarization
+        if enable_skills is None:
+            enable_skills = self.enable_skills
 
         middleware = []
         if enable_summarization:
             middleware = self._get_middleware(model)
 
+        # Always add skill middleware when enabled (regardless of summarization)
+        if enable_skills:
+            from src.skills import SkillMiddleware, SkillRegistry, set_skill_registry
+
+            settings = get_settings()
+            system_dir = settings.skills.directory
+
+            # Set up skill registry with user_id if available
+            if self.user_id:
+                set_skill_registry(
+                    SkillRegistry(
+                        system_dir=system_dir,
+                        user_id=self.user_id,
+                    )
+                )
+
+            middleware.append(SkillMiddleware(system_dir=system_dir, user_id=self.user_id))
+            logger.info(
+                "skill.middleware.configured",
+                {"system_dir": system_dir, "user_id": self.user_id},
+                channel="agent",
+            )
+
+        # Add skill tools
+        all_tools = list(tools) if tools else []
+        if enable_skills:
+            from src.skills import list_skills, load_skill
+
+            all_tools = list(all_tools) + [load_skill, list_skills]
+
         agent = create_agent(
             model=model,
-            tools=tools or [],
+            tools=all_tools,
             system_prompt=system_prompt,
             checkpointer=effective_checkpointer,
             middleware=middleware if middleware else [],
@@ -152,41 +170,20 @@ class AgentFactory:
 
         return agent
 
-    def create_with_default_tools(
-        self,
-        model: BaseChatModel,
-        tools: Sequence[Any] | None = None,
-        system_prompt: str | None = None,
-        checkpointer: BaseCheckpointSaver | None = None,
-    ) -> Any:
-        """Create agent with default tools.
-
-        Args:
-            model: Chat model to use
-            tools: Additional tools to add
-            system_prompt: System prompt
-            checkpointer: Optional checkpointer override
-
-        Returns:
-            Compiled agent
-        """
-        return self.create(
-            model=model,
-            tools=tools,
-            system_prompt=system_prompt,
-            checkpointer=checkpointer,
-        )
-
 
 def get_agent_factory(
     checkpointer: BaseCheckpointSaver | None = None,
     enable_summarization: bool = True,
+    enable_skills: bool = True,
+    user_id: str | None = None,
 ) -> AgentFactory:
     """Get or create agent factory.
 
     Args:
         checkpointer: Default checkpointer for all agents
         enable_summarization: Whether to enable summarization middleware
+        enable_skills: Whether to enable skills middleware and tools
+        user_id: User ID for loading user-specific skills
 
     Returns:
         AgentFactory instance
@@ -194,4 +191,6 @@ def get_agent_factory(
     return AgentFactory(
         checkpointer=checkpointer,
         enable_summarization=enable_summarization,
+        enable_skills=enable_skills,
+        user_id=user_id,
     )

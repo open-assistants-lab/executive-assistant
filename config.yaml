@@ -22,13 +22,12 @@ memory:
   # Long-term message storage
   messages:
     enabled: true
-    path: "data/users/{user_id}/.conversation/messages.duckdb"
+    path: "data/users/{user_id}/.conversation/messages.db"
 
-  # Daily journal (summaries)
-  journal:
+  # Message storage (SQLite + FTS5 + ChromaDB)
+  messages:
     enabled: true
-    path: "data/users/{user_id}/.conversation/journal.duckdb"
-    model: "ollama:minimax-m2.5"  # Model for daily summarization
+    path: "data/users/{user_id}/.conversation/messages.db"
 
   # Summarization: LangChain SummarizationMiddleware (short-term token reduction)
   summarization:
@@ -95,9 +94,3 @@ shell_tool:
     - rmdir
   timeout_seconds: 30
   max_output_kb: 100
-
-# TodoList - Automatic task decomposition middleware
-todo_list:
-  enabled: false  # Enable to automatically decompose complex tasks into subtasks
-  # system_prompt: ""  # Custom prompt for task planning (optional)
-  # tool_description: ""  # Custom description for write_todos tool (optional)
