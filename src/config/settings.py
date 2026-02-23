@@ -158,14 +158,20 @@ class CliConfig(_BaseSettings):
 
 
 class ToolsConfig(_BaseSettings):
-    """Tools configuration."""
+    """Tools configuration.
 
-    firecrawl_api_key: str = ""
+    Environment variables:
+        FIRECRAWL_API_KEY: Firecrawl API key
+        FIRECRAWL_BASE_URL: Firecrawl base URL for self-hosted
+    """
+
+    firecrawl_api_key: str = Field(default="", alias="FIRECRAWL_API_KEY")
+    firecrawl_base_url: str = Field(default="", alias="FIRECRAWL_BASE_URL")
     max_retries: int = 3
     timeout: int = 30
 
     class Config:
-        env_prefix = "TOOLS_"
+        extra = "ignore"
 
 
 class SkillsConfig(_BaseSettings):

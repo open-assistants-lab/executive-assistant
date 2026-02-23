@@ -58,7 +58,8 @@ cli:
 # Tools
 tools:
   firecrawl:
-    api_key: "" # Set via env var FIRECRAWL_API_KEY
+    api_key: ""  # Set via env var FIRECRAWL_API_KEY
+    base_url: ""  # For self-hosted, e.g., "http://localhost:3002"
   max_retries: 3
   timeout: 30
 

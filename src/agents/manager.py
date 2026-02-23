@@ -43,6 +43,7 @@ def get_default_tools(user_id: str) -> list[Any]:
     from src.tools.shell import run_shell
     from src.tools.todo import write_todos
     from src.tools.time import get_time
+    from src.tools.firecrawl import scrape_url, search_web, map_url
 
     return [
         get_conversation_history,
@@ -57,6 +58,9 @@ def get_default_tools(user_id: str) -> list[Any]:
         run_shell,
         write_todos,
         get_time,
+        scrape_url,
+        search_web,
+        map_url,
         write_sql_query,  # Example constrained tool
     ]
 
@@ -126,6 +130,12 @@ user_id: {user_id}
            - If user mentions their location (e.g., "I'm in Sydney"), use that timezone
            - Common timezones: 'America/New_York', 'Europe/London', 'Asia/Shanghai', 'Australia/Sydney', etc.
            - Or use city names: 'New York', 'Shanghai', 'London', 'Sydney'
+
+        6. **Web tools** - Scrape and search the web (requires API key):
+           - scrape_url: Scrape a URL and get content (markdown, html, json)
+           - search_web: Search the web and get results with content
+           - map_url: Discover all URLs on a website
+           - Set FIRECRAWL_API_KEY env var to enable (supports self-hosted with FIRECRAWL_BASE_URL)
 
 IMPORTANT: Always use the default user_id parameter (already set to {user_id})."""
         )
