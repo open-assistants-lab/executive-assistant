@@ -15,16 +15,11 @@ database:
 # Memory / Checkpointing
 memory:
   # Checkpointer: LangGraph SQLite
+  # retention_days: 0=disabled, -1=forever, N=keep for N days
   checkpointer:
-    enabled: true
-    retention_days: 7  # Keep checkpoints for N days
+    retention_days: 0  # 0=disabled, -1=forever, N=days
 
-  # Long-term message storage
-  messages:
-    enabled: true
-    path: "data/users/{user_id}/.conversation/messages.db"
-
-  # Message storage (SQLite + FTS5 + ChromaDB)
+  # Long-term message storage (SQLite + FTS5 + ChromaDB)
   messages:
     enabled: true
     path: "data/users/{user_id}/.conversation/messages.db"

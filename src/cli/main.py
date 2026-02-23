@@ -42,7 +42,8 @@ class ExecutiveAssistantCLI:
         console.print("[bold cyan]Initializing Executive Assistant...[/bold cyan]")
 
         checkpoint_manager = await init_checkpoint_manager(self.user_id)
-        self.agent = get_agent(self.user_id, checkpointer=checkpoint_manager.checkpointer)
+        checkpointer = checkpoint_manager.checkpointer
+        self.agent = get_agent(self.user_id, checkpointer=checkpointer)
         console.print("[green]✓[/green] Agent ready")
 
     async def handle_slash_command(self, command: str) -> bool:

@@ -30,8 +30,26 @@ class CheckpointManager:
 
     async def initialize(self):
         """Initialize the checkpointer."""
-        if self._initialized:
+        # Always refresh config from settings
+        settings = get_settings()
+        self.retention_days = settings.memory.checkpointer.retention_days
+
+        # If retention=0, skip checkpointer entirely
+        if self.retention_days == 0:
+            self._logger.info(
+                "checkpoint.disabled",
+                {"user_id": self.user_id, "retention_days": 0},
+                channel="system",
+            )
+            self._initialized = True
             return
+
+        if self._initialized:
+            # Already initialized - run cleanup to handle retention changes
+            await self._cleanup_old_checkpoints()
+            return
+
+        # Initialize checkpointer for retention > 0 or -1
 
         import aiosqlite
         from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
@@ -50,6 +68,8 @@ class CheckpointManager:
         """Get the underlying checkpointer."""
         if not self._initialized:
             raise RuntimeError("CheckpointManager not initialized. Call initialize() first.")
+        if not self.enabled or self._checkpointer is None:
+            return None
         return self._checkpointer
 
     async def _cleanup_old_checkpoints(self):

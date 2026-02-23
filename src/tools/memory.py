@@ -68,7 +68,8 @@ def get_conversation_history(
 
     result = f"Recent conversation (last {days} days):\n\n"
     for msg in recent:
-        result += f"- {msg.role}: {msg.content[:150]}\n"
+        timestamp = msg.ts.strftime("%Y-%m-%d %H:%M")
+        result += f"- {msg.role} [{timestamp}]: {msg.content[:150]}\n"
 
     return result
 

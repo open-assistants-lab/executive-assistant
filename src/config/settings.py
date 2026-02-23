@@ -49,10 +49,15 @@ class DatabaseConfig(_BaseSettings):
 
 
 class CheckpointerConfig(_BaseSettings):
-    """Checkpointer configuration."""
+    """Checkpointer configuration.
 
-    enabled: bool = True
-    retention_days: int = 0  # 0 = no checkpoints, -1 = keep forever, N = keep N days
+    retention_days:
+        0 = disabled (no checkpoints)
+        -1 = keep forever
+        N = keep for N days
+    """
+
+    retention_days: int = 0  # 0=disabled, -1=forever, N=days
 
     class Config:
         env_prefix = "CHECKPOINT_"

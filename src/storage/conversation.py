@@ -3,7 +3,7 @@
 import json
 import sqlite3
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import chromadb
@@ -104,7 +104,7 @@ class ConversationStore:
 
     def add_message(self, role: str, content: str, metadata: dict | None = None) -> int:
         """Add a message to the conversation."""
-        ts = datetime.now().isoformat()
+        ts = datetime.now(timezone.utc).isoformat()
         conn = sqlite3.connect(self.messages_db_path)
         cursor = conn.execute(
             "INSERT INTO messages (ts, role, content, metadata) VALUES (?, ?, ?, ?)",
@@ -119,7 +119,7 @@ class ConversationStore:
         self, role: str, content: str, embedding: list[float], metadata: dict | None = None
     ) -> int:
         """Add a message with vector embedding."""
-        ts = datetime.now().isoformat()
+        ts = datetime.now(timezone.utc).isoformat()
         conn = sqlite3.connect(self.messages_db_path)
         cursor = conn.execute(
             "INSERT INTO messages (ts, role, content, metadata) VALUES (?, ?, ?, ?)",
@@ -208,7 +208,7 @@ class ConversationStore:
         recency_weight: float = 0.3,
     ) -> list[SearchResult]:
         """Combined keyword + vector + recency search."""
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
 
         fts_results = {
             r.id: (r, 1.0 / (abs(r.score) + 1)) for r in self.search_keyword(query, limit * 2)

@@ -63,7 +63,8 @@ async def message(req: MessageRequest) -> MessageResponse:
         recent_messages = conversation.get_recent_messages(50)
 
         checkpoint_manager = await get_checkpoint_manager(user_id)
-        agent = get_agent(user_id, checkpointer=checkpoint_manager.checkpointer)
+        checkpointer = checkpoint_manager.checkpointer
+        agent = get_agent(user_id, checkpointer=checkpointer)
 
         from src.app_logging import get_logger
 
@@ -158,7 +159,8 @@ async def message_stream(req: MessageRequest):
         recent_messages = conversation.get_recent_messages(50)
 
         checkpoint_manager = await get_checkpoint_manager(user_id)
-        agent = get_agent(user_id, checkpointer=checkpoint_manager.checkpointer)
+        checkpointer = checkpoint_manager.checkpointer
+        agent = get_agent(user_id, checkpointer=checkpointer)
 
         async def generate():
             result = await agent.ainvoke(
