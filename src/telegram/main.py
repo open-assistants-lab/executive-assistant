@@ -33,7 +33,8 @@ async def handle_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     checkpointer = checkpoint_manager.checkpointer
     agent = get_agent(user_id, checkpointer=checkpointer)
 
-    await update.message.chat.send_action("typing")
+    # Start typing indicator in background
+    typing_task = asyncio.create_task(_send_typing_indicator(update.message.chat.id, context))
 
     try:
         from src.app_logging import get_logger
@@ -62,10 +63,25 @@ async def handle_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         response = result["messages"][-1].content
         conversation.add_message("assistant", response)
 
+        # Stop typing indicator
+        typing_task.cancel()
         await update.message.reply_text(response)
 
     except Exception as e:
+        typing_task.cancel()
         await update.message.reply_text(f"Error: {str(e)}")
+
+
+async def _send_typing_indicator(chat_id: int, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send typing indicator periodically while agent is processing."""
+    while True:
+        try:
+            await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+            await asyncio.sleep(4)  # Telegram typing status lasts ~5 seconds
+        except asyncio.CancelledError:
+            break
+        except Exception:
+            break
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):

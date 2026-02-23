@@ -29,6 +29,8 @@ dependencies = [
     "firecrawl-py>=2.0.0",
     "duckdb>=1.0.0",
     "sqlite-vec>=0.1.6",
+    "cryptography>=41.0.0",
+    "imap-tools>=1.0.0",
 ]
 
 [project.optional-dependencies]

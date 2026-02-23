@@ -53,18 +53,36 @@ async def ready():
 
 
 @app.post("/message", response_model=MessageResponse)
-async def message(req: MessageRequest) -> MessageResponse:
+async def handle_message(req: MessageRequest) -> MessageResponse:
     """Send a message to the agent."""
     try:
         user_id = req.user_id or "default"
+        msg_content = req.message
 
         conversation = get_conversation_store(user_id)
-        conversation.add_message("user", req.message)
+        conversation.add_message("user", msg_content)
         recent_messages = conversation.get_recent_messages(50)
 
         checkpoint_manager = await get_checkpoint_manager(user_id)
         checkpointer = checkpoint_manager.checkpointer
-        agent = get_agent(user_id, checkpointer=checkpointer)
+
+        # Create a fresh agent each time to avoid concurrent state issues
+        from src.agents.manager import get_agent_factory, get_default_tools
+        from src.config import get_settings
+        from src.llm import create_model_from_config
+
+        model = create_model_from_config()
+        settings = get_settings()
+        base_prompt = getattr(
+            settings.agent, "system_prompt", "You are a helpful executive assistant."
+        )
+
+        # Create agent without caching to avoid concurrency issues
+        factory = get_agent_factory(checkpointer=checkpointer, enable_skills=True, user_id=user_id)
+        tools = get_default_tools(user_id)
+
+        system_prompt = base_prompt + f"\n\nuser_id: {user_id}\n"
+        agent = factory.create(model=model, tools=tools, system_prompt=system_prompt)
 
         from src.app_logging import get_logger
 
@@ -77,7 +95,7 @@ async def message(req: MessageRequest) -> MessageResponse:
 
         from src.app_logging import timer
 
-        with timer("agent", {"message": req.message, "user_id": user_id}, channel="http"):
+        with timer("agent", {"message": msg_content, "user_id": user_id}, channel="http"):
             with propagate_attributes(user_id=user_id):
                 result = await agent.ainvoke(
                     {
@@ -87,7 +105,7 @@ async def message(req: MessageRequest) -> MessageResponse:
                             else AIMessage(content=m.content)
                             for m in recent_messages
                         ]
-                        + [HumanMessage(content=req.message)]
+                        + [HumanMessage(content=msg_content)]
                     },
                     config=config,
                 )
@@ -98,18 +116,14 @@ async def message(req: MessageRequest) -> MessageResponse:
         # Find the last AI message with actual content
         response = None
         tool_results = []
-        ai_has_tool_calls = False
 
-        # First pass: collect tool results and check for tool calls
+        # First pass: collect tool results
         for msg in messages:
             msg_type = getattr(msg, "type", None)
             if msg_type == "tool":
                 content = getattr(msg, "content", None)
                 if content:
                     tool_results.append(content)
-            elif msg_type == "ai":
-                if getattr(msg, "tool_calls", None):
-                    ai_has_tool_calls = True
 
         # Second pass: find AI response
         for msg in reversed(messages):
@@ -117,16 +131,13 @@ async def message(req: MessageRequest) -> MessageResponse:
             content = getattr(msg, "content", None)
             if msg_type == "ai":
                 tool_calls = getattr(msg, "tool_calls", None)
-                # If AI has tool calls and we have results, use results
                 if tool_calls and tool_results:
                     response = "\n".join(tool_results)
                     break
-                # If AI has tool calls but no results yet, show tool names
                 if tool_calls:
                     tool_names = [tc.get("name", "unknown") for tc in tool_calls]
                     response = f"Tool(s) executed: {', '.join(tool_names)}"
                     break
-                # If AI has content, use it
                 if content and content.strip():
                     response = content
                     break

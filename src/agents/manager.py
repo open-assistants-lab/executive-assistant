@@ -31,6 +31,16 @@ def get_model() -> BaseChatModel:
 def get_default_tools(user_id: str) -> list[Any]:
     """Get default tools for a user with proper user_id binding."""
     from src.skills.example_constrained_tool import write_sql_query
+    from src.tools.email import (
+        email_accounts,
+        email_connect,
+        email_disconnect,
+        email_get,
+        email_list,
+        email_search,
+        email_send,
+        email_sync,
+    )
     from src.tools.file_search import glob_search, grep_search
     from src.tools.filesystem import (
         delete_file,
@@ -51,6 +61,15 @@ def get_default_tools(user_id: str) -> list[Any]:
     from src.tools.shell import run_shell
     from src.tools.time import get_time
     from src.tools.todo import write_todos
+    from src.tools.vault import (
+        credential_add,
+        credential_delete,
+        credential_get,
+        credential_list,
+        vault_is_unlocked,
+        vault_lock,
+        vault_unlock,
+    )
 
     return [
         get_conversation_history,
@@ -71,7 +90,22 @@ def get_default_tools(user_id: str) -> list[Any]:
         crawl_url,
         get_crawl_status,
         cancel_crawl,
-        write_sql_query,  # Example constrained tool
+        write_sql_query,
+        vault_unlock,
+        vault_lock,
+        vault_is_unlocked,
+        credential_add,
+        credential_list,
+        credential_get,
+        credential_delete,
+        email_connect,
+        email_disconnect,
+        email_accounts,
+        email_sync,
+        email_list,
+        email_get,
+        email_search,
+        email_send,
     ]
 
 
@@ -128,29 +162,48 @@ user_id: {user_id}
    - Use this when user wants to run commands, scripts, or get system info
    - DANGEROUS commands (rm, rmdir) require human approval
 
-        4. **Todo tool** - Track tasks during complex multi-step operations:
-           - write_todos: Manage todo list with actions: list/add/update/delete/replace
-           - ALWAYS call write_todos with action="list" at the END of your response to show current todos
-           - NEVER modify todos without showing the updated list
-           - Use for multi-step tasks (e.g., "plan a trip", "refactor codebase", "research topic")
-           - After ANY todo modification (add/update/delete/replace), you MUST immediately call write_todos(action="list") to display the updated list
+4. **Todo tool** - Track tasks during complex multi-step operations:
+   - write_todos: Manage todo list with actions: list/add/update/delete/replace
+   - ALWAYS call write_todos with action="list" at the END of your response to show current todos
+   - NEVER modify todos without showing the updated list
+   - Use for multi-step tasks (e.g., "plan a trip", "refactor codebase", "research topic")
+   - After ANY todo modification (add/update/delete/replace), you MUST immediately call write_todos(action="list") to display the updated list
 
-        5. **Time tool** - Get current time:
-           - get_time: Get current time, optionally for a specific timezone
-           - If user mentions their location (e.g., "I'm in Sydney"), use that timezone
-           - Common timezones: 'America/New_York', 'Europe/London', 'Asia/Shanghai', 'Australia/Sydney', etc.
-           - Or use city names: 'New York', 'Shanghai', 'London', 'Sydney'
+5. **Time tool** - Get current time:
+   - get_time: Get current time, optionally for a specific timezone
+   - If user mentions their location (e.g., "I'm in Sydney"), use that timezone
+   - Common timezones: 'America/New_York', 'Europe/London', 'Asia/Shanghai', 'Australia/Sydney', etc.
+   - Or use city names: 'New York', 'Shanghai', 'London', 'Sydney'
 
-        6. **Web tools** - Scrape and search the web (requires API key):
-            - scrape_url: Scrape a URL and get content (markdown, html, json)
-            - search_web: Search the web and get results with content
-            - map_url: Discover all URLs on a website
-            - crawl_url: Crawl a website recursively (multiple pages)
-            - get_crawl_status: Check status of a crawl job
-            - cancel_crawl: Cancel a running crawl job
-            - Set FIRECRAWL_API_KEY env var to enable (supports self-hosted with FIRECRAWL_BASE_URL)
+6. **Web tools** - Scrape and search the web (requires API key):
+   - scrape_url: Scrape a URL and get content (markdown, html, json)
+   - search_web: Search the web and get results with content
+   - map_url: Discover all URLs on a website
+   - crawl_url: Crawl a website recursively (multiple pages)
+   - get_crawl_status: Check status of a crawl job
+   - cancel_crawl: Cancel a running crawl job
+   - Set FIRECRAWL_API_KEY env var to enable (supports self-hosted with FIRECRAWL_BASE_URL)
 
-IMPORTANT: Always use the default user_id parameter (already set to {user_id})."""
+7. **Vault tools** - Secure credential storage (REQUIRED for email):
+   - vault_unlock: Unlock vault with master password (REQUIRED before using email)
+   - vault_lock: Lock vault after session
+   - vault_is_unlocked: Check vault status
+   - credential_add: Add email credentials (name, provider, email, imap_host, smtp_host, username, password)
+   - credential_list: List stored credentials
+   - credential_get: Get credential details
+   - credential_delete: Delete a credential
+
+8. **Email tools** - Connect and manage email accounts:
+   - email_connect: Connect email account (requires unlocked vault + credential)
+   - email_disconnect: Remove connected account
+   - email_accounts: List connected accounts
+   - email_sync: Sync emails from account to local store
+   - email_list: List emails from local store
+   - email_get: Get full email content
+   - email_search: Semantic search (AI-powered, finds emails by meaning)
+   - email_send: Send an email
+
+IMPORTANT: Always use the provided user_id ({user_id}) for ALL tool calls. Never use "default" as user_id - always use the user_id passed to you."""
         )
 
         factory = get_agent_factory(checkpointer=checkpointer, enable_skills=True, user_id=user_id)
