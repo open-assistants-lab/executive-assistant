@@ -22,6 +22,8 @@ A general purpose executive assistant agent using LangChain create_agent() with 
 | **Shell** | `run_shell` (restricted to: `python3`, `node`, `echo`, `date`, `whoami`, `pwd`) |
 | **Memory** | `get_conversation_history`, `search_conversation_hybrid` |
 | **Todos** | `write_todos` for multi-step task tracking |
+| **Time** | `get_time` with timezone support |
+| **Web** | `scrape_url`, `search_web`, `map_url` (requires FIRECRAWL_API_KEY) |
 
 ### Progressive Disclosure
 
@@ -131,7 +133,13 @@ memory:
   messages:
     enabled: true
   checkpointer:
-    retention_days: 30
+    retention_days: 0  # 0=disabled, -1=forever
+
+# Tools
+tools:
+  firecrawl:
+    # Set via FIRECRAWL_API_KEY env var
+    # For self-hosted: FIRECRAWL_BASE_URL
 
 # Skills
 skills:
