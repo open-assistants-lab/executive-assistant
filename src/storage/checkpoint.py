@@ -68,7 +68,7 @@ class CheckpointManager:
         """Get the underlying checkpointer."""
         if not self._initialized:
             raise RuntimeError("CheckpointManager not initialized. Call initialize() first.")
-        if not self.enabled or self._checkpointer is None:
+        if self._checkpointer is None:
             return None
         return self._checkpointer
 

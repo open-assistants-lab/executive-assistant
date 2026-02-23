@@ -42,6 +42,7 @@ def get_default_tools(user_id: str) -> list[Any]:
     from src.tools.memory import get_conversation_history, search_conversation_hybrid
     from src.tools.shell import run_shell
     from src.tools.todo import write_todos
+    from src.tools.time import get_time
 
     return [
         get_conversation_history,
@@ -55,6 +56,7 @@ def get_default_tools(user_id: str) -> list[Any]:
         grep_search,
         run_shell,
         write_todos,
+        get_time,
         write_sql_query,  # Example constrained tool
     ]
 
@@ -118,6 +120,12 @@ user_id: {user_id}
            - NEVER modify todos without showing the updated list
            - Use for multi-step tasks (e.g., "plan a trip", "refactor codebase", "research topic")
            - After ANY todo modification (add/update/delete/replace), you MUST immediately call write_todos(action="list") to display the updated list
+
+        5. **Time tool** - Get current time:
+           - get_time: Get current time, optionally for a specific timezone
+           - If user mentions their location (e.g., "I'm in Sydney"), use that timezone
+           - Common timezones: 'America/New_York', 'Europe/London', 'Asia/Shanghai', 'Australia/Sydney', etc.
+           - Or use city names: 'New York', 'Shanghai', 'London', 'Sydney'
 
 IMPORTANT: Always use the default user_id parameter (already set to {user_id})."""
         )
