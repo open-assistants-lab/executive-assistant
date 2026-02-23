@@ -39,11 +39,18 @@ def get_default_tools(user_id: str) -> list[Any]:
         read_file,
         write_file,
     )
+    from src.tools.firecrawl import (
+        cancel_crawl,
+        crawl_url,
+        get_crawl_status,
+        map_url,
+        scrape_url,
+        search_web,
+    )
     from src.tools.memory import get_conversation_history, search_conversation_hybrid
     from src.tools.shell import run_shell
-    from src.tools.todo import write_todos
     from src.tools.time import get_time
-    from src.tools.firecrawl import scrape_url, search_web, map_url
+    from src.tools.todo import write_todos
 
     return [
         get_conversation_history,
@@ -61,6 +68,9 @@ def get_default_tools(user_id: str) -> list[Any]:
         scrape_url,
         search_web,
         map_url,
+        crawl_url,
+        get_crawl_status,
+        cancel_crawl,
         write_sql_query,  # Example constrained tool
     ]
 
@@ -132,10 +142,13 @@ user_id: {user_id}
            - Or use city names: 'New York', 'Shanghai', 'London', 'Sydney'
 
         6. **Web tools** - Scrape and search the web (requires API key):
-           - scrape_url: Scrape a URL and get content (markdown, html, json)
-           - search_web: Search the web and get results with content
-           - map_url: Discover all URLs on a website
-           - Set FIRECRAWL_API_KEY env var to enable (supports self-hosted with FIRECRAWL_BASE_URL)
+            - scrape_url: Scrape a URL and get content (markdown, html, json)
+            - search_web: Search the web and get results with content
+            - map_url: Discover all URLs on a website
+            - crawl_url: Crawl a website recursively (multiple pages)
+            - get_crawl_status: Check status of a crawl job
+            - cancel_crawl: Cancel a running crawl job
+            - Set FIRECRAWL_API_KEY env var to enable (supports self-hosted with FIRECRAWL_BASE_URL)
 
 IMPORTANT: Always use the default user_id parameter (already set to {user_id})."""
         )

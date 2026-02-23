@@ -21,6 +21,8 @@ This document defines the integration testing strategy for the Executive Assista
 | 9 | TodoList Middleware | Middleware | `TodoListMiddleware` - auto-decomposes complex requests (COMPARISON PENDING) |
 | 10 | Checkpoint | Storage | LangGraph `AsyncSqliteSaver` with 7-day retention |
 | 11 | User Isolation | Architecture | Separate state per `user_id` via checkpointer/thread_id |
+| 12 | Time Tool | Tool | `get_time` - Get current time with timezone support |
+| 13 | Web Scraping | Tools | `scrape_url`, `search_web`, `map_url`, `crawl_url`, `get_crawl_status`, `cancel_crawl` |
 
 ### Not Implemented / Removed
 - ~~Firecrawl~~ - config exists but tool not implemented (skip for now)
@@ -357,6 +359,17 @@ Note: Todo Tool is for AGENT task planning, NOT user task management
 | 11.2 | User Isolation | Todos | A creates, B lists | Different |
 | 11.3 | User Isolation | History | A chats, B chats | Separate |
 | 11.4 | User Isolation | Skills | A adds, B lists | Different |
+
+| 12.1 | Time Tool | Current time | "what time is it?" | Returns current time |
+| 12.2 | Time Tool | Specific timezone | "what time is it in Tokyo?" | Returns Tokyo time |
+| 12.3 | Time Tool | User timezone | User says "I'm in Shanghai" then asks time | Uses Shanghai timezone |
+
+| 13.1 | Web - Scrape | Basic scrape | "scrape example.com" | Returns content |
+| 13.2 | Web - Search | Search | "search for python tutorials" | Returns results |
+| 13.3 | Web - Map | Map site | "map example.com" | Returns URLs |
+| 13.4 | Web - Crawl | Crawl site | "crawl example.com limit 5" | Returns multiple pages |
+| 13.5 | Web - Status | Check status | Check crawl job status | Returns status |
+| 13.6 | Web - Cancel | Cancel crawl | Cancel a running crawl | Returns confirmation |
 
 ### CLI Channel
 
