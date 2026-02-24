@@ -133,7 +133,11 @@ async def run_agent(
     async with pool.acquire() as instance:
         config = pool.get_config(instance)
 
-        from src.app_logging import timer
+        from src.app_logging import get_logger, timer
+
+        app_logger = get_logger()
+        if app_logger.langfuse_handler:
+            config["callbacks"] = [app_logger.langfuse_handler]
 
         with timer("agent", {"message": message, "user_id": user_id}, channel="http"):
             result = await instance.agent.ainvoke(

@@ -142,7 +142,20 @@ class ConversationStore:
         if not query:
             return []
 
-        fts_query = query.replace("'", "''")
+        # Escape special FTS5 characters: , " ' ( ) * : -
+        import re
+
+        fts_query = query.strip()
+        # Remove special characters that cause FTS5 syntax errors
+        fts_query = re.sub(r'[,"\'\(\)\*\:\-]', " ", fts_query)
+        # Collapse multiple spaces
+        fts_query = " ".join(fts_query.split())
+        # Escape single quotes
+        fts_query = fts_query.replace("'", "''")
+
+        if not fts_query:
+            return []
+
         conn = sqlite3.connect(self.messages_db_path)
         cursor = conn.execute(
             "SELECT m.id, m.content, m.ts, m.role, bm25(messages_fts) as score FROM messages_fts f JOIN messages m ON m.id = f.rowid WHERE messages_fts MATCH ? ORDER BY score LIMIT ?",
