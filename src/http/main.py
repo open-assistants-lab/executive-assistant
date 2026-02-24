@@ -9,7 +9,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langfuse import propagate_attributes
 from pydantic import BaseModel
 
-from src.agents.manager import get_agent, get_checkpoint_manager
+from src.agents.manager import run_agent
 from src.storage.conversation import get_conversation_store
 
 
@@ -27,7 +27,10 @@ class MessageResponse(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan context manager."""
-    get_agent("default")  # Initialize agent on startup
+    from src.agents.manager import get_agent_pool, get_model
+
+    get_model()  # Initialize model on startup
+    await get_agent_pool("default")  # Pre-warm pool
     print("HTTP server ready")
     yield
 
@@ -63,61 +66,28 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
         conversation.add_message("user", msg_content)
         recent_messages = conversation.get_recent_messages(50)
 
-        checkpoint_manager = await get_checkpoint_manager(user_id)
-        checkpointer = checkpoint_manager.checkpointer
+        langgraph_messages = [
+            HumanMessage(content=m.content) if m.role == "user" else AIMessage(content=m.content)
+            for m in recent_messages
+        ] + [HumanMessage(content=msg_content)]
 
-        # Create a fresh agent each time to avoid concurrent state issues
-        from src.agents.manager import get_agent_factory, get_default_tools
-        from src.config import get_settings
-        from src.llm import create_model_from_config
-
-        model = create_model_from_config()
-        settings = get_settings()
-        base_prompt = getattr(
-            settings.agent, "system_prompt", "You are a helpful executive assistant."
-        )
-
-        # Create agent without caching to avoid concurrency issues
-        factory = get_agent_factory(checkpointer=checkpointer, enable_skills=True, user_id=user_id)
-        tools = get_default_tools(user_id)
-
-        system_prompt = base_prompt + f"\n\nuser_id: {user_id}\n"
-        agent = factory.create(model=model, tools=tools, system_prompt=system_prompt)
-
-        from src.app_logging import get_logger
+        from src.app_logging import get_logger, timer
 
         logger = get_logger()
-        handler = logger.langfuse_handler
-
-        config = {"configurable": {"thread_id": user_id}}
-        if handler:
-            config["callbacks"] = [handler]
-
-        from src.app_logging import timer
 
         with timer("agent", {"message": msg_content, "user_id": user_id}, channel="http"):
             with propagate_attributes(user_id=user_id):
-                result = await agent.ainvoke(
-                    {
-                        "messages": [
-                            HumanMessage(content=m.content)
-                            if m.role == "user"
-                            else AIMessage(content=m.content)
-                            for m in recent_messages
-                        ]
-                        + [HumanMessage(content=msg_content)]
-                    },
-                    config=config,
+                result = await run_agent(
+                    user_id=user_id,
+                    messages=langgraph_messages,
+                    message=msg_content,
                 )
 
-        # Extract response - handle tool messages properly
         messages = result.get("messages", [])
 
-        # Find the last AI message with actual content
         response = None
         tool_results = []
 
-        # First pass: collect tool results
         for msg in messages:
             msg_type = getattr(msg, "type", None)
             if msg_type == "tool":
@@ -125,7 +95,6 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
                 if content:
                     tool_results.append(content)
 
-        # Second pass: find AI response
         for msg in reversed(messages):
             msg_type = getattr(msg, "type", None)
             content = getattr(msg, "content", None)
@@ -147,11 +116,7 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
 
         conversation.add_message("assistant", response)
 
-        logger.info(
-            "agent.response",
-            {"response": response},
-            channel="http",
-        )
+        logger.info("agent.response", {"response": response}, channel="http")
 
         return MessageResponse(response=response)
 
@@ -169,21 +134,16 @@ async def message_stream(req: MessageRequest):
         conversation.add_message("user", req.message)
         recent_messages = conversation.get_recent_messages(50)
 
-        checkpoint_manager = await get_checkpoint_manager(user_id)
-        checkpointer = checkpoint_manager.checkpointer
-        agent = get_agent(user_id, checkpointer=checkpointer)
+        langgraph_messages = [
+            HumanMessage(content=m.content) if m.role == "user" else AIMessage(content=m.content)
+            for m in recent_messages
+        ] + [HumanMessage(content=req.message)]
 
         async def generate():
-            result = await agent.ainvoke(
-                {
-                    "messages": [
-                        HumanMessage(content=m.content)
-                        if m.role == "user"
-                        else AIMessage(content=m.content)
-                        for m in recent_messages
-                    ]
-                    + [HumanMessage(content=req.message)]
-                }
+            result = await run_agent(
+                user_id=user_id,
+                messages=langgraph_messages,
+                message=req.message,
             )
             response = result["messages"][-1].content
             conversation.add_message("assistant", response)

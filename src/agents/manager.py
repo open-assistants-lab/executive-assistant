@@ -1,9 +1,12 @@
-"""Shared Agent Manager - single LangGraph instance for all channels."""
+"""Agent Manager with per-user pool for concurrent request handling."""
 
+import asyncio
+import uuid
+from collections import deque
+from contextlib import asynccontextmanager
 from typing import Any
 
 from langchain_core.language_models import BaseChatModel
-from langgraph.checkpoint.base import BaseCheckpointSaver
 
 from src.agents.factory import get_agent_factory
 from src.app_logging import get_logger
@@ -12,9 +15,133 @@ from src.llm import create_model_from_config
 
 logger = get_logger()
 
-_agents: dict[str, Any] = {}
 _model: BaseChatModel | None = None
 _checkpoint_managers: dict[str, Any] = {}
+_agent_pools: dict[str, "AgentPool"] = {}
+_pools_lock = asyncio.Lock()
+
+
+def _get_pool_size() -> int:
+    """Get pool size from settings, default to 3."""
+    try:
+        settings = get_settings()
+        return int(getattr(settings.agent, "pool_size", 3))
+    except Exception:
+        return 3
+
+
+class AgentInstance:
+    """Single agent instance with its own thread_id."""
+
+    def __init__(self, agent: Any, thread_id: str):
+        self.agent = agent
+        self.thread_id = thread_id
+        self.in_use = False
+
+
+class AgentPool:
+    """Per-user agent pool with thread-safe acquisition."""
+
+    def __init__(self, user_id: str, pool_size: int = 3):
+        self.user_id = user_id
+        self.pool_size = pool_size
+        self._pool: deque[AgentInstance] = deque()
+        self._lock = asyncio.Lock()
+        self._logger = logger
+
+    async def _create_agent_instance(self, thread_id: str) -> AgentInstance:
+        """Create a new agent instance."""
+        model = get_model()
+        tools = get_default_tools(self.user_id)
+        settings = get_settings()
+        base_prompt = getattr(
+            settings.agent, "system_prompt", "You are a helpful executive assistant."
+        )
+        system_prompt = base_prompt + f"\n\nuser_id: {self.user_id}\n"
+
+        checkpoint_manager = await get_checkpoint_manager(self.user_id)
+        checkpointer = checkpoint_manager.checkpointer
+
+        factory = get_agent_factory(
+            checkpointer=checkpointer, enable_skills=True, user_id=self.user_id
+        )
+        agent = factory.create(model=model, tools=tools, system_prompt=system_prompt)
+
+        self._logger.info(
+            "agent_pool.instance_created",
+            {"user_id": self.user_id, "thread_id": thread_id},
+        )
+
+        return AgentInstance(agent=agent, thread_id=thread_id)
+
+    @asynccontextmanager
+    async def acquire(self) -> "asynccontextmanager[AgentInstance]":
+        """Acquire an agent from the pool, creating one if needed."""
+        async with self._lock:
+            if self._pool:
+                instance = self._pool.popleft()
+                self._logger.debug(
+                    "agent_pool.instance_reused",
+                    {"user_id": self.user_id, "thread_id": instance.thread_id},
+                )
+            else:
+                thread_id = f"{self.user_id}_{uuid.uuid4().hex[:8]}"
+                instance = await self._create_agent_instance(thread_id)
+
+            instance.in_use = True
+
+        try:
+            yield instance
+        finally:
+            async with self._lock:
+                if len(self._pool) < self.pool_size:
+                    instance.in_use = False
+                    self._pool.append(instance)
+                    self._logger.debug(
+                        "agent_pool.instance_returned",
+                        {"user_id": self.user_id, "thread_id": instance.thread_id},
+                    )
+                else:
+                    self._logger.debug(
+                        "agent_pool.instance_discarded",
+                        {"user_id": self.user_id, "thread_id": instance.thread_id},
+                    )
+
+    def get_config(self, instance: AgentInstance) -> dict[str, Any]:
+        """Get LangGraph config for an agent instance."""
+        return {"configurable": {"thread_id": instance.thread_id}}
+
+
+async def get_agent_pool(user_id: str) -> AgentPool:
+    """Get or create agent pool for a user."""
+    async with _pools_lock:
+        if user_id not in _agent_pools:
+            pool_size = _get_pool_size()
+            _agent_pools[user_id] = AgentPool(user_id, pool_size)
+            logger.info("agent_pool.created", {"user_id": user_id, "pool_size": pool_size})
+        return _agent_pools[user_id]
+
+
+async def run_agent(
+    user_id: str,
+    messages: list[Any],
+    message: str,
+) -> dict[str, Any]:
+    """Run agent with pool - main entry point for HTTP server."""
+    pool = await get_agent_pool(user_id)
+
+    async with pool.acquire() as instance:
+        config = pool.get_config(instance)
+
+        from src.app_logging import timer
+
+        with timer("agent", {"message": message, "user_id": user_id}, channel="http"):
+            result = await instance.agent.ainvoke(
+                {"messages": messages},
+                config=config,
+            )
+
+    return result  # type: ignore[return-value]
 
 
 def get_model() -> BaseChatModel:
@@ -109,114 +236,6 @@ def get_default_tools(user_id: str) -> list[Any]:
     ]
 
 
-def get_agent(
-    user_id: str = "default",
-    tools: list[Any] | None = None,
-    checkpointer: BaseCheckpointSaver | None = None,
-) -> Any:
-    """Get or create agent for user (shared across channels).
-
-    NOTE: To avoid caching bugs, always use consistent parameters.
-    If you need a different checkpointer, use a different user_id
-    or call reset_agent() first.
-
-    Args:
-        user_id: User identifier
-        tools: Tools to use (default: get_default_tools)
-        checkpointer: Checkpointer for conversation persistence
-
-    Returns:
-        Compiled LangGraph agent
-    """
-    key = user_id
-
-    if key not in _agents:
-        model = get_model()
-        effective_tools = tools or get_default_tools(user_id)
-
-        settings = get_settings()
-        base_prompt = getattr(
-            settings.agent, "system_prompt", "You are a helpful executive assistant."
-        )
-        system_prompt = (
-            base_prompt
-            + f"""
-
-user_id: {user_id}
-
-## Available Tools:
-
-1. **Filesystem tools** - Manage files in user's directory:
-   - list_files: List files in a directory
-   - read_file: Read file content
-   - write_file: Create or overwrite a file
-   - edit_file: Replace text in a file
-   - delete_file: Delete a file (REQUIRES human approval first)
-
-2. **Search tools** - Find files and content:
-   - glob_search: Find files matching a pattern (e.g., "*.py")
-   - grep_search: Search file contents using regex
-
-3. **Shell tool** - Execute commands in user's directory:
-   - run_shell: Run shell commands like `echo`, `python`, `node`, etc.
-   - Use this when user wants to run commands, scripts, or get system info
-   - DANGEROUS commands (rm, rmdir) require human approval
-
-4. **Todo tool** - Track tasks during complex multi-step operations:
-   - write_todos: Manage todo list with actions: list/add/update/delete/replace
-   - ALWAYS call write_todos with action="list" at the END of your response to show current todos
-   - NEVER modify todos without showing the updated list
-   - Use for multi-step tasks (e.g., "plan a trip", "refactor codebase", "research topic")
-   - After ANY todo modification (add/update/delete/replace), you MUST immediately call write_todos(action="list") to display the updated list
-
-5. **Time tool** - Get current time:
-   - get_time: Get current time, optionally for a specific timezone
-   - If user mentions their location (e.g., "I'm in Sydney"), use that timezone
-   - Common timezones: 'America/New_York', 'Europe/London', 'Asia/Shanghai', 'Australia/Sydney', etc.
-   - Or use city names: 'New York', 'Shanghai', 'London', 'Sydney'
-
-6. **Web tools** - Scrape and search the web (requires API key):
-   - scrape_url: Scrape a URL and get content (markdown, html, json)
-   - search_web: Search the web and get results with content
-   - map_url: Discover all URLs on a website
-   - crawl_url: Crawl a website recursively (multiple pages)
-   - get_crawl_status: Check status of a crawl job
-   - cancel_crawl: Cancel a running crawl job
-   - Set FIRECRAWL_API_KEY env var to enable (supports self-hosted with FIRECRAWL_BASE_URL)
-
-7. **Vault tools** - Secure credential storage (REQUIRED for email):
-   - vault_unlock: Unlock vault with master password (REQUIRED before using email)
-   - vault_lock: Lock vault after session
-   - vault_is_unlocked: Check vault status
-   - credential_add: Add email credentials (name, provider, email, imap_host, smtp_host, username, password)
-   - credential_list: List stored credentials
-   - credential_get: Get credential details
-   - credential_delete: Delete a credential
-
-8. **Email tools** - Connect and manage email accounts:
-   - email_connect: Connect email account (requires unlocked vault + credential)
-   - email_disconnect: Remove connected account
-   - email_accounts: List connected accounts
-   - email_sync: Sync emails from account to local store
-   - email_list: List emails from local store
-   - email_get: Get full email content
-   - email_search: Semantic search (AI-powered, finds emails by meaning)
-   - email_send: Send an email
-
-IMPORTANT: Always use the provided user_id ({user_id}) for ALL tool calls. Never use "default" as user_id - always use the user_id passed to you."""
-        )
-
-        factory = get_agent_factory(checkpointer=checkpointer, enable_skills=True, user_id=user_id)
-        _agents[key] = factory.create(
-            model=model,
-            tools=effective_tools,
-            system_prompt=system_prompt,
-        )
-        logger.info("agent_manager.agent_created", {"user_id": user_id})
-
-    return _agents[key]
-
-
 async def get_checkpoint_manager(user_id: str) -> Any:
     """Get or create checkpoint manager for user."""
     if user_id not in _checkpoint_managers:
@@ -227,15 +246,15 @@ async def get_checkpoint_manager(user_id: str) -> Any:
 
 
 def reset_agent(user_id: str = "default") -> None:
-    """Reset agent for a user (useful for testing)."""
-    if user_id in _agents:
-        del _agents[user_id]
+    """Reset agent pool for a user."""
+    if user_id in _agent_pools:
+        del _agent_pools[user_id]
     logger.info("agent_manager.agent_reset", {"user_id": user_id})
 
 
 def reset_all() -> None:
-    """Reset all agents (useful for testing)."""
+    """Reset all agents and pools."""
     global _model
-    _agents.clear()
+    _agent_pools.clear()
     _model = None
-    logger.info("agent_manager.reset_all")
+    logger.info("agent_manager.reset_all", {})

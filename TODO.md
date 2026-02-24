@@ -519,4 +519,27 @@ data/
 
 ---
 
-Last updated: 2026-02-20
+## Agent Concurrency Research (2026-02-24)
+
+### Problem
+- Concurrent requests for the same user cause race conditions (empty responses)
+- Root cause: LangGraph's checkpointer uses `thread_id` for isolation
+- Same `thread_id` = concurrent access to same state = race conditions
+
+### Research Findings
+1. **LangGraph thread isolation**: Different `thread_id` = safe. Same = NOT safe
+2. **Each user should have unique thread_id** - but this is per conversation, not per request
+3. **Solution**: Per-user agent pool with locking OR fresh agent per request
+
+### Options for 10-100 users
+1. **Fresh agent per request** - Works but inefficient (slow, high memory)
+2. **Per-user agent pool** - 2-3 agents per user, acquire/release
+3. **Queue-based** - For 100+ users, use task queue (Redis + workers)
+
+### Decision: Agent Pool
+- Balanced approach: efficiency + correctness
+- Implement in HTTP server
+
+---
+
+Last updated: 2026-02-24
