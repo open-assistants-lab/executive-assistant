@@ -5,49 +5,62 @@ Tracking implementation progress for the Executive Assistant agent.
 ---
 
 ### Core Infrastructure
-- [ ] Project structure (`pyproject.toml`, `Makefile`, `Dockerfile`)
-- [ ] Pydantic settings with environment variables
-- [ ] PostgreSQL connection manager
-- [ ] User storage system (`UserStorage`)
-- [ ] Configurable agent name (`AGENT_NAME` in config)
+- [x] Project structure (`pyproject.toml`, `Makefile`, `Dockerfile`)
+- [x] Pydantic settings with environment variables
+- [x] PostgreSQL connection manager
+- [x] User storage system (`UserStorage`)
+- [x] Configurable agent name (`AGENT_NAME` in config)
 
-### LLM Providers (0/23)
-- [ ] OpenAI
-- [ ] Anthropic
-- [ ] Google (Gemini)
-- [ ] Azure OpenAI
-- [ ] Groq
-- [ ] Mistral
-- [ ] Cohere
-- [ ] Together AI
-- [ ] Fireworks
-- [ ] DeepSeek
-- [ ] xAI (Grok)
-- [ ] HuggingFace
-- [ ] OpenRouter
-- [ ] Ollama (local + cloud)
-- [ ] Minimax
-- [ ] Qwen (Alibaba)
-- [ ] Zhipu AI (GLM)
-- [ ] AWS Bedrock
-- [ ] NVIDIA NIM
-- [ ] Databricks
-- [ ] IBM Watsonx
-- [ ] Llama.cpp
+### LLM Providers (23/23)
+- [x] OpenAI
+- [x] Anthropic
+- [x] Google (Gemini)
+- [x] Azure OpenAI
+- [x] Groq
+- [x] Mistral
+- [x] Cohere
+- [x] Together AI
+- [x] Fireworks
+- [x] DeepSeek
+- [x] xAI (Grok)
+- [x] HuggingFace
+- [x] OpenRouter
+- [x] Ollama (local + cloud)
+- [x] Minimax
+- [x] Qwen (Alibaba)
+- [x] Zhipu AI (GLM)
+- [x] AWS Bedrock
+- [x] NVIDIA NIM
+- [x] Databricks
+- [x] IBM Watsonx
+- [x] Llama.cpp
 
 ### Observability
-- [ ] Langfuse integration (`src/observability/langfuse.py`)
+- [x] Langfuse integration
 
 ### Agents Integration
-- [ ] Agent factory with Postgres checkpoints
-- [ ] User-isolated storage (`/user/`, `/shared/`)
-- [ ] System prompts for Executive Assistant
+- [x] Agent factory with Postgres checkpoints
+- [x] User-isolated storage (`/user/`, `/shared/`)
+- [x] System prompts for Executive Assistant
+- [x] Per-user agent pool for concurrent request handling
 
 ### Web Tools
-- [ ] Firecrawl scrape (custom URL support)
-- [ ] Firecrawl crawl
-- [ ] Firecrawl map
-- [ ] Firecrawl search
+- [x] Firecrawl scrape (custom URL support)
+- [x] Firecrawl crawl
+- [x] Firecrawl map
+- [x] Firecrawl search
+
+### Memory System (SQLite + FTS5 + ChromaDB)
+- [x] Custom MemoryStore with SQLite + FTS5 + ChromaDB
+- [x] Hybrid search (FTS5 keyword + ChromaDB semantic)
+- [x] Memory tools: search_conversation_hybrid, get_conversation_history
+
+### Email Integration (IMAP/SMTP)
+- [x] IMAP client for reading emails
+- [x] SMTP client for sending emails
+- [x] Email credential storage in encrypted vault
+- [x] Multi-account support
+- [x] Email tools: email_list, email_get, email_search, email_send
 
 ### Skills System (Agent Skills Compatible)
 
@@ -120,53 +133,58 @@ description: Extract text and tables from PDF files, fill forms, merge documents
 
 **Implementation Steps:**
 
-- [ ] Create skill schema (SKILL.md parser with YAML frontmatter)
-- [ ] Implement skill storage layer (file-based, directory scanning)
-- [ ] Implement skill registry (combine system + user skills)
-- [ ] Create SkillMiddleware with `before_agent` hook
-- [ ] Implement `load_skill` tool
-- [ ] Implement custom state for tracking loaded skills
-- [ ] Implement skill-gated tool pattern
-- [ ] Add CLI commands for skill management
-- [ ] Add API endpoints for skill management
+- [x] Create skill schema (SKILL.md parser with YAML frontmatter)
+- [x] Implement skill storage layer (file-based, directory scanning)
+- [x] Implement skill registry (combine system + user skills)
+- [x] Create SkillMiddleware with `before_agent` hook
+- [x] Implement `load_skill` tool
+- [x] Implement custom state for tracking loaded skills
+- [x] Implement skill-gated tool pattern
+- [x] Add CLI commands for skill management
+- [x] Add API endpoints for skill management
 - [ ] Add `validate_skill` command (future)
-- [ ] Create sample system skills
+- [x] Create sample system skills
 
 ### API & Interfaces
-- [ ] FastAPI application with lifespan
-- [ ] Health endpoints (`/health`, `/health/ready`)
-- [ ] Message endpoints (`/message`, `/message/stream`)
-- [ ] Telegram bot
+- [x] FastAPI application with lifespan
+- [x] Health endpoints (`/health`, `/health/ready`)
+- [x] Message endpoints (`/message`, `/message/stream`)
+- [x] Telegram bot
 - [ ] ACP server for IDE integration
 
 ### Configuration
-- [ ] `.env.example` with keys & URLs
-- [ ] 'config.yaml' with all configurations
-- [ ] Ollama cloud API key support
+- [x] `.env.example` with keys & URLs
+- [x] 'config.yaml' with all configurations
+- [x] Ollama cloud API key support
 
 ### Custom Middleware
-- [ ] MemoryContextMiddleware (progressive disclosure, MemoryStore)
+- [x] MemoryContextMiddleware (progressive disclosure, MemoryStore)
 - [ ] MemoryLearningMiddleware (12 memory types, rule + LLM extraction)
-- [ ] LoggingMiddleware
+- [x] LoggingMiddleware
 - [ ] CheckinMiddleware
 - [ ] RateLimitMiddleware
+
+### Time System
+- [x] Time tools with DST support (`src/tools/time.py`)
+- [x] `get_current_time` tool
+- [x] `get_time_context` for system prompt injection
 
 ### Memory System (Custom - SQLite + FTS5 + ChromaDB)
 **Note:** Replaces LangGraph store - we use our own custom memory for better control.
 
-- [ ] Custom MemoryStore with SQLite + FTS5 + ChromaDB
+- [x] Custom MemoryStore with SQLite + FTS5 + ChromaDB
 - [ ] 12 memory types (profile, contact, preference, schedule, task, decision, insight, context, goal, chat, feedback, personal)
-- [ ] Progressive disclosure tools (memory_search, memory_timeline, memory_get, memory_save)
-- [ ] Hybrid search (FTS5 keyword + ChromaDB semantic)
-- [ ] MEMORY_WORKFLOW in system prompt
-- [ ] Integrated into agent factory as tools
+- [x] Progressive disclosure tools (memory_search, memory_timeline, memory_get, memory_save)
+- [x] Hybrid search (FTS5 keyword + ChromaDB semantic)
+- [x] MEMORY_WORKFLOW in system prompt
+- [x] Integrated into agent factory as tools
 
 ### Time System
-- [ ] Time tools with DST support (`src/tools/time.py`)
-- [ ] `get_current_time` tool
-- [ ] `parse_relative_time` tool (today, tomorrow, next week, etc.)
-- [ ] `list_timezones` tool
-- [ ] `get_time_context` for system prompt injection
+- [x] Time tools with DST support (`src/tools/time.py`)
+- [x] `get_current_time` tool
+- [x] `parse_relative_time` tool (today, tomorrow, next week, etc.)
+- [x] `list_timezones` tool
+- [x] `get_time_context` for system prompt injection
 
 
 ### Daily Checkpoint Rotation + Progressive Disclosure History
@@ -305,16 +323,16 @@ Supported providers:
 - Any IMAP/SMTP provider
 
 **Components:**
-- [ ] IMAP client for reading emails (`src/email/imap_client.py`)
-- [ ] SMTP client for sending emails (`src/email/smtp_client.py`)
-- [ ] Email credential storage in encrypted vault (`src/email/credentials.py`)
-- [ ] Multi-account support (personal + work)
+- [x] IMAP client for reading emails (`src/email/imap_client.py`)
+- [x] SMTP client for sending emails (`src/email/smtp_client.py`)
+- [x] Email credential storage in encrypted vault (`src/email/credentials.py`)
+- [x] Multi-account support (personal + work)
 
 **Tools:**
-- [ ] `email_list` - List emails from folder (with filters)
-- [ ] `email_get` - Get full email content by ID
-- [ ] `email_search` - Search emails (subject, body, sender, date range)
-- [ ] `email_send` - Send new email
+- [x] `email_list` - List emails from folder (with filters)
+- [x] `email_get` - Get full email content by ID
+- [x] `email_search` - Search emails (subject, body, sender, date range)
+- [x] `email_send` - Send new email
 - [ ] `email_draft` - Create draft (review before sending)
 - [ ] `email_reply` - Reply to existing email thread
 
