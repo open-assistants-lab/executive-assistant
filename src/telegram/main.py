@@ -12,7 +12,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langfuse import propagate_attributes
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
-from src.agents.manager import get_agent, get_checkpoint_manager
+from src.agents.manager import run_agent, get_checkpoint_manager
 from src.storage.conversation import get_conversation_store
 from telegram import Update
 
@@ -29,9 +29,10 @@ async def handle_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     conversation.add_message("user", text)
     recent_messages = conversation.get_recent_messages(50)
 
-    checkpoint_manager = await get_checkpoint_manager(user_id)
-    checkpointer = checkpoint_manager.checkpointer
-    agent = get_agent(user_id, checkpointer=checkpointer)
+    langgraph_messages = [
+        HumanMessage(content=m.content) if m.role == "user" else AIMessage(content=m.content)
+        for m in recent_messages
+    ] + [HumanMessage(content=text)]
 
     # Start typing indicator in background
     typing_task = asyncio.create_task(_send_typing_indicator(update.message.chat.id, context))
@@ -40,27 +41,45 @@ async def handle_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         from src.app_logging import get_logger
 
         logger = get_logger()
-        handler = logger.langfuse_handler
-
-        config = {"configurable": {"thread_id": user_id}}
-        if handler:
-            config["callbacks"] = [handler]
 
         with propagate_attributes(user_id=user_id):
-            result = await agent.ainvoke(
-                {
-                    "messages": [
-                        HumanMessage(content=m.content)
-                        if m.role == "user"
-                        else AIMessage(content=m.content)
-                        for m in recent_messages
-                    ]
-                    + [HumanMessage(content=text)]
-                },
-                config=config,
+            result = await run_agent(
+                user_id=user_id,
+                messages=langgraph_messages,
+                message=text,
             )
 
-        response = result["messages"][-1].content
+        messages = result.get("messages", [])
+
+        response = None
+        tool_results = []
+
+        for msg in messages:
+            msg_type = getattr(msg, "type", None)
+            if msg_type == "tool":
+                content = getattr(msg, "content", None)
+                if content:
+                    tool_results.append(content)
+
+        for msg in reversed(messages):
+            msg_type = getattr(msg, "type", None)
+            content = getattr(msg, "content", None)
+            if msg_type == "ai":
+                tool_calls = getattr(msg, "tool_calls", None)
+                if tool_calls and tool_results:
+                    response = "\n".join(tool_results)
+                    break
+                if tool_calls:
+                    tool_names = [tc.get("name", "unknown") for tc in tool_calls]
+                    response = f"Tool(s) executed: {', '.join(tool_names)}"
+                    break
+                if content and content.strip():
+                    response = content
+                    break
+
+        if not response:
+            response = "Task completed."
+
         conversation.add_message("assistant", response)
 
         # Stop typing indicator
