@@ -12,9 +12,12 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langfuse import propagate_attributes
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
-from src.agents.manager import run_agent, get_checkpoint_manager
+from src.agents.manager import get_checkpoint_manager, run_agent
 from src.storage.conversation import get_conversation_store
 from telegram import Update
+
+# Store pending approvals: user_id -> interrupt data
+_pending_approvals: dict[str, dict] = {}
 
 
 async def handle_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -23,8 +26,37 @@ async def handle_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
 
     user_id = str(update.effective_user.id)
-    text = update.message.text
+    text = update.message.text.strip().lower()
 
+    # Check if this is a response to a pending approval
+    if user_id in _pending_approvals and text in ("approve", "reject", "edit"):
+        pending = _pending_approvals.pop(user_id)
+        tool_name = pending["tool_name"]
+        tool_args = pending["tool_args"]
+
+        if text == "reject":
+            await update.message.reply_text(f"❌ {tool_name} rejected.")
+            return
+
+        # Execute the tool directly
+        if tool_name == "email_delete":
+            from src.tools.email import email_delete
+
+            result = email_delete.invoke(tool_args)
+            await update.message.reply_text(f"✅ {result}")
+            return
+
+        if tool_name == "delete_file":
+            from src.tools.filesystem import delete_file
+
+            result = delete_file.invoke(tool_args)
+            await update.message.reply_text(f"✅ {result}")
+            return
+
+        await update.message.reply_text(f"Unknown tool: {tool_name}")
+        return
+
+    # Normal message handling
     conversation = get_conversation_store(user_id)
     conversation.add_message("user", text)
     recent_messages = conversation.get_recent_messages(50)
@@ -48,6 +80,35 @@ async def handle_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 messages=langgraph_messages,
                 message=text,
             )
+
+        # Check for human-in-the-loop interrupt
+        if "__interrupt__" in result:
+            interrupt_obj = result["__interrupt__"][0]
+            # Interrupt is a dataclass with .value attribute
+            interrupt_value = getattr(interrupt_obj, "value", None)
+
+            if interrupt_value and isinstance(interrupt_value, dict):
+                action_requests = interrupt_value.get("action_requests", [{}])[0]
+                review_configs = interrupt_value.get("review_configs", [{}])[0]
+
+                tool_name = action_requests.get("name", "unknown")
+                tool_args = action_requests.get("args", {})
+                allowed = review_configs.get("allowed_decisions", [])
+
+                # Store pending approval
+                _pending_approvals[user_id] = {
+                    "tool_name": tool_name,
+                    "tool_args": tool_args,
+                }
+
+                response = f"⚠️ **{tool_name.replace('_', ' ').title()} - Approval Required**\n\n"
+                response += f"Tool: `{tool_name}`\n"
+                response += f"Arguments: `{tool_args}`\n\n"
+                response += f"Available actions: {', '.join(['`' + a + '`' for a in allowed])}\n\n"
+                response += "Reply with one of the above actions to proceed."
+
+                await update.message.reply_text(response)
+                return
 
         messages = result.get("messages", [])
 

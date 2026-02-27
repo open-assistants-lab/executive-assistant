@@ -15,19 +15,33 @@ def _get_user_vault(user_id: str):
 
 
 @tool
-def vault_unlock(master_password: str, user_id: str = "default") -> str:
+def vault_unlock(master_password: str, user_id: str) -> str:
     """Unlock vault with master password.
 
     Required before adding or retrieving credentials.
     Vault locks automatically after session ends.
 
+    For NEW users: This will CREATE a new vault with the password you provide.
+    For EXISTING users: Enter your existing master password.
+
     Args:
-        master_password: Your master password to unlock vault
-        user_id: User identifier (default: default)
+        master_password: Your master password to unlock (or create) vault
+        user_id: User ID from the conversation (REQUIRED - must be provided)
 
     Returns:
         Success or error message
     """
+    vault = _get_user_vault(user_id)
+
+    # Check if vault exists
+    if vault._load_vault() is None:
+        # New vault - create with password
+        success = vault.unlock(master_password)
+        if success:
+            return "Vault created and unlocked! You can now add credentials with credential_add."
+        return "Failed to create vault."
+
+    # Existing vault - unlock
     success = unlock_vault(user_id, master_password)
     if success:
         return "Vault unlocked successfully. You can now add or access credentials."
@@ -35,11 +49,11 @@ def vault_unlock(master_password: str, user_id: str = "default") -> str:
 
 
 @tool
-def vault_lock(user_id: str = "default") -> str:
+def vault_lock(user_id: str) -> str:
     """Lock vault and clear session credentials.
 
     Args:
-        user_id: User identifier (default: default)
+        user_id: User ID from the conversation (REQUIRED)
 
     Returns:
         Success message
@@ -49,19 +63,32 @@ def vault_lock(user_id: str = "default") -> str:
 
 
 @tool
-def vault_is_unlocked(user_id: str = "default") -> str:
-    """Check if vault is unlocked.
+def vault_is_unlocked(user_id: str) -> str:
+    """Check if vault is unlocked or if it's a new user.
 
     Args:
-        user_id: User identifier (default: default)
+        user_id: User ID from the conversation (REQUIRED)
 
     Returns:
-        Locked or unlocked status
+        Vault status - if new user, prompts to create vault
     """
+    if not user_id:
+        return "Error: user_id is required."
     vault = _get_user_vault(user_id)
+
+    # Check if vault exists
+    if vault._load_vault() is None:
+        return """🔐 **No vault found** - This is your first time!
+
+To get started, please create a master password for your vault:
+
+**vault_unlock** with your chosen password
+
+This password will be used to encrypt and protect your stored credentials (like email login details). Make sure to remember it - it cannot be recovered if lost!"""
+
     if vault.is_unlocked():
         return "Vault is unlocked."
-    return "Vault is locked. Use vault_unlock first."
+    return "Vault is locked. Use vault_unlock with your master password to unlock it."
 
 
 @tool
@@ -77,7 +104,7 @@ def credential_add(
     smtp_port: int = 587,
     use_ssl: bool = True,
     use_tls: bool = True,
-    user_id: str = "default",
+    user_id: str = "",
 ) -> str:
     """Add email account credentials to vault.
 
@@ -93,11 +120,13 @@ def credential_add(
         smtp_port: SMTP port (default: 587)
         use_ssl: Use SSL for IMAP (default: True)
         use_tls: Use TLS for SMTP (default: True)
-        user_id: User identifier (default: default)
+        user_id: User ID from the conversation (REQUIRED)
 
     Returns:
         Success or error message
     """
+    if not user_id:
+        return "Error: user_id is required."
     vault = _get_user_vault(user_id)
 
     if not vault.is_unlocked():
@@ -124,17 +153,19 @@ def credential_add(
 
 
 @tool
-def credential_list(user_id: str = "default") -> str:
+def credential_list(user_id: str = "") -> str:
     """List stored credential names.
 
     Note: Does NOT show passwords or sensitive data.
 
     Args:
-        user_id: User identifier (default: default)
+        user_id: User ID from the conversation (REQUIRED)
 
     Returns:
         List of credential names with their email addresses
     """
+    if not user_id:
+        return "Error: user_id is required."
     vault = _get_user_vault(user_id)
 
     if not vault.is_unlocked():
@@ -153,16 +184,18 @@ def credential_list(user_id: str = "default") -> str:
 
 
 @tool
-def credential_get(name: str, user_id: str = "default") -> str:
+def credential_get(name: str, user_id: str = "") -> str:
     """Get credential details (for tool use).
 
     Args:
         name: Credential name
-        user_id: User identifier (default: default)
+        user_id: User ID from the conversation (REQUIRED)
 
     Returns:
         Credential details or error
     """
+    if not user_id:
+        return "Error: user_id is required."
     vault = _get_user_vault(user_id)
 
     if not vault.is_unlocked():
@@ -181,16 +214,18 @@ Username: {cred.username}"""
 
 
 @tool
-def credential_delete(name: str, user_id: str = "default") -> str:
+def credential_delete(name: str, user_id: str = "") -> str:
     """Delete a stored credential.
 
     Args:
         name: Credential name to delete
-        user_id: User identifier (default: default)
+        user_id: User ID from the conversation (REQUIRED)
 
     Returns:
         Success or error message
     """
+    if not user_id:
+        return "Error: user_id is required."
     vault = _get_user_vault(user_id)
 
     if not vault.is_unlocked():

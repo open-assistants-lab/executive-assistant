@@ -165,12 +165,15 @@ def get_default_tools(user_id: str) -> list[Any]:
     from src.tools.email import (
         email_accounts,
         email_connect,
+        email_delete,
         email_disconnect,
         email_get,
         email_list,
         email_search,
         email_send,
+        email_stats,
         email_sync,
+        run_email_sql,
     )
     from src.tools.file_search import glob_search, grep_search
     from src.tools.filesystem import (
@@ -192,15 +195,6 @@ def get_default_tools(user_id: str) -> list[Any]:
     from src.tools.shell import run_shell
     from src.tools.time import get_time
     from src.tools.todo import write_todos
-    from src.tools.vault import (
-        credential_add,
-        credential_delete,
-        credential_get,
-        credential_list,
-        vault_is_unlocked,
-        vault_lock,
-        vault_unlock,
-    )
 
     return [
         get_conversation_history,
@@ -222,21 +216,17 @@ def get_default_tools(user_id: str) -> list[Any]:
         get_crawl_status,
         cancel_crawl,
         write_sql_query,
-        vault_unlock,
-        vault_lock,
-        vault_is_unlocked,
-        credential_add,
-        credential_list,
-        credential_get,
-        credential_delete,
         email_connect,
         email_disconnect,
         email_accounts,
         email_sync,
         email_list,
         email_get,
+        email_delete,
         email_search,
         email_send,
+        email_stats,
+        run_email_sql,
     ]
 
 

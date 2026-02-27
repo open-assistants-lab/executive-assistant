@@ -41,7 +41,7 @@ class EmailMessage(BaseModel):
     subject: str
     body_text: str = ""
     body_html: str = ""
-    date: str
+    date: int  # Unix timestamp
     read: bool = True
     flagged: bool = False
     has_attachments: bool = False

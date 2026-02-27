@@ -19,6 +19,7 @@ class AgentConfig(_BaseSettings):
 
     name: str = Field(default="Executive Assistant")
     model: str = Field(default="ollama:minimax-m2.5")
+    system_prompt: str = Field(default="You are a helpful executive assistant.")
 
     class Config:
         env_prefix = "AGENT_"

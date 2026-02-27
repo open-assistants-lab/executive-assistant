@@ -80,10 +80,10 @@ class AgentFactory:
                 "allowed_decisions": ["approve", "edit", "reject"],
             }
 
-        # Note: We don't add run_shell to HITL middleware here because
-        # the shell tool itself handles allowed commands check internally
-        # and returns appropriate error messages. HITL is only for delete_file
-        # which requires human approval before ANY deletion.
+        # Add email delete tool
+        interrupt_config["email_delete"] = {
+            "allowed_decisions": ["approve", "edit", "reject"],
+        }
 
         if interrupt_config:
             middleware.append(HumanInTheLoopMiddleware(interrupt_on=interrupt_config))

@@ -3,21 +3,26 @@
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from src.app_logging import get_logger
-from src.tools.vault.store import get_vault
+from src.tools.email.imap import _load_accounts as load_imap_accounts
 
 logger = get_logger()
 
 
-def _load_accounts(user_id: str) -> dict[str, Any]:
-    """Load accounts from YAML."""
-    path = Path(f"data/users/{user_id}/email/accounts.yaml")
-    if not path.exists():
-        return {}
-    with open(path) as f:
-        return yaml.safe_load(f) or {}
+def _detect_smtp_provider(email: str) -> tuple[str, str, int]:
+    """Detect SMTP provider and return (provider, smtp_host, smtp_port)."""
+    email_lower = email.lower()
+
+    if "gmail.com" in email_lower or "googlemail.com" in email_lower:
+        return ("gmail", "smtp.gmail.com", 587)
+    elif "outlook.com" in email_lower or "hotmail.com" in email_lower or "live.com" in email_lower:
+        return ("outlook", "smtp.office365.com", 587)
+    elif "icloud.com" in email_lower or "me.com" in email_lower:
+        return ("icloud", "smtp.mail.me.com", 587)
+    elif "yahoo.com" in email_lower:
+        return ("yahoo", "smtp.mail.yahoo.com", 587)
+
+    return ("other", "", 587)
 
 
 def send_via_smtp(
@@ -27,29 +32,29 @@ def send_via_smtp(
     body: str,
     cc: list[str] | None = None,
     bcc: list[str] | None = None,
-    user_id: str = "default",
+    user_id: str = "",
 ) -> dict:
     """Send email via SMTP."""
-    accounts = _load_accounts(user_id)
+    accounts = load_imap_accounts(user_id)
 
-    # Find account
+    # Find account by name
     account = None
     for acc in accounts.values():
-        if acc["name"] == account_name:
+        if acc.get("name") == account_name:
             account = acc
             break
 
     if not account:
         return {"success": False, "error": f"Account '{account_name}' not found"}
 
-    # Get credentials
-    vault = get_vault(user_id)
-    if not vault.is_unlocked():
-        return {"success": False, "error": "Vault is locked"}
+    email = account.get("email")
+    password = account.get("password")
 
-    cred = vault.get_credential(account["credential_name"])
-    if not cred:
-        return {"success": False, "error": "Credential not found"}
+    if not email or not password:
+        return {"success": False, "error": "Account missing credentials"}
+
+    # Detect SMTP provider
+    provider, smtp_host, smtp_port = _detect_smtp_provider(email)
 
     try:
         import smtplib
@@ -58,7 +63,7 @@ def send_via_smtp(
 
         # Create message
         msg = MIMEMultipart()
-        msg["From"] = cred.email
+        msg["From"] = email
         msg["To"] = ", ".join(to)
         msg["Subject"] = subject
 
@@ -68,12 +73,12 @@ def send_via_smtp(
         msg.attach(MIMEText(body, "plain"))
 
         # Send
-        server = smtplib.SMTP(cred.smtp_host, cred.smtp_port)
+        server = smtplib.SMTP(smtp_host, smtp_port)
         server.starttls()
-        server.login(cred.username, cred.password)
+        server.login(email, password)
 
         all_recipients = to + (cc or []) + (bcc or [])
-        server.sendmail(cred.email, all_recipients, msg.as_string())
+        server.sendmail(email, all_recipients, msg.as_string())
         server.quit()
 
         logger.info("email.sent", {"account": account_name, "to": to})

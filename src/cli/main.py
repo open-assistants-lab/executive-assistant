@@ -13,8 +13,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 
-from src.agents.manager import get_agent
-from src.storage import init_checkpoint_manager
+from src.agents.manager import run_agent
 from src.storage.conversation import get_conversation_store
 
 console = Console()
@@ -33,41 +32,8 @@ class ExecutiveAssistantCLI:
 
     def __init__(self, user_id: str = "cli"):
         self.user_id = user_id
-        self.agent = None
         self.messages = []
         self.conversation = get_conversation_store(user_id)
-
-    async def setup(self):
-        """Initialize the agent."""
-        console.print("[bold cyan]Initializing Executive Assistant...[/bold cyan]")
-
-        checkpoint_manager = await init_checkpoint_manager(self.user_id)
-        checkpointer = checkpoint_manager.checkpointer
-        self.agent = get_agent(self.user_id, checkpointer=checkpointer)
-        console.print("[green]✓[/green] Agent ready")
-
-    async def handle_slash_command(self, command: str) -> bool:
-        """Handle slash commands."""
-        cmd = command.strip().split()[0].lower()
-
-        if cmd == "/help":
-            self.show_help()
-            return True
-        elif cmd == "/model":
-            await self.handle_model_command(command)
-            return True
-        elif cmd == "/clear":
-            self.messages = []
-            console.print("[yellow]Conversation cleared[/yellow]")
-            return True
-        elif cmd in ("/quit", "/exit"):
-            console.print("[yellow]Goodbye![/yellow]")
-            sys.exit(0)
-        return False
-
-    async def handle_model_command(self, command: str):
-        """Handle /model command."""
-        console.print("[yellow]Model switching not supported in shared agent mode[/yellow]")
 
     def show_help(self):
         """Show help message."""
@@ -82,9 +48,28 @@ class ExecutiveAssistantCLI:
             )
         )
 
+    async def handle_slash_command(self, command: str) -> bool:
+        """Handle slash commands."""
+        cmd = command.strip().split()[0].lower()
+
+        if cmd == "/help":
+            self.show_help()
+            return True
+        elif cmd == "/model":
+            console.print("[yellow]Model switching not supported in shared agent mode[/yellow]")
+            return True
+        elif cmd == "/clear":
+            self.messages = []
+            console.print("[yellow]Conversation cleared[/yellow]")
+            return True
+        elif cmd in ("/quit", "/exit"):
+            console.print("[yellow]Goodbye![/yellow]")
+            sys.exit(0)
+        return False
+
     async def run(self):
         """Run the CLI."""
-        await self.setup()
+        from src.app_logging import get_logger, timer
 
         console.print(
             Panel(
@@ -106,41 +91,64 @@ class ExecutiveAssistantCLI:
                     if await self.handle_slash_command(user_input):
                         continue
 
-                self.messages.append(HumanMessage(content=user_input))
                 self.conversation.add_message("user", user_input)
+                recent_messages = self.conversation.get_recent_messages(50)
+
+                langgraph_messages = [
+                    HumanMessage(content=m.content)
+                    if m.role == "user"
+                    else AIMessage(content=m.content)
+                    for m in recent_messages
+                ]
 
                 console.print("[dim]Thinking...[/dim]")
 
-                from src.app_logging import get_logger
-
                 logger = get_logger()
-                handler = logger.langfuse_handler
-
-                config = {"configurable": {"thread_id": self.user_id}}
-                if handler:
-                    config["callbacks"] = [handler]
-
-                from src.app_logging import timer
 
                 with timer(
-                    "agent",
-                    {"message": user_input, "message_count": len(self.messages)},
-                    channel="cli",
+                    "agent", {"message": user_input, "user_id": self.user_id}, channel="cli"
                 ):
                     with propagate_attributes(user_id=self.user_id):
-                        result = await self.agent.ainvoke(
-                            {"messages": self.messages}, config=config
+                        result = await run_agent(
+                            user_id=self.user_id,
+                            messages=langgraph_messages,
+                            message=user_input,
                         )
 
-                response = result["messages"][-1].content
-                self.messages.append(AIMessage(content=response))
+                messages = result.get("messages", [])
+
+                response = None
+                tool_results = []
+
+                for msg in messages:
+                    msg_type = getattr(msg, "type", None)
+                    if msg_type == "tool":
+                        content = getattr(msg, "content", None)
+                        if content:
+                            tool_results.append(content)
+
+                for msg in reversed(messages):
+                    msg_type = getattr(msg, "type", None)
+                    content = getattr(msg, "content", None)
+                    if msg_type == "ai":
+                        tool_calls = getattr(msg, "tool_calls", None)
+                        if tool_calls and tool_results:
+                            response = "\n".join(tool_results)
+                            break
+                        if tool_calls:
+                            tool_names = [tc.get("name", "unknown") for tc in tool_calls]
+                            response = f"Tool(s) executed: {', '.join(tool_names)}"
+                            break
+                        if content and content.strip():
+                            response = content
+                            break
+
+                if not response:
+                    response = "Task completed."
+
                 self.conversation.add_message("assistant", response)
 
-                logger.info(
-                    "agent.response",
-                    {"response": response},
-                    channel="cli",
-                )
+                logger.info("agent.response", {"response": response}, channel="cli")
 
                 console.print()
                 console.print(Markdown(response))

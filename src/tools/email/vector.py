@@ -13,6 +13,8 @@ class EmailVectorStore:
     """
 
     def __init__(self, user_id: str):
+        if not user_id or user_id == "default":
+            raise ValueError(f"Invalid user_id: {user_id}")
         self.user_id = user_id
         base_path = Path(f"data/users/{user_id}/email")
         base_path.mkdir(parents=True, exist_ok=True)

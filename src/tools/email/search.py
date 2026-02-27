@@ -1,9 +1,7 @@
 """Email search tool - semantic search."""
 
-from pathlib import Path
-from typing import Any
+from datetime import datetime
 
-import yaml
 from langchain_core.tools import tool
 
 from src.app_logging import get_logger
@@ -13,20 +11,18 @@ from src.tools.email.vector import get_email_vector_store
 logger = get_logger()
 
 
-def _load_accounts(user_id: str) -> dict[str, Any]:
-    """Load accounts from YAML."""
-    path = Path(f"data/users/{user_id}/email/accounts.yaml")
-    if not path.exists():
-        return {}
-    with open(path) as f:
-        return yaml.safe_load(f) or {}
-
-
 def _get_account_id_by_name(account_name: str, user_id: str) -> str | None:
-    """Get account ID by name."""
-    accounts = _load_accounts(user_id)
+    """Get account ID by name or email.
+
+    Searches in order:
+    1. Account name (exact match)
+    2. Email address (fallback)
+    """
+    accounts = imap._load_accounts(user_id)
     for acc_id, acc in accounts.items():
-        if acc["name"] == account_name:
+        if acc.get("name") == account_name:
+            return acc_id
+        if acc.get("email") == account_name:
             return acc_id
     return None
 
@@ -36,7 +32,7 @@ def email_search(
     account_name: str,
     query: str,
     limit: int = 10,
-    user_id: str = "default",
+    user_id: str = "",
 ) -> str:
     """Search emails using semantic search.
 
@@ -48,11 +44,14 @@ def email_search(
         account_name: Account name to search
         query: Search query in natural language (e.g., "meeting about budget", "email from John about project")
         limit: Number of results to return (default: 10)
-        user_id: User identifier (default: default)
+        user_id: User ID (REQUIRED)
 
     Returns:
         Matching emails with relevance scores
     """
+    if not user_id:
+        return "Error: user_id is required. Please provide your user ID."
+
     account_id = _get_account_id_by_name(account_name, user_id)
 
     if not account_id:
@@ -74,13 +73,17 @@ def email_search(
                 continue
 
             email_id = result["id"]
-            email = imap.email_get_from_db(email_id, user_id)
+            email = imap.email_get_from_db(email_id, account_id, "INBOX", user_id)
 
             if email:
                 status = "📭" if email["read"] else "📬"
                 from_display = email["from_name"] or email["from_addr"]
                 subject = email["subject"] or "(No subject)"
-                date = email["date"] or ""
+                date_ts = email.get("timestamp", 0)
+                if date_ts:
+                    date = datetime.fromtimestamp(date_ts).strftime("%Y-%m-%d %H:%M")
+                else:
+                    date = ""
                 score = result.get("score", 0)
 
                 output += f"{status} **[{score:.2f}] {from_display}**\n"
