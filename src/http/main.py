@@ -31,11 +31,19 @@ class MessageResponse(BaseModel):
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan context manager."""
     from src.agents.manager import get_agent_pool, get_model
+    from src.tools.email.sync import start_interval_sync, stop_interval_sync
 
     get_model()  # Initialize model on startup
     await get_agent_pool("default")  # Pre-warm pool
+
+    # Start email sync scheduler
+    await start_interval_sync()
+
     print("HTTP server ready")
     yield
+
+    # Cleanup
+    await stop_interval_sync()
 
 
 app = FastAPI(

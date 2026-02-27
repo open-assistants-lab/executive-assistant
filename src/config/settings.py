@@ -215,6 +215,19 @@ class ShellToolConfig(_BaseSettings):
         extra = "ignore"
 
 
+class EmailSyncConfig(_BaseSettings):
+    """Email sync configuration."""
+
+    enabled: bool = True
+    interval_minutes: int = 5
+    batch_size: int = 100
+    backfill_limit: int = 1000
+
+    class Config:
+        env_prefix = "EMAIL_SYNC_"
+        extra = "ignore"
+
+
 class AppConfig(_BaseSettings):
     """Main application configuration."""
 
@@ -228,6 +241,7 @@ class AppConfig(_BaseSettings):
     skills: SkillsConfig = Field(default_factory=SkillsConfig)
     filesystem: FilesystemConfig = Field(default_factory=FilesystemConfig)
     shell_tool: ShellToolConfig = Field(default_factory=ShellToolConfig)
+    email_sync: EmailSyncConfig = Field(default_factory=EmailSyncConfig)
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "AppConfig":

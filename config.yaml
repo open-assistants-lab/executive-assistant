@@ -93,3 +93,10 @@ shell_tool:
     - pwd
   timeout_seconds: 30
   max_output_kb: 100
+
+# Email Sync
+email_sync:
+  enabled: true
+  interval_minutes: 5  # How often to poll for new emails
+  batch_size: 100      # Emails per batch (for initial backfill)
+  backfill_limit: 1000 # Max emails to backfill initially (0 = unlimited)

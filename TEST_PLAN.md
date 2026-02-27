@@ -23,6 +23,10 @@ This document defines the integration testing strategy for the Executive Assista
 | 11 | User Isolation | Architecture | Separate state per `user_id` via checkpointer/thread_id |
 | 12 | Time Tool | Tool | `get_time` - Get current time with timezone support |
 | 13 | Web Scraping | Tools | `scrape_url`, `search_web`, `map_url`, `crawl_url`, `get_crawl_status`, `cancel_crawl` |
+| 14 | Email (Simplified) | Tools | `email_connect`, `email_disconnect`, `email_accounts`, `email_list`, `email_get`, `email_search`, `email_send`, `email_sync` |
+| 15 | Email - Reply/Reply All | Tools | `email_send` with `reply_to` and `reply_all` params |
+| 16 | Email - Auto-backfill | Sync | Backfill on connect (newest → earliest) |
+| 17 | Email - Interval Sync | Sync | Configurable sync from config.yaml |
 
 ### Not Implemented / Removed
 - ~~Firecrawl~~ - config exists but tool not implemented (skip for now)
@@ -371,6 +375,29 @@ Note: Todo Tool is for AGENT task planning, NOT user task management
 | 13.5 | Web - Status | Check status | Check crawl job status | Returns status |
 | 13.6 | Web - Cancel | Cancel crawl | Cancel a running crawl | Returns confirmation |
 
+### Email Tests
+
+| # | Feature | Test | Method | Expected Result |
+|---|---------|------|--------|-----------------|
+| 14.1 | Email Connect | Connect | "connect email test@gmail.com with password xxx" | Connects + starts backfill |
+| 14.2 | Email Connect | Account name | "connect with name Work" | Account saved with custom name |
+| 14.3 | Email Connect | Already connected | Connect same email | Shows existing account |
+| 14.4 | Email Connect | Invalid credentials | Wrong password | Error message |
+| 14.5 | Email Accounts | List | "show my email accounts" | Lists connected accounts |
+| 14.6 | Email Disconnect | Remove | "disconnect email TestAccount" | Account removed |
+| 14.7 | Email List | INBOX | "list emails from INBOX" | Returns email list |
+| 14.8 | Email List | Limit | "list last 5 emails" | Returns 5 emails |
+| 14.9 | Email Get | Full content | "get email with ID xyz" | Returns full email |
+| 14.10 | Email Search | Subject | "search emails about meeting" | Returns matches |
+| 14.11 | Email Search | Sender | "search from john@" | Returns matches |
+| 14.12 | Email Send | New email | "send email to test@example.com subject Hello body Hi" | Email sent |
+| 14.13 | Email Send | Reply | "reply to email xyz with message thanks" | Reply sent |
+| 14.14 | Email Send | Reply All | "reply all to email xyz" | Reply to all recipients |
+| 14.15 | Email Sync | Quick sync | "sync emails in new mode" | Syncs recent emails |
+| 14.16 | Email Sync | Full backfill | "sync emails in full mode" | Backfills all history |
+
+Note: Real email testing requires valid credentials.
+
 ### CLI Channel
 
 Same tests via `ea cli` command interface.
@@ -541,3 +568,37 @@ The agent decides tasks are "simple enough" to complete directly, regardless of:
 **Conclusion:** Both behave identically. The agent decides what is "complex" vs "simple" - neither approach triggers automatically for the tested tasks.
 
 **Recommendation:** Keep write_todos (simpler), but user must explicitly ask for todo list.
+
+---
+
+## Email Integration Tests (2026-02-27)
+
+### Simplified Implementation
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| email_connect | ✅ | Account name + auto-backfill |
+| email_disconnect | ✅ | Remove account |
+| email_accounts | ✅ | List accounts |
+| email_list | ✅ | List emails (folder, limit) |
+| email_get | ✅ | Get full email |
+| email_search | ✅ | Search by subject/sender |
+| email_send | ✅ | New, reply, reply_all |
+| email_sync | ✅ | Manual sync (new/full) |
+| Auto-backfill | ✅ | On connect (newest → earliest) |
+| Interval sync | ✅ | From config.yaml |
+
+### Removed Features
+- ❌ email_delete (not needed)
+- ❌ Vault (credentials in DB)
+- ❌ HITL for delete
+- ❌ email_stats
+- ❌ run_email_sql
+
+### Test Results (HTTP)
+```
+email_connect test@gmail.com → ✅ validates credentials
+```
+Server running:
+- HTTP: http://localhost:8000
+- Telegram: Running (PID 8741)

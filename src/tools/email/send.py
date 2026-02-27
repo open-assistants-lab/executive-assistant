@@ -1,18 +1,75 @@
 """Email send tool."""
 
+from pathlib import Path
+
 from langchain_core.tools import tool
+from sqlalchemy import create_engine, text
 
 from src.app_logging import get_logger
-from src.tools.email.imap import _get_account_engine, _get_account_id_by_name, _load_accounts
-from src.tools.email.smtp import send_via_smtp
-from sqlalchemy import text
 
 logger = get_logger()
 
 
+def _get_db_path(user_id: str) -> str:
+    """Get SQLite database path for user."""
+    if not user_id or user_id == "default":
+        raise ValueError(f"Invalid user_id: {user_id}")
+    cwd = Path.cwd()
+    base_dir = cwd / "data" / "users" / user_id / "email"
+    base_dir.mkdir(parents=True, exist_ok=True)
+    return str(base_dir / "emails.db")
+
+
+def _get_engine(user_id: str):
+    """Get SQLAlchemy engine."""
+    db_path = _get_db_path(user_id)
+    return create_engine(f"sqlite:///{db_path}")
+
+
+def _load_accounts(user_id: str) -> dict:
+    """Load accounts from database."""
+    engine = _get_engine(user_id)
+
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT * FROM accounts"))
+        accounts = {}
+        for row in result:
+            row_dict = dict(row._mapping)
+            accounts[row_dict["id"]] = {
+                "id": row_dict["id"],
+                "name": row_dict["name"],
+                "email": row_dict.get("email", ""),
+                "password": row_dict.get("password", ""),
+                "imap_host": row_dict.get("imap_host", ""),
+                "imap_port": row_dict.get("imap_port", 993),
+                "smtp_host": row_dict.get("smtp_host", ""),
+                "smtp_port": row_dict.get("smtp_port", 587),
+                "provider": row_dict.get("provider", ""),
+                "folders": row_dict.get("folders", "").split(",")
+                if row_dict.get("folders")
+                else [],
+                "last_sync": row_dict.get("last_sync"),
+                "last_timestamp": row_dict.get("last_timestamp"),
+                "status": row_dict.get("status", "connected"),
+                "created_at": row_dict.get("created_at"),
+            }
+        return accounts
+
+
+def _get_account_id_by_name(account_name: str, user_id: str) -> str | None:
+    """Get account ID by name or email."""
+    accounts = _load_accounts(user_id)
+    for acc_id, acc in accounts.items():
+        if acc.get("name") == account_name:
+            return acc_id
+        if acc.get("email") == account_name:
+            return acc_id
+    return None
+
+
 def _get_email_by_id(email_id: str, account_id: str, user_id: str) -> dict | None:
     """Get email by ID from local DB."""
-    engine = _get_account_engine(user_id)
+    engine = _get_engine(user_id)
     with engine.connect() as conn:
         result = conn.execute(
             text("""
@@ -25,6 +82,60 @@ def _get_email_by_id(email_id: str, account_id: str, user_id: str) -> dict | Non
         if result:
             return dict(result._mapping)
     return None
+
+
+def _send_via_smtp(
+    account_name: str,
+    to: list[str],
+    subject: str,
+    body: str,
+    cc: list[str] | None = None,
+    user_id: str = "",
+) -> dict:
+    """Send email via SMTP."""
+    accounts = _load_accounts(user_id)
+    account_id = _get_account_id_by_name(account_name, user_id)
+    if not account_id:
+        return {"success": False, "error": f"Account '{account_name}' not found"}
+
+    account = accounts.get(account_id, {})
+    email = account.get("email")
+    password = account.get("password")
+    smtp_host = account.get("smtp_host")
+    smtp_port = account.get("smtp_port", 587)
+
+    if not all([email, password, smtp_host]):
+        return {"success": False, "error": "Account missing SMTP credentials"}
+
+    try:
+        import smtplib
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+
+        msg = MIMEMultipart()
+        msg["From"] = email
+        msg["To"] = ", ".join(to)
+        msg["Subject"] = subject
+
+        if cc:
+            msg["Cc"] = ", ".join(cc)
+
+        msg.attach(MIMEText(body, "plain"))
+
+        all_recipients = to + (cc or [])
+
+        server = smtplib.SMTP(smtp_host, smtp_port)
+        server.starttls()
+        server.login(email, password)
+        server.sendmail(email, all_recipients, msg.as_string())
+        server.quit()
+
+        logger.info("email_sent", {"account": account_name, "to": to})
+
+        return {"success": True, "message": f"Email sent to {', '.join(to)}"}
+    except Exception as e:
+        logger.error("email_send_error", {"account": account_name, "error": str(e)})
+        return {"success": False, "error": str(e)}
 
 
 @tool
@@ -56,7 +167,6 @@ def email_send(
     if not user_id:
         return "Error: user_id is required."
 
-    # If replying, fetch original email details
     original_email = None
     if reply_to:
         account_id = _get_account_id_by_name(account_name, user_id)
@@ -67,15 +177,11 @@ def email_send(
         if not original_email:
             return f"Error: Email {reply_to} not found."
 
-        # Build recipients for reply
         original_to = original_email.get("to_addrs", "")
         original_cc = original_email.get("cc_addrs", "")
-
-        # Parse original sender and recipients
         sender = original_email.get("from_addr", "")
 
         if reply_all:
-            # Include sender + all original recipients (except self)
             accounts = _load_accounts(user_id)
             self_email = accounts.get(account_id, {}).get("email", "")
 
@@ -91,20 +197,17 @@ def email_send(
                 if addr and addr != self_email:
                     cc_list.append(addr)
         else:
-            # Reply only to sender
             to_list = [sender]
             cc_list = None
 
-        # Add Re: prefix if not present
         if not subject.lower().startswith("re:"):
             subject = f"Re: {subject}"
     else:
-        # Normal send - parse recipients
         to_list = [t.strip() for t in to.split(",")]
         cc_list = [c.strip() for c in cc.split(",")] if cc else None
 
     try:
-        result = send_via_smtp(
+        result = _send_via_smtp(
             account_name=account_name,
             to=to_list,
             subject=subject,

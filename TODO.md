@@ -58,9 +58,12 @@ Tracking implementation progress for the Executive Assistant agent.
 ### Email Integration (IMAP/SMTP)
 - [x] IMAP client for reading emails
 - [x] SMTP client for sending emails
-- [x] Email credential storage in encrypted vault
-- [x] Multi-account support
-- [x] Email tools: email_list, email_get, email_search, email_send
+- [x] Email credential storage in accounts DB (no vault)
+- [x] Multi-account support with account names
+- [x] Auto-backfill sync on connect (newest → earliest)
+- [x] Interval sync from config.yaml
+- [x] Email tools: email_connect, email_disconnect, email_accounts, email_list, email_get, email_search, email_send, email_sync
+- [x] Reply & Reply All support
 
 ### Skills System (Agent Skills Compatible)
 
@@ -315,26 +318,56 @@ Consider for analytics capabilities (not yet proven needed):
 
 Allow agent to read, analyze, and draft emails. Learn user's writing style from past emails.
 
-**Phase 1: IMAP/SMTP (Simpler)**
+**Phase 1: IMAP/SMTP (Simpler) - IMPLEMENTED**
 
 Supported providers:
 - Gmail / Google Workspace (enable IMAP + App Password)
 - Outlook / Hotmail / Microsoft 365 (IMAP enabled by default)
 - Any IMAP/SMTP provider
 
-**Components:**
-- [x] IMAP client for reading emails (`src/email/imap_client.py`)
-- [x] SMTP client for sending emails (`src/email/smtp_client.py`)
-- [x] Email credential storage in encrypted vault (`src/email/credentials.py`)
-- [x] Multi-account support (personal + work)
+**Simplified Implementation (2026-02-27):**
+
+```
+src/tools/email/
+├── __init__.py   # exports
+├── account.py    # email_connect, email_disconnect, email_accounts
+├── sync.py       # backfill sync + interval sync + email_sync tool
+├── read.py       # email_list, email_get, email_search
+└── send.py       # email_send (new, reply, reply_all)
+```
 
 **Tools:**
-- [x] `email_list` - List emails from folder (with filters)
-- [x] `email_get` - Get full email content by ID
-- [x] `email_search` - Search emails (subject, body, sender, date range)
-- [x] `email_send` - Send new email
-- [ ] `email_draft` - Create draft (review before sending)
-- [ ] `email_reply` - Reply to existing email thread
+- [x] `email_connect` - Connect with account_name, auto-backfill on connect
+- [x] `email_disconnect` - Remove account
+- [x] `email_accounts` - List connected accounts
+- [x] `email_list` - List emails (folder, limit)
+- [x] `email_get` - Get full email by ID
+- [x] `email_search` - Search by subject/sender
+- [x] `email_send` - Send new, reply, reply_all
+- [x] `email_sync` - Manual sync (new/full modes)
+- [x] Auto-backfill on connect (newest → earliest)
+- [x] Interval sync from config.yaml
+
+**Config (config.yaml):**
+```yaml
+email_sync:
+  enabled: true
+  interval_minutes: 5
+  batch_size: 100
+  backfill_limit: 1000
+```
+
+**Removed:**
+- ❌ email_delete (not needed)
+- ❌ Vault (credentials stored in accounts DB)
+- ❌ HITL for delete (not needed)
+- ❌ email_stats (not essential)
+- ❌ run_email_sql (not for users)
+
+**Credentials Storage:**
+- Stored directly in accounts SQLite DB
+- No encryption (simplified - can add later if needed)
+- Per-user isolation via user_id
 
 **Email Style Learning:**
 
@@ -560,4 +593,4 @@ data/
 
 ---
 
-Last updated: 2026-02-24
+Last updated: 2026-02-27
