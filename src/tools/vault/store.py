@@ -82,7 +82,7 @@ class Vault:
                     encrypted_data=self._encrypt({}),
                 )
             )
-            logger.info("vault.created", {"user_id": self.user_id})
+            logger.info("vault.created", user_id=self.user_id)
             return True
 
         # Existing vault - try to decrypt
@@ -96,10 +96,10 @@ class Vault:
             self._credentials = {}
             for k, v in json.loads(decrypted).items():
                 self._credentials[k] = Credential(**v) if isinstance(v, dict) else v
-            logger.info("vault.unlocked", {"user_id": self.user_id})
+            logger.info("vault.unlocked", user_id=self.user_id)
             return True
         except Exception:
-            logger.warning("vault.unlock_failed", {"user_id": self.user_id})
+            logger.warning("vault.unlock_failed", user_id=self.user_id)
             return False
 
     def _encrypt(self, data: dict[str, Any]) -> str:
@@ -122,7 +122,7 @@ class Vault:
         """Lock vault."""
         self._fernet = None
         self._credentials = {}
-        logger.info("vault.locked", {"user_id": self.user_id})
+        logger.info("vault.locked", user_id=self.user_id)
 
     def add_credential(self, credential: Credential) -> bool:
         """Add or update a credential."""

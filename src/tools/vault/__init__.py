@@ -147,7 +147,7 @@ def credential_add(
     )
 
     if vault.add_credential(credential):
-        logger.info("credential_added", {"name": name, "provider": provider, "user_id": user_id})
+        logger.info("credential_added", {"name": name, "provider": provider}, user_id=user_id)
         return f"Credential '{name}' added successfully."
     return "Error: Failed to add credential."
 
@@ -232,6 +232,6 @@ def credential_delete(name: str, user_id: str = "") -> str:
         return "Error: Vault is locked. Use vault_unlock first."
 
     if vault.delete_credential(name):
-        logger.info("credential_deleted", {"name": name, "user_id": user_id})
+        logger.info("credential_deleted", {"name": name}, user_id=user_id)
         return f"Credential '{name}' deleted."
     return f"Credential '{name}' not found."

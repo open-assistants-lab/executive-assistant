@@ -51,7 +51,7 @@ def email_connect(
     if not password:
         return "Error: password is required."
 
-    logger.info("email_connect_called", {"user_id": user_id, "email": email})
+    logger.info("email_connect_called", {"email": email}, user_id=user_id)
 
     provider, imap_host, imap_port, smtp_host, smtp_port = detect_provider(email)
 
@@ -133,7 +133,7 @@ def email_disconnect(account_name: str, user_id: str = "") -> str:
 
     db_delete_account(user_id, account_id)
 
-    logger.info("email.disconnected", {"account": account_name, "user_id": user_id})
+    logger.info("email.disconnected", {"account": account_name}, user_id=user_id)
     return f"Account '{account_name}' disconnected and removed."
 
 

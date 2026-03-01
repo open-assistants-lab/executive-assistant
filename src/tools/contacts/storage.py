@@ -205,7 +205,7 @@ def save_contacts(user_id: str, account_id: str, contacts: list[dict]) -> int:
 
         conn.commit()
 
-    logger.info("contacts_parsed", {"user_id": user_id, "new": new_count})
+    logger.info("contacts_parsed", {"new": new_count}, user_id=user_id)
     return new_count
 
 
@@ -326,7 +326,7 @@ def add_contact(
 
         conn.commit()
 
-    logger.info("contact_added", {"user_id": user_id, "email": email})
+    logger.info("contact_added", {"email": email}, user_id=user_id)
     return {"success": True, "contact_id": contact_id}
 
 
@@ -373,7 +373,7 @@ def update_contact(
             conn.execute(text(query), params)
             conn.commit()
 
-    logger.info("contact_updated", {"user_id": user_id, "contact_id": contact["id"]})
+    logger.info("contact_updated", {"contact_id": contact["id"]}, user_id=user_id)
     return {"success": True}
 
 
@@ -393,7 +393,7 @@ def delete_contact(user_id: str, contact_id: str | None = None, email: str | Non
         conn.execute(text("DELETE FROM contacts WHERE id = :id"), {"id": contact["id"]})
         conn.commit()
 
-    logger.info("contact_deleted", {"user_id": user_id, "contact_id": contact["id"]})
+    logger.info("contact_deleted", {"contact_id": contact["id"]}, user_id=user_id)
     return {"success": True}
 
 

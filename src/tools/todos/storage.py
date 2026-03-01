@@ -90,7 +90,7 @@ def add_todo(
         )
         conn.commit()
 
-    logger.info("todo_added", {"user_id": user_id, "todo_id": todo_id, "source": source})
+    logger.info("todo_added", {"todo_id": todo_id, "source": source}, user_id=user_id)
     return {"id": todo_id, "content": content, "status": status}
 
 
@@ -162,7 +162,7 @@ def update_todo(
         conn.execute(text(query), params)
         conn.commit()
 
-    logger.info("todo_updated", {"user_id": user_id, "todo_id": todo_id})
+    logger.info("todo_updated", {"todo_id": todo_id}, user_id=user_id)
     return {"success": True}
 
 
@@ -174,7 +174,7 @@ def delete_todo(user_id: str, todo_id: str) -> dict[str, Any]:
         conn.execute(text("DELETE FROM todos WHERE id = :id"), {"id": todo_id})
         conn.commit()
 
-    logger.info("todo_deleted", {"user_id": user_id, "todo_id": todo_id})
+    logger.info("todo_deleted", {"todo_id": todo_id}, user_id=user_id)
     return {"success": True}
 
 
