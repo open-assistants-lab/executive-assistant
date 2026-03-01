@@ -27,10 +27,17 @@ This document defines the integration testing strategy for the Executive Assista
 | 15 | Email - Reply/Reply All | Tools | `email_send` with `reply_to` and `reply_all` params |
 | 16 | Email - Auto-backfill | Sync | Backfill on connect (newest → earliest) |
 | 17 | Email - Interval Sync | Sync | Configurable sync from config.yaml |
+| 18 | Email - Rate Limit | Sync | Gmail rate limit handling (15 min cooldown) |
+| 19 | Contacts | Tools | `contacts_list`, `contacts_get`, `contacts_add`, `contacts_update`, `contacts_delete`, `contacts_search` |
+| 20 | Contacts - Parse | Storage | Auto-parse from emails during sync |
+| 21 | Todos - CRUD | Tools | `todos_list`, `todos_add`, `todos_update`, `todos_delete`, `todos_extract` |
+| 22 | Todos - LLM Extract | Storage | LLM-based extraction from emails during sync |
+| 23 | Per-User DB | Architecture | Separate SQLite DB per user (email, contacts, todos) |
 
 ### Not Implemented / Removed
 - ~~Firecrawl~~ - config exists but tool not implemented (skip for now)
 - ~~Journal~~ - was unused dead config, now removed
+- ~~write_todos~~ - replaced with new todos system with LLM extraction
 
 ---
 
@@ -395,8 +402,10 @@ Note: Todo Tool is for AGENT task planning, NOT user task management
 | 14.14 | Email Send | Reply All | "reply all to email xyz" | Reply to all recipients |
 | 14.15 | Email Sync | Quick sync | "sync emails in new mode" | Syncs recent emails |
 | 14.16 | Email Sync | Full backfill | "sync emails in full mode" | Backfills all history |
+| 14.17 | Email Isolation | Per-user | User A connects, User B lists | Different accounts |
+| 14.18 | Email Rate Limit | Too many syncs | Multiple rapid syncs | Cooldown applied |
 
-Note: Real email testing requires valid credentials.
+Note: Real email testing requires valid credentials. Gmail has 15 concurrent connection limit.
 
 ### Contacts Tests
 
@@ -410,8 +419,23 @@ Note: Real email testing requires valid credentials.
 | 15.6 | Contacts Search | By name | "search contacts John" | Returns matches |
 | 15.7 | Contacts Search | By email | "search contacts @company.com" | Returns matches |
 | 15.8 | Contacts Parse | From email | After sync, check contacts | Parsed from emails |
+| 15.9 | Contacts Isolation | Per-user | User A adds, User B lists | Different contacts |
 
 Note: Contacts are automatically parsed during email sync.
+
+### Todos Tests
+
+| # | Feature | Test | Method | Expected Result |
+|---|---------|------|--------|-----------------|
+| 16.1 | Todos List | List all | "show my todos" | Returns todo list |
+| 16.2 | Todos Add | Manual | "add todo review budget" | Todo added |
+| 16.3 | Todos Update | Status | "update todo abc123 to completed" | Status updated |
+| 16.4 | Todos Delete | Remove | "delete todo abc123" | Todo removed |
+| 16.5 | Todos Extract | From email | "extract todos from emails" | LLM extracts todos |
+| 16.6 | Todos Isolation | Per-user | User A adds, User B lists | Different todos |
+| 16.7 | Todos Email Ref | Email link | Todo has email_id | Links to source email |
+
+Note: Todos are automatically extracted from new emails during sync using LLM.
 
 ### CLI Channel
 

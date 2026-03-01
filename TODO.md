@@ -61,11 +61,20 @@ Tracking implementation progress for the Executive Assistant agent.
 - [x] Email credential storage in accounts DB (no vault)
 - [x] Multi-account support with account names
 - [x] Auto-backfill sync on connect (newest → earliest)
-- [x] Interval sync from config.yaml
+- [x] Interval sync from config.yaml (5 min default)
 - [x] Contacts parsed from email during sync
+- [x] Contacts CRUD (add, update, delete, search)
 - [x] Email tools: email_connect, email_disconnect, email_accounts, email_list, email_get, email_search, email_send, email_sync
 - [x] Reply & Reply All support
-- [ ] Contacts CRUD (add, update, delete, search)
+- [x] Per-user DB isolation
+- [x] Gmail rate limit handling (15 min cooldown)
+
+### Todos System (LLM Extraction)
+- [x] Per-user todos DB at data/users/{user_id}/todos/todos.db
+- [x] LLM-based todo extraction from emails during sync
+- [x] Manual todo creation (without email reference)
+- [x] CRUD tools: todos_list, todos_add, todos_update, todos_delete
+- [x] todos_extract tool for manual extraction
 
 ### Skills System (Agent Skills Compatible)
 
@@ -630,4 +639,4 @@ data/
 
 ---
 
-Last updated: 2026-02-27
+Last updated: 2026-03-01
