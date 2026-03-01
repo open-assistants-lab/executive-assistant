@@ -42,7 +42,7 @@ def get_skill_registry(system_dir: str = "src/skills", user_id: str | None = Non
 
 
 @tool
-def load_skill(
+def skills_load(
     skill_name: str,
     runtime: Any | None = None,
 ) -> str | Command:
@@ -121,7 +121,7 @@ def list_available_skills() -> str:
 
 
 @tool
-def list_skills() -> str:
+def skills_list() -> str:
     """List all available skills with their descriptions.
 
     Use this to see what skills are available before loading one.

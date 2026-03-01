@@ -10,24 +10,41 @@ This document defines the integration testing strategy for the Executive Assista
 
 | # | Feature | Type | Implementation |
 |---|---------|------|----------------|
-| 1 | Skills | Middleware + Tools | `SkillMiddleware` (before_agent), `load_skill`, `list_skills` tools |
+| 1 | Skills | Middleware + Tools | `SkillMiddleware` (before_agent), `skills_load`, `skills_list` tools |
 | 2 | Filesystem | Tools | `read_file`, `write_file`, `edit_file`, `delete_file` (HITL), `list_files` |
-| 3 | File Search | Tools | `glob_search`, `grep_search` (not web search) |
+| 3 | File Search | Tools | `files_glob_search`, `files_grep_search` |
 | 4 | Todo (User) | Tools | `todos_list`, `todos_add`, `todos_update`, `todos_delete`, `todos_extract` - for user task management |
-| 5 | Shell Tool | Tool | `run_shell` - restricted command execution |
+| 5 | Shell Tool | Tool | `shell_execute` - restricted command execution |
 | 6 | Memory System | Storage | SQLite + FTS5 + ChromaDB hybrid storage |
-| 7 | Memory Tools | Tools | `get_conversation_history`, `search_conversation_hybrid` |
+| 7 | Memory Tools | Tools | `memory_get_history`, `memory_search` |
 | 8 | Summarization | Middleware | `SummarizationMiddleware` - auto-summarizes at token threshold |
-| 9 | Skill-Gated Tools | Tools | `write_sql_query` - requires skill to be loaded first |
+| 9 | Skill-Gated Tools | Tools | `sql_write_query` - requires skill to be loaded first |
 | 10 | Checkpoint | Storage | LangGraph `AsyncSqliteSaver` with 7-day retention |
 | 11 | User Isolation | Architecture | Separate state per `user_id` via checkpointer/thread_id |
-| 12 | Time Tool | Tool | `get_time` - Get current time with timezone support |
+| 12 | Time Tool | Tool | `time_get` - Get current time with timezone support |
 | 13 | Web Scraping | Tools | `scrape_url`, `search_web`, `map_url`, `crawl_url`, `get_crawl_status`, `cancel_crawl` |
 | 14 | Email (Simplified) | Tools | `email_connect`, `email_disconnect`, `email_accounts`, `email_list`, `email_get`, `email_search`, `email_send`, `email_sync` |
 | 15 | Email - Reply/Reply All | Tools | `email_send` with `reply_to` and `reply_all` params |
 | 16 | Email - Auto-backfill | Sync | Backfill on connect (newest → earliest) |
-| 17 | Email - Interval Sync | Sync | Configurable sync from config.yaml |
+| 17 | Email - Interval Sync | Background | Configurable sync from config.yaml (default: 5 min) |
 | 18 | Email - Rate Limit | Sync | Gmail rate limit handling (15 min cooldown) |
+| 19 | Contacts | Tools | `contacts_list`, `contacts_get`, `contacts_add`, `contacts_update`, `contacts_delete`, `contacts_search` |
+| 20 | Contacts - Parse | Background | Auto-parse from emails during sync |
+| 21 | Todos - CRUD | Tools | `todos_list`, `todos_add`, `todos_update`, `todos_delete`, `todos_extract` |
+| 22 | Todos - LLM Extract | Background | LLM-based extraction from emails during sync |
+| 23 | Per-User DB | Architecture | Separate SQLite DB per user (email, contacts, todos) |
+| 24 | CLI Interface | Interface | Rich terminal UI with multi-line input and streaming |
+
+### Tool Naming Convention
+All tools follow `category_{verb}` pattern:
+- `email_*` - Email operations
+- `contacts_*` - Contact operations
+- `todos_*` - Todo operations
+- `files_*` - File search operations
+- `memory_*` - Memory/conversation operations
+- `skills_*` - Skills operations
+- `time_get` - Time operations
+- `shell_execute` - Shell operations
 | 19 | Contacts | Tools | `contacts_list`, `contacts_get`, `contacts_add`, `contacts_update`, `contacts_delete`, `contacts_search` |
 | 20 | Contacts - Parse | Storage | Auto-parse from emails during sync |
 | 21 | Todos - CRUD | Tools | `todos_list`, `todos_add`, `todos_update`, `todos_delete`, `todos_extract` |
@@ -442,6 +459,42 @@ Note: Contacts are automatically parsed during email sync.
 | 16.9 | Todos List | Filter status | "list pending todos" | Only pending shown |
 
 Note: Todos are automatically extracted from new emails during sync using LLM. Already extracted emails are skipped.
+
+### Background Tasks (Auto-run)
+
+| # | Feature | Test | Method | Expected Result |
+|---|---------|------|--------|-----------------|
+| 17.1 | Email Interval Sync | Auto-run | Wait 5 min, check logs | New emails synced |
+| 17.2 | Contact Auto-Parse | Add new email | After sync, check contacts | Contacts extracted |
+| 17.3 | Todo LLM Extract | Add new email | After sync, check todos | Todos extracted |
+| 17.4 | Rate Limit Cooldown | Rapid syncs | Sync 3x quickly | 15 min cooldown applied |
+
+### CLI Interface Tests
+
+| # | Feature | Test | Method | Expected Result |
+|---|---------|------|--------|-----------------|
+| 18.1 | CLI Start | Basic | `ea cli` | Interactive prompt appears |
+| 18.2 | CLI Message | Send | Type message, press Enter | Response displayed |
+| 18.3 | CLI Multi-line | Newline | Shift+Enter | New line added |
+| 18.4 | CLI Exit | Quit | Type `/quit` | Exits cleanly |
+| 18.5 | CLI Stream | Streaming | Send message | Tokens stream in real-time |
+| 18.6 | CLI Rich Output | Colors | Check output | Colors and formatting shown |
+
+### HTTP Interface Tests
+
+| # | Feature | Test | Method | Expected Result |
+|---|---------|------|--------|-----------------|
+| 19.1 | HTTP Health | GET /health | curl | 200 OK |
+| 19.2 | HTTP Ready | GET /health/ready | curl | 200 OK |
+| 19.3 | HTTP Message | POST /message | curl with JSON | Response |
+| 19.4 | HTTP Stream | POST /message/stream | curl | SSE response |
+
+### Telegram Interface Tests
+
+| # | Feature | Test | Method | Expected Result |
+|---|---------|------|--------|-----------------|
+| 20.1 | Telegram Start | /start | Send /start | Bot responds |
+| 20.2 | Telegram Message | Send msg | Send message | Response |
 
 ### CLI Channel
 

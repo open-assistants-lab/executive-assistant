@@ -67,9 +67,8 @@ class AgentFactory:
                     channel="agent",
                 )
 
-        # HITL middleware for filesystem delete and shell commands
+        # HITL middleware for filesystem delete
         filesystem_config = settings.filesystem
-        shell_config = settings.shell_tool
 
         # Build interrupt config for tools requiring approval
         interrupt_config = {}
@@ -149,9 +148,9 @@ class AgentFactory:
         # Add skill tools
         all_tools = list(tools) if tools else []
         if enable_skills:
-            from src.skills import list_skills, load_skill
+            from src.skills import skills_list, skills_load
 
-            all_tools = list(all_tools) + [load_skill, list_skills]
+            all_tools = list(all_tools) + [skills_load, skills_list]
 
         agent = create_agent(
             model=model,

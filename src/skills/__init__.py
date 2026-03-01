@@ -13,9 +13,9 @@ from src.skills.storage import SkillStorage, SystemSkillStorage, UserSkillStorag
 from src.skills.tools import (
     get_skill_registry,
     list_available_skills,
-    list_skills,
-    load_skill,
     set_skill_registry,
+    skills_list,
+    skills_load,
 )
 
 __all__ = [
@@ -34,8 +34,8 @@ __all__ = [
     "SkillMiddleware",
     "SkillState",
     # Tools
-    "load_skill",
-    "list_skills",
+    "skills_load",
+    "skills_list",
     "list_available_skills",
     "set_skill_registry",
     "get_skill_registry",

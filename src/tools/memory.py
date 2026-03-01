@@ -23,7 +23,7 @@ def _simple_embedding(text: str) -> list[float]:
 
 
 @tool
-def get_conversation_history(
+def memory_get_history(
     days: int = 7,
     date_str: str | None = None,
     user_id: str = "default",
@@ -75,7 +75,7 @@ def get_conversation_history(
 
 
 @tool
-def search_conversation_hybrid(
+def memory_search(
     query: str,
     user_id: str = "default",
 ) -> str:
@@ -116,10 +116,10 @@ class ProgressiveDisclosureTool:
 
     def get_conversation_history(self, days: int = 7, date_str: str | None = None) -> str:
         """Get conversation history."""
-        return get_conversation_history.invoke(
+        return memory_get_history.invoke(
             {"days": days, "date_str": date_str, "user_id": self.user_id}
         )
 
     def search_conversation_hybrid(self, query: str) -> str:
         """Search conversation history."""
-        return search_conversation_hybrid.invoke({"query": query, "user_id": self.user_id})
+        return memory_search.invoke({"query": query, "user_id": self.user_id})

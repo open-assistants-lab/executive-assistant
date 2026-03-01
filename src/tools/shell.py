@@ -60,7 +60,7 @@ def _is_allowed(cmd: str) -> bool:
 
 
 @tool
-def run_shell(command: str, user_id: str = "default") -> str:
+def shell_execute(command: str, user_id: str = "default") -> str:
     """Run a shell command.
 
     Args:
@@ -101,12 +101,12 @@ def run_shell(command: str, user_id: str = "default") -> str:
                 + f"\n... (truncated, output exceeded {config['max_output_kb']}KB)"
             )
 
-        logger.info("run_shell", {"command": command, "return_code": result.returncode})
+        logger.info("shell_execute", {"command": command, "return_code": result.returncode})
         return output or "(no output)"
 
     except subprocess.TimeoutExpired:
         config = _get_shell_config()
         return f"Error: Command timed out after {config['timeout_seconds']} seconds"
     except Exception as e:
-        logger.error("run_shell.error", {"command": command, "error": str(e)})
+        logger.error("shell_execute.error", {"command": command, "error": str(e)})
         return f"Error: {e}"

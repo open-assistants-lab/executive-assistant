@@ -83,16 +83,16 @@ Tracking implementation progress for the Executive Assistant agent.
 - [x] Path escape prevention
 
 ### File Search Tools
-- [x] glob_search - file pattern matching
-- [x] grep_search - regex content search
+- [x] files_glob_search - file pattern matching
+- [x] files_grep_search - regex content search
 
 ### Shell Tool
-- [x] Restricted command execution
+- [x] shell_execute - restricted command execution
 - [x] Configurable allowed commands
 
 ### Memory Tools
-- [x] get_conversation_history
-- [x] search_conversation_hybrid (keyword + semantic)
+- [x] memory_get_history
+- [x] memory_search (keyword + semantic)
 
 ### Skills System (Agent Skills Compatible)
 

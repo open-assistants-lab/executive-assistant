@@ -6,7 +6,7 @@ from langchain_core.tools import tool
 
 
 @tool
-def write_sql_query(
+def sql_write_query(
     query: str,
     database: str,
     runtime: Any | None = None,
@@ -25,7 +25,7 @@ def write_sql_query(
     if database not in skills_loaded:
         return (
             f"Error: You must load the '{database}' skill first. "
-            f"Use load_skill('{database}') to load the database schema."
+            f"Use skills_load('{database}') to load the database schema."
         )
 
     # Execute only if skill is loaded

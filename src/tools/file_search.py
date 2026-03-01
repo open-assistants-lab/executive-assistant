@@ -36,7 +36,7 @@ def _resolve_path(path: str | None, user_id: str) -> Path:
 
 
 @tool
-def glob_search(pattern: str = "**/*", path: str = ".", user_id: str = "default") -> str:
+def files_glob_search(pattern: str = "**/*", path: str = ".", user_id: str = "default") -> str:
     """Search for files matching a glob pattern.
 
     Args:
@@ -70,12 +70,12 @@ def glob_search(pattern: str = "**/*", path: str = ".", user_id: str = "default"
 
         return "\n".join(["", *results, f"\n{len(results)} files found"])
     except Exception as e:
-        logger.error("glob_search.error", {"pattern": pattern, "error": str(e)})
+        logger.error("files_glob_search.error", {"pattern": pattern, "error": str(e)})
         return f"Error: {e}"
 
 
 @tool
-def grep_search(
+def files_grep_search(
     pattern: str,
     path: str = ".",
     include: str | None = None,
@@ -149,5 +149,5 @@ def grep_search(
 
         return "\n".join(["", *result, ""])
     except Exception as e:
-        logger.error("grep_search.error", {"pattern": pattern, "error": str(e)})
+        logger.error("files_grep_search.error", {"pattern": pattern, "error": str(e)})
         return f"Error: {e}"

@@ -161,7 +161,8 @@ def get_model() -> BaseChatModel:
 
 def get_default_tools(user_id: str) -> list[Any]:
     """Get default tools for a user with proper user_id binding."""
-    from src.skills.example_constrained_tool import write_sql_query
+    from src.skills.example_constrained_tool import sql_write_query
+    from src.skills.tools import skills_list, skills_load
     from src.tools.contacts import (
         contacts_add,
         contacts_delete,
@@ -180,7 +181,7 @@ def get_default_tools(user_id: str) -> list[Any]:
         email_send,
         email_sync,
     )
-    from src.tools.file_search import glob_search, grep_search
+    from src.tools.file_search import files_glob_search, files_grep_search
     from src.tools.filesystem import (
         delete_file,
         edit_file,
@@ -196,9 +197,9 @@ def get_default_tools(user_id: str) -> list[Any]:
         scrape_url,
         search_web,
     )
-    from src.tools.memory import get_conversation_history, search_conversation_hybrid
-    from src.tools.shell import run_shell
-    from src.tools.time import get_time
+    from src.tools.memory import memory_get_history, memory_search
+    from src.tools.shell import shell_execute
+    from src.tools.time import time_get
     from src.tools.todos import (
         todos_add,
         todos_delete,
@@ -208,29 +209,31 @@ def get_default_tools(user_id: str) -> list[Any]:
     )
 
     return [
-        get_conversation_history,
-        search_conversation_hybrid,
+        memory_get_history,
+        memory_search,
         list_files,
         read_file,
         write_file,
         edit_file,
         delete_file,
-        glob_search,
-        grep_search,
-        run_shell,
+        files_glob_search,
+        files_grep_search,
+        shell_execute,
         todos_list,
         todos_add,
         todos_update,
         todos_delete,
         todos_extract,
-        get_time,
+        time_get,
         scrape_url,
         search_web,
         map_url,
         crawl_url,
         get_crawl_status,
         cancel_crawl,
-        write_sql_query,
+        sql_write_query,
+        skills_load,
+        skills_list,
         email_connect,
         email_disconnect,
         email_accounts,

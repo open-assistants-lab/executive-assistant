@@ -1,7 +1,6 @@
 """Time tool for agent - get current time with timezone support."""
 
-from datetime import datetime, timezone as tz_module
-from typing import Optional
+from datetime import UTC, datetime
 
 from langchain_core.tools import tool
 
@@ -53,7 +52,7 @@ TIMEZONE_MAP = {
 
 
 @tool
-def get_time(timezone: Optional[str] = None) -> str:
+def time_get(timezone: str | None = None) -> str:
     """Get current time.
 
     If no timezone is provided, defaults to UTC.
@@ -76,7 +75,7 @@ def get_time(timezone: Optional[str] = None) -> str:
 
     try:
         if tz == "UTC":
-            now = datetime.now(tz_module.utc)
+            now = datetime.now(UTC)
             tz_name = "UTC"
         else:
             from zoneinfo import ZoneInfo
@@ -94,5 +93,5 @@ def get_time(timezone: Optional[str] = None) -> str:
     except Exception as e:
         logger.warning("time.tool.error", {"timezone": tz, "error": str(e)}, channel="agent")
         # Fallback to UTC
-        now = datetime.now(tz_module.utc)
+        now = datetime.now(UTC)
         return f"Could not parse timezone '{timezone}', showing UTC: {now.strftime('%Y-%m-%d %H:%M:%S')} UTC"

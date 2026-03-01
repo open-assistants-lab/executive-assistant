@@ -67,6 +67,31 @@ class ExecutiveAssistantCLI:
             sys.exit(0)
         return False
 
+    def _read_input(self) -> str:
+        """Read input with multi-line support.
+
+        End a line with \\ to continue to the next line.
+        """
+        try:
+            line = input("> ")
+            if line.rstrip().endswith("\\"):
+                lines = [line.rstrip()[:-1]]
+                while True:
+                    try:
+                        next_line = input("| ")
+                        if next_line.rstrip().endswith("\\"):
+                            lines.append(next_line.rstrip()[:-1])
+                        else:
+                            lines.append(next_line)
+                            break
+                    except EOFError:
+                        break
+                return "\n".join(lines)
+            return line.strip()
+        except EOFError:
+            console.print("\n[yellow]Goodbye![/yellow]")
+            sys.exit(0)
+
     async def run(self):
         """Run the CLI."""
         from src.app_logging import get_logger, timer
@@ -74,7 +99,8 @@ class ExecutiveAssistantCLI:
         console.print(
             Panel(
                 "[bold cyan]Executive Assistant[/bold cyan]\n"
-                "Type /help for commands, /quit to exit",
+                "Type /help for commands, /quit to exit\n"
+                "Tip: End line with \\ for multi-line input",
                 border_style="cyan",
                 expand=False,
             )
@@ -82,7 +108,7 @@ class ExecutiveAssistantCLI:
 
         while True:
             try:
-                user_input = input("> ").strip()
+                user_input = self._read_input()
 
                 if not user_input:
                     continue
