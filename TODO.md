@@ -76,6 +76,24 @@ Tracking implementation progress for the Executive Assistant agent.
 - [x] CRUD tools: todos_list, todos_add, todos_update, todos_delete
 - [x] todos_extract tool for manual extraction
 
+### Filesystem Tools
+- [x] Per-user filesystem at data/users/{user_id}/files/
+- [x] list_files, read_file, write_file, edit_file
+- [x] delete_file with HITL approval
+- [x] Path escape prevention
+
+### File Search Tools
+- [x] glob_search - file pattern matching
+- [x] grep_search - regex content search
+
+### Shell Tool
+- [x] Restricted command execution
+- [x] Configurable allowed commands
+
+### Memory Tools
+- [x] get_conversation_history
+- [x] search_conversation_hybrid (keyword + semantic)
+
 ### Skills System (Agent Skills Compatible)
 
 **Reference:**

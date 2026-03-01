@@ -11,14 +11,14 @@ This document defines the integration testing strategy for the Executive Assista
 | # | Feature | Type | Implementation |
 |---|---------|------|----------------|
 | 1 | Skills | Middleware + Tools | `SkillMiddleware` (before_agent), `load_skill`, `list_skills` tools |
-| 2 | Filesystem | Tools | `read_file`, `write_file`, `edit_file`, `delete_file`, `list_files` |
+| 2 | Filesystem | Tools | `read_file`, `write_file`, `edit_file`, `delete_file` (HITL), `list_files` |
 | 3 | File Search | Tools | `glob_search`, `grep_search` (not web search) |
-| 4 | Todo Tool | Tool | `write_todos` - for AGENT to plan its own tasks |
+| 4 | Todo (User) | Tools | `todos_list`, `todos_add`, `todos_update`, `todos_delete`, `todos_extract` - for user task management |
 | 5 | Shell Tool | Tool | `run_shell` - restricted command execution |
 | 6 | Memory System | Storage | SQLite + FTS5 + ChromaDB hybrid storage |
 | 7 | Memory Tools | Tools | `get_conversation_history`, `search_conversation_hybrid` |
 | 8 | Summarization | Middleware | `SummarizationMiddleware` - auto-summarizes at token threshold |
-| 9 | TodoList Middleware | Middleware | `TodoListMiddleware` - auto-decomposes complex requests (COMPARISON PENDING) |
+| 9 | Skill-Gated Tools | Tools | `write_sql_query` - requires skill to be loaded first |
 | 10 | Checkpoint | Storage | LangGraph `AsyncSqliteSaver` with 7-day retention |
 | 11 | User Isolation | Architecture | Separate state per `user_id` via checkpointer/thread_id |
 | 12 | Time Tool | Tool | `get_time` - Get current time with timezone support |
@@ -38,6 +38,8 @@ This document defines the integration testing strategy for the Executive Assista
 - ~~Firecrawl~~ - config exists but tool not implemented (skip for now)
 - ~~Journal~~ - was unused dead config, now removed
 - ~~write_todos~~ - replaced with new todos system with LLM extraction
+- ~~email_delete~~ - removed (not needed)
+- ~~Vault tools~~ - legacy, not in default tools
 
 ---
 
@@ -404,6 +406,8 @@ Note: Todo Tool is for AGENT task planning, NOT user task management
 | 14.16 | Email Sync | Full backfill | "sync emails in full mode" | Backfills all history |
 | 14.17 | Email Isolation | Per-user | User A connects, User B lists | Different accounts |
 | 14.18 | Email Rate Limit | Too many syncs | Multiple rapid syncs | Cooldown applied |
+| 14.19 | Email Get | Auto mark read | "get email xyz" | Marks email as read |
+| 14.20 | Email List | Indicators | "list emails" | Shows 📬📭⭐📎 indicators |
 
 Note: Real email testing requires valid credentials. Gmail has 15 concurrent connection limit.
 
@@ -432,10 +436,12 @@ Note: Contacts are automatically parsed during email sync.
 | 16.3 | Todos Update | Status | "update todo abc123 to completed" | Status updated |
 | 16.4 | Todos Delete | Remove | "delete todo abc123" | Todo removed |
 | 16.5 | Todos Extract | From email | "extract todos from emails" | LLM extracts todos |
-| 16.6 | Todos Isolation | Per-user | User A adds, User B lists | Different todos |
-| 16.7 | Todos Email Ref | Email link | Todo has email_id | Links to source email |
+| 16.6 | Todos Extract | Skip duplicate | Extract again | Skips already extracted |
+| 16.7 | Todos Isolation | Per-user | User A adds, User B lists | Different todos |
+| 16.8 | Todos Email Ref | Email link | Todo has email_id | Links to source email |
+| 16.9 | Todos List | Filter status | "list pending todos" | Only pending shown |
 
-Note: Todos are automatically extracted from new emails during sync using LLM.
+Note: Todos are automatically extracted from new emails during sync using LLM. Already extracted emails are skipped.
 
 ### CLI Channel
 

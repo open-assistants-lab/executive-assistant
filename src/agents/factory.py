@@ -80,11 +80,6 @@ class AgentFactory:
                 "allowed_decisions": ["approve", "edit", "reject"],
             }
 
-        # Add email delete tool
-        interrupt_config["email_delete"] = {
-            "allowed_decisions": ["approve", "edit", "reject"],
-        }
-
         if interrupt_config:
             middleware.append(HumanInTheLoopMiddleware(interrupt_on=interrupt_config))
             logger.info(
