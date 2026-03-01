@@ -398,6 +398,21 @@ Note: Todo Tool is for AGENT task planning, NOT user task management
 
 Note: Real email testing requires valid credentials.
 
+### Contacts Tests
+
+| # | Feature | Test | Method | Expected Result |
+|---|---------|------|--------|-----------------|
+| 15.1 | Contacts List | List all | "show my contacts" | Returns contact list |
+| 15.2 | Contacts Get | Single | "get contact john@email.com" | Returns contact details |
+| 15.3 | Contacts Add | Manual | "add contact john@company.com name 'John Doe'" | Contact added |
+| 15.4 | Contacts Update | Update | "update contact john@company.com phone 123456" | Contact updated |
+| 15.5 | Contacts Delete | Remove | "delete contact john@company.com" | Contact removed |
+| 15.6 | Contacts Search | By name | "search contacts John" | Returns matches |
+| 15.7 | Contacts Search | By email | "search contacts @company.com" | Returns matches |
+| 15.8 | Contacts Parse | From email | After sync, check contacts | Parsed from emails |
+
+Note: Contacts are automatically parsed during email sync.
+
 ### CLI Channel
 
 Same tests via `ea cli` command interface.

@@ -1,6 +1,7 @@
-"""Email sync - backfill and interval sync."""
+"""Email sync - backfill and interval sync with rate limit handling."""
 
 import asyncio
+import time
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -14,6 +15,8 @@ from src.config import get_settings
 
 logger = get_logger()
 SETTINGS = get_settings()
+
+RATE_LIMIT_COOLDOWN: dict[str, float] = {}
 
 
 def _get_db_path(user_id: str) -> str:
@@ -360,8 +363,31 @@ async def _sync_emails(
     mode: str = "new",
     limit: int = 100,
 ) -> int:
-    """Async wrapper for sync_folder."""
-    return await asyncio.to_thread(_sync_folder, account_id, folder, mode, limit, user_id)
+    """Async wrapper for sync_folder with rate limit handling."""
+    cooldown_key = f"{user_id}:{account_id}"
+
+    if cooldown_key in RATE_LIMIT_COOLDOWN:
+        cooldown_until = RATE_LIMIT_COOLDOWN[cooldown_key]
+        if time.time() < cooldown_until:
+            logger.info(
+                "email_sync.rate_limited",
+                {"account_id": account_id, "cooldown_seconds": int(cooldown_until - time.time())},
+            )
+            return 0
+
+    try:
+        return await asyncio.to_thread(_sync_folder, account_id, folder, mode, limit, user_id)
+    except Exception as e:
+        error_str = str(e).lower()
+        if "too many simultaneous connections" in error_str or "rate limit" in error_str:
+            cooldown_minutes = getattr(SETTINGS.email_sync, "cooldown_minutes", 15)
+            RATE_LIMIT_COOLDOWN[cooldown_key] = time.time() + (cooldown_minutes * 60)
+            logger.warning(
+                "email_sync.rate_limited",
+                {"account_id": account_id, "cooldown_minutes": cooldown_minutes},
+            )
+            return 0
+        raise
 
 
 def start_background_sync(user_id: str, account_id: str) -> None:
@@ -450,6 +476,20 @@ async def _sync_all_accounts() -> None:
     for user_id in user_ids:
         accounts = _load_accounts(user_id)
         for account_id, account in accounts.items():
+            cooldown_key = f"{user_id}:{account_id}"
+
+            if cooldown_key in RATE_LIMIT_COOLDOWN:
+                cooldown_until = RATE_LIMIT_COOLDOWN[cooldown_key]
+                if time.time() < cooldown_until:
+                    logger.info(
+                        "email_sync.skipping_rate_limited",
+                        {
+                            "account": account["name"],
+                            "cooldown_remaining": int(cooldown_until - time.time()),
+                        },
+                    )
+                    continue
+
             try:
                 await _sync_emails(
                     user_id=user_id,
@@ -459,10 +499,19 @@ async def _sync_all_accounts() -> None:
                     limit=batch_size,
                 )
             except Exception as e:
-                logger.error(
-                    "email_sync.account_error",
-                    {"account": account["name"], "error": str(e)},
-                )
+                error_str = str(e).lower()
+                if "too many simultaneous connections" in error_str or "rate limit" in error_str:
+                    cooldown_minutes = getattr(SETTINGS.email_sync, "cooldown_minutes", 15)
+                    RATE_LIMIT_COOLDOWN[cooldown_key] = time.time() + (cooldown_minutes * 60)
+                    logger.warning(
+                        "email_sync.rate_limited",
+                        {"account": account["name"], "cooldown_minutes": cooldown_minutes},
+                    )
+                else:
+                    logger.error(
+                        "email_sync.account_error",
+                        {"account": account["name"], "error": str(e)},
+                    )
 
 
 @tool

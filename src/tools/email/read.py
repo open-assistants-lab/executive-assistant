@@ -1,30 +1,14 @@
 """Email read tools - list, get, search."""
 
 from datetime import UTC, datetime
-from pathlib import Path
 
 from langchain_core.tools import tool
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 
 from src.app_logging import get_logger
-from src.tools.email.account import _get_account_id_by_name
+from src.tools.email.db import get_account_id_by_name, get_engine
 
 logger = get_logger()
-
-
-def _get_db_path(user_id: str) -> str:
-    """Get SQLite database path for user."""
-    if not user_id or user_id == "default":
-        raise ValueError(f"Invalid user_id: {user_id}")
-    cwd = Path.cwd()
-    base_dir = cwd / "data" / "users" / user_id / "email"
-    return str(base_dir / "emails.db")
-
-
-def _get_engine(user_id: str):
-    """Get SQLAlchemy engine."""
-    db_path = _get_db_path(user_id)
-    return create_engine(f"sqlite:///{db_path}")
 
 
 @tool
@@ -48,11 +32,11 @@ def email_list(
     if not user_id:
         return "Error: user_id is required."
 
-    account_id = _get_account_id_by_name(account_name, user_id)
+    account_id = get_account_id_by_name(account_name, user_id)
     if not account_id:
         return f"Error: Account '{account_name}' not found."
 
-    engine = _get_engine(user_id)
+    engine = get_engine(user_id)
     limit = min(limit, 100)
 
     with engine.connect() as conn:
@@ -97,7 +81,7 @@ def email_list(
             (subject[:50] + "...") if subject and len(subject) > 50 else subject or "(No subject)"
         )
 
-        date_str = datetime.fromtimestamp(ts, UTC).strftime("%Y-%m-%d %H:%M")
+        date_str = datetime.fromtimestamp(ts, UTC).strftime("%Y-%m-%d %H:%M") if ts else "Unknown"
 
         output += f"{i}. {read_str}{flag_str}{attach_str}{reply_str} {from_display}\n"
         output += f"   {subject_preview}\n"
@@ -126,11 +110,11 @@ def email_get(
     if not user_id:
         return "Error: user_id is required."
 
-    account_id = _get_account_id_by_name(account_name, user_id)
+    account_id = get_account_id_by_name(account_name, user_id)
     if not account_id:
         return f"Error: Account '{account_name}' not found."
 
-    engine = _get_engine(user_id)
+    engine = get_engine(user_id)
 
     with engine.connect() as conn:
         result = conn.execute(
@@ -152,7 +136,11 @@ def email_get(
     to_list = row["to_addrs"].replace(",", ", ") if row["to_addrs"] else ""
     cc_list = row["cc_addrs"].replace(",", ", ") if row["cc_addrs"] else ""
 
-    date_str = datetime.fromtimestamp(row["timestamp"], UTC).strftime("%Y-%m-%d %H:%M:%S")
+    date_str = (
+        datetime.fromtimestamp(row["timestamp"], UTC).strftime("%Y-%m-%d %H:%M:%S")
+        if row["timestamp"]
+        else "Unknown"
+    )
 
     output = f"""From: {from_display}
 To: {to_list}
@@ -203,11 +191,11 @@ def email_search(
     if not query:
         return "Error: query is required."
 
-    account_id = _get_account_id_by_name(account_name, user_id)
+    account_id = get_account_id_by_name(account_name, user_id)
     if not account_id:
         return f"Error: Account '{account_name}' not found."
 
-    engine = _get_engine(user_id)
+    engine = get_engine(user_id)
     limit = min(limit, 100)
     search_pattern = f"%{query}%"
 
@@ -248,7 +236,7 @@ def email_search(
             (subject[:50] + "...") if subject and len(subject) > 50 else subject or "(No subject)"
         )
 
-        date_str = datetime.fromtimestamp(ts, UTC).strftime("%Y-%m-%d %H:%M")
+        date_str = datetime.fromtimestamp(ts, UTC).strftime("%Y-%m-%d %H:%M") if ts else "Unknown"
 
         output += f"{i}. {read_str}{flag_str}{attach_str} {from_display}\n"
         output += f"   {subject_preview}\n"

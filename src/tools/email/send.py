@@ -1,75 +1,17 @@
 """Email send tool."""
 
-from pathlib import Path
-
 from langchain_core.tools import tool
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 
 from src.app_logging import get_logger
+from src.tools.email.db import get_account_id_by_name, get_engine, load_accounts
 
 logger = get_logger()
 
 
-def _get_db_path(user_id: str) -> str:
-    """Get SQLite database path for user."""
-    if not user_id or user_id == "default":
-        raise ValueError(f"Invalid user_id: {user_id}")
-    cwd = Path.cwd()
-    base_dir = cwd / "data" / "users" / user_id / "email"
-    base_dir.mkdir(parents=True, exist_ok=True)
-    return str(base_dir / "emails.db")
-
-
-def _get_engine(user_id: str):
-    """Get SQLAlchemy engine."""
-    db_path = _get_db_path(user_id)
-    return create_engine(f"sqlite:///{db_path}")
-
-
-def _load_accounts(user_id: str) -> dict:
-    """Load accounts from database."""
-    engine = _get_engine(user_id)
-
-    with engine.connect() as conn:
-        result = conn.execute(text("SELECT * FROM accounts"))
-        accounts = {}
-        for row in result:
-            row_dict = dict(row._mapping)
-            accounts[row_dict["id"]] = {
-                "id": row_dict["id"],
-                "name": row_dict["name"],
-                "email": row_dict.get("email", ""),
-                "password": row_dict.get("password", ""),
-                "imap_host": row_dict.get("imap_host", ""),
-                "imap_port": row_dict.get("imap_port", 993),
-                "smtp_host": row_dict.get("smtp_host", ""),
-                "smtp_port": row_dict.get("smtp_port", 587),
-                "provider": row_dict.get("provider", ""),
-                "folders": row_dict.get("folders", "").split(",")
-                if row_dict.get("folders")
-                else [],
-                "last_sync": row_dict.get("last_sync"),
-                "last_timestamp": row_dict.get("last_timestamp"),
-                "status": row_dict.get("status", "connected"),
-                "created_at": row_dict.get("created_at"),
-            }
-        return accounts
-
-
-def _get_account_id_by_name(account_name: str, user_id: str) -> str | None:
-    """Get account ID by name or email."""
-    accounts = _load_accounts(user_id)
-    for acc_id, acc in accounts.items():
-        if acc.get("name") == account_name:
-            return acc_id
-        if acc.get("email") == account_name:
-            return acc_id
-    return None
-
-
-def _get_email_by_id(email_id: str, account_id: str, user_id: str) -> dict | None:
+def get_email_by_id(email_id: str, account_id: str, user_id: str) -> dict | None:
     """Get email by ID from local DB."""
-    engine = _get_engine(user_id)
+    engine = get_engine(user_id)
     with engine.connect() as conn:
         result = conn.execute(
             text("""
@@ -84,7 +26,7 @@ def _get_email_by_id(email_id: str, account_id: str, user_id: str) -> dict | Non
     return None
 
 
-def _send_via_smtp(
+def send_via_smtp(
     account_name: str,
     to: list[str],
     subject: str,
@@ -93,8 +35,8 @@ def _send_via_smtp(
     user_id: str = "",
 ) -> dict:
     """Send email via SMTP."""
-    accounts = _load_accounts(user_id)
-    account_id = _get_account_id_by_name(account_name, user_id)
+    accounts = load_accounts(user_id)
+    account_id = get_account_id_by_name(account_name, user_id)
     if not account_id:
         return {"success": False, "error": f"Account '{account_name}' not found"}
 
@@ -169,11 +111,11 @@ def email_send(
 
     original_email = None
     if reply_to:
-        account_id = _get_account_id_by_name(account_name, user_id)
+        account_id = get_account_id_by_name(account_name, user_id)
         if not account_id:
             return f"Error: Account '{account_name}' not found."
 
-        original_email = _get_email_by_id(reply_to, account_id, user_id)
+        original_email = get_email_by_id(reply_to, account_id, user_id)
         if not original_email:
             return f"Error: Email {reply_to} not found."
 
@@ -182,7 +124,7 @@ def email_send(
         sender = original_email.get("from_addr", "")
 
         if reply_all:
-            accounts = _load_accounts(user_id)
+            accounts = load_accounts(user_id)
             self_email = accounts.get(account_id, {}).get("email", "")
 
             to_list = [sender]
@@ -207,7 +149,7 @@ def email_send(
         cc_list = [c.strip() for c in cc.split(",")] if cc else None
 
     try:
-        result = _send_via_smtp(
+        result = send_via_smtp(
             account_name=account_name,
             to=to_list,
             subject=subject,

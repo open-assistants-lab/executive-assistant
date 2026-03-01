@@ -162,6 +162,14 @@ def get_model() -> BaseChatModel:
 def get_default_tools(user_id: str) -> list[Any]:
     """Get default tools for a user with proper user_id binding."""
     from src.skills.example_constrained_tool import write_sql_query
+    from src.tools.contacts import (
+        contacts_add,
+        contacts_delete,
+        contacts_get,
+        contacts_list,
+        contacts_search,
+        contacts_update,
+    )
     from src.tools.email import (
         email_accounts,
         email_connect,
@@ -191,7 +199,13 @@ def get_default_tools(user_id: str) -> list[Any]:
     from src.tools.memory import get_conversation_history, search_conversation_hybrid
     from src.tools.shell import run_shell
     from src.tools.time import get_time
-    from src.tools.todo import write_todos
+    from src.tools.todos import (
+        todos_add,
+        todos_delete,
+        todos_extract,
+        todos_list,
+        todos_update,
+    )
 
     return [
         get_conversation_history,
@@ -204,7 +218,11 @@ def get_default_tools(user_id: str) -> list[Any]:
         glob_search,
         grep_search,
         run_shell,
-        write_todos,
+        todos_list,
+        todos_add,
+        todos_update,
+        todos_delete,
+        todos_extract,
         get_time,
         scrape_url,
         search_web,
@@ -221,6 +239,12 @@ def get_default_tools(user_id: str) -> list[Any]:
         email_get,
         email_search,
         email_send,
+        contacts_list,
+        contacts_get,
+        contacts_add,
+        contacts_update,
+        contacts_delete,
+        contacts_search,
     ]
 
 

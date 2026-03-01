@@ -62,8 +62,10 @@ Tracking implementation progress for the Executive Assistant agent.
 - [x] Multi-account support with account names
 - [x] Auto-backfill sync on connect (newest → earliest)
 - [x] Interval sync from config.yaml
+- [x] Contacts parsed from email during sync
 - [x] Email tools: email_connect, email_disconnect, email_accounts, email_list, email_get, email_search, email_send, email_sync
 - [x] Reply & Reply All support
+- [ ] Contacts CRUD (add, update, delete, search)
 
 ### Skills System (Agent Skills Compatible)
 
@@ -368,6 +370,41 @@ email_sync:
 - Stored directly in accounts SQLite DB
 - No encryption (simplified - can add later if needed)
 - Per-user isolation via user_id
+
+**Contacts Parsing (During Email Sync):**
+
+When syncing emails, parse contacts from:
+- From: sender email + name
+- To:/CC: recipients
+- Reply-To: alternate address
+
+```python
+# In sync.py, after fetching email:
+def _parse_contacts_from_email(msg) -> list[dict]:
+    contacts = []
+    
+    # From
+    if msg.from_:
+        contacts.append({
+            "email": msg.from_,
+            "name": msg.from_values.name if msg.from_values else None,
+        })
+    
+    # To/CC
+    for addr in (msg.to or []) + (msg.cc or []):
+        contacts.append({"email": str(addr)})
+    
+    return contacts
+```
+
+**Contacts CRUD:**
+- [ ] `contacts_list` - List contacts
+- [ ] `contacts_get` - Get single contact
+- [ ] `contacts_add` - Add manual contact
+- [ ] `contacts_update` - Update contact
+- [ ] `contacts_delete` - Delete contact
+- [ ] `contacts_search` - Search contacts
+- [ ] `contacts_merge` - Merge duplicates
 
 **Email Style Learning:**
 

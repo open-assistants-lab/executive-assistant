@@ -98,5 +98,8 @@ shell_tool:
 email_sync:
   enabled: true
   interval_minutes: 5  # How often to poll for new emails
-  batch_size: 100      # Emails per batch (for initial backfill)
-  backfill_limit: 1000 # Max emails to backfill initially (0 = unlimited)
+  batch_size: 50        # Emails per batch (lower to avoid rate limits)
+  backfill_limit: 100   # Max emails to backfill initially (lower to avoid rate limits)
+  max_retries: 3        # Max retries on rate limit error
+  retry_delay: 30       # Seconds to wait before retry
+  cooldown_minutes: 15  # Minutes to wait after rate limit detected
