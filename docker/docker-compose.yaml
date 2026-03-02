@@ -1,35 +1,59 @@
 services:
-  postgres:
-    image: postgres:18
-    container_name: ea_postgres
-    environment:
-      POSTGRES_USER: ea
-      POSTGRES_PASSWORD: testpassword123
-      POSTGRES_DB: ea_db
+  # Caddy reverse proxy with automatic HTTPS
+  caddy:
+    image: caddy:2-alpine
+    container_name: ea_caddy
     ports:
-      - "5432:5432"
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
     volumes:
-      - postgres_data:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ea"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+    restart: unless-stopped
 
+  # Executive Assistant HTTP API
   app:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: ea_app
+    command: ["uv", "run", "ea", "http"]
     environment:
-      DATABASE_URL: postgresql+asyncpg://ea:testpassword123@postgres:5432/ea_db
-      OLLAMA_API_KEY: ${OLLAMA_API_KEY}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-https://ollama.com}
-    depends_on:
-      postgres:
-        condition: service_healthy
+      # Ollama LLM (use your local or cloud instance)
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      
+      # Firecrawl for web search/scraping (self-hosted or cloud)
+      # Self-hosted: set FIRECRAWL_BASE_URL (no key needed)
+      # Cloud: set FIRECRAWL_API_KEY (get from firecrawl.dev)
+      FIRECRAWL_BASE_URL: ${FIRECRAWL_BASE_URL:-}
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      
+      # Telegram Bot (get from @BotFather)
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      
+      # Database (we use SQLite per-user)
+      DATA_DIR: /app/data
+      
+      # App settings
+      HOST: "0.0.0.0"
+      PORT: "8000"
+      
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
-      - ../data:/app/data
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
-  postgres_data:
+  caddy_data:
+  caddy_config:
