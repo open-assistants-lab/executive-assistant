@@ -53,7 +53,8 @@ Tracking implementation progress for the Executive Assistant agent.
 ### Memory System (SQLite + FTS5 + ChromaDB)
 - [x] Custom MemoryStore with SQLite + FTS5 + ChromaDB
 - [x] Hybrid search (FTS5 keyword + ChromaDB semantic)
-- [x] Memory tools: search_conversation_hybrid, get_conversation_history
+- [x] memory_get_history - get conversation history
+- [x] memory_search - hybrid keyword + semantic search
 
 ### Email Integration (IMAP/SMTP)
 - [x] IMAP client for reading emails
@@ -90,11 +91,15 @@ Tracking implementation progress for the Executive Assistant agent.
 - [x] shell_execute - restricted command execution
 - [x] Configurable allowed commands
 
-### Memory Tools
-- [x] memory_get_history
-- [x] memory_search (keyword + semantic)
+### Time Tool
+- [x] time_get - get current time with timezone support
 
 ### Skills System (Agent Skills Compatible)
+
+### Interface
+- [x] HTTP server (FastAPI, /message, /message/stream endpoints)
+- [x] CLI (rich terminal UI with multi-line input)
+- [x] Telegram bot
 
 **Reference:**
 - https://docs.langchain.com/oss/python/langchain/multi-agent/skills-sql-assistant
@@ -132,7 +137,7 @@ description: Extract text and tables from PDF files, fill forms, merge documents
 | Level | When | Our Implementation |
 |-------|------|-------------------|
 | Level 1: Metadata (~100 tokens) | Startup | SkillMiddleware → system prompt |
-| Level 2: Instructions | On trigger | load_skill tool → returns SKILL.md |
+| Level 2: Instructions | On trigger | skills_load tool → returns SKILL.md |
 | Level 3: Resources | As needed | Search within skill content |
 
 **Architecture:**
@@ -142,7 +147,7 @@ description: Extract text and tables from PDF files, fill forms, merge documents
    - Injects into system prompt at runtime
    - Enables live refresh for skill updates
 
-2. **load_skill tool**
+2. **skills_load tool**
    - Returns full SKILL.md content when triggered
    - Progressive disclosure: description in prompt, content via tool
    - Optional: track loaded skills in custom state
@@ -169,7 +174,7 @@ description: Extract text and tables from PDF files, fill forms, merge documents
 - [x] Implement skill storage layer (file-based, directory scanning)
 - [x] Implement skill registry (combine system + user skills)
 - [x] Create SkillMiddleware with `before_agent` hook
-- [x] Implement `load_skill` tool
+- [x] Implement `skills_load` tool
 - [x] Implement custom state for tracking loaded skills
 - [x] Implement skill-gated tool pattern
 - [x] Add CLI commands for skill management

@@ -431,7 +431,11 @@ async def start_interval_sync() -> None:
 
     _running = True
     _scheduler_task = asyncio.create_task(_run_interval_sync())
-    logger.info("email_sync.started", {"interval_minutes": SETTINGS.email_sync.interval_minutes})
+    logger.info(
+        "email_sync.started",
+        {"interval_minutes": SETTINGS.email_sync.interval_minutes},
+        user_id="system",
+    )
 
 
 async def stop_interval_sync() -> None:
@@ -447,7 +451,7 @@ async def stop_interval_sync() -> None:
             pass
         _scheduler_task = None
 
-    logger.info("email_sync.stopped")
+    logger.info("email_sync.stopped", user_id="system")
 
 
 async def _run_interval_sync() -> None:

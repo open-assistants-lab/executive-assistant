@@ -72,11 +72,13 @@ def send_via_smtp(
         server.sendmail(email, all_recipients, msg.as_string())
         server.quit()
 
-        logger.info("email_sent", {"account": account_name, "to": to})
+        logger.info("email_sent", {"account": account_name, "to": to}, user_id=user_id)
 
         return {"success": True, "message": f"Email sent to {', '.join(to)}"}
     except Exception as e:
-        logger.error("email_send_error", {"account": account_name, "error": str(e)})
+        logger.error(
+            "email_send_error", {"account": account_name, "error": str(e)}, user_id=user_id
+        )
         return {"success": False, "error": str(e)}
 
 
@@ -166,5 +168,7 @@ def email_send(
             return f"Error: {result['error']}"
 
     except Exception as e:
-        logger.error("email_send_error", {"account": account_name, "error": str(e)})
+        logger.error(
+            "email_send_error", {"account": account_name, "error": str(e)}, user_id=user_id
+        )
         return f"Error sending email: {e}"

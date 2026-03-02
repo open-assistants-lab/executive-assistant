@@ -118,7 +118,9 @@ async def get_agent_pool(user_id: str) -> AgentPool:
         if user_id not in _agent_pools:
             pool_size = _get_pool_size()
             _agent_pools[user_id] = AgentPool(user_id, pool_size)
-            logger.info("agent_pool.created", {"user_id": user_id, "pool_size": pool_size})
+            logger.info(
+                "agent_pool.created", {"user_id": user_id, "pool_size": pool_size}, user_id=user_id
+            )
         return _agent_pools[user_id]
 
 
@@ -148,6 +150,39 @@ async def run_agent(
     return result  # type: ignore[return-value]
 
 
+async def run_agent_stream(
+    user_id: str,
+    messages: list[Any],
+    message: str,
+):
+    """Run agent with streaming - yields chunks for real-time output.
+
+    Args:
+        user_id: User identifier
+        messages: Previous conversation messages
+        message: Current user message
+
+    Yields:
+        Chunks of the agent's response
+    """
+    pool = await get_agent_pool(user_id)
+
+    async with pool.acquire() as instance:
+        config = pool.get_config(instance)
+
+        from src.app_logging import get_logger
+
+        app_logger = get_logger()
+        if app_logger.langfuse_handler:
+            config["callbacks"] = [app_logger.langfuse_handler]
+
+        async for chunk in instance.agent.astream(
+            {"messages": messages},
+            config=config,
+        ):
+            yield chunk
+
+
 def get_model() -> BaseChatModel:
     """Get or create the shared model."""
     global _model
@@ -155,7 +190,11 @@ def get_model() -> BaseChatModel:
         _model = create_model_from_config()
         model_name = getattr(_model, "model", "unknown")
         provider = getattr(_model, "_provider", "ollama")
-        logger.info("agent_manager.model_initialized", {"provider": provider, "model": model_name})
+        logger.info(
+            "agent_manager.model_initialized",
+            {"provider": provider, "model": model_name},
+            user_id="system",
+        )
     return _model
 
 
@@ -264,7 +303,7 @@ def reset_agent(user_id: str = "default") -> None:
     """Reset agent pool for a user."""
     if user_id in _agent_pools:
         del _agent_pools[user_id]
-    logger.info("agent_manager.agent_reset", {"user_id": user_id})
+    logger.info("agent_manager.agent_reset", {"user_id": user_id}, user_id=user_id)
 
 
 def reset_all() -> None:

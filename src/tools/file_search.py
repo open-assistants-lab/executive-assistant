@@ -70,7 +70,9 @@ def files_glob_search(pattern: str = "**/*", path: str = ".", user_id: str = "de
 
         return "\n".join(["", *results, f"\n{len(results)} files found"])
     except Exception as e:
-        logger.error("files_glob_search.error", {"pattern": pattern, "error": str(e)})
+        logger.error(
+            "files_glob_search.error", {"pattern": pattern, "error": str(e)}, user_id=user_id
+        )
         return f"Error: {e}"
 
 
@@ -149,5 +151,7 @@ def files_grep_search(
 
         return "\n".join(["", *result, ""])
     except Exception as e:
-        logger.error("files_grep_search.error", {"pattern": pattern, "error": str(e)})
+        logger.error(
+            "files_grep_search.error", {"pattern": pattern, "error": str(e)}, user_id=user_id
+        )
         return f"Error: {e}"

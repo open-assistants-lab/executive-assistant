@@ -69,7 +69,7 @@ All tools follow `category_{verb}` pattern:
 - Skills stored as `SKILL.md` files with YAML frontmatter
 - System skills: `src/skills/{skill_name}/SKILL.md`
 - User skills: `data/users/{user_id}/skills/{skill_name}/SKILL.md`
-- `load_skill` tool returns full content + updates `runtime.state.skills_loaded`
+- `skills_load` tool returns full content + updates `runtime.state.skills_loaded`
 
 **Test Approach:** Natural language interaction to verify agent discovers/loads skills
 
@@ -86,23 +86,23 @@ All tools follow `category_{verb}` pattern:
 ### 3. File Search Tools
 
 **Implementation:**
-- `glob_search`: Find files by pattern (e.g., `*.py`, `**/*.json`)
-- `grep_search`: Search file contents using regex
+- `files_glob_search`: Find files by pattern (e.g., `*.py`, `**/*.json`)
+- `files_grep_search`: Search file contents using regex
 
 **Test Approach:** Natural language to find files
 
-### 4. Todo Tool (`write_todos`)
+### 4. Todo System
 
-**Purpose:** For the **AGENT** to track its own planning tasks, NOT for user task management
+**Purpose:** For USER task management with LLM extraction from emails
 
 **Implementation:**
-- Actions: list, add, update, delete, replace
-- Status: pending, in_progress, completed
-- Per-user storage (in-memory for current session)
+- CRUD: todos_list, todos_add, todos_update, todos_delete
+- LLM extraction from emails during sync
+- Source: email (auto-extracted) or manual
 
-**Test Approach:** Ask agent to "plan a trip" → agent uses todo internally
+**Test Approach:** Add todo manually, extract from emails
 
-### 5. Shell Tool (`run_shell`)
+### 5. Shell Tool (`shell_execute`)
 
 **Implementation:**
 - Allowed commands (after config change): `python3`, `node`, `echo`, `date`, `whoami`, `pwd`
@@ -506,7 +506,7 @@ Same tests via `ea cli` command interface.
 
 ### Natural Language Requirement
 Tests MUST use natural language, not:
-- ❌ "list_skills tool"
+- ❌ "skills_list tool"
 - ✅ "what skills do I have?"
 
 ### Limitation Acknowledged

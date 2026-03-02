@@ -114,6 +114,7 @@ async def handle_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
         response = None
         tool_results = []
+        tool_names_used = []
 
         for msg in messages:
             msg_type = getattr(msg, "type", None)
@@ -127,12 +128,14 @@ async def handle_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             content = getattr(msg, "content", None)
             if msg_type == "ai":
                 tool_calls = getattr(msg, "tool_calls", None)
+                if tool_calls:
+                    for tc in tool_calls:
+                        tool_names_used.append(tc.get("name", "unknown"))
                 if tool_calls and tool_results:
                     response = "\n".join(tool_results)
                     break
                 if tool_calls:
-                    tool_names = [tc.get("name", "unknown") for tc in tool_calls]
-                    response = f"Tool(s) executed: {', '.join(tool_names)}"
+                    response = f"Tool(s) executed: {', '.join(tool_names_used)}"
                     break
                 if content and content.strip():
                     response = content
@@ -141,11 +144,49 @@ async def handle_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         if not response:
             response = "Task completed."
 
-        conversation.add_message("assistant", response)
+        # Tool-based detection: research tools likely produce long responses
+        LONG_OUTPUT_TOOLS = {
+            "search_web",
+            "scrape_url",
+            "crawl_url",
+            "map_url",
+            "files_grep_search",
+        }
+        is_research_output = bool(LONG_OUTPUT_TOOLS.intersection(set(tool_names_used)))
 
-        # Stop typing indicator
-        typing_task.cancel()
-        await update.message.reply_text(response)
+        if is_research_output and len(response) > 1000:
+            # Summary stays under Telegram's 4096 limit
+            summary = response[:4000] + "\n\n... (full response in file)"
+
+            # Stop typing indicator
+            typing_task.cancel()
+
+            # Send summary first (under 4096 chars)
+            await update.message.reply_text(summary)
+
+            # Send full response as file
+            from telegram import InputFile
+            import tempfile
+            import os
+
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+                f.write(response)
+                temp_path = f.name
+
+            try:
+                with open(temp_path, "rb") as f:
+                    await update.message.reply_document(
+                        document=InputFile(f, filename="response.txt"), caption="Full response"
+                    )
+            finally:
+                os.unlink(temp_path)
+
+            conversation.add_message("assistant", response)
+        else:
+            # Stop typing indicator
+            typing_task.cancel()
+            conversation.add_message("assistant", response)
+            await update.message.reply_text(response)
 
     except Exception as e:
         typing_task.cancel()

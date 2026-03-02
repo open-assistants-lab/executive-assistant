@@ -10,7 +10,6 @@ class TestConfigValidation:
 
     def test_agent_config_valid(self):
         """Test valid agent configuration."""
-        # Import after setting env vars
         os.environ["OLLAMA_API_KEY"] = "test-key"
         os.environ["OLLAMA_BASE_URL"] = "https://api.ollama.cloud/v1"
 
@@ -20,12 +19,13 @@ class TestConfigValidation:
         assert config.name == "Test Agent"
         assert config.model == "ollama:test-model"
 
-    def test_agent_config_missing_model(self):
-        """Test agent config requires model."""
+    def test_agent_config_defaults(self):
+        """Test agent config has defaults."""
         from src.config.settings import AgentConfig
 
-        with pytest.raises(ValidationError):
-            AgentConfig(name="Test Agent")
+        config = AgentConfig()
+        assert config.name == "Executive Assistant"
+        assert config.model == "ollama:minimax-m2.5"
 
 
 class TestDatabaseConfig:

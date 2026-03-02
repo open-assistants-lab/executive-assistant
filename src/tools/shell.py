@@ -101,12 +101,14 @@ def shell_execute(command: str, user_id: str = "default") -> str:
                 + f"\n... (truncated, output exceeded {config['max_output_kb']}KB)"
             )
 
-        logger.info("shell_execute", {"command": command, "return_code": result.returncode})
+        logger.info(
+            "shell_execute", {"command": command, "return_code": result.returncode}, user_id=user_id
+        )
         return output or "(no output)"
 
     except subprocess.TimeoutExpired:
         config = _get_shell_config()
         return f"Error: Command timed out after {config['timeout_seconds']} seconds"
     except Exception as e:
-        logger.error("shell_execute.error", {"command": command, "error": str(e)})
+        logger.error("shell_execute.error", {"command": command, "error": str(e)}, user_id=user_id)
         return f"Error: {e}"

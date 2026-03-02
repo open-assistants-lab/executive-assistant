@@ -64,10 +64,12 @@ def email_connect(
 
         with MailBox(imap_host, imap_port).login(email, password) as mailbox:
             folder_list = [f.name for f in mailbox.folder.list()]
-            logger.info("email.connect_success", {"account": email, "folders": folder_list})
+            logger.info(
+                "email.connect_success", {"account": email, "folders": folder_list}, user_id=user_id
+            )
 
     except Exception as e:
-        logger.error("email.connect_failed", {"account": email, "error": str(e)})
+        logger.error("email.connect_failed", {"account": email, "error": str(e)}, user_id=user_id)
         return f"Error: Failed to connect to email: {e}\n\nTip: If you have 2FA enabled, use an app password."
 
     # Check if account already exists

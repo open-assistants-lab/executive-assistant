@@ -9,7 +9,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langfuse import propagate_attributes
 from pydantic import BaseModel
 
-from src.agents.manager import run_agent
+from src.agents.manager import run_agent, run_agent_stream
 from src.storage.conversation import get_conversation_store
 
 # Store pending approvals: user_id -> interrupt data
@@ -183,7 +183,7 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
 
         conversation.add_message("assistant", response)
 
-        logger.info("agent.response", {"response": response}, channel="http")
+        logger.info("agent.response", {"response": response}, user_id=user_id, channel="http")
 
         return MessageResponse(response=response)
 
@@ -193,7 +193,7 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
 
 @app.post("/message/stream")
 async def message_stream(req: MessageRequest):
-    """Send a message and stream response."""
+    """Send a message and stream response using SSE."""
     try:
         user_id = req.user_id or "default"
 
@@ -206,15 +206,60 @@ async def message_stream(req: MessageRequest):
             for m in recent_messages
         ] + [HumanMessage(content=req.message)]
 
+        from src.app_logging import get_logger
+
+        logger = get_logger()
+
         async def generate():
-            result = await run_agent(
+            all_messages = []
+            tool_results = []
+
+            async for chunk in run_agent_stream(
                 user_id=user_id,
                 messages=langgraph_messages,
                 message=req.message,
-            )
-            response = result["messages"][-1].content
+            ):
+                chunk_type = getattr(chunk, "type", None)
+
+                if chunk_type == "tool":
+                    content = getattr(chunk, "content", None)
+                    if content:
+                        tool_results.append(content)
+                        yield f"data: {json.dumps({'type': 'tool', 'content': content})}\n\n"
+
+                elif chunk_type == "ai":
+                    content = getattr(chunk, "content", "")
+                    if content:
+                        yield f"data: {json.dumps({'type': 'ai', 'content': content})}\n\n"
+
+                all_messages.append(chunk)
+
+            response = None
+            for msg in reversed(all_messages):
+                msg_type = getattr(msg, "type", None)
+                content = getattr(msg, "content", None)
+                if msg_type == "ai":
+                    tool_calls = getattr(msg, "tool_calls", None)
+                    if tool_calls and tool_results:
+                        response = "\n".join(tool_results)
+                        break
+                    if tool_calls:
+                        tool_names = [tc.get("name", "unknown") for tc in tool_calls]
+                        response = f"Tool(s) executed: {', '.join(tool_names)}"
+                        break
+                    if content and content.strip():
+                        response = content
+                        break
+
+            if not response:
+                response = "Task completed."
+
             conversation.add_message("assistant", response)
-            yield f"data: {response}\n\n"
+            logger.info("agent.response", {"response": response}, user_id=user_id, channel="http")
+
+            yield f"data: {json.dumps({'type': 'done', 'content': response})}\n\n"
+
+        import json
 
         return StreamingResponse(generate(), media_type="text/event-stream")
 

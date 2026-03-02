@@ -59,7 +59,7 @@ def list_files(path: str = ".", user_id: str = "default") -> str:
 
         return "\n".join(["", *items, ""])
     except Exception as e:
-        logger.error("list_files.error", {"path": path, "error": str(e)})
+        logger.error("list_files.error", {"path": path, "error": str(e)}, user_id=user_id)
         return f"Error: {e}"
 
 
@@ -93,7 +93,7 @@ def read_file(path: str, offset: int = 0, limit: int = 100, user_id: str = "defa
         content = "\n".join(lines)
         return f"--- {path} ({offset}-{offset + len(lines)}/{total}) ---\n{content}"
     except Exception as e:
-        logger.error("read_file.error", {"path": path, "error": str(e)})
+        logger.error("read_file.error", {"path": path, "error": str(e)}, user_id=user_id)
         return f"Error: {e}"
 
 
@@ -114,10 +114,10 @@ def write_file(path: str, content: str, user_id: str = "default") -> str:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
 
-        logger.info("write_file", {"path": str(target), "size": len(content)})
+        logger.info("write_file", {"path": str(target), "size": len(content)}, user_id=user_id)
         return f"Written {len(content)} bytes to {path}"
     except Exception as e:
-        logger.error("write_file.error", {"path": path, "error": str(e)})
+        logger.error("write_file.error", {"path": path, "error": str(e)}, user_id=user_id)
         return f"Error: {e}"
 
 
@@ -148,10 +148,10 @@ def edit_file(path: str, old: str, new: str, user_id: str = "default") -> str:
         new_content = content.replace(old, new)
         target.write_text(new_content, encoding="utf-8")
 
-        logger.info("edit_file", {"path": str(target)})
+        logger.info("edit_file", {"path": str(target)}, user_id=user_id)
         return f"Edited {path}"
     except Exception as e:
-        logger.error("edit_file.error", {"path": path, "error": str(e)})
+        logger.error("edit_file.error", {"path": path, "error": str(e)}, user_id=user_id)
         return f"Error: {e}"
 
 
@@ -181,8 +181,8 @@ def delete_file(path: str, user_id: str = "default") -> str:
         else:
             target.unlink()
 
-        logger.info("delete_file", {"path": str(target)})
+        logger.info("delete_file", {"path": str(target)}, user_id=user_id)
         return f"Deleted {path}"
     except Exception as e:
-        logger.error("delete_file.error", {"path": path, "error": str(e)})
+        logger.error("delete_file.error", {"path": path, "error": str(e)}, user_id=user_id)
         return f"Error: {e}"

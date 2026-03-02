@@ -17,28 +17,30 @@ A general purpose executive assistant agent using LangChain create_agent() with 
 
 | Category | Tools |
 |----------|-------|
-| **Filesystem** | `list_files`, `read_file`, `write_file`, `edit_file`, `delete_file` |
-| **File Search** | `glob_search` (e.g., `*.py`, `**/*.json`), `grep_search` (regex) |
-| **Shell** | `run_shell` (restricted to: `python3`, `node`, `echo`, `date`, `whoami`, `pwd`) |
-| **Memory** | `get_conversation_history`, `search_conversation_hybrid` |
-| **Todos** | `write_todos` for multi-step task tracking |
-| **Time** | `get_time` with timezone support |
-| **Web** | `scrape_url`, `search_web`, `map_url` (requires FIRECRAWL_API_KEY) |
+| **Filesystem** | `list_files`, `read_file`, `write_file`, `edit_file`, `delete_file` (HITL) |
+| **File Search** | `files_glob_search` (e.g., `*.py`, `**/*.json`), `files_grep_search` (regex) |
+| **Shell** | `shell_execute` (restricted to: `python3`, `node`, `echo`, `date`, `whoami`, `pwd`) |
+| **Memory** | `memory_get_history`, `memory_search` |
+| **Todos** | `todos_list`, `todos_add`, `todos_update`, `todos_delete`, `todos_extract` |
+| **Contacts** | `contacts_list`, `contacts_get`, `contacts_add`, `contacts_update`, `contacts_delete`, `contacts_search` |
+| **Time** | `time_get` with timezone support |
+| **Web** | `scrape_url`, `search_web`, `map_url`, `crawl_url`, `get_crawl_status`, `cancel_crawl` (requires FIRECRAWL_API_KEY) |
 | **Email** | `email_connect`, `email_disconnect`, `email_accounts`, `email_list`, `email_get`, `email_search`, `email_send`, `email_sync` |
+| **Skills** | `skills_load`, `skills_list`, `sql_write_query` (skill-gated) |
 
 ### Progressive Disclosure
 
 Skills use a progressive disclosure pattern to optimize token usage:
 
-1. **List Skills** (`list_skills`) - See available skills with brief descriptions
-2. **Load Skill** (`load_skill`) - Load full skill content when needed
+1. **List Skills** (`skills_list`) - See available skills with brief descriptions
+2. **Load Skill** (`skills_load`) - Load full skill content when needed
 
 This follows the same pattern as [claude-mem](https://github.com/thedotmack/claude-mem)'s 3-layer memory workflow for token-efficient context retrieval.
 
 ### Channels
 
-- **HTTP API** - FastAPI server on port 8000
-- **CLI** - Interactive command-line interface
+- **HTTP API** - FastAPI server on port 8000 (`/message`, `/message/stream`, `/health`)
+- **CLI** - Interactive command-line interface with rich UI
 - **Telegram** - Telegram bot integration
 
 ## Quick Start

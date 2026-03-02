@@ -13,7 +13,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 
-from src.agents.manager import run_agent
+from src.agents.manager import run_agent_stream
 from src.storage.conversation import get_conversation_store
 
 console = Console()
@@ -94,7 +94,7 @@ class ExecutiveAssistantCLI:
 
     async def run(self):
         """Run the CLI."""
-        from src.app_logging import get_logger, timer
+        from src.app_logging import get_logger
 
         console.print(
             Panel(
@@ -130,30 +130,41 @@ class ExecutiveAssistantCLI:
                 console.print("[dim]Thinking...[/dim]")
 
                 logger = get_logger()
+                all_messages = []
 
-                with timer(
-                    "agent", {"message": user_input, "user_id": self.user_id}, channel="cli"
-                ):
-                    with propagate_attributes(user_id=self.user_id):
-                        result = await run_agent(
-                            user_id=self.user_id,
-                            messages=langgraph_messages,
-                            message=user_input,
-                        )
+                with propagate_attributes(user_id=self.user_id):
+                    async for chunk in run_agent_stream(
+                        user_id=self.user_id,
+                        messages=langgraph_messages,
+                        message=user_input,
+                    ):
+                        chunk_type = getattr(chunk, "type", None)
 
-                messages = result.get("messages", [])
+                        if chunk_type == "tool":
+                            content = getattr(chunk, "content", None)
+                            if content:
+                                console.print(f"[dim]Tool: {content[:100]}...[/dim]")
+
+                        elif chunk_type == "ai":
+                            content = getattr(chunk, "content", "")
+                            if content:
+                                console.print(content, end="")
+
+                        all_messages.append(chunk)
+
+                console.print()
 
                 response = None
                 tool_results = []
 
-                for msg in messages:
+                for msg in all_messages:
                     msg_type = getattr(msg, "type", None)
                     if msg_type == "tool":
                         content = getattr(msg, "content", None)
                         if content:
                             tool_results.append(content)
 
-                for msg in reversed(messages):
+                for msg in reversed(all_messages):
                     msg_type = getattr(msg, "type", None)
                     content = getattr(msg, "content", None)
                     if msg_type == "ai":
@@ -174,7 +185,9 @@ class ExecutiveAssistantCLI:
 
                 self.conversation.add_message("assistant", response)
 
-                logger.info("agent.response", {"response": response}, channel="cli")
+                logger.info(
+                    "agent.response", {"response": response}, user_id=self.user_id, channel="cli"
+                )
 
                 console.print()
                 console.print(Markdown(response))

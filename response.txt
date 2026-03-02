@@ -1,0 +1,25 @@
+I actually just provided this information in my previous response! Here's a quick summary:
+
+---
+
+## 🏆 Beverage Retail Weather Ranking (Next 7 Days)
+
+| Rank | City | Outlook | Recommendation |
+|------|------|---------|----------------|
+| 1️⃣ | **Perth** | ⭐⭐⭐⭐⭐ | **Best week** – 7 sunny days, 35°C max. Stock cold drinks, ice, outdoor beverages |
+| 2️⃣ | **Adelaide** | ⭐⭐⭐⭐⭐ | 7 sunny days. Strong cold beverage demand |
+| 3️⃣ | **Melbourne** | ⭐⭐⭐⭐ | Wet Monday, then gorgeous rest of week |
+| 4️⃣ | **Sydney** | ⭐⭐⭐⭐ | Rain Mon-Wed, then clears for nice weekend |
+| 5️⃣ | **Canberra** | ⭐⭐⭐ | Heavy rain Mon-Tue, then warm & sunny |
+| 6️⃣ | **Brisbane** | ⭐⭐⭐ | ⚠️ Heavy rain weekend (92mm Sunday) |
+| 7️⃣ | **Hobart** | ⭐⭐⭐ | Cool temps – focus on hot drinks |
+| 8️⃣ | **Darwin** | ⭐ | 🚨 Severe weather – heavy rain all week |
+
+---
+
+Would you like me to:
+1. **Save this as a file** for your reference?
+2. **Search for more detailed/updated forecasts**?
+3. **Break down any specific city** in more detail?
+
+Let me know!
