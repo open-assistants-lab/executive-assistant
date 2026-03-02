@@ -30,7 +30,7 @@ services:
       # Firecrawl for web search/scraping (self-hosted or cloud)
       # Self-hosted: set FIRECRAWL_BASE_URL (no key needed)
       # Cloud: set FIRECRAWL_API_KEY (get from firecrawl.dev)
-      FIRECRAWL_BASE_URL: ${FIRECRAWL_BASE_URL:-}
+      FIRECRAWL_BASE_URL: ${FIRECRAWL_BASE_URL:-http://host.docker.internal:3002}
       FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
       
       # Telegram Bot (get from @BotFather)
