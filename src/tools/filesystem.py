@@ -13,7 +13,7 @@ logger = get_logger()
 def _resolve_path(path: str | None, user_id: str) -> Path:
     """Resolve path relative to user's root, prevent escape."""
     settings = get_settings()
-    root_path = Path(settings.filesystem.root_path.format(user_id=user_id))
+    root_path = Path(settings.filesystem.user_root.format(user_id=user_id))
     root_path = root_path.resolve()  # Make absolute
 
     if path is None:

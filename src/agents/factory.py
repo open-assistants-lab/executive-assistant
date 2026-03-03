@@ -25,6 +25,7 @@ class AgentFactory:
         checkpointer: BaseCheckpointSaver | None = None,
         enable_summarization: bool = True,
         enable_skills: bool = True,
+        enable_mcp: bool = True,
         user_id: str | None = None,
     ):
         """Initialize agent factory.
@@ -33,11 +34,13 @@ class AgentFactory:
             checkpointer: LangGraph checkpointer for conversation persistence
             enable_summarization: Whether to enable summarization middleware
             enable_skills: Whether to enable skills middleware and tools
+            enable_mcp: Whether to enable MCP tools
             user_id: User ID for loading user-specific skills
         """
         self.checkpointer = checkpointer
         self.enable_summarization = enable_summarization
         self.enable_skills = enable_skills
+        self.enable_mcp = enable_mcp
         self.user_id = user_id
 
     def _get_middleware(self, model: BaseChatModel) -> list[Any]:
@@ -118,6 +121,9 @@ class AgentFactory:
         if enable_skills is None:
             enable_skills = self.enable_skills
 
+        # For MCP, use instance attribute
+        enable_mcp = self.enable_mcp
+
         middleware = []
         if enable_summarization:
             middleware = self._get_middleware(model)
@@ -126,8 +132,7 @@ class AgentFactory:
         if enable_skills:
             from src.skills import SkillMiddleware, SkillRegistry, set_skill_registry
 
-            settings = get_settings()
-            system_dir = settings.skills.directory
+            system_dir = "src/skills"  # Fixed system skills directory
 
             # Set up skill registry with user_id if available
             if self.user_id:
@@ -152,6 +157,48 @@ class AgentFactory:
 
             all_tools = list(all_tools) + [skills_load, skills_list]
 
+        # Add MCP management tools + dynamically load MCP server tools
+        if enable_mcp and self.user_id:
+            from src.tools.mcp.manager import get_mcp_manager
+            from src.tools.mcp.tools import mcp_list, mcp_reload, mcp_tools
+
+            all_tools = list(all_tools) + [mcp_list, mcp_reload, mcp_tools]
+
+            # Load MCP server tools (triggers lazy start)
+            try:
+                import asyncio
+                import concurrent.futures
+
+                mcp_manager = get_mcp_manager(self.user_id)
+
+                async def _load_mcp_tools():
+                    return await mcp_manager.get_tools()
+
+                # Run in thread pool to avoid event loop issues
+                try:
+                    asyncio.get_running_loop()
+                except RuntimeError:
+                    # No running loop - use asyncio.run directly
+                    mcp_server_tools = asyncio.run(_load_mcp_tools())
+                else:
+                    # There's a running loop - use thread pool
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(asyncio.run, _load_mcp_tools())
+                        mcp_server_tools = future.result()
+
+                all_tools = list(all_tools) + mcp_server_tools
+                logger.info(
+                    "mcp.tools_loaded",
+                    {"user_id": self.user_id, "count": len(mcp_server_tools)},
+                    channel="agent",
+                )
+            except Exception as e:
+                logger.warning(
+                    "mcp.tools_load_error",
+                    {"user_id": self.user_id, "error": str(e), "error_type": type(e).__name__},
+                    channel="agent",
+                )
+
         agent = create_agent(
             model=model,
             tools=all_tools,
@@ -167,6 +214,7 @@ def get_agent_factory(
     checkpointer: BaseCheckpointSaver | None = None,
     enable_summarization: bool = True,
     enable_skills: bool = True,
+    enable_mcp: bool = True,
     user_id: str | None = None,
 ) -> AgentFactory:
     """Get or create agent factory.
@@ -184,5 +232,6 @@ def get_agent_factory(
         checkpointer=checkpointer,
         enable_summarization=enable_summarization,
         enable_skills=enable_skills,
+        enable_mcp=enable_mcp,
         user_id=user_id,
     )

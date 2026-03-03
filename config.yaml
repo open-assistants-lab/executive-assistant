@@ -29,7 +29,7 @@ memory:
   # Long-term message storage (SQLite + FTS5 + ChromaDB)
   messages:
     enabled: true
-    path: "data/users/{user_id}/.conversation/messages.db"
+    user_directory: "data/users/{user_id}/.conversation"
 
   # Summarization: LangChain SummarizationMiddleware (short-term token reduction)
   summarization:
@@ -72,13 +72,12 @@ tools:
 
 # Skills
 skills:
-  directory: "src/skills"
   user_directory: "data/users/{user_id}/skills"
 
 # Filesystem
 filesystem:
   enabled: true
-  root_path: "data/users/{user_id}/workspace"
+  user_root: "data/users/{user_id}/workspace"
   max_file_size_mb: 10
 
 # Shell
@@ -103,3 +102,8 @@ email_sync:
   max_retries: 3        # Max retries on rate limit error
   retry_delay: 30       # Seconds to wait before retry
   cooldown_minutes: 15  # Minutes to wait after rate limit detected
+
+# MCP (Model Context Protocol)
+mcp:
+  enabled: true
+  idle_timeout_minutes: 30  # Kill MCP servers after this long of inactivity

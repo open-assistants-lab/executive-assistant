@@ -65,11 +65,10 @@ class CheckpointerConfig(_BaseSettings):
 
 
 class MessagesConfig(_BaseSettings):
-    """Messages (long-term) configuration using SQLite + FTS5."""
+    """Messages (long-term) configuration using SQLite + FTS5 + ChromaDB."""
 
     enabled: bool = True
-    path: str = "data/users/{user_id}/.conversation/messages.db"
-    vector_path: str = "data/users/{user_id}/.conversation/vectors"
+    user_directory: str = "data/users/{user_id}/.conversation"
 
     class Config:
         env_prefix = "MESSAGES_"
@@ -178,11 +177,11 @@ class ToolsConfig(_BaseSettings):
 class SkillsConfig(_BaseSettings):
     """Skills configuration."""
 
-    directory: str = "src/skills"
+    user_directory: str = "data/users/{user_id}/skills"
 
     def get_user_directory(self, user_id: str) -> str:
         """Get user-specific skills directory."""
-        return f"data/users/{user_id}/skills"
+        return self.user_directory.format(user_id=user_id)
 
     class Config:
         env_prefix = "SKILLS_"
@@ -192,7 +191,7 @@ class FilesystemConfig(_BaseSettings):
     """Filesystem tools configuration."""
 
     enabled: bool = True
-    root_path: str = "data/users/{user_id}/workspace"
+    user_root: str = "data/users/{user_id}/workspace"
     max_file_size_mb: int = 10
 
     class Config:
@@ -228,6 +227,17 @@ class EmailSyncConfig(_BaseSettings):
         extra = "ignore"
 
 
+class MCPConfig(_BaseSettings):
+    """MCP (Model Context Protocol) configuration."""
+
+    enabled: bool = True
+    idle_timeout_minutes: int = 30
+
+    class Config:
+        env_prefix = "MCP_"
+        extra = "ignore"
+
+
 class AppConfig(_BaseSettings):
     """Main application configuration."""
 
@@ -242,6 +252,7 @@ class AppConfig(_BaseSettings):
     filesystem: FilesystemConfig = Field(default_factory=FilesystemConfig)
     shell_tool: ShellToolConfig = Field(default_factory=ShellToolConfig)
     email_sync: EmailSyncConfig = Field(default_factory=EmailSyncConfig)
+    mcp: MCPConfig = Field(default_factory=MCPConfig)
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "AppConfig":

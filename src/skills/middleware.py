@@ -57,7 +57,7 @@ class SkillMiddleware(AgentMiddleware[SkillState]):
         return (
             f"\n\n## Available Skills\n\n"
             f"{skills_list}\n\n"
-            f"Use the load_skill tool when you need detailed information "
+            f"Use the skills_load tool when you need detailed information "
             f"about handling a specific type of request."
         )
 

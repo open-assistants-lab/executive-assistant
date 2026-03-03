@@ -15,7 +15,7 @@ logger = get_logger()
 def _get_root_path(user_id: str) -> Path:
     """Get root path for user."""
     settings = get_settings()
-    return Path(settings.filesystem.root_path.format(user_id=user_id))
+    return Path(settings.filesystem.user_root.format(user_id=user_id))
 
 
 def _resolve_path(path: str | None, user_id: str) -> Path:

@@ -48,7 +48,7 @@ class ConversationStore:
         settings = get_settings()
         config = settings.memory
 
-        base_path = Path(config.messages.path.format(user_id=user_id)).parent
+        base_path = Path(config.messages.user_directory.format(user_id=user_id))
         base_path.mkdir(parents=True, exist_ok=True)
 
         self.messages_db_path = str((base_path / "messages.db").resolve())
