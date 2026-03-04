@@ -786,9 +786,8 @@ Main Agent
 
 ```
 data/users/{user_id}/subagents/{subagent_name}/
-├── config.yaml         # name, model, description, skills, tools
-├── system_prompt.md   # Custom system prompt
-└── mcp.json          # MCP server configs for this subagent
+├── config.yaml         # name, model, description, skills, tools, system_prompt
+└── .mcp.json          # MCP server configs for this subagent
 ```
 
 ### config.yaml Schema
@@ -1072,14 +1071,14 @@ def subagent_progress(task_name: str) -> str:
 
 ### Implementation Phases
 
-| Phase | Tasks | Complexity |
-|-------|-------|------------|
-| **Phase 1** | SubagentManager, create/invoke tools, validation integrated | Medium |
-| **Phase 2** | Forced planning skill, progress tracking | Medium |
-| **Phase 3** | MCP per subagent (mcp.json) | Medium |
-| **Phase 4** | Langfuse tracing | Low |
-| **Phase 5** | APScheduler integration (one-off, recurring) | Medium-High |
-| **Phase 6** | Parallel invocation (multiple subagents) | Medium |
+| Phase | Tasks | Complexity | Status |
+|-------|-------|------------|--------|
+| **Phase 1** | SubagentManager, create/invoke tools, validation integrated | Medium | ✅ Complete |
+| **Phase 2** | Forced planning skill, progress tracking | Medium | ✅ Complete |
+| **Phase 3** | MCP per subagent (.mcp.json) | Medium | ✅ Complete |
+| **Phase 4** | Langfuse tracing | Low | ✅ Complete |
+| **Phase 5** | APScheduler integration (one-off, recurring) | Medium-High | ✅ Complete |
+| **Phase 6** | Parallel invocation (multiple subagents) | Medium | ✅ Complete |
 
 ### Testing Approach
 

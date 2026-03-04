@@ -14,11 +14,45 @@ A general purpose executive assistant agent built with LangChain and LangGraph, 
 | **Checkpoints** | LangGraph checkpoint for conversation state persistence |
 | **Skills** | Extensible skill system with progressive disclosure |
 | **MCP Integration** | Dynamic Model Context Protocol server tools per user |
+| **Subagents** | Create and manage specialized subagents with custom skills/tools |
+
+### Subagent System
+
+Create specialized subagents that can execute tasks in parallel or sequentially:
+
+```bash
+# Create subagent via HTTP
+curl -X POST http://localhost:8000/message \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Create subagent research-agent with skills: planning-with-files, tools: search_web,scrape_url, description: Research assistant", "user_id": "my_user"}'
+
+# Invoke subagent
+curl -X POST http://localhost:8000/message \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Invoke subagent research-agent to research: LangGraph framework", "user_id": "my_user"}'
+```
+
+**Subagent Tools:**
+- `subagent_create` - Create subagent with custom config
+- `subagent_invoke` - Execute task with subagent
+- `subagent_list` - List all subagents
+- `subagent_progress` - Get task progress from planning files
+- `subagent_validate` - Validate subagent config
+- `subagent_batch` - Invoke multiple subagents in parallel
+- `subagent_schedule` - Schedule one-off or recurring tasks
+
+**Subagent Folder Structure:**
+```
+data/users/{user_id}/subagents/{subagent_name}/
+├── config.yaml       # name, model, skills, tools, system_prompt
+└── .mcp.json       # MCP server configs (optional)
+```
 
 ### Tools
 
 | Category | Tools |
 |----------|-------|
+| **Subagents** | `subagent_create`, `subagent_invoke`, `subagent_list`, `subagent_progress`, `subagent_validate`, `subagent_batch`, `subagent_schedule` |
 | **Filesystem** | `list_files`, `read_file`, `write_file`, `edit_file`, `delete_file` (HITL) |
 | **File Search** | `files_glob_search` (e.g., `*.py`, `**/*.json`), `files_grep_search` (regex) |
 | **Shell** | `shell_execute` (restricted to: `python3`, `node`, `echo`, `date`, `whoami`, `pwd`) |
@@ -195,9 +229,13 @@ Supported model prefixes for `AGENT_MODEL`: `ollama:`, `ollama-cloud:`, `openai:
 
 Each user gets isolated storage:
 
-```text
+```
 data/users/{user_id}/
 ├── workspace/        # User files
+├── subagents/        # User-created subagents
+│   └── {name}/
+│       ├── config.yaml
+│       └── .mcp.json
 ├── skills/           # User custom skills
 ├── email/
 │   └── emails.db     # User email store

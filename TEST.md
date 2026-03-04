@@ -489,6 +489,22 @@ Note: Todos are automatically extracted from new emails during sync using LLM. A
 | 19.3 | HTTP Message | POST /message | curl with JSON | Response |
 | 19.4 | HTTP Stream | POST /message/stream | curl | SSE response |
 
+### Subagent System Tests
+
+| # | Feature | Test | Method | Expected Result |
+|---|---------|------|--------|-----------------|
+| 21.1 | Create | Create subagent | "Create subagent X with tools Y" | Subagent created |
+| 21.2 | Invoke | Execute task | "Invoke subagent X to do Y" | Task executed |
+| 21.3 | List | List subagents | "List my subagents" | Returns list |
+| 21.4 | Progress | Get progress | "Get progress of task X" | Planning files read |
+| 21.5 | Validate | Validate config | "Validate subagent X" | Errors/warnings returned |
+| 21.6 | Batch | Parallel invoke | "Run subagents X,Y,Z in parallel" | All complete |
+| 21.7 | Schedule | One-off | "Schedule X at 2026-03-20T10:00" | Job scheduled |
+| 21.8 | Schedule | Recurring | "Schedule X daily at 9am" | Cron job created |
+| 21.9 | Planning | Files created | Invoke with planning skill | task_plan.md, progress.md |
+| 21.10 | MCP | Per subagent | Create with mcp_config | .mcp.json created |
+| 21.11 | Config | system_prompt | Create with system_prompt | Saved to config.yaml |
+
 ### Telegram Interface Tests
 
 | # | Feature | Test | Method | Expected Result |
@@ -700,3 +716,65 @@ email_connect test@gmail.com → ✅ validates credentials
 Server running:
 - HTTP: http://localhost:8000
 - Telegram: Running (PID 8741)
+
+---
+
+## Subagent System Tests (2026-03-15)
+
+### Implemented Features
+
+| Feature | Status | Implementation |
+|---------|--------|----------------|
+| SubagentManager | ✅ | `src/agents/subagent/manager.py` |
+| subagent_create | ✅ | Create with custom config |
+| subagent_invoke | ✅ | Execute task |
+| subagent_list | ✅ | List all subagents |
+| subagent_progress | ✅ | Read planning files |
+| subagent_validate | ✅ | Validate config |
+| subagent_batch | ✅ | Parallel invocation |
+| subagent_schedule | ✅ | APScheduler integration |
+| Planning skill | ✅ | Forced on all subagents |
+| MCP per subagent | ✅ | Via .mcp.json |
+| Cache invalidation | ✅ | Reload on each invoke |
+
+### Test Cases (10/10 Passed)
+
+| # | Test | Description | Status |
+|---|------|-------------|--------|
+| 1 | Simple echo | Create + invoke basic subagent | ✅ |
+| 2 | Custom system_prompt | Config saved to config.yaml | ✅ |
+| 3 | With skills | Skills assigned correctly | ✅ |
+| 4 | Specific tools | Only assigned tools available | ✅ |
+| 5 | List subagents | Returns all created | ✅ |
+| 6 | Validate | Validates config properly | ✅ |
+| 7 | Invalid name | Rejects bad names | ✅ |
+| 8 | Nonexistent skill | Warns but allows | ✅ |
+| 9 | MCP config | .mcp.json created | ✅ |
+| 10 | Planning skill | Forced at runtime | ✅ |
+
+### Complex Workflow Test
+
+**Scenario:** Requirements → Code → Review pipeline
+
+```
+User Request
+    ↓
+requirements-agent → workspace/SPEC.md + planning/requirements/*
+    ↓
+code-agent → workspace/todo.py + planning/code/*
+    ↓
+review-agent → workspace/review_report.md + planning/review/*
+```
+
+**Result:** ✅ All 3 subagents completed with planning files
+
+### Known Issues Fixed
+
+1. ✅ `.mcp.json` (was `mcp.json`) - Claude Desktop compatibility
+2. ✅ `system_prompt` in config.yaml (was separate file)
+3. ✅ Filesystem rejects absolute paths - must use relative paths
+4. ✅ Cache invalidation - picks up config changes
+
+---
+
+Last updated: 2026-03-15
