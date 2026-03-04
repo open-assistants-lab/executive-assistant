@@ -39,6 +39,11 @@ def _resolve_path(path: str | None, user_id: str) -> Path:
     if path is None:
         return root_path
 
+    # Reject paths that try to escape user root
+    # Don't allow paths starting with / or data/users/
+    if path.startswith("/") or path.startswith("data/"):
+        raise ValueError(f"Use relative paths only. Path: {path}")
+
     resolved = (root_path / path).resolve()
 
     # Ensure both are absolute paths for comparison

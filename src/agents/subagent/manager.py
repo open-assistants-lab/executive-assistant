@@ -51,13 +51,14 @@ class SubagentManager:
             Tuple of (subagent, validation_result_dict)
             If validation fails, subagent is None and result contains errors
         """
-        # Build config dict for validation
+        # Build config dict for validation and config.yaml
         config_dict = {
             "name": name,
             "model": model,
             "description": description,
             "skills": skills or [],
             "tools": tools or [],
+            "system_prompt": system_prompt,
         }
 
         # Create subagent directory
@@ -79,18 +80,26 @@ class SubagentManager:
                 "warnings": validation.warnings,
             }
 
+        # Build config dict for config.yaml
+        config_dict_clean = {k: v for k, v in config_dict.items() if v is not None}
+
+        # Add system_prompt to config.yaml instead of separate file
+        if system_prompt is None:
+            system_prompt = f"""You are {name}, a specialized subagent.
+
+{description or "You are helpful and autonomous."}
+
+You have access to tools and skills as configured. Always use the planning-with-files skill for multi-step tasks to track your progress.
+"""
+        config_dict_clean["system_prompt"] = system_prompt
+
         # Save config.yaml
         config_path = subagent_path / "config.yaml"
-        config_dict_clean = {k: v for k, v in config_dict.items() if v}
         config_path.write_text(yaml.dump(config_dict_clean))
 
-        # Save system_prompt.md if provided
-        if system_prompt:
-            (subagent_path / "system_prompt.md").write_text(system_prompt)
-
-        # Save mcp.json if provided
+        # Save .mcp.json if provided
         if mcp_config is not None:
-            (subagent_path / "mcp.json").write_text(json.dumps(mcp_config, indent=2))
+            (subagent_path / ".mcp.json").write_text(json.dumps(mcp_config, indent=2))
 
         # Load the full config
         full_config = self._load_config(name)
@@ -260,6 +269,44 @@ class SubagentManager:
 
         return result
 
+    def invoke_batch(self, tasks: list[dict[str, str]]) -> list[dict[str, Any]]:
+        """Invoke multiple subagents in parallel.
+
+        Args:
+            tasks: List of dicts with 'name' and 'task' keys
+                   e.g., [{"name": "agent1", "task": "do X"}, {"name": "agent2", "task": "do Y"}]
+
+        Returns:
+            List of result dicts with name, success, output/error
+        """
+        import concurrent.futures
+
+        results = []
+
+        def run_single(task_dict: dict[str, str]) -> dict[str, Any]:
+            name = task_dict.get("name", "")
+            task = task_dict.get("task", "")
+            result = self.invoke(name, task)
+            result["name"] = name
+            return result
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(tasks)) as executor:
+            futures = [executor.submit(run_single, task) for task in tasks]
+            for future in concurrent.futures.as_completed(futures):
+                results.append(future.result())
+
+        # Sort results to maintain input order
+        name_to_result = {r["name"]: r for r in results}
+        ordered_results = [name_to_result[t["name"]] for t in tasks]
+
+        logger.info(
+            "subagent.batch_invoked",
+            {"count": len(tasks), "user_id": self.user_id},
+            user_id=self.user_id,
+        )
+
+        return ordered_results
+
     def _load_config(self, name: str) -> SubagentConfig:
         """Load subagent config from file."""
         config_path = self.base_path / name / "config.yaml"
@@ -288,11 +335,8 @@ class SubagentManager:
                 if skill:
                     skills_content += f"\n\n## {skill_name}\n{skill['content']}"
 
-        # Load custom system prompt if exists
-        custom_prompt_path = self.base_path / config.name / "system_prompt.md"
-        custom_prompt = ""
-        if custom_prompt_path.exists():
-            custom_prompt = custom_prompt_path.read_text() + "\n\n"
+        # Get custom system prompt from config
+        custom_prompt = config.system_prompt + "\n\n" if config.system_prompt else ""
 
         system_prompt = f"""{custom_prompt}## Planning Skill (REQUIRED)
 {planning_content}
@@ -320,8 +364,8 @@ The main agent will track your progress via these files.
         return [tool_map[name] for name in config.tools if name in tool_map]
 
     def _load_mcp_tools(self, subagent_path: Path) -> list:
-        """Load MCP tools from subagent's mcp.json if exists (sync wrapper)."""
-        mcp_path = subagent_path / "mcp.json"
+        """Load MCP tools from subagent's .mcp.json if exists (sync wrapper)."""
+        mcp_path = subagent_path / ".mcp.json"
         if not mcp_path.exists():
             return []
 
@@ -338,28 +382,52 @@ The main agent will track your progress via these files.
             # Run async get_tools in sync context
             import asyncio
 
-            tools = asyncio.run(mcp_manager.get_tools())
-            return tools
+            all_tools = asyncio.run(mcp_manager.get_tools())
+
+            # Filter to only include servers defined in subagent's .mcp.json
+            allowed_servers = set(mcp_config.keys())
+            filtered_tools = [
+                tool
+                for tool in all_tools
+                if hasattr(tool, "name") and any(server in tool.name for server in allowed_servers)
+            ]
+
+            # Also include generic MCP tools that don't have server prefix
+            generic_tools = [
+                tool
+                for tool in all_tools
+                if not any(server in tool.name for server in allowed_servers)
+            ]
+
+            return filtered_tools + generic_tools
 
         except Exception as e:
             logger.warning(
                 "subagent.mcp.load_error",
-                {"path": str(mcp_path), "error": str(e)},
+                {"path": str(mcp_path), "error": str(e), "error_type": type(e).__name__},
                 user_id=self.user_id,
             )
             return []
 
+    def invalidate_cache(self, name: str | None = None) -> None:
+        """Invalidate subagent cache. If name is None, clear all cache."""
+        if not hasattr(self, "_cache"):
+            return
+        if name is None:
+            self._cache.clear()
+        elif name in self._cache:
+            del self._cache[name]
+
     def _get(self, name: str) -> Any | None:
-        """Get subagent from cache or create new."""
-        if hasattr(self, "_cache") and name in self._cache:
-            return self._cache[name]
-
-        # Try to load from disk
-        if not (self.base_path / name).exists():
-            return None
-
+        """Get subagent - always recreates to pick up config changes."""
+        # Always reload to pick up config changes (skills, tools, MCP)
         # Load config and recreate agent
         subagent_path = self.base_path / name
+        if not subagent_path.exists():
+            # Clear stale cache entry
+            self.invalidate_cache(name)
+            return None
+
         config = self._load_config(name)
         system_prompt = self._build_system_prompt(config)
         agent_tools = self._get_tools(config)

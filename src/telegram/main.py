@@ -70,10 +70,6 @@ async def handle_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     typing_task = asyncio.create_task(_send_typing_indicator(update.message.chat.id, context))
 
     try:
-        from src.app_logging import get_logger
-
-        logger = get_logger()
-
         with propagate_attributes(user_id=user_id):
             result = await run_agent(
                 user_id=user_id,
@@ -145,14 +141,14 @@ async def handle_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             response = "Task completed."
 
         # Tool-based detection: research tools likely produce long responses
-        LONG_OUTPUT_TOOLS = {
+        long_output_tools = {
             "search_web",
             "scrape_url",
             "crawl_url",
             "map_url",
             "files_grep_search",
         }
-        is_research_output = bool(LONG_OUTPUT_TOOLS.intersection(set(tool_names_used)))
+        is_research_output = bool(long_output_tools.intersection(set(tool_names_used)))
 
         if is_research_output and len(response) > 1000:
             # Summary stays under Telegram's 4096 limit
@@ -165,9 +161,10 @@ async def handle_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             await update.message.reply_text(summary)
 
             # Send full response as file
-            from telegram import InputFile
-            import tempfile
             import os
+            import tempfile
+
+            from telegram import InputFile
 
             with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
                 f.write(response)

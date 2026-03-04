@@ -86,6 +86,45 @@ def subagent_invoke(name: str, task: str, user_id: str) -> str:
 
 
 @tool
+def subagent_batch(tasks: str, user_id: str) -> str:
+    """Invoke multiple subagents in parallel.
+
+    Args:
+        tasks of tasks array: JSON string, e.g. '[{"name": "agent1", "task": "do X"}, {"name": "agent2", "task": "do Y"}]'
+        user_id: The user ID (required)
+
+    Returns:
+        Results from all subagents
+    """
+    import json
+
+    try:
+        tasks_list = json.loads(tasks)
+    except json.JSONDecodeError as e:
+        return f"Error: Invalid JSON: {e}"
+
+    if not isinstance(tasks_list, list):
+        return "Error: tasks must be a JSON array"
+
+    manager = get_subagent_manager(user_id)
+
+    results = manager.invoke_batch(tasks_list)
+
+    lines = ["## Parallel Subagent Results\n"]
+    for i, result in enumerate(results):
+        lines.append(f"### Task {i + 1}: {result.get('name', 'unknown')}")
+        if result.get("success"):
+            lines.append("**Status:** ✅ Success")
+            lines.append(f"**Output:** {result.get('output', '')[:500]}")
+        else:
+            lines.append("**Status:** ❌ Failed")
+            lines.append(f"**Error:** {result.get('error', 'Unknown error')}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+@tool
 def subagent_list(user_id: str) -> str:
     """List all subagents for the user.
 
@@ -199,4 +238,93 @@ def subagent_validate(name: str, user_id: str) -> str:
     lines = [f"❌ Subagent '{name}' has errors:"]
     for e in result.errors:
         lines.append(f"  - {e}")
+    return "\n".join(lines)
+
+
+@tool
+def subagent_schedule(
+    subagent_name: str,
+    task: str,
+    schedule: str,
+    user_id: str,
+    run_at: str | None = None,
+) -> str:
+    """Schedule a subagent to run once or on a recurring basis.
+
+    Args:
+        subagent_name: Name of the subagent to schedule
+        task: Task description
+        schedule: "once" for one-time, or cron expression (e.g., "0 9 * * *" for daily 9am)
+        user_id: The user ID (required)
+        run_at: ISO datetime for "once" schedule (e.g., "2024-01-15T10:00:00")
+
+    Returns:
+        Scheduling confirmation with job ID
+    """
+    from datetime import datetime
+
+    from src.agents.subagent.scheduler import schedule_once, schedule_recurring
+
+    try:
+        if schedule == "once":
+            if not run_at:
+                return "Error: run_at is required for 'once' schedule"
+            run_time = datetime.fromisoformat(run_at)
+            job_id = schedule_once(user_id, subagent_name, task, run_time)
+            return f"✅ Scheduled one-time job {job_id}\nSubagent: {subagent_name}\nTask: {task}\nRun at: {run_at}"
+        else:
+            # Treat as cron expression
+            job_id = schedule_recurring(user_id, subagent_name, task, schedule)
+            return f"✅ Scheduled recurring job {job_id}\nSubagent: {subagent_name}\nTask: {task}\nCron: {schedule}"
+    except ValueError as e:
+        return f"Error: {e}"
+
+
+@tool
+def subagent_schedule_cancel(job_id: str, user_id: str) -> str:
+    """Cancel a scheduled subagent job.
+
+    Args:
+        job_id: Job ID to cancel
+        user_id: The user ID (required)
+
+    Returns:
+        Cancellation confirmation
+    """
+    from src.agents.subagent.scheduler import cancel_job
+
+    if cancel_job(job_id):
+        return f"✅ Job {job_id} cancelled"
+    return f"Job {job_id} not found"
+
+
+@tool
+def subagent_schedule_list(user_id: str) -> str:
+    """List all scheduled subagent jobs.
+
+    Args:
+        user_id: The user ID (required)
+
+    Returns:
+        List of scheduled jobs
+    """
+    from src.agents.subagent.scheduler import list_jobs
+
+    jobs = list_jobs(user_id)
+
+    if not jobs:
+        return "No scheduled jobs."
+
+    lines = ["## Scheduled Jobs\n"]
+    for job in jobs:
+        lines.append(f"### {job['job_id']}")
+        lines.append(f"**Subagent:** {job.get('subagent_name', 'unknown')}")
+        lines.append(f"**Task:** {job.get('task', '')[:50]}...")
+        lines.append(f"**Status:** {job.get('status', 'unknown')}")
+        if job.get("schedule_type") == "once":
+            lines.append(f"**Run at:** {job.get('run_at', 'unknown')}")
+        else:
+            lines.append(f"**Cron:** {job.get('cron', 'unknown')}")
+        lines.append("")
+
     return "\n".join(lines)

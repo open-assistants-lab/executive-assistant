@@ -33,6 +33,7 @@ dependencies = [
     "imap-tools>=1.0.0",
     "langchain-mcp-adapters>=0.2.1",
     "mcp-clickhouse>=0.2.0",
+    "apscheduler>=3.11.2",
 ]
 
 [project.optional-dependencies]

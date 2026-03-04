@@ -1,4 +1,3 @@
-
 from pydantic import BaseModel, Field
 
 
@@ -10,6 +9,7 @@ class SubagentConfig(BaseModel):
     description: str = ""
     skills: list[str] = Field(default_factory=list)
     tools: list[str] = Field(default_factory=list)
+    system_prompt: str | None = None
 
     class Config:
         extra = "ignore"

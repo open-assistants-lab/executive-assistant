@@ -2,9 +2,9 @@ import json
 from pathlib import Path
 from typing import Any
 
+import yaml
 from pydantic import BaseModel
 
-from src.config import get_settings
 from src.skills import SkillRegistry
 
 
@@ -25,10 +25,9 @@ def get_available_tool_names() -> set[str]:
 
 def get_mcp_server_names() -> set[str]:
     """Get list of configured MCP server names."""
-    settings = get_settings()
-    if not settings.mcp.enabled:
-        return set()
-    return set(settings.mcp.servers.keys())
+    # MCP servers are loaded from user's .mcp.json, not from system config
+    # Return empty set - validation will just warn if server doesn't exist
+    return set()
 
 
 def validate_subagent_config(
@@ -84,14 +83,14 @@ def validate_subagent_config(
             if tool not in available_tools:
                 warnings.append(f"Tool '{tool}' may not be available")
 
-    # Validate mcp.json if base_path provided
+    # Validate .mcp.json if base_path provided
     if base_path:
-        mcp_path = base_path / "mcp.json"
+        mcp_path = base_path / ".mcp.json"
         if mcp_path.exists():
             try:
                 mcp_config = json.loads(mcp_path.read_text())
                 if not isinstance(mcp_config, dict):
-                    errors.append("mcp.json must be a JSON object")
+                    errors.append(".mcp.json must be a JSON object")
                 else:
                     # Check MCP servers exist in system config
                     system_mcp = get_mcp_server_names()
@@ -99,12 +98,14 @@ def validate_subagent_config(
                         if server_name not in system_mcp:
                             warnings.append(f"MCP server '{server_name}' not in system config")
             except json.JSONDecodeError as e:
-                errors.append(f"mcp.json: invalid JSON - {e}")
+                errors.append(f".mcp.json: invalid JSON - {e}")
 
-        # Check system_prompt.md exists
-        prompt_path = base_path / "system_prompt.md"
-        if not prompt_path.exists():
-            warnings.append("No system_prompt.md - subagent will use default prompt")
+        # Check system_prompt in config.yaml
+        config_path = base_path / "config.yaml"
+        if config_path.exists():
+            config_dict = yaml.safe_load(config_path.read_text()) or {}
+            if "system_prompt" not in config_dict:
+                warnings.append("No system_prompt in config.yaml - will use default")
 
     return SubagentValidationResult(
         valid=len(errors) == 0,

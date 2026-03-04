@@ -200,6 +200,17 @@ def get_model() -> BaseChatModel:
 
 def get_default_tools(user_id: str) -> list[Any]:
     """Get default tools for a user with proper user_id binding."""
+    from src.agents.subagent.tools import (
+        subagent_batch,
+        subagent_create,
+        subagent_invoke,
+        subagent_list,
+        subagent_progress,
+        subagent_schedule,
+        subagent_schedule_cancel,
+        subagent_schedule_list,
+        subagent_validate,
+    )
     from src.skills.example_constrained_tool import sql_write_query
     from src.skills.tools import skills_list, skills_load
     from src.tools.contacts import (
@@ -236,8 +247,8 @@ def get_default_tools(user_id: str) -> list[Any]:
         scrape_url,
         search_web,
     )
-    from src.tools.memory import memory_get_history, memory_search
     from src.tools.mcp import mcp_list, mcp_reload, mcp_tools
+    from src.tools.memory import memory_get_history, memory_search
     from src.tools.shell import shell_execute
     from src.tools.time import time_get
     from src.tools.todos import (
@@ -246,13 +257,6 @@ def get_default_tools(user_id: str) -> list[Any]:
         todos_extract,
         todos_list,
         todos_update,
-    )
-    from src.agents.subagent.tools import (
-        subagent_create,
-        subagent_invoke,
-        subagent_list,
-        subagent_progress,
-        subagent_validate,
     )
 
     return [
@@ -303,6 +307,10 @@ def get_default_tools(user_id: str) -> list[Any]:
         subagent_list,
         subagent_progress,
         subagent_validate,
+        subagent_batch,
+        subagent_schedule,
+        subagent_schedule_cancel,
+        subagent_schedule_list,
     ]
 
 
