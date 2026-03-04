@@ -1,24 +1,24 @@
 # Caddyfile for Executive Assistant
 
-# Domain (change to your domain)
+ea.mgmtcnsltng.com
 :443 {
     # Reverse proxy to app container
     reverse_proxy app:8000
-    
+
     # Enable HTTP/3
     protocols h1 h2 h3
-    
+
     # Compression
     encode zstd gzip
-    
+
     # Health check endpoint
     respond /health 200 {
         body "OK"
     }
-    
+
     # Metrics (optional, remove in production)
     # metrics /metrics
-    
+
     # Log format
     log {
         output file /var/log/caddy/access.log
@@ -30,7 +30,7 @@ http:// {
     respond /health 200 {
         body "OK"
     }
-    
+
     # Redirect all HTTP to HTTPS
     redir https://{host}{uri} permanent
 }
