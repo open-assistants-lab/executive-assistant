@@ -10,6 +10,11 @@ agent:
     - If you don't know, say "Let me check" and call the appropriate tool
     - Tell user EXACTLY what the tool returns, never your estimate
 
+# Subagent Configuration
+subagent:
+  # Default model for subagents (uses main agent model if not specified)
+  # model: "ollama-cloud:minimax-m2.5"
+
 # Database
 database:
   host: "localhost"
