@@ -1,11 +1,9 @@
 """Database manager for Executive Assistant."""
 
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Optional
 
-import asyncpg
-from langgraph.checkpoint.postgres import PostgresSaver
+from langgraph.checkpoint.sqlite import SqliteSaver
 from sqlalchemy.orm import declarative_base
 
 from src.config import get_settings
@@ -17,66 +15,33 @@ class DatabaseManager:
     """Manages database connections and checkpointer."""
 
     _instance: Optional["DatabaseManager"] = None
-    _pool: asyncpg.Pool | None = None
-    _checkpointer: PostgresSaver | None = None
+    _checkpointer: SqliteSaver | None = None
 
     def __new__(cls) -> "DatabaseManager":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    async def initialize(self) -> None:
-        """Initialize database connections."""
+    def initialize(self) -> None:
+        """Initialize SQLite checkpointer."""
         settings = get_settings()
-        config = settings.database
+        user_id = settings.database.user or "default"
 
-        self._pool = await asyncpg.create_pool(
-            host=config.host,
-            port=config.port,
-            user=config.user,
-            password=config.password,
-            database=config.name,
-            min_size=1,
-            max_size=config.pool_size,
-        )
+        checkpoint_path = Path("data/users") / user_id / ".conversation" / "checkpoints.db"
+        checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Create PostgresSaver for checkpointer
-        self._checkpointer = PostgresSaver.from_conn_string(config.connection_string)
-        await self._checkpointer.asetup()
+        self._checkpointer = SqliteSaver.from_conn_string(f"sqlite:///{checkpoint_path}")
 
     async def close(self) -> None:
         """Close database connections."""
-        if self._pool:
-            await self._pool.close()
-            self._pool = None
         self._checkpointer = None
 
     @property
-    def pool(self) -> asyncpg.Pool:
-        """Get asyncpg pool."""
-        if self._pool is None:
-            raise RuntimeError("Database not initialized. Call initialize() first.")
-        return self._pool
-
-    @property
-    def checkpointer(self) -> PostgresSaver:
+    def checkpointer(self) -> SqliteSaver:
         """Get LangGraph checkpointer."""
         if self._checkpointer is None:
             raise RuntimeError("Database not initialized. Call initialize() first.")
         return self._checkpointer
-
-    @asynccontextmanager
-    async def connection(self) -> AsyncGenerator[asyncpg.Connection, None]:
-        """Get a database connection."""
-        async with self.pool.acquire() as conn:
-            yield conn
-
-    @asynccontextmanager
-    async def transaction(self) -> AsyncGenerator[asyncpg.Connection, None]:
-        """Get a database transaction."""
-        async with self.pool.acquire() as conn:
-            async with conn.transaction():
-                yield conn
 
 
 def get_database() -> DatabaseManager:
@@ -84,8 +49,8 @@ def get_database() -> DatabaseManager:
     return DatabaseManager()
 
 
-async def init_db() -> DatabaseManager:
+def init_db() -> DatabaseManager:
     """Initialize database and return manager."""
     db = get_database()
-    await db.initialize()
+    db.initialize()
     return db
