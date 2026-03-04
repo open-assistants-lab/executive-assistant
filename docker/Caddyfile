@@ -1,7 +1,7 @@
 # Caddyfile for Executive Assistant
 
-ea.mgmtcnsltng.com
-:443 {
+# HTTPS site
+ea.mgmtcnsltng.com {
     # Reverse proxy to app container
     reverse_proxy app:8000
 
@@ -11,14 +11,6 @@ ea.mgmtcnsltng.com
     # Compression
     encode zstd gzip
 
-    # Health check endpoint
-    respond /health 200 {
-        body "OK"
-    }
-
-    # Metrics (optional, remove in production)
-    # metrics /metrics
-
     # Log format
     log {
         output file /var/log/caddy/access.log
@@ -27,10 +19,6 @@ ea.mgmtcnsltng.com
 
 # HTTP to HTTPS redirect
 http:// {
-    respond /health 200 {
-        body "OK"
-    }
-
     # Redirect all HTTP to HTTPS
     redir https://{host}{uri} permanent
 }

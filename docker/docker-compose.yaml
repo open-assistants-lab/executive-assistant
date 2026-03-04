@@ -54,6 +54,27 @@ services:
       timeout: 10s
       retries: 3
 
+  # Telegram Bot
+  telegram:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: ea_telegram
+    command: ["uv", "run", "ea", "telegram"]
+    environment:
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      FIRECRAWL_BASE_URL: ${FIRECRAWL_BASE_URL:-http://host.docker.internal:3002}
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      DATA_DIR: /app/data
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    depends_on:
+      - app
+
 volumes:
   caddy_data:
   caddy_config:
