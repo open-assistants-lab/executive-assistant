@@ -5,9 +5,6 @@ ea.mgmtcnsltng.com {
     # Reverse proxy to app container
     reverse_proxy app:8000
 
-    # Enable HTTP/3
-    protocols h1 h2 h3
-
     # Compression
     encode zstd gzip
 
