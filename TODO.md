@@ -662,4 +662,460 @@ data/
 
 ---
 
-Last updated: 2026-03-01
+## Parallel Tool Calling (2026-03-04)
+
+### Problem
+Current agent runs tools **sequentially**, one at a time. This is the default behavior of LangChain's `create_agent`.
+
+### Solution: Custom ParallelToolNode
+
+**Complexity: 6/10** (~50-100 lines of code)
+
+Create a custom `ParallelToolNode` that runs independent tool calls in parallel using `asyncio.gather()`.
+
+**Implementation Approach:**
+
+1. **Create `src/agents/parallel_tools.py`:**
+
+```python
+import asyncio
+from typing import Any
+from langchain_core.messages import ToolMessage
+from langgraph.prebuilt.tool_node import ToolNode
+
+class ParallelToolNode:
+    """Tool node that executes tool calls in parallel."""
+    
+    def __init__(self, tools: list):
+        self.tool_node = ToolNode(tools)
+    
+    async def invoke(self, state: dict[str, Any]) -> dict[str, Any]:
+        messages = state.get("messages", [])
+        last_message = messages[-1] if messages else None
+        
+        tool_calls = getattr(last_message, "tool_calls", []) or []
+        
+        if not tool_calls:
+            return {"messages": []}
+        
+        # Execute all tools in parallel
+        tasks = [
+            self.tool_node.atool({"messages": [{"role": "assistant", "tool_calls": [tc]}]})
+            for tc in tool_calls
+        ]
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Collect tool messages, preserving order
+        tool_messages = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                tool_messages.append(
+                    ToolMessage(
+                        content=f"Error: {str(result)}",
+                        tool_call_id=tool_calls[i]["id"]
+                    )
+                )
+            else:
+                # Extract tool message from result
+                result_msgs = result.get("messages", [])
+                tool_messages.extend([m for m in result_msgs if isinstance(m, ToolMessage)])
+        
+        return {"messages": tool_messages}
+```
+
+2. **Modify `src/agents/factory.py`:**
+   - Replace default `ToolNode` with `ParallelToolNode`
+   - Or create a new `create_parallel_agent()` function
+
+3. **Handle Edge Cases:**
+   - Tool dependencies (some tools may depend on others)
+   - Error aggregation (collect all errors, don't fail fast)
+   - Message ordering (preserve tool call order for context)
+
+**Benefits:**
+- Faster execution for independent tool calls (e.g., fetching multiple emails)
+- Better utilization of I/O-bound operations
+- Maintains compatibility with existing agent infrastructure
+
+**Trade-offs:**
+- More complex error handling
+- May not work well for dependent tool calls
+- Need to detect which tools can run in parallel
+
+---
+
+## Subagent System (2026-03-04)
+
+### Requirements
+
+1. Main agent can hand over tasks to one or multiple subagents in parallel
+2. Main agent can check subagent status and tool output during execution
+3. Main agent can dynamically create subagents (not pre-built)
+   - 3a. Dynamic prompt, skill, tools, MCP assignment
+   - 3b. Schedule subagent invocation (one-off or recurring)
+4. Force subagent to use planning-with-files skill
+5. Main agent can track subagent progress via planning files
+6. Langfuse tracing for subagents (if available)
+7. Validation function for subagent configs
+8. MCP via mcp.json per subagent
+
+### Architecture
+
+```
+Main Agent
+├── SubagentManager
+│   ├── create(name, config) → subagent
+│   ├── invoke(name, task) → result
+│   ├── invoke_parallel(tasks) → results
+│   └── get_status(job_id) → status
+├── SubagentScheduler (APScheduler)
+│   ├── schedule_once(name, task, datetime)
+│   ├── schedule_recurring(name, task, cron)
+│   └── cancel(schedule_id)
+└── Tools
+    ├── subagent_create
+    ├── subagent_invoke
+    ├── subagent_schedule
+    ├── subagent_list
+    ├── subagent_validate
+    └── subagent_progress
+```
+
+### Folder Structure
+
+```
+data/users/{user_id}/subagents/{subagent_name}/
+├── config.yaml         # name, model, description, skills, tools
+├── system_prompt.md   # Custom system prompt
+└── mcp.json          # MCP server configs for this subagent
+```
+
+### config.yaml Schema
+
+```yaml
+name: "research-assistant"
+model: "anthropic:claude-sonnet-4-20250514"  # Optional, defaults to main agent model
+description: "Research specialist for deep dives"
+
+# Skills to assign to this subagent
+skills:
+  - planning-with-files  # Required, auto-added
+  - deep-research
+
+# Tools to assign to this subagent
+tools:
+  - files_read
+  - files_write
+  - memory_search
+  - web_search
+```
+
+### Key Features
+
+#### 1. Forced Planning Skill
+
+Every subagent MUST use `planning-with-files` skill (auto-added):
+
+```python
+def create_subagent(user_id: str, config: SubagentConfig) -> CompiledStateGraph:
+    # Load planning-with-files skill (REQUIRED)
+    registry = SkillRegistry(system_dir="src/skills", user_id=user_id)
+    planning_skill = registry.get_skill("planning-with-files")
+    
+    # Load additional skills from config
+    skills_content = ""
+    for skill_name in config.skills:
+        if skill_name != "planning-with-files":
+            skill = registry.get_skill(skill_name)
+            if skill:
+                skills_content += f"\n\n## {skill_name}\n{skill['content']}"
+    
+    system_prompt = f"""
+{config.system_prompt or DEFAULT_SUBAGENT_PROMPT}
+
+## Planning Skill (REQUIRED)
+{planning_skill['content']}
+
+{skills_content}
+
+## Important
+You MUST use the planning skill for ANY task that requires multiple steps.
+Create a plan in `planning/{{task_name}}/task_plan.md` before executing.
+Update `progress.md` after each step.
+The main agent will track your progress via these files.
+"""
+    
+    # Create subagent
+    subagent = create_agent(
+        model=get_model(config.model),
+        tools=get_assigned_tools(config.tools),
+        system_prompt=system_prompt,
+        checkpointer=False,
+    )
+    
+    return subagent
+```
+
+#### 2. Progress Tracking
+
+```python
+def get_subagent_progress(user_id: str, task_name: str) -> dict:
+    """Read planning files to get subagent progress."""
+    base = Path(f"data/users/{user_id}/workspace/planning/{task_name}")
+    
+    progress = {
+        "task_plan": None,
+        "progress": None,
+        "findings": None,
+    }
+    
+    for key in progress:
+        file_path = base / f"{key}.md"
+        if file_path.exists():
+            progress[key] = file_path.read_text()
+    
+    return progress
+
+def parse_task_status(task_plan_content: str) -> list[dict]:
+    """Parse task_plan.md to get status of each phase."""
+    # Parse markdown for - [ ] and - [x] items
+    pass
+```
+
+#### 3. Langfuse Integration
+
+```python
+from langfuse import Langfuse
+
+def create_subagent_with_tracing(user_id: str, config: SubagentConfig):
+    langfuse = None
+    if is_langfuse_available():
+        langfuse = Langfuse()
+    
+    model = get_model(config.model)
+    
+    if langfuse:
+        # Wrap model with langfuse
+        model = langfuse.langchain.model_peewee(model)
+    
+    subagent = create_agent(
+        model=model,
+        tools=...,
+        system_prompt=...,
+    )
+    
+    return subagent
+```
+
+#### 4. MCP per Subagent
+
+```python
+# mcp.json format
+{
+    "filesystem": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-filesystem", "/data/users/{user_id}/workspace"]
+    },
+    "brave-search": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+        "env": {
+            "BRAVE_API_KEY": "{env:BRAVE_API_KEY}"
+        }
+    }
+}
+
+def load_subagent_mcp(user_id: str, subagent_name: str) -> list[MCPConfig]:
+    """Load MCP config for subagent."""
+    mcp_path = Path(f"data/users/{user_id}/subagents/{subagent_name}/mcp.json")
+    if not mcp_path.exists():
+        return []
+    
+    mcp_config = json.loads(mcp_path.read_text())
+    # Resolve {user_id} and {env:} placeholders
+    return resolve_mcp_config(mcp_config)
+```
+
+#### 5. Validation (Integrated into Create)
+
+Validation happens during subagent creation - if invalid, return errors so agent can fix and retry:
+
+```python
+class SubagentValidationResult(BaseModel):
+    valid: bool
+    errors: list[str] = []
+    warnings: list[str] = []
+
+def create_subagent(user_id: str, config: SubagentConfig) -> tuple[CompiledStateGraph | None, SubagentValidationResult]:
+    """Create subagent with validation.
+    
+    Returns (subagent, validation_result). 
+    If validation fails, subagent is None and errors explain what to fix.
+    """
+    # Validate first
+    validation = validate_subagent_config(user_id, config)
+    
+    if not validation.valid:
+        return None, validation
+    
+    # Build system prompt with skills
+    # Create agent
+    # ...
+    
+    return subagent, validation
+```
+
+**Validation checks:**
+- Subagent name is valid (alphanumeric + hyphen)
+- Referenced skills exist (system or user skills)
+- Referenced tools exist in available tools
+- mcp.json is valid JSON (if exists)
+- system_prompt.md exists (warning if missing)
+
+#### 6. APScheduler Integration
+
+```python
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.date import DateTrigger
+
+class SubagentScheduler:
+    def __init__(self):
+        self.scheduler = AsyncIOScheduler()
+        self.jobs: dict[str, dict] = {}  # job_id → config
+    
+    def schedule_once(self, user_id: str, subagent_name: str, task: str, run_at: datetime) -> str:
+        job_id = f"{user_id}_{subagent_name}_{uuid.uuid4().hex[:8]}"
+        
+        self.scheduler.add_job(
+            self._execute_subagent,
+            trigger=DateTrigger(run_date=run_at),
+            args=[user_id, subagent_name, task],
+            id=job_id,
+        )
+        
+        self.jobs[job_id] = {
+            "user_id": user_id,
+            "subagent_name": subagent_name,
+            "task": task,
+            "status": "scheduled",
+        }
+        
+        return job_id
+    
+    def schedule_recurring(self, user_id: str, subagent_name: str, task: str, cron: str) -> str:
+        job_id = f"{user_id}_{subagent_name}_{uuid.uuid4().hex[:8]}"
+        
+        self.scheduler.add_job(
+            self._execute_subagent,
+            trigger=CronTrigger.from_crontab(cron),
+            args=[user_id, subagent_name, task],
+            id=job_id,
+        )
+        
+        self.jobs[job_id] = {
+            "user_id": user_id,
+            "subagent_name": subagent_name,
+            "task": task,
+            "schedule": cron,
+            "status": "scheduled",
+        }
+        
+        return job_id
+    
+    async def _execute_subagent(self, user_id: str, subagent_name: str, task: str):
+        # 1. Load subagent config
+        config = load_subagent_config(user_id, subagent_name)
+        
+        # 2. Create subagent with planning skill
+        subagent = create_subagent(user_id, config)
+        
+        # 3. Execute task
+        result = subagent.invoke({"messages": [{"role": "user", "content": task}]})
+        
+        # 4. Store result
+        save_subagent_result(user_id, subagent_name, result)
+        
+        # 5. Update job status
+        self.jobs[job_id]["status"] = "completed"
+        self.jobs[job_id]["result"] = result
+```
+
+### Tools for Main Agent
+
+```python
+@tool
+def subagent_create(name: str, model: str = None, description: str = "") -> str:
+    """Create a new subagent."""
+
+@tool
+def subagent_invoke(name: str, task: str) -> str:
+    """Invoke a subagent to execute a task."""
+
+@tool
+def subagent_schedule(name: str, task: str, schedule: str, run_at: str = None) -> str:
+    """Schedule subagent: 'now', 'once' (with run_at), or cron expression."""
+
+@tool
+def subagent_list() -> str:
+    """List all subagents."""
+
+@tool
+def subagent_validate(name: str) -> str:
+    """Validate subagent configuration."""
+
+@tool
+def subagent_progress(task_name: str) -> str:
+    """Get subagent progress from planning files."""
+```
+
+### Implementation Phases
+
+| Phase | Tasks | Complexity |
+|-------|-------|------------|
+| **Phase 1** | SubagentManager, create/invoke tools, validation integrated | Medium |
+| **Phase 2** | Forced planning skill, progress tracking | Medium |
+| **Phase 3** | MCP per subagent (mcp.json) | Medium |
+| **Phase 4** | Langfuse tracing | Low |
+| **Phase 5** | APScheduler integration (one-off, recurring) | Medium-High |
+| **Phase 6** | Parallel invocation (multiple subagents) | Medium |
+
+### Testing Approach
+
+#### Unit Tests
+- `tests/unit/test_subagent_manager.py`
+  - Test subagent creation with config
+  - Test tool assignment
+  - Test skill injection
+  
+- `tests/unit/test_subagent_validation.py`
+  - Test valid config passes
+  - Test missing files fail
+  - Test invalid YAML/JSON fails
+  - Test skill/tool existence validation
+
+- `tests/unit/test_subagent_planning.py`
+  - Test planning skill is injected
+  - Test progress files created correctly
+  - Test main agent can read progress
+
+#### Integration Tests
+- `tests/integration/test_subagent_execution.py`
+  - Test subagent executes task
+  - Test planning files created
+  - Test main agent reads progress
+
+- `tests/integration/test_subagent_scheduling.py`
+  - Test one-off schedule
+  - Test cron schedule
+  - Test schedule cancellation
+
+#### Mock Tests
+- Mock Langfuse (if not available)
+- Mock scheduler execution
+- Mock file system operations
+
+---
+
+Last updated: 2026-03-04

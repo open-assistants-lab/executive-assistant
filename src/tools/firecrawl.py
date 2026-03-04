@@ -9,21 +9,32 @@ logger = get_logger()
 
 
 def _get_firecrawl_client():
-    """Get Firecrawl client with config."""
+    """Get Firecrawl client with config.
+
+    Supports both:
+    - Self-hosted Firecrawl: base_url only, no API key needed
+    - Cloud Firecrawl: base_url + api_key
+    """
 
     settings = get_settings()
     config = settings.tools
 
-    api_key = config.firecrawl_api_key
+    api_key = config.firecrawl_api_key or None
     base_url = config.firecrawl_base_url or None
 
-    if not api_key:
-        return None, "Firecrawl API key not configured. Set FIRECRAWL_API_KEY env var."
+    # If self-hosted (base_url provided), API key is optional
+    # If cloud (no base_url), API key is required
+    if not base_url and not api_key:
+        return (
+            None,
+            "Firecrawl not configured. Set FIRECRAWL_BASE_URL (self-hosted) or FIRECRAWL_API_KEY (cloud).",
+        )
 
     try:
         from firecrawl import Firecrawl
 
-        client = Firecrawl(api_key=api_key, api_url=base_url if base_url else None)
+        # Self-hosted mode: api_key can be None
+        client = Firecrawl(api_key=api_key, api_url=base_url)
         return client, None
     except ImportError:
         return None, "Firecrawl SDK not installed. Run: uv pip install firecrawl"
@@ -118,31 +129,49 @@ def search_web(query: str, limit: int | None = None) -> str:
         return f"Error: {error}"
 
     try:
-        logger.info("firecrawl.search", {"query": query, "limit": limit}, channel="agent")
+        logger.info(
+            "firecrawl.search", {"query": query, "limit": limit}, user_id="system", channel="agent"
+        )
 
         results = client.search(query=query, limit=limit)
 
-        if hasattr(results, "data") and results.data:
+        # Handle different response formats from self-hosted vs cloud
+        web_results = []
+
+        # Self-hosted format: results.web is a list of SearchResultWeb objects
+        if hasattr(results, "web") and results.web:
+            for r in results.web:
+                # Handle SearchResultWeb object (has .url, .title, .description attributes)
+                web_results.append(
+                    {
+                        "url": getattr(r, "url", ""),
+                        "title": getattr(r, "title", "No title"),
+                        "description": getattr(r, "description", ""),
+                    }
+                )
+        # Cloud format: results.data.web is a list
+        elif hasattr(results, "data") and results.data:
             data = results.data
-            web_results = data.get("web", [])
+            if hasattr(data, "web") and data.web:
+                web_results = data.web
+            elif isinstance(data, dict):
+                web_results = data.get("web", [])
 
-            if not web_results:
-                return f"No results found for: {query}"
-
-            output = f"## Search Results for: {query}\n\n"
-            for i, r in enumerate(web_results[:limit], 1):
-                title = r.get("title", "No title")
-                url = r.get("url", "")
-                desc = r.get("description", "No description")
-                output += f"### {i}. {title}\n"
-                output += f"   URL: {url}\n"
-                if desc:
-                    output += f"   {desc}\n"
-                output += "\n"
-
-            return output
-        else:
+        if not web_results:
             return f"No results found for: {query}"
+
+        output = f"## Search Results for: {query}\n\n"
+        for i, r in enumerate(web_results[:limit], 1):
+            title = r.get("title", "No title")
+            url = r.get("url", "")
+            desc = r.get("description", "No description")
+            output += f"### {i}. {title}\n"
+            output += f"   URL: {url}\n"
+            if desc:
+                output += f"   {desc}\n"
+            output += "\n"
+
+        return output
 
     except Exception as e:
         logger.error("firecrawl.search_error", {"query": query, "error": str(e)}, channel="agent")

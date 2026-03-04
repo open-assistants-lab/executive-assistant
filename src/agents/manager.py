@@ -237,6 +237,7 @@ def get_default_tools(user_id: str) -> list[Any]:
         search_web,
     )
     from src.tools.memory import memory_get_history, memory_search
+    from src.tools.mcp import mcp_list, mcp_reload, mcp_tools
     from src.tools.shell import shell_execute
     from src.tools.time import time_get
     from src.tools.todos import (
@@ -245,6 +246,13 @@ def get_default_tools(user_id: str) -> list[Any]:
         todos_extract,
         todos_list,
         todos_update,
+    )
+    from src.agents.subagent.tools import (
+        subagent_create,
+        subagent_invoke,
+        subagent_list,
+        subagent_progress,
+        subagent_validate,
     )
 
     return [
@@ -287,6 +295,14 @@ def get_default_tools(user_id: str) -> list[Any]:
         contacts_update,
         contacts_delete,
         contacts_search,
+        mcp_list,
+        mcp_reload,
+        mcp_tools,
+        subagent_create,
+        subagent_invoke,
+        subagent_list,
+        subagent_progress,
+        subagent_validate,
     ]
 
 

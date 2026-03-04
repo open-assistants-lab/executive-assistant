@@ -4,36 +4,19 @@ import asyncio
 import time
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
-from pathlib import Path
 from typing import Any
 
 from langchain_core.tools import tool
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 
 from src.app_logging import get_logger
 from src.config import get_settings
+from src.tools.email.db import get_engine as _get_engine
 
 logger = get_logger()
 SETTINGS = get_settings()
 
 RATE_LIMIT_COOLDOWN: dict[str, float] = {}
-
-
-def _get_db_path(user_id: str) -> str:
-    """Get SQLite database path for user."""
-    if not user_id or user_id == "default":
-        raise ValueError(f"Invalid user_id: {user_id}")
-    cwd = Path.cwd()
-    base_dir = cwd / "data" / "users" / user_id / "email"
-    base_dir.mkdir(parents=True, exist_ok=True)
-    return str(base_dir / "emails.db")
-
-
-def _get_engine(user_id: str):
-    """Get SQLAlchemy engine."""
-    db_path = _get_db_path(user_id)
-    engine = create_engine(f"sqlite:///{db_path}")
-    return engine
 
 
 def _load_accounts(user_id: str) -> dict:

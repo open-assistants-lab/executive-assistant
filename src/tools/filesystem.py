@@ -1,5 +1,6 @@
 """Filesystem tools for agent - read, write, edit, list, delete files."""
 
+from contextvars import ContextVar
 from pathlib import Path
 
 from langchain_core.tools import tool
@@ -9,9 +10,28 @@ from src.config import get_settings
 
 logger = get_logger()
 
+_current_user_id: ContextVar[str] = ContextVar("current_user_id", default="default")
+
+
+def set_user_id(user_id: str) -> None:
+    """Set the current user_id for tool execution."""
+    _current_user_id.set(user_id)
+
+
+def get_user_id() -> str:
+    """Get the current user_id for tool execution."""
+    return _current_user_id.get()
+
+
+_current_user_id: ContextVar[str] = ContextVar("current_user_id", default="default")
+
 
 def _resolve_path(path: str | None, user_id: str) -> Path:
     """Resolve path relative to user's root, prevent escape."""
+    # Use context variable if user_id is "default"
+    if user_id == "default":
+        user_id = _current_user_id.get()
+
     settings = get_settings()
     root_path = Path(settings.filesystem.user_root.format(user_id=user_id))
     root_path = root_path.resolve()  # Make absolute

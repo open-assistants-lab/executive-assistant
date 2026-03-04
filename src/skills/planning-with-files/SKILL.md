@@ -1,5 +1,5 @@
 ---
-name: planning
+name: planning-with-files
 description: Agent-internal Manus-style planning for complex tasks
 ---
 

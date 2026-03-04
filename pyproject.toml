@@ -31,6 +31,8 @@ dependencies = [
     "sqlite-vec>=0.1.6",
     "cryptography>=41.0.0",
     "imap-tools>=1.0.0",
+    "langchain-mcp-adapters>=0.2.1",
+    "mcp-clickhouse>=0.2.0",
 ]
 
 [project.optional-dependencies]
@@ -68,6 +70,7 @@ packages = ["src"]
 [tool.ruff]
 target-version = "py311"
 line-length = 100
+exclude = ["src/skills/skill-creator"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]

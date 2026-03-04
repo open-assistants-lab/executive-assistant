@@ -1,6 +1,6 @@
 # Executive Assistant
 
-A general purpose executive assistant agent using LangChain create_agent() with support for multiple channels (HTTP, CLI, Telegram).
+A general purpose executive assistant agent built with LangChain and LangGraph, with multi-channel support (HTTP, CLI, Telegram).
 
 ## Features
 
@@ -9,9 +9,11 @@ A general purpose executive assistant agent using LangChain create_agent() with 
 | Feature | Description |
 |---------|-------------|
 | **AI Chat** | Conversational AI with context awareness |
-| **Memory** | Persistent conversation history with SQLite + ChromaDB (semantic search) |
+| **Agent Pooling** | Per-user agent pool for concurrent requests with reusable thread context |
+| **Memory** | Persistent conversation history with SQLite + ChromaDB (semantic + keyword search) |
 | **Checkpoints** | LangGraph checkpoint for conversation state persistence |
 | **Skills** | Extensible skill system with progressive disclosure |
+| **MCP Integration** | Dynamic Model Context Protocol server tools per user |
 
 ### Tools
 
@@ -24,9 +26,10 @@ A general purpose executive assistant agent using LangChain create_agent() with 
 | **Todos** | `todos_list`, `todos_add`, `todos_update`, `todos_delete`, `todos_extract` |
 | **Contacts** | `contacts_list`, `contacts_get`, `contacts_add`, `contacts_update`, `contacts_delete`, `contacts_search` |
 | **Time** | `time_get` with timezone support |
-| **Web** | `scrape_url`, `search_web`, `map_url`, `crawl_url`, `get_crawl_status`, `cancel_crawl` (requires FIRECRAWL_API_KEY) |
+| **Web** | `scrape_url`, `search_web`, `map_url`, `crawl_url`, `get_crawl_status`, `cancel_crawl` (requires `FIRECRAWL_API_KEY` or `FIRECRAWL_BASE_URL`) |
 | **Email** | `email_connect`, `email_disconnect`, `email_accounts`, `email_list`, `email_get`, `email_search`, `email_send`, `email_sync` |
 | **Skills** | `skills_load`, `skills_list`, `sql_write_query` (skill-gated) |
+| **MCP** | `mcp_list`, `mcp_reload`, `mcp_tools` |
 
 ### Progressive Disclosure
 
@@ -39,9 +42,9 @@ This follows the same pattern as [claude-mem](https://github.com/thedotmack/clau
 
 ### Channels
 
-- **HTTP API** - FastAPI server on port 8000 (`/message`, `/message/stream`, `/health`)
-- **CLI** - Interactive command-line interface with rich UI
-- **Telegram** - Telegram bot integration
+- **HTTP API** - FastAPI server on port 8000 (`/message`, `/message/stream`, `/health`, `/health/ready`)
+- **CLI** - Interactive command-line interface with streaming output
+- **Telegram** - Telegram bot integration (polling and webhook modes)
 
 ## Quick Start
 
@@ -73,13 +76,21 @@ curl -X POST http://localhost:8000/message \
   -H "Content-Type: application/json" \
   -d '{"message": "hello", "user_id": "my_user"}'
 
-# Health check
+# Health checks
 curl http://localhost:8000/health
+curl http://localhost:8000/health/ready
 ```
+
+### CLI Commands
+
+- `/help` - Show commands
+- `/clear` - Clear local CLI message buffer
+- `/quit` or `/exit` - Exit CLI
+- End a line with `\` for multi-line input
 
 ## Memory System
 
-The memory system is inspired by [claude-mem](https://github.com/thedotmack/claude-mem) - a persistent memory compression system for Claude Code.
+The memory system is inspired by [claude-mem](https://github.com/thedotmack/claude-mem) and uses hybrid retrieval.
 
 ### Tech Stack
 
@@ -90,28 +101,18 @@ The memory system is inspired by [claude-mem](https://github.com/thedotmack/clau
 | **Checkpoints** | LangGraph SQLite checkpointer |
 | **Pattern** | Progressive disclosure (3-layer workflow) |
 
-### Progressive Disclosure
+### Storage Layout
 
-Inspired by claude-mem's token-efficient memory retrieval:
-
-1. **List** - View available skills/memory index
-2. **Search** - Get relevant results with metadata
-3. **Load** - Fetch full content only when needed
-
-This minimizes token usage by loading detailed content only when relevant.
-
-### Architecture
-
-```
+```text
 data/users/{user_id}/.conversation/
 ├── messages.db      # SQLite with FTS5
-├── vectors/        # ChromaDB for semantic search
-└── checkpoints.db  # LangGraph checkpoint
+├── vectors/         # ChromaDB vectors
+└── checkpoints.db   # LangGraph checkpoints (when enabled)
 ```
 
 ## Configuration
 
-Configuration is in `config.yaml`:
+Configuration is in `config.yaml`.
 
 ```yaml
 # Filesystem
@@ -138,12 +139,6 @@ memory:
   checkpointer:
     retention_days: 0  # 0=disabled, -1=forever
 
-# Tools
-tools:
-  firecrawl:
-    # Set via FIRECRAWL_API_KEY env var
-    # For self-hosted: FIRECRAWL_BASE_URL
-
 # Skills
 skills:
   directory: "src/skills"
@@ -154,6 +149,11 @@ email_sync:
   interval_minutes: 5
   batch_size: 100
   backfill_limit: 1000
+
+# MCP
+mcp:
+  enabled: true
+  idle_timeout_minutes: 30
 ```
 
 ### Environment Variables
@@ -161,35 +161,56 @@ email_sync:
 Create `.env` file:
 
 ```bash
-# Required
-OLLAMA_BASE_URL=http://localhost:11434
-MODEL=minimax-m2.5
+# Model/provider selection
+AGENT_MODEL=ollama-cloud:minimax-m2.5
 
-# Optional
-LANGFUSE_PUBLIC_KEY=...
-LANGFUSE_SECRET_KEY=...
-TELEGRAM_BOT_TOKEN=...
+# Provider credentials/endpoints (set what you use)
+OLLAMA_BASE_URL=https://ollama.com
+OLLAMA_API_KEY=
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+
+# Web tools (Firecrawl)
+FIRECRAWL_API_KEY=
+# FIRECRAWL_BASE_URL=http://localhost:3002  # self-hosted Firecrawl
+
+# Optional observability
+LANGFUSE_PUBLIC_KEY=
+LANGFUSE_SECRET_KEY=
+LANGFUSE_HOST=
+
+# Telegram
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_MODE=polling
+# TELEGRAM_MODE=webhook
+# TELEGRAM_WEBHOOK_URL=https://your-domain.example
+# TELEGRAM_SECRET=your-webhook-secret
+# WEBHOOK_HOST=0.0.0.0
+# WEBHOOK_PORT=8080
 ```
+
+Supported model prefixes for `AGENT_MODEL`: `ollama:`, `ollama-cloud:`, `openai:`, `anthropic:`.
 
 ## User Isolation
 
 Each user gets isolated storage:
 
-```
+```text
 data/users/{user_id}/
-├── workspace/        # User's files
-├── skills/          # User's custom skills
-├── email/           # User's email data
-│   └── emails.db    # SQLite with emails + accounts
+├── workspace/        # User files
+├── skills/           # User custom skills
+├── email/
+│   └── emails.db     # User email store
+├── .mcp.json         # User MCP server config (optional)
 └── .conversation/
-    ├── messages.db  # SQLite with FTS5
-    ├── vectors/    # ChromaDB for semantic search
+    ├── messages.db
+    ├── vectors/
     └── checkpoints.db
 ```
 
 ## Email Integration
 
-Connect email accounts with IMAP/SMTP. Supports Gmail, Outlook, iCloud, Yahoo.
+Connect email accounts with IMAP/SMTP (Gmail, Outlook, iCloud, Yahoo).
 
 ### Tools
 
@@ -204,37 +225,34 @@ Connect email accounts with IMAP/SMTP. Supports Gmail, Outlook, iCloud, Yahoo.
 | `email_send` | Send new email, reply, or reply all |
 | `email_sync` | Manual sync (new/full modes) |
 
-### Usage
-
-```
-# Connect email account
-connect email yourname@gmail.com with password your_app_password
-
-# List emails
-list emails from INBOX
-
-# Send email
-send email to john@example.com subject "Hello" body "Hi there"
-
-# Reply to email
-reply to email <message_id> with message "Thanks!"
-
-# Reply all
-reply all to email <message_id>
-```
-
 ### Auto-Sync
 
-- On connect: Full backfill (newest → earliest)
-- Background: Polls for new emails every N minutes (config.yaml)
-data/users/{user_id}/
-├── workspace/        # User's files
-├── skills/          # User's custom skills
-├── .conversation/
-│   ├── messages.db  # SQLite with FTS5
-│   ├── vectors/    # ChromaDB for semantic search
-│   └── checkpoints.db
+- On connect: full backfill (newest to earliest)
+- Background: polls for new emails every `email_sync.interval_minutes`
+
+## MCP Integration
+
+User MCP config is loaded from `data/users/{user_id}/.mcp.json`.
+
+Example:
+
+```json
+{
+  "mcpServers": {
+    "example": {
+      "command": "uvx",
+      "args": ["some-mcp-server"],
+      "transport": "stdio"
+    }
+  }
+}
 ```
+
+Use tools:
+
+- `mcp_list` - list configured servers and status
+- `mcp_tools` - show tools available from MCP servers
+- `mcp_reload` - reload config after editing `.mcp.json`
 
 ## Development
 
@@ -251,8 +269,8 @@ uv run mypy src/
 
 ## Architecture
 
-- **Agent**: LangChain `create_agent()` with custom tools
+- **Agent**: LangChain `create_agent()` with tool calling
+- **Concurrency**: Per-user `AgentPool` reusing agent instances and thread IDs
 - **Middleware**: SkillMiddleware, SummarizationMiddleware, HumanInTheLoopMiddleware
 - **Storage**: SQLite (messages), ChromaDB (vectors), LangGraph (checkpoints)
-- **LLM**: Ollama with minimax-m2.5 model
-- **Memory Inspiration**: [claude-mem](https://github.com/thedotmack/claude-mem)
+- **LLM Providers**: Ollama/Ollama Cloud, OpenAI, Anthropic

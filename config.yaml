@@ -4,7 +4,7 @@ agent:
   model: "ollama-cloud:minimax-m2.5"
   system_prompt: |
     You are a helpful executive assistant.
-    
+
     CRITICAL RULES:
     - NEVER guess or estimate - always use tools to get exact numbers/facts
     - If you don't know, say "Let me check" and call the appropriate tool
@@ -24,7 +24,7 @@ memory:
   # Checkpointer: LangGraph SQLite
   # retention_days: 0=disabled, -1=forever, N=keep for N days
   checkpointer:
-    retention_days: 0  # 0=disabled, -1=forever, N=days
+    retention_days: 0 # 0=disabled, -1=forever, N=days
 
   # Long-term message storage (SQLite + FTS5 + ChromaDB)
   messages:
@@ -65,8 +65,8 @@ cli:
 # Tools
 tools:
   firecrawl:
-    api_key: ""  # Set via env var FIRECRAWL_API_KEY
-    base_url: ""  # For self-hosted, e.g., "http://localhost:3002"
+    api_key: "" # Set via env var FIRECRAWL_API_KEY
+    base_url: "" # For self-hosted, e.g., "http://localhost:3002"
   max_retries: 3
   timeout: 30
 
@@ -96,14 +96,14 @@ shell_tool:
 # Email Sync
 email_sync:
   enabled: true
-  interval_minutes: 5  # How often to poll for new emails
-  batch_size: 50        # Emails per batch (lower to avoid rate limits)
-  backfill_limit: 100   # Max emails to backfill initially (lower to avoid rate limits)
-  max_retries: 3        # Max retries on rate limit error
-  retry_delay: 30       # Seconds to wait before retry
-  cooldown_minutes: 15  # Minutes to wait after rate limit detected
+  interval_minutes: 5 # How often to poll for new emails
+  batch_size: 50 # Emails per batch (lower to avoid rate limits)
+  backfill_limit: 100 # Max emails to backfill initially (lower to avoid rate limits)
+  max_retries: 3 # Max retries on rate limit error
+  retry_delay: 30 # Seconds to wait before retry
+  cooldown_minutes: 15 # Minutes to wait after rate limit detected
 
 # MCP (Model Context Protocol)
 mcp:
   enabled: true
-  idle_timeout_minutes: 30  # Kill MCP servers after this long of inactivity
+  idle_timeout_minutes: 30 # Kill MCP servers after this long of inactivity
