@@ -26,7 +26,7 @@ Create a new subagent with specified configuration.
 
 **Example:**
 ```
-Create a subagent named "research-agent" with search_web and write_file tools, skills: planning-with-files, description: Research assistant
+Create a subagent named "research-agent" with search_web and files_write tools, skills: planning-with-files, description: Research assistant
 ```
 
 ### 2. subagent_invoke
@@ -107,8 +107,8 @@ When creating a subagent, you can assign these tools:
 
 **File Operations:**
 - `list_files`: List files in a directory
-- `read_file`: Read file content
-- `write_file`: Write content to a file
+- `files_read`: Read file content
+- `files_write`: Write content to a file
 - `edit_file`: Edit a file
 - `delete_file`: Delete a file
 - `files_glob_search`: Search files by pattern

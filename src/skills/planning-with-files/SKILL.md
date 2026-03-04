@@ -81,7 +81,7 @@ Rules:
 ## Key Points
 
 - MUST create actual files (not just talk about them)
-- Use filesystem tools (write_file, read_file, etc.)
+- Use filesystem tools (files_write, files_read, etc.)
 - Progress tracked via checkbox updates in task_plan.md
 - Errors logged in progress.md
 - Files enable session recovery

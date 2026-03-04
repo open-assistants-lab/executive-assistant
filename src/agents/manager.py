@@ -236,8 +236,8 @@ def get_default_tools(user_id: str) -> list[Any]:
         delete_file,
         edit_file,
         list_files,
-        read_file,
-        write_file,
+        files_read,
+        files_write,
     )
     from src.tools.firecrawl import (
         cancel_crawl,
@@ -263,8 +263,8 @@ def get_default_tools(user_id: str) -> list[Any]:
         memory_get_history,
         memory_search,
         list_files,
-        read_file,
-        write_file,
+        files_read,
+        files_write,
         edit_file,
         delete_file,
         files_glob_search,

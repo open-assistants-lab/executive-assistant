@@ -20,7 +20,7 @@ When creating or saving skills for a user, ALWAYS save to their user skills dire
   └── evals/     (optional)
   ```
 
-Use the `write_file` tool to create these files. Ensure the skill directory exists before writing files.
+Use the `files_write` tool to create these files. Ensure the skill directory exists before writing files.
 
 ---
 

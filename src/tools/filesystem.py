@@ -89,7 +89,7 @@ def list_files(path: str = ".", user_id: str = "default") -> str:
 
 
 @tool
-def read_file(path: str, offset: int = 0, limit: int = 100, user_id: str = "default") -> str:
+def files_read(path: str, offset: int = 0, limit: int = 100, user_id: str = "default") -> str:
     """Read file content.
 
     Args:
@@ -118,12 +118,12 @@ def read_file(path: str, offset: int = 0, limit: int = 100, user_id: str = "defa
         content = "\n".join(lines)
         return f"--- {path} ({offset}-{offset + len(lines)}/{total}) ---\n{content}"
     except Exception as e:
-        logger.error("read_file.error", {"path": path, "error": str(e)}, user_id=user_id)
+        logger.error("files_read.error", {"path": path, "error": str(e)}, user_id=user_id)
         return f"Error: {e}"
 
 
 @tool
-def write_file(path: str, content: str, user_id: str = "default") -> str:
+def files_write(path: str, content: str, user_id: str = "default") -> str:
     """Write content to a file (creates or overwrites).
 
     Args:
@@ -139,10 +139,10 @@ def write_file(path: str, content: str, user_id: str = "default") -> str:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
 
-        logger.info("write_file", {"path": str(target), "size": len(content)}, user_id=user_id)
-        return f"Written {len(content)} bytes to {path}"
+        logger.info("files_write", {"path": str(target), "size": len(content)}, user_id=user_id)
+        return f"Successfully wrote to {path}"
     except Exception as e:
-        logger.error("write_file.error", {"path": path, "error": str(e)}, user_id=user_id)
+        logger.error("files_write.error", {"path": path, "error": str(e)}, user_id=user_id)
         return f"Error: {e}"
 
 
