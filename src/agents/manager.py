@@ -203,6 +203,7 @@ def get_default_tools(user_id: str) -> list[Any]:
     from src.agents.subagent.tools import (
         subagent_batch,
         subagent_create,
+        subagent_delete,
         subagent_invoke,
         subagent_list,
         subagent_progress,
@@ -213,6 +214,10 @@ def get_default_tools(user_id: str) -> list[Any]:
     )
     from src.skills.example_constrained_tool import sql_write_query
     from src.skills.tools import skills_list, skills_load
+    from src.telegram.main import (
+        telegram_send_file_tool,
+        telegram_send_message_tool,
+    )
     from src.tools.contacts import (
         contacts_add,
         contacts_delete,
@@ -235,9 +240,9 @@ def get_default_tools(user_id: str) -> list[Any]:
     from src.tools.filesystem import (
         delete_file,
         edit_file,
-        list_files,
         files_read,
         files_write,
+        list_files,
     )
     from src.tools.firecrawl import (
         cancel_crawl,
@@ -306,11 +311,14 @@ def get_default_tools(user_id: str) -> list[Any]:
         subagent_invoke,
         subagent_list,
         subagent_progress,
+        subagent_delete,
         subagent_validate,
         subagent_batch,
         subagent_schedule,
         subagent_schedule_cancel,
         subagent_schedule_list,
+        telegram_send_message_tool,
+        telegram_send_file_tool,
     ]
 
 

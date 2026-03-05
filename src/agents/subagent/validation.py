@@ -20,7 +20,8 @@ def get_available_tool_names() -> set[str]:
     """Get list of available tool names."""
     from src.agents.manager import get_default_tools
 
-    return {tool.name for tool in get_default_tools("system")}
+    tools = get_default_tools("default")
+    return {tool.name for tool in tools}
 
 
 def get_mcp_server_names() -> set[str]:

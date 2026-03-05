@@ -2,26 +2,70 @@
 
 import uuid
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
+from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 
-from src.agents.subagent.manager import get_subagent_manager
 from src.app_logging import get_logger
 
 logger = get_logger()
 
+JOBS_DB_PATH = Path("data/jobs.db")
+
+_jobstores: dict = {}
 _scheduler: BackgroundScheduler | None = None
 _jobs: dict[str, dict[str, Any]] = {}
+
+
+def _get_jobstores() -> dict:
+    """Get jobstores dict with SQLite persistence."""
+    global _jobstores
+    if not _jobstores:
+        _jobstores = {
+            "default": SQLAlchemyJobStore(url=f"sqlite:///{JOBS_DB_PATH}"),
+        }
+    return _jobstores
+
+
+def _run_subagent_job(user_id: str, subagent_name: str, task: str, job_id: str) -> None:
+    """Module-level function to run subagent job (picklable)."""
+    from src.agents.subagent.manager import get_subagent_manager
+
+    try:
+        manager = get_subagent_manager(user_id)
+        result = manager.invoke(subagent_name, task)
+        _jobs[job_id] = {
+            "status": "completed" if result.get("success") else "failed",
+            "result": result,
+            "completed_at": datetime.now().isoformat(),
+        }
+        logger.info(
+            "subagent.scheduled_run_completed",
+            {"job_id": job_id, "success": result.get("success")},
+            user_id=user_id,
+        )
+    except Exception as e:
+        _jobs[job_id] = {
+            "status": "failed",
+            "error": str(e),
+            "completed_at": datetime.now().isoformat(),
+        }
+        logger.error(
+            "subagent.scheduled_run_failed",
+            {"job_id": job_id, "error": str(e)},
+            user_id=user_id,
+        )
 
 
 def get_scheduler() -> BackgroundScheduler:
     """Get or create the global scheduler."""
     global _scheduler
     if _scheduler is None:
-        _scheduler = BackgroundScheduler()
+        _scheduler = BackgroundScheduler(jobstores=_get_jobstores())
         _scheduler.start()
         logger.info("subagent.scheduler.started", {}, user_id="system")
     return _scheduler
@@ -48,21 +92,12 @@ def schedule_once(
 
     scheduler = get_scheduler()
 
-    def _run():
-        manager = get_subagent_manager(user_id)
-        result = manager.invoke(subagent_name, task)
-        _jobs[job_id] = {
-            "status": "completed" if result.get("success") else "failed",
-            "result": result,
-            "completed_at": datetime.now().isoformat(),
-        }
-        logger.info(
-            "subagent.scheduled_run_completed",
-            {"job_id": job_id, "success": result.get("success")},
-            user_id=user_id,
-        )
-
-    scheduler.add_job(_run, trigger=DateTrigger(run_date=run_at), id=job_id)
+    scheduler.add_job(
+        _run_subagent_job,
+        trigger=DateTrigger(run_date=run_at),
+        id=job_id,
+        args=[user_id, subagent_name, task, job_id],
+    )
 
     _jobs[job_id] = {
         "user_id": user_id,
@@ -104,21 +139,17 @@ def schedule_recurring(
 
     scheduler = get_scheduler()
 
-    def _run():
-        manager = get_subagent_manager(user_id)
-        result = manager.invoke(subagent_name, task)
-        logger.info(
-            "subagent.recurring_run_completed",
-            {"job_id": job_id, "success": result.get("success")},
-            user_id=user_id,
-        )
-
     try:
         trigger = CronTrigger.from_crontab(cron)
     except Exception as e:
         raise ValueError(f"Invalid cron expression: {e}")
 
-    scheduler.add_job(_run, trigger=trigger, id=job_id)
+    scheduler.add_job(
+        _run_subagent_job,
+        trigger=trigger,
+        id=job_id,
+        args=[user_id, subagent_name, task, job_id],
+    )
 
     _jobs[job_id] = {
         "user_id": user_id,

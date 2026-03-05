@@ -1,5 +1,9 @@
 import json
+import os
+import shutil
+from pathlib import Path
 
+import yaml
 from langchain_core.tools import tool
 
 from src.agents.subagent.manager import get_subagent_manager
@@ -210,18 +214,13 @@ def subagent_validate(name: str, user_id: str) -> str:
     from src.agents.subagent.validation import validate_subagent_config
 
     base_path = f"data/users/{user_id}/subagents/{name}"
-    import os
 
     if not os.path.exists(base_path):
         return f"Subagent '{name}' does not exist."
 
-    from pathlib import Path
-
     config_path = Path(base_path) / "config.yaml"
     if not config_path.exists():
         return f"Subagent '{name}' has no config.yaml."
-
-    import yaml
 
     config_dict = yaml.safe_load(config_path.read_text()) or {}
 
@@ -328,3 +327,63 @@ def subagent_schedule_list(user_id: str) -> str:
         lines.append("")
 
     return "\n".join(lines)
+
+
+@tool
+def subagent_delete(name: str, user_id: str) -> str:
+    """Delete a subagent.
+
+    Args:
+        name: Subagent name to delete
+        user_id: The user ID (required)
+
+    Returns:
+        Deletion confirmation
+    """
+    from src.agents.subagent.manager import get_subagent_manager
+
+    manager = get_subagent_manager(user_id)
+    base_path = manager.base_path / name
+
+    if not base_path.exists():
+        return f"Subagent '{name}' not found"
+
+    try:
+        shutil.rmtree(base_path)
+        manager.invalidate_cache(name)
+        return f"✅ Subagent '{name}' deleted"
+    except Exception as e:
+        return f"Error deleting subagent: {e}"
+
+
+@tool
+def telegram_send_message_tool(user_id: str, message: str) -> str:
+    """Send a message to the user via Telegram.
+
+    Args:
+        user_id: The user ID (required)
+        message: Message text to send
+
+    Returns:
+        Confirmation or error
+    """
+    from src.telegram.main import telegram_send_message as send_msg
+
+    return send_msg(user_id, message)
+
+
+@tool
+def telegram_send_file_tool(user_id: str, file_path: str, caption: str = "") -> str:
+    """Send a file to the user via Telegram.
+
+    Args:
+        user_id: The user ID (required)
+        file_path: Path to file (relative to workspace)
+        caption: Optional caption for the file
+
+    Returns:
+        Confirmation or error
+    """
+    from src.telegram.main import telegram_send_file as send_file
+
+    return send_file(user_id, file_path, caption)

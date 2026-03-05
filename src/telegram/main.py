@@ -9,6 +9,7 @@ load_dotenv()
 
 from fastapi import FastAPI, HTTPException, Request
 from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.tools import tool
 from langfuse import propagate_attributes
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
@@ -19,6 +20,99 @@ from telegram import Update
 # Store pending approvals: user_id -> interrupt data
 _pending_approvals: dict[str, dict] = {}
 
+# Store user_id -> chat_id mapping for sending messages
+_user_chats: dict[str, int] = {}
+
+
+def get_chat_id(user_id: str) -> int | None:
+    """Get cached chat_id for user."""
+    return _user_chats.get(user_id)
+
+
+def set_chat_id(user_id: str, chat_id: int) -> None:
+    """Cache user's chat_id."""
+    _user_chats[user_id] = chat_id
+
+
+async def telegram_send_message(
+    user_id: str, message: str, context: ContextTypes.DEFAULT_TYPE = None
+) -> str:
+    """Send a message to user via Telegram."""
+    chat_id = get_chat_id(user_id)
+    if not chat_id:
+        return f"Error: User {user_id} not found. User must send a message first."
+
+    try:
+        from telegram import Bot
+
+        token = os.environ.get("TELEGRAM_BOT_TOKEN")
+        if not token:
+            return "Error: TELEGRAM_BOT_TOKEN not configured"
+
+        bot = Bot(token=token)
+        await bot.send_message(chat_id=chat_id, text=message)
+        return f"Message sent to user {user_id}"
+    except Exception as e:
+        return f"Error sending message: {e}"
+
+
+# Sync wrappers for use as tools
+@tool
+def telegram_send_message_tool(user_id: str, message: str) -> str:
+    """Send a message to user via Telegram (sync wrapper)."""
+    try:
+        import asyncio
+
+        return asyncio.run(telegram_send_message(user_id, message))
+    except Exception as e:
+        return f"Error: {e}"
+
+
+@tool
+def telegram_send_file_tool(user_id: str, file_path: str, caption: str = "") -> str:
+    """Send a file to user via Telegram (sync wrapper)."""
+    try:
+        import asyncio
+
+        return asyncio.run(telegram_send_file(user_id, file_path, caption))
+    except Exception as e:
+        return f"Error: {e}"
+
+
+async def telegram_send_file(
+    user_id: str, file_path: str, caption: str = "", context: ContextTypes.DEFAULT_TYPE = None
+) -> str:
+    """Send a file to user via Telegram."""
+    chat_id = get_chat_id(user_id)
+    if not chat_id:
+        return f"Error: User {user_id} not found. User must send a message first."
+
+    try:
+        from telegram import Bot
+        from telegram import InputFile
+        import os
+
+        token = os.environ.get("TELEGRAM_BOT_TOKEN")
+        if not token:
+            return "Error: TELEGRAM_BOT_TOKEN not configured"
+
+        bot = Bot(token=token)
+
+        # Resolve path
+        from src.tools.filesystem import _resolve_path
+
+        resolved_path = _resolve_path(file_path, user_id)
+
+        if not resolved_path.exists():
+            return f"Error: File not found: {file_path}"
+
+        with open(resolved_path, "rb") as f:
+            await bot.send_document(chat_id=chat_id, document=InputFile(f), caption=caption)
+
+        return f"File sent to user {user_id}"
+    except Exception as e:
+        return f"Error sending file: {e}"
+
 
 async def handle_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle incoming Telegram update."""
@@ -27,6 +121,9 @@ async def handle_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     user_id = str(update.effective_user.id)
     text = update.message.text.strip().lower()
+
+    # Store chat_id for sending messages later
+    set_chat_id(user_id, update.message.chat.id)
 
     # Check if this is a response to a pending approval
     if user_id in _pending_approvals and text in ("approve", "reject", "edit"):

@@ -409,7 +409,7 @@ async def start_interval_sync() -> None:
         return
 
     if not SETTINGS.email_sync.enabled:
-        logger.info("email_sync.disabled")
+        logger.info("email_sync.disabled", {}, user_id="system")
         return
 
     _running = True
@@ -434,7 +434,7 @@ async def stop_interval_sync() -> None:
             pass
         _scheduler_task = None
 
-    logger.info("email_sync.stopped", user_id="system")
+    logger.info("email_sync.stopped", {}, user_id="system")
 
 
 async def _run_interval_sync() -> None:
