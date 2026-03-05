@@ -9,6 +9,7 @@ from langchain.agents.middleware import AgentMiddleware, AgentState, hook_config
 from langchain_core.messages import SystemMessage
 from langgraph.runtime import Runtime
 
+from src.config import get_settings
 from src.skills.registry import SkillRegistry
 
 
@@ -28,11 +29,7 @@ class SkillMiddleware(AgentMiddleware[SkillState]):
     state_schema = SkillState
     tools = []
 
-    def __init__(
-        self,
-        system_dir: str = "src/skills",
-        user_id: str | None = None,
-    ):
+    def __init__(self, system_dir: str = "src/skills", user_id: str | None = None):
         """Initialize skill middleware.
 
         Args:
@@ -40,6 +37,14 @@ class SkillMiddleware(AgentMiddleware[SkillState]):
             user_id: Optional user ID for user-specific skills
         """
         self.registry = SkillRegistry(system_dir=system_dir, user_id=user_id)
+        self.user_id = user_id
+
+    def _get_user_skills_dir(self) -> str:
+        """Get the configured user skills directory."""
+        settings = get_settings()
+        if self.user_id:
+            return settings.skills.get_user_directory(self.user_id)
+        return settings.skills.user_directory
 
     def _build_skills_prompt(self) -> str:
         """Build the skills prompt section.
@@ -53,10 +58,14 @@ class SkillMiddleware(AgentMiddleware[SkillState]):
             return ""
 
         skills_list = "\n".join(skill_entries)
+        user_skills_dir = self._get_user_skills_dir()
 
         return (
             f"\n\n## Available Skills\n\n"
             f"{skills_list}\n\n"
+            f"## User Skills Directory\n\n"
+            f"User-specific skills are stored in: `{user_skills_dir}/`\n"
+            f"When creating or modifying skills for a user, use this directory.\n\n"
             f"Use the skills_load tool when you need detailed information "
             f"about handling a specific type of request."
         )

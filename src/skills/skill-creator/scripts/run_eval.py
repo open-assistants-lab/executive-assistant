@@ -33,13 +33,14 @@ def run_single_query(
     3. Checking if the skill was loaded (via skill metadata in response)
     """
     from src.agents.subagent.manager import get_subagent_manager
+    from src.config import get_settings
 
-    triggered = False
-    error = None
+    settings = get_settings()
+    user_skills_dir = settings.skills.get_user_directory(user_id)
 
     try:
         # Load the skill into registry temporarily
-        skill_path = Path(f"data/users/{user_id}/skills/{skill_name}")
+        skill_path = Path(f"{user_skills_dir}/{skill_name}")
 
         # Check if skill exists
         if not skill_path.exists():

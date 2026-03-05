@@ -1,40 +1,33 @@
 ---
 name: skill-creator
-description: Create new skills, modify and improve existing skills, and measure skill performance. Use when users want to create a skill from scratch, update or optimize an existing skill, run evals to test a skill, benchmark skill performance with variance analysis, or optimize a skill's description for better triggering accuracy. ALWAYS save skills to data/users/{user_id}/skills/{skill_name}/ NOT workspace/test_user_skills/
+description: Create new skills, modify and improve existing skills. When creating skills, ALWAYS save to the user skills directory shown in your system prompt (look for "User Skills Directory" section). Never save to workspace/ or test_user_skills/ folders.
 ---
 
 # Skill Creator
 
+At a high level, the process of creating a skill goes like this:
+
 ## User Skill Directory
 
-When creating or saving skills for a user, ALWAYS save to their user skills directory:
-- **Path from config**: `data/users/{user_id}/skills/{skill_name}/`
-- **Config setting**: `skills.user_directory` in config.yaml (default: `data/users/{user_id}/skills`)
-- **Structure**:
-  ```
-  data/users/{user_id}/skills/{skill_name}/
-  ├── SKILL.md (required)
-  ├── agents/     (optional)
-  ├── scripts/    (optional)
-  ├── references/ (optional)
-  ├── assets/     (optional)
-  └── evals/     (optional)
-  ```
+**IMPORTANT**: The actual user skills directory path is dynamically injected into your system prompt (see "## User Skills Directory" section). Use that path instead of hardcoding.
 
-**IMPORTANT**: 
-- Use the config path: `data/users/{user_id}/skills/{skill_name}/`
-- NOT in `workspace/` subdirectory
-- NOT in `test_user_skills/` or any other folder
-- Use `mkdir -p` command to create the directory first, then use `files_write` to create files inside it
+When creating or saving skills for a user, the skills should go in the user skills directory shown in your system prompt.
 
-Example:
-```bash
-# Create directory first
-mkdir -p data/users/{user_id}/skills/my-skill
-
-# Then write files
-files_write path="data/users/{user_id}/skills/my-skill/SKILL.md" content="..."
+The user skills directory structure:
 ```
+{user_skills_directory}/
+├── {skill_name}/
+│   ├── SKILL.md (required)
+│   ├── agents/     (optional)
+│   ├── scripts/    (optional)
+│   ├── references/ (optional)
+│   ├── assets/     (optional)
+│   └── evals/     (optional)
+```
+
+**Workflow**:
+1. Use the `mkdir` command to create the directory first
+2. Use `files_write` to create files inside it
 
 ---
 
@@ -496,12 +489,14 @@ This section is customized for the Executive Assistant system.
 
 ### Running Scripts
 
+The scripts automatically use the configured user skills directory from config.yaml.
+
 ```bash
 # Run description optimization loop
 cd src/skills/skill-creator
 python -m scripts.run_loop \
   --eval-set /path/to/eval_set.json \
-  --skill-path data/users/default/skills/my-skill \
+  --skill-path {user_skills_directory}/my-skill \
   --user-id default \
   --verbose
 
@@ -514,9 +509,9 @@ python -m eval-viewer.generate_review /path/to/workspace --static /tmp/viewer.ht
 
 ### Test Cases Location
 
-Save test cases to user's evals directory:
+Save test cases to user's evals directory (path shown in your system prompt):
 ```
-data/users/{user_id}/skills/{skill_name}/evals/evals.json
+{user_skills_directory}/{skill_name}/evals/evals.json
 ```
 
 ### Scripts adapted for our system
