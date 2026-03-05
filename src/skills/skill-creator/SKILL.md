@@ -469,6 +469,56 @@ If you're in Cowork, the main things to know are:
 
 ---
 
+## Executive Assistant-Specific Instructions
+
+This section is customized for the Executive Assistant system.
+
+### Key Differences from Claude Code
+
+- **No Anthropic SDK**: Scripts use our LLM (`src.llm.create_model_from_config`) instead of `anthropic` SDK
+- **Skill triggering**: Instead of `claude -p` subprocess, we test via subagent invocation
+- **Eval viewer**: Works similarly - can serve locally or generate static HTML
+- **Skills path**: User skills are stored in `data/users/{user_id}/skills/{skill_name}/`
+
+### Running Scripts
+
+```bash
+# Run description optimization loop
+cd src/skills/skill-creator
+python -m scripts.run_loop \
+  --eval-set /path/to/eval_set.json \
+  --skill-path data/users/default/skills/my-skill \
+  --user-id default \
+  --verbose
+
+# Generate eval viewer
+python -m eval-viewer.generate_review /path/to/workspace --skill-name my-skill
+
+# Or generate static HTML
+python -m eval-viewer.generate_review /path/to/workspace --static /tmp/viewer.html
+```
+
+### Test Cases Location
+
+Save test cases to user's evals directory:
+```
+data/users/{user_id}/skills/{skill_name}/evals/evals.json
+```
+
+### Scripts adapted for our system
+
+| Script | Status | Notes |
+|--------|--------|-------|
+| `run_eval.py` | ✅ Adapted | Uses subagent instead of `claude -p` |
+| `run_loop.py` | ✅ Adapted | Uses our LLM |
+| `improve_description.py` | ✅ Adapted | Uses our LLM |
+| `generate_report.py` | ✅ Works | No changes needed |
+| `aggregate_benchmark.py` | ✅ Works | No changes needed |
+| `generate_review.py` | ✅ Works | Serves or static HTML |
+| `package_skill.py` | ⚠️ Optional | May need adaptation |
+
+---
+
 ## Reference files
 
 The agents/ directory contains instructions for specialized subagents. Read them when you need to spawn the relevant subagent.
