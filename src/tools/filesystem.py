@@ -40,15 +40,25 @@ def _resolve_path(path: str | None, user_id: str) -> Path:
         return root_path
 
     # Reject paths that try to escape user root
-    # Don't allow paths starting with / or data/users/
-    if path.startswith("/") or path.startswith("data/"):
+    # Don't allow absolute paths
+    if path.startswith("/"):
         raise ValueError(f"Use relative paths only. Path: {path}")
 
-    resolved = (root_path / path).resolve()
-
-    # Ensure both are absolute paths for comparison
-    if not resolved.is_relative_to(root_path):
-        raise ValueError(f"Path outside user directory: {path}")
+    # Allow data/users/{user_id}/skills/ for skill creation
+    # This path is validated separately
+    is_skills_path = path.startswith("data/users/") and "/skills/" in path
+    if is_skills_path:
+        # Verify it's for the current user
+        expected_prefix = f"data/users/{user_id}/skills/"
+        if not path.startswith(expected_prefix):
+            raise ValueError(f"Can only write to your own skills directory: {expected_prefix}")
+        # Resolve to absolute path - skip the root check for skills
+        resolved = (Path.cwd() / path).resolve()
+    else:
+        resolved = (root_path / path).resolve()
+        # Ensure both are absolute paths for comparison
+        if not resolved.is_relative_to(root_path):
+            raise ValueError(f"Path outside user directory: {path}")
 
     return resolved
 

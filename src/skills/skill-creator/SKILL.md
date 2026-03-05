@@ -20,7 +20,16 @@ When creating or saving skills for a user, ALWAYS save to their user skills dire
   └── evals/     (optional)
   ```
 
-Use the `files_write` tool to create these files. Ensure the skill directory exists before writing files.
+**IMPORTANT**: Use `mkdir` command to create the directory first, then use `files_write` to create files inside it. The directory path must be:
+- `data/users/{user_id}/skills/{skill_name}/`
+- NOT in `workspace/` subdirectory
+- NOT in `test_user_skills/` or any other folder
+
+Example:
+```bash
+mkdir -p data/users/{user_id}/skills/my-skill
+files_write path="data/users/{user_id}/skills/my-skill/SKILL.md" content="..."
+```
 
 ---
 
