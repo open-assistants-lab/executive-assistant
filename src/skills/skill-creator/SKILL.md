@@ -1,6 +1,6 @@
 ---
 name: skill-creator
-description: Create new skills, modify and improve existing skills, and measure skill performance. Use when users want to create a skill from scratch, update or optimize an existing skill, run evals to test a skill, benchmark skill performance with variance analysis, or optimize a skill's description for better triggering accuracy.
+description: Create new skills, modify and improve existing skills, and measure skill performance. Use when users want to create a skill from scratch, update or optimize an existing skill, run evals to test a skill, benchmark skill performance with variance analysis, or optimize a skill's description for better triggering accuracy. ALWAYS save skills to data/users/{user_id}/skills/{skill_name}/ NOT workspace/test_user_skills/
 ---
 
 # Skill Creator
@@ -8,7 +8,8 @@ description: Create new skills, modify and improve existing skills, and measure 
 ## User Skill Directory
 
 When creating or saving skills for a user, ALWAYS save to their user skills directory:
-- **Path**: `data/users/{user_id}/skills/{skill_name}/`
+- **Path from config**: `data/users/{user_id}/skills/{skill_name}/`
+- **Config setting**: `skills.user_directory` in config.yaml (default: `data/users/{user_id}/skills`)
 - **Structure**:
   ```
   data/users/{user_id}/skills/{skill_name}/
@@ -20,14 +21,18 @@ When creating or saving skills for a user, ALWAYS save to their user skills dire
   └── evals/     (optional)
   ```
 
-**IMPORTANT**: Use `mkdir` command to create the directory first, then use `files_write` to create files inside it. The directory path must be:
-- `data/users/{user_id}/skills/{skill_name}/`
+**IMPORTANT**: 
+- Use the config path: `data/users/{user_id}/skills/{skill_name}/`
 - NOT in `workspace/` subdirectory
 - NOT in `test_user_skills/` or any other folder
+- Use `mkdir -p` command to create the directory first, then use `files_write` to create files inside it
 
 Example:
 ```bash
+# Create directory first
 mkdir -p data/users/{user_id}/skills/my-skill
+
+# Then write files
 files_write path="data/users/{user_id}/skills/my-skill/SKILL.md" content="..."
 ```
 
