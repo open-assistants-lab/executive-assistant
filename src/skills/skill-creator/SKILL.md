@@ -1,51 +1,25 @@
 ---
 name: skill-creator
-description: Create new skills, modify and improve existing skills. When creating skills, ALWAYS save to the user skills directory shown in your system prompt (look for "User Skills Directory" section). Never save to workspace/ or test_user_skills/ folders.
+description: Create new skills using the skill_create tool. When creating skills, use skill_create with the skill name and full SKILL.md content - it automatically saves to the correct user skills directory from config. Never use files_write or mkdir for skill creation.
 ---
 
 # Skill Creator
 
-At a high level, the process of creating a skill goes like this:
+> **IMPORTANT**: Always use the `skill_create` tool to create skills. Do NOT use `files_write`, `mkdir`, or shell commands. The skill_create tool automatically handles the correct path.
 
 ## User Skill Directory
 
-**IMPORTANT**: The actual user skills directory path is dynamically injected into your system prompt (see "## User Skills Directory" section). Use that path instead of hardcoding.
+The user skills directory is dynamically injected into your system prompt (see "User Skills Directory" section). Use `skill_create` tool which automatically uses the correct path.
 
-When creating or saving skills for a user, the skills should go in the user skills directory shown in your system prompt.
+## Workflow
 
-The user skills directory structure:
-```
-{user_skills_directory}/
-├── {skill_name}/
-│   ├── SKILL.md (required)
-│   ├── agents/     (optional)
-│   ├── scripts/    (optional)
-│   ├── references/ (optional)
-│   ├── assets/     (optional)
-│   └── evals/     (optional)
-```
-
-**Workflow**:
-1. Use the `mkdir` command to create the directory first
-2. Use `files_write` to create files inside it
+1. Decide what the skill should do
+2. Use `skill_create` tool with name and SKILL.md content
+3. Create test prompts and evaluate
+4. Improve based on feedback
+5. Repeat until satisfied
 
 ---
-
-A skill for creating new skills and iteratively improving them.
-
-At a high level, the process of creating a skill goes like this:
-
-- Decide what you want the skill to do and roughly how it should do it
-- Write a draft of the skill
-- Create a few test prompts and run claude-with-access-to-the-skill on them
-- Help the user evaluate the results both qualitatively and quantitatively
-  - While the runs happen in the background, draft some quantitative evals if there aren't any (if there are some, you can either use as is or modify if you feel something needs to change about them). Then explain them to the user (or if they already existed, explain the ones that already exist)
-  - Use the `eval-viewer/generate_review.py` script to show the user the results for them to look at, and also let them look at the quantitative metrics
-- Rewrite the skill based on feedback from the user's evaluation of the results (and also if there are any glaring flaws that become apparent from the quantitative benchmarks)
-- Repeat until you're satisfied
-- Expand the test set and try again at larger scale
-
-Your job when using this skill is to figure out where the user is in this process and then jump in and help them progress through these stages. So for instance, maybe they're like "I want to make a skill for X". You can help narrow down what they mean, write a draft, write the test cases, figure out how they want to evaluate, run all the prompts, and repeat.
 
 On the other hand, maybe they already have a draft of the skill. In this case you can go straight to the eval/iterate part of the loop.
 

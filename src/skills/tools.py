@@ -130,3 +130,57 @@ def skills_list() -> str:
         Formatted list of available skills
     """
     return list_available_skills()
+
+
+@tool
+def skill_create(
+    name: str,
+    content: str,
+    user_id: str = "default",
+) -> str:
+    """Create a new skill in the user's skills directory.
+
+    This tool automatically saves to the correct directory from config.
+    Use this instead of files_write for skill creation.
+
+    Args:
+        name: Skill name (e.g., "my-skill")
+        content: Full SKILL.md content including YAML frontmatter
+        user_id: User identifier
+
+    Returns:
+        Success or error message
+    """
+    from pathlib import Path
+
+    from src.config import get_settings
+
+    settings = get_settings()
+    user_skills_dir = settings.skills.get_user_directory(user_id)
+
+    skill_path = Path(user_skills_dir) / name / "SKILL.md"
+
+    try:
+        skill_path.parent.mkdir(parents=True, exist_ok=True)
+        skill_path.write_text(content, encoding="utf-8")
+
+        from src.app_logging import get_logger
+
+        logger = get_logger()
+        logger.info(
+            "skill.created",
+            {"name": name, "path": str(skill_path), "size": len(content)},
+            user_id=user_id,
+        )
+
+        return f"Successfully created skill '{name}' at {skill_path}"
+    except Exception as e:
+        from src.app_logging import get_logger
+
+        logger = get_logger()
+        logger.error(
+            "skill.create.error",
+            {"name": name, "error": str(e)},
+            user_id=user_id,
+        )
+        return f"Error creating skill: {e}"

@@ -213,7 +213,7 @@ def get_default_tools(user_id: str) -> list[Any]:
         subagent_validate,
     )
     from src.skills.example_constrained_tool import sql_write_query
-    from src.skills.tools import skills_list, skills_load
+    from src.skills.tools import skills_list, skills_load, skill_create
     from src.telegram.main import (
         telegram_send_file_tool,
         telegram_send_message_tool,
@@ -290,6 +290,7 @@ def get_default_tools(user_id: str) -> list[Any]:
         sql_write_query,
         skills_load,
         skills_list,
+        skill_create,
         email_connect,
         email_disconnect,
         email_accounts,
