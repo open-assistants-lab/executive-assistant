@@ -96,6 +96,46 @@ Tracking implementation progress for the Executive Assistant agent.
 
 ### Skills System (Agent Skills Compatible)
 
+- [x] Skill schema (SKILL.md parser with YAML frontmatter)
+- [x] Skill storage layer (file-based, directory scanning)
+- [x] Skill registry (combine system + user skills)
+- [x] SkillMiddleware with `before_agent` hook
+- [x] skills_load tool
+- [x] Custom state for tracking loaded skills
+- [x] skill-gated tool pattern
+- [x] CLI commands for skill management
+- [x] API endpoints for skill management
+- [x] skill_create tool (enforces correct path)
+- [x] Skill evaluation system (trigger detection, description optimization)
+
+**Eval System:**
+```
+src/skills/skill-creator/scripts/
+├── run_eval.py          # Test skill trigger detection
+├── run_loop.py          # Eval + optimize description loop
+├── improve_description.py  # LLM-based description improvement
+├── utils.py             # SKILL.md parsing
+└── generate_report.py  # HTML report generation
+```
+
+**Usage:**
+```bash
+# Test trigger detection
+python -m src.skills.skill-creator.scripts.run_eval \
+  --eval-set data/eval.json \
+  --skill-path src/skills/my-skill
+
+# Run optimization loop (eval + improve until pass)
+python -m src.skills.skill-creator.scripts.run_loop \
+  --eval-set data/eval.json \
+  --skill-path src/skills/my-skill \
+  --max-iterations 5
+```
+
+**Hardcoded Paths:**
+- User skills: `data/users/{user_id}/skills`
+- User messages: `data/users/{user_id}/messages`
+
 ### Interface
 - [x] HTTP server (FastAPI, /message, /message/stream endpoints)
 - [x] CLI (rich terminal UI with multi-line input)
