@@ -31,6 +31,7 @@ class Skill(TypedDict):
     compatibility: NotRequired[str]
     metadata: NotRequired[dict[str, str]]
     allowed_tools: NotRequired[str]
+    triggers: NotRequired[list[str]]
 
 
 def parse_skill_file(skill_path: Path) -> Skill | None:
