@@ -71,33 +71,41 @@ def get_scheduler() -> BackgroundScheduler:
     return _scheduler
 
 
-def schedule_once(
-    user_id: str,
-    subagent_name: str,
-    task: str,
-    run_at: datetime,
-) -> str:
-    """Schedule a one-time subagent execution.
+def _run_subagent_job(user_id: str, subagent_name: str, task: str, job_id: str) -> None:
+    """Module-level function to run subagent job (picklable)."""
+    from src.agents.subagent.manager import get_subagent_manager
 
-    Args:
-        user_id: User ID
-        subagent_name: Subagent to invoke
-        task: Task description
-        run_at: When to run
-
-    Returns:
-        Job ID
-    """
-    job_id = f"subagent_{uuid.uuid4().hex[:8]}"
-
-    scheduler = get_scheduler()
-
-    scheduler.add_job(
-        _run_subagent_job,
-        trigger=DateTrigger(run_date=run_at),
-        id=job_id,
-        args=[user_id, subagent_name, task, job_id],
+    logger.info(
+        "subagent.job_executing",
+        {"job_id": job_id, "subagent_name": subagent_name},
+        user_id=user_id,
     )
+
+    try:
+        manager = get_subagent_manager(user_id)
+        result = manager.invoke(subagent_name, task)
+        _jobs[job_id] = {
+            "status": "completed" if result.get("success") else "failed",
+            "result": result,
+            "completed_at": datetime.now().isoformat(),
+        }
+        logger.info(
+            "subagent.scheduled_run_completed",
+            {"job_id": job_id, "success": result.get("success")},
+            user_id=user_id,
+        )
+    except Exception as e:
+        _jobs[job_id] = {
+            "status": "failed",
+            "error": str(e),
+            "completed_at": datetime.now().isoformat(),
+        }
+        logger.error(
+            "subagent.scheduled_run_failed",
+            {"job_id": job_id, "error": str(e)},
+            user_id=user_id,
+        )
+        raise  # Re-raise so APScheduler marks job as failed
 
     _jobs[job_id] = {
         "user_id": user_id,
