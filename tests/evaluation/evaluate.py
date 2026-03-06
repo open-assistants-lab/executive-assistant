@@ -326,7 +326,6 @@ async def main():
     evaluator = AgentEvaluator(user_id="eval_user")
 
     results = await evaluator.run_evaluation(
-        run_agent_fn=None,
         num_interactions=args.interactions,
         persona_ids=persona_ids,
     )
