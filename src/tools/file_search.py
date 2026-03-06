@@ -7,15 +7,13 @@ from pathlib import Path
 from langchain_core.tools import tool
 
 from src.app_logging import get_logger
-from src.config import get_settings
 
 logger = get_logger()
 
 
 def _get_root_path(user_id: str) -> Path:
     """Get root path for user."""
-    settings = get_settings()
-    return Path(settings.filesystem.user_root.format(user_id=user_id))
+    return Path(f"data/users/{user_id}/workspace")
 
 
 def _resolve_path(path: str | None, user_id: str) -> Path:
@@ -109,8 +107,7 @@ def files_grep_search(
             return f"Invalid regex: {e}"
 
         matches = []
-        settings = get_settings()
-        max_size = getattr(settings.filesystem, "max_file_size_mb", 10) * 1024 * 1024
+        max_size = 10 * 1024 * 1024  # 10MB
 
         for file_path in target.rglob(include or "*"):
             if not file_path.is_file():

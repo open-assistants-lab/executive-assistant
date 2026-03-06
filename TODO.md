@@ -135,6 +135,7 @@ python -m src.skills.skill-creator.scripts.run_loop \
 **Hardcoded Paths:**
 - User skills: `data/users/{user_id}/skills`
 - User messages: `data/users/{user_id}/messages`
+- User workspace: `data/users/{user_id}/workspace`
 
 ### Interface
 - [x] HTTP server (FastAPI, /message, /message/stream endpoints)

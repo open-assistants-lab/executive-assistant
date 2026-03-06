@@ -34,7 +34,6 @@ memory:
   # Long-term message storage (SQLite + FTS5 + ChromaDB)
   messages:
     enabled: true
-    user_directory: "data/users/{user_id}/.conversation"
 
   # Summarization: LangChain SummarizationMiddleware (short-term token reduction)
   summarization:
@@ -77,13 +76,11 @@ tools:
 
 # Skills
 skills:
-  user_directory: "data/users/{user_id}/skills"
+  enabled: true
 
 # Filesystem
 filesystem:
   enabled: true
-  user_root: "data/users/{user_id}/workspace"
-  max_file_size_mb: 10
 
 # Shell
 shell_tool:

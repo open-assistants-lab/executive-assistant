@@ -39,8 +39,7 @@ def _get_shell_config():
 
 def _get_root_path(user_id: str) -> Path:
     """Get root path for user."""
-    settings = get_settings()
-    root = Path(settings.filesystem.user_root.format(user_id=user_id))
+    root = Path(f"data/users/{user_id}/workspace")
     root.mkdir(parents=True, exist_ok=True)
     return root
 

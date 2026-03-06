@@ -6,7 +6,6 @@ from pathlib import Path
 from langchain_core.tools import tool
 
 from src.app_logging import get_logger
-from src.config import get_settings
 
 logger = get_logger()
 
@@ -32,8 +31,7 @@ def _resolve_path(path: str | None, user_id: str) -> Path:
     if user_id == "default":
         user_id = _current_user_id.get()
 
-    settings = get_settings()
-    root_path = Path(settings.filesystem.user_root.format(user_id=user_id))
+    root_path = Path(f"data/users/{user_id}/workspace")
     root_path = root_path.resolve()  # Make absolute
 
     if path is None:
