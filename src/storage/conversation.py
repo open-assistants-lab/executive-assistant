@@ -7,9 +7,6 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 
 import chromadb
-import chromadb.config
-
-from src.config import get_settings
 
 
 @dataclass
@@ -45,10 +42,7 @@ class ConversationStore:
 
     def __init__(self, user_id: str):
         self.user_id = user_id
-        settings = get_settings()
-        config = settings.memory
-
-        base_path = Path(config.messages.user_directory.format(user_id=user_id))
+        base_path = Path(f"data/users/{user_id}/messages")
         base_path.mkdir(parents=True, exist_ok=True)
 
         self.messages_db_path = str((base_path / "messages.db").resolve())

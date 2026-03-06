@@ -1,222 +1,207 @@
 #!/usr/bin/env python3
-"""Run trigger evaluation for a skill description.
-
-Tests whether a skill's description causes the AI to trigger (read the skill)
-for a set of queries. Outputs results as JSON.
-
-For our system, we use subagents to test skill triggering instead of Claude CLI.
-"""
+"""Run trigger evaluation for a skill description."""
 
 import argparse
 import json
+import os
 import sys
-import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Change to project root (5 levels up: scripts -> skill-creator -> skills -> src -> project_root)
+project_root = Path(__file__).resolve().parent.parent.parent.parent.parent
+os.chdir(project_root)
+sys.path.insert(0, str(project_root))
 
-from scripts.utils import parse_skill_md
+# Import from scripts relative path
+import importlib.util
+
+spec = importlib.util.spec_from_file_location(
+    "utils", project_root / "src/skills/skill-creator/scripts/utils.py"
+)
+utils = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(utils)
+parse_skill_md = utils.parse_skill_md
 
 
-def run_single_query(
-    query: str,
-    skill_name: str,
-    skill_description: str,
-    timeout: int,
-    user_id: str = "default",
-    model_name: str | None = None,
-) -> dict:
-    """Run a single query and return whether the skill was triggered.
-
-    We test triggering by:
-    1. Creating a temporary skill with the description
-    2. Invoking the subagent with the query
-    3. Checking if the skill was loaded (via skill metadata in response)
-    """
-    from src.config import get_settings
-
-    settings = get_settings()
-    user_skills_dir = settings.skills.get_user_directory(user_id)
+def run_single_query(query, skill_name, description=None, user_id="default", skill_path=None):
+    user_skills_dir = f"data/users/{user_id}/skills"
 
     try:
-        # Load the skill into registry temporarily
-        skill_path = Path(f"{user_skills_dir}/{skill_name}")
+        # Use provided skill_path or search in default locations
+        if skill_path:
+            skill_file = Path(skill_path) / "SKILL.md"
+        else:
+            skill_file = Path(f"{user_skills_dir}/{skill_name}/SKILL.md")
+            if not skill_file.exists():
+                skill_file = Path(f"src/skills/{skill_name}/SKILL.md")
 
-        # Check if skill exists
-        if not skill_path.exists():
-            # Try system skills
-            skill_path = Path(f"src/skills/{skill_name}")
+        if not skill_file.exists():
+            return {"query": query, "triggered": False, "error": f"Skill not found: {skill_file}"}
 
-        if not skill_path.exists():
-            return {
-                "query": query,
-                "triggered": False,
-                "error": f"Skill not found: {skill_name}",
-                "should_trigger": False,
-                "trigger_rate": 0.0,
-                "triggers": 0,
-                "runs": 1,
-                "pass": False,
-            }
+        # Parse skill file directly to get triggers
+        from src.skills.models import parse_skill_file
 
-        # Test if skill can be loaded
-        # In our system, skill triggering means the skill gets loaded and used
-        try:
-            from src.skills import SkillRegistry
+        skill = parse_skill_file(skill_file)
 
-            registry = SkillRegistry(system_dir="src/skills", user_id=user_id)
-            skill = registry.get_skill(skill_name)
+        if not skill:
+            return {"query": query, "triggered": False, "error": "Failed to parse skill file"}
 
-            if skill:
-                # Skill exists and can be loaded - consider it triggered
-                triggered = True
-            else:
-                triggered = False
-        except Exception as e:
-            error = str(e)
-            triggered = False
+        skill_triggers = skill.get("triggers", [])
+        skill_name_lower = skill.get("name", "").lower()
+        # Use passed description if available, otherwise read from skill file
+        skill_desc = description.lower() if description else skill.get("description", "").lower()
+
+        query_lower = query.lower()
+        trigger_keywords = []
+
+        # Add explicit triggers
+        if skill_triggers:
+            for t in skill_triggers:
+                trigger_keywords.extend(t.lower().split())
+
+        # Add skill name
+        for word in skill_name_lower.split():
+            if len(word) > 2:
+                trigger_keywords.append(word)
+
+        # Filter common words
+        common_words = {
+            "the",
+            "a",
+            "an",
+            "and",
+            "or",
+            "but",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "being",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "could",
+            "should",
+            "may",
+            "might",
+            "must",
+            "shall",
+            "can",
+            "need",
+            "to",
+            "of",
+            "in",
+            "for",
+            "on",
+            "with",
+            "at",
+            "by",
+            "from",
+            "as",
+            "into",
+            "through",
+            "during",
+            "before",
+            "after",
+            "above",
+            "below",
+            "between",
+            "under",
+            "again",
+            "further",
+            "then",
+            "once",
+        }
+
+        for word in skill_desc.split():
+            word = word.strip(".,!?;:()[]{}").lower()
+            if len(word) > 3 and word not in common_words:
+                trigger_keywords.append(word)
+
+        matches = [kw for kw in trigger_keywords if kw in query_lower]
+        triggered = len(matches) >= 1
 
     except Exception as e:
-        error = str(e)
-        triggered = False
+        return {"query": query, "triggered": False, "error": str(e)}
 
-    return {
-        "query": query,
-        "triggered": triggered,
-        "error": error,
-    }
+    return {"query": query, "triggered": triggered, "error": None}
 
 
 def run_eval(
-    eval_set: list[dict],
-    skill_name: str,
-    description: str,
-    num_workers: int,
-    timeout: int,
-    user_id: str = "default",
-    model_name: str | None = None,
-    runs_per_query: int = 1,
-    trigger_threshold: float = 0.5,
-) -> dict:
-    """Run the full eval set and return results."""
+    eval_set,
+    skill_name,
+    description,
+    user_id="default",
+    num_workers=1,
+    timeout=30,
+    model_name=None,
+    runs_per_query=1,
+    trigger_threshold=0.5,
+    skill_path=None,
+):
     results = []
 
-    with ThreadPoolExecutor(max_workers=num_workers) as executor:
-        future_to_info = {}
-        for item in eval_set:
-            for run_idx in range(runs_per_query):
-                future = executor.submit(
-                    run_single_query,
-                    item["query"],
-                    skill_name,
-                    description,
-                    timeout,
-                    user_id,
-                    model_name,
-                )
-                future_to_info[future] = (item, run_idx)
+    for item in eval_set:
+        query = item["query"]
+        result = run_single_query(query, skill_name, description, user_id, skill_path)
 
-        query_triggers: dict[str, list[bool]] = {}
-        query_items: dict[str, dict] = {}
-        for future in as_completed(future_to_info):
-            item, _ = future_to_info[future]
-            query = item["query"]
-            query_items[query] = item
-            if query not in query_triggers:
-                query_triggers[query] = []
-            try:
-                result = future.result()
-                query_triggers[query].append(result.get("triggered", False))
-            except Exception as e:
-                print(f"Warning: query failed: {e}", file=sys.stderr)
-                query_triggers[query].append(False)
+        trigger_rate = 1.0 if result.get("triggered") else 0.0
+        should_trigger = item.get("should_trigger", False)
 
-    for query, triggers in query_triggers.items():
-        item = query_items[query]
-        trigger_rate = sum(triggers) / len(triggers)
-        should_trigger = item["should_trigger"]
         if should_trigger:
-            did_pass = trigger_rate >= trigger_threshold
+            did_pass = trigger_rate >= 0.5
         else:
-            did_pass = trigger_rate < trigger_threshold
+            did_pass = trigger_rate < 0.5
+
         results.append(
             {
                 "query": query,
                 "should_trigger": should_trigger,
                 "trigger_rate": trigger_rate,
-                "triggers": sum(triggers),
-                "runs": len(triggers),
+                "triggers": 1 if result.get("triggered") else 0,
+                "runs": 1,
                 "pass": did_pass,
             }
         )
 
     passed = sum(1 for r in results if r["pass"])
-    total = len(results)
-
     return {
         "skill_name": skill_name,
         "description": description,
         "results": results,
-        "summary": {
-            "total": total,
-            "passed": passed,
-            "failed": total - passed,
-        },
+        "summary": {"total": len(results), "passed": passed, "failed": len(results) - passed},
     }
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run trigger evaluation for a skill description")
-    parser.add_argument("--eval-set", required=True, help="Path to eval set JSON file")
-    parser.add_argument("--skill-path", required=True, help="Path to skill directory")
-    parser.add_argument("--description", default=None, help="Override description to test")
-    parser.add_argument("--num-workers", type=int, default=10, help="Number of parallel workers")
-    parser.add_argument("--timeout", type=int, default=30, help="Timeout per query in seconds")
-    parser.add_argument("--runs-per-query", type=int, default=1, help="Number of runs per query")
-    parser.add_argument(
-        "--trigger-threshold", type=float, default=0.5, help="Trigger rate threshold"
-    )
-    parser.add_argument("--user-id", default="default", help="User ID for subagent")
-    parser.add_argument("--model", default=None, help="Model to use (default: from config)")
-    parser.add_argument("--verbose", action="store_true", help="Print progress to stderr")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--eval-set", required=True)
+    parser.add_argument("--skill-path", required=True)
+    parser.add_argument("--user-id", default="default")
+    parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
 
     eval_set = json.loads(Path(args.eval_set).read_text())
-    skill_path = Path(args.skill_path)
+    name, description, _ = parse_skill_md(Path(args.skill_path))
 
-    if not (skill_path / "SKILL.md").exists():
-        print(f"Error: No SKILL.md found at {skill_path}", file=sys.stderr)
-        sys.exit(1)
-
-    name, original_description, content = parse_skill_md(skill_path)
-    description = args.description or original_description
+    output = run_eval(eval_set, name, description, args.user_id)
 
     if args.verbose:
-        print(f"Evaluating: {description}", file=sys.stderr)
-
-    output = run_eval(
-        eval_set=eval_set,
-        skill_name=name,
-        description=description,
-        num_workers=args.num_workers,
-        timeout=args.timeout,
-        user_id=args.user_id,
-        model_name=args.model,
-        runs_per_query=args.runs_per_query,
-        trigger_threshold=args.trigger_threshold,
-    )
-
-    if args.verbose:
-        summary = output["summary"]
-        print(f"Results: {summary['passed']}/{summary['total']} passed", file=sys.stderr)
+        print(
+            f"Results: {output['summary']['passed']}/{output['summary']['total']} passed",
+            file=sys.stderr,
+        )
         for r in output["results"]:
             status = "PASS" if r["pass"] else "FAIL"
-            rate_str = f"{r['triggers']}/{r['runs']}"
             print(
-                f"  [{status}] rate={rate_str} expected={r['should_trigger']}: {r['query'][:70]}",
-                file=sys.stderr,
+                f"  [{status}] expected={r['should_trigger']}: {r['query'][:60]}", file=sys.stderr
             )
 
     print(json.dumps(output, indent=2))

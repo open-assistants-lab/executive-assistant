@@ -9,7 +9,6 @@ from langchain.agents.middleware import AgentMiddleware, AgentState, hook_config
 from langchain_core.messages import SystemMessage
 from langgraph.runtime import Runtime
 
-from src.config import get_settings
 from src.skills.registry import SkillRegistry
 
 
@@ -41,10 +40,7 @@ class SkillMiddleware(AgentMiddleware[SkillState]):
 
     def _get_user_skills_dir(self) -> str:
         """Get the configured user skills directory."""
-        settings = get_settings()
-        if self.user_id:
-            return settings.skills.get_user_directory(self.user_id)
-        return settings.skills.user_directory
+        return f"data/users/{self.user_id}/skills" if self.user_id else "data/users/default/skills"
 
     def _build_skills_prompt(self) -> str:
         """Build the skills prompt section.

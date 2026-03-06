@@ -94,6 +94,8 @@ def parse_skill_file(skill_path: Path) -> Skill | None:
         skill["metadata"] = metadata_dict
     if allowed_tools := metadata.get("allowed_tools"):
         skill["allowed_tools"] = allowed_tools
+    if triggers := metadata.get("triggers"):
+        skill["triggers"] = triggers
 
     return skill
 

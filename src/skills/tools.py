@@ -153,10 +153,7 @@ def skill_create(
     """
     from pathlib import Path
 
-    from src.config import get_settings
-
-    settings = get_settings()
-    user_skills_dir = settings.skills.get_user_directory(user_id)
+    user_skills_dir = f"data/users/{user_id}/skills"
 
     skill_path = Path(user_skills_dir) / name / "SKILL.md"
 
