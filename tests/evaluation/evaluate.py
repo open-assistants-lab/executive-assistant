@@ -1,18 +1,39 @@
-"""Agent evaluation framework - runs persona interactions and captures metrics."""
+"""Agent evaluation framework - runs persona interactions and captures metrics via HTTP."""
 
 import asyncio
 import json
-import random
-import sys
+import os
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage
 
-from tests.evaluation.personas import PERSONAS, generate_test_queries, get_persona
+from tests.evaluation.personas import PERSONAS, generate_test_queries
+
+HTTP_BASE_URL = os.environ.get("EVAL_HTTP_URL", "http://localhost:8000")
+
+
+async def call_agent_via_http(user_id: str, message: str, messages: list) -> dict:
+    """Call agent via HTTP API."""
+    import aiohttp
+
+    async with aiohttp.ClientSession() as session:
+        payload = {
+            "message": message,
+            "user_id": user_id,
+        }
+        async with session.post(f"{HTTP_BASE_URL}/message", json=payload) as resp:
+            if resp.status != 200:
+                text = await resp.text()
+                raise Exception(f"HTTP {resp.status}: {text}")
+            data = await resp.json()
+            return {
+                "response": data.get("response", ""),
+                "messages": [AIMessage(content=data.get("response", ""))],
+            }
 
 
 @dataclass
@@ -52,7 +73,7 @@ class PersonaEvaluationResult:
 
 
 class AgentEvaluator:
-    """Evaluates agent with different personas."""
+    """Evaluates agent with different personas via HTTP."""
 
     def __init__(self, user_id: str = "eval_user", output_dir: str = "data/evaluations"):
         self.user_id = user_id
@@ -65,48 +86,22 @@ class AgentEvaluator:
         query: str,
         run_agent_fn,
     ) -> InteractionResult:
-        """Run a single interaction with the agent."""
+        """Run a single interaction with the agent via HTTP."""
         start_time = time.time()
 
         try:
-            langgraph_messages = [HumanMessage(content=query)]
-
-            result = await run_agent_fn(
+            result = await call_agent_via_http(
                 user_id=self.user_id,
-                messages=langgraph_messages,
                 message=query,
+                messages=[],
             )
 
             duration_ms = int((time.time() - start_time) * 1000)
 
-            messages = result.get("messages", [])
-            tool_calls = []
-            response_text = ""
+            response_text = result.get("response", "")
+            tool_calls = result.get("tool_calls", [])
 
-            for msg in messages:
-                msg_type = getattr(msg, "type", None)
-
-                if msg_type == "tool":
-                    content = getattr(msg, "content", None)
-                    if content:
-                        tool_calls.append({"type": "tool", "content": content})
-
-                elif msg_type == "ai":
-                    content = getattr(msg, "content", "")
-                    tool_calls_list = getattr(msg, "tool_calls", None)
-                    if tool_calls_list:
-                        for tc in tool_calls_list:
-                            tool_calls.append(
-                                {
-                                    "type": "tool_call",
-                                    "name": tc.get("name", "unknown"),
-                                    "args": tc.get("args", {}),
-                                }
-                            )
-                    if content:
-                        response_text = content
-
-            success = len(tool_calls) > 0 or response_text.strip() != ""
+            success = response_text.strip() != ""
 
             return InteractionResult(
                 persona_id=persona["id"],
@@ -188,11 +183,10 @@ class AgentEvaluator:
 
     async def run_evaluation(
         self,
-        run_agent_fn,
         num_interactions: int = 100,
         persona_ids: list[str] | None = None,
     ) -> list[PersonaEvaluationResult]:
-        """Run evaluation across all or selected personas."""
+        """Run evaluation across all or selected personas via HTTP."""
         if persona_ids:
             personas = [p for p in PERSONAS if p["id"] in persona_ids]
         else:
@@ -205,7 +199,7 @@ class AgentEvaluator:
             print(f"Evaluating: {persona['name']} ({persona['style']})")
             print(f"{'=' * 60}")
 
-            result = await self.evaluate_persona(persona, num_interactions, run_agent_fn)
+            result = await self.evaluate_persona(persona, num_interactions, None)
             results.append(result)
 
             self._save_result(result)
@@ -312,20 +306,29 @@ class AgentEvaluator:
 
 
 async def main():
-    """Run evaluation."""
-    from src.agents.manager import run_agent
+    """Run evaluation via HTTP."""
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--interactions", type=int, default=200, help="Interactions per persona")
+    parser.add_argument("--personas", type=str, help="Comma-separated persona IDs (e.g., p1,p2)")
+    args = parser.parse_args()
+
+    persona_ids = args.personas.split(",") if args.personas else None
+
+    print("Starting persona evaluation via HTTP...")
+    print(f"HTTP URL: {HTTP_BASE_URL}")
+    print(f"Personas: {len(PERSONAS)}")
+    print(f"Interactions per persona: {args.interactions}")
+    print(f"Total: {len(PERSONAS) * args.interactions} interactions")
+    print("")
 
     evaluator = AgentEvaluator(user_id="eval_user")
 
-    print("Starting persona evaluation...")
-    print(f"Personas: {len(PERSONAS)}")
-    print(f"Interactions per persona: 100")
-    print(f"Total: {len(PERSONAS) * 100} interactions")
-    print("")
-
     results = await evaluator.run_evaluation(
-        run_agent_fn=run_agent,
-        num_interactions=100,
+        run_agent_fn=None,
+        num_interactions=args.interactions,
+        persona_ids=persona_ids,
     )
 
     report = evaluator.generate_summary_report(results)

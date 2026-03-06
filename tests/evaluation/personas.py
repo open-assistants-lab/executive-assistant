@@ -175,9 +175,9 @@ def get_all_personas() -> list[dict]:
 
 
 def generate_test_queries(persona: dict, count: int = 10) -> list[str]:
-    """Generate 10 test queries per persona, covering ALL available tools.
+    """Generate test queries per persona, covering ALL available tools.
 
-    Each query may trigger multiple tools. Total tool coverage across 10 test cases:
+    Each query may trigger multiple tools. Total tool coverage across test cases:
     - email_connect, email_list, email_search, email_get, email_send
     - contacts_list, contacts_search, contacts_add, contacts_update, contacts_delete
     - todos_list, todos_add, todos_update, todos_delete, todos_extract
@@ -188,6 +188,9 @@ def generate_test_queries(persona: dict, count: int = 10) -> list[str]:
     - time_get
     - skills_list, skills_load
     - search_web, scrape_url, map_url, crawl_url
+    - subagent_create, subagent_invoke, subagent_schedule
+
+    For count > 10, repeats queries with variations.
     """
     style = persona["style"]
 
@@ -213,61 +216,81 @@ def generate_test_queries(persona: dict, count: int = 10) -> list[str]:
         "Get current time, schedule a todo reminder for 2 hours from now",
         # 10. Skills + Web (4 tools)
         "List available skills, load SQL skill, search web for latest tech news, summarize findings",
+        # 11. Subagent operations (3 tools)
+        "Create a research subagent, invoke it to find info, schedule follow-up",
+        # 12. Contacts CRUD (4 tools)
+        "List contacts, add new contact Bob, update his email, delete old contact",
+        # 13. Web scraping (3 tools)
+        "Search web for AI news, scrape top article, map related pages",
+        # 14. Email sync + extract (2 tools)
+        "Sync my inbox, extract todos from recent emails",
+        # 15. Shell commands (2 tools)
+        "Check current directory, run date command",
     ]
 
     # Apply persona style transformations
-    if style == "terse":
-        queries = [q.split(",")[0][:60] for q in base_queries]
-    elif style == "formal":
-        queries = [f"could you please {q.lower()}?" for q in base_queries]
-    elif style == "casual":
-        queries = [
-            f"hey, {q.lower()} please" if i % 2 == 0 else f"can u {q.lower()}?"
-            for i, q in enumerate(base_queries)
-        ]
-    elif style == "inquisitive":
-        queries = [
-            f"{q}? how does that work?" if i % 3 == 0 else f"can you help me {q.lower()}?"
-            for i, q in enumerate(base_queries)
-        ]
-    elif style == "narrative":
-        queries = [
-            f"i need to {q.lower()}" if i % 2 == 0 else f"been meaning to {q.lower()}, can you?"
-            for i, q in enumerate(base_queries)
-        ]
-    elif style == "authoritative":
-        queries = [
-            f"{q.upper()} - DO IT NOW!" if i % 2 == 0 else f"execute: {q}"
-            for i, q in enumerate(base_queries)
-        ]
-    elif style == "expressive":
-        queries = [
-            f"🌟 {q} 🌟" if i % 2 == 0 else f"hey! {q.lower()} please!"
-            for i, q in enumerate(base_queries)
-        ]
-    elif style == "minimal":
-        queries = [
-            "email + contacts + todos",
-            "email list/search/read",
-            "contacts + send email",
-            "todos CRUD",
-            "files list/read/write/edit/delete",
-            "file search glob/grep",
-            "shell + files",
-            "memory + todos",
-            "time + todos",
-            "skills + web",
-        ]
-    elif style == "technical":
-        queries = [f"execute {q} with default params" for q in base_queries]
-    elif style == "uncertain":
-        queries = [
-            f"i don't know how to {q.lower()}, can you help?"
-            if i % 2 == 0
-            else f"could you help me {q.lower()}? confused."
-            for i, q in enumerate(base_queries)
-        ]
-    else:
-        queries = base_queries
+    def style_query(q: str, idx: int) -> str:
+        if style == "terse":
+            return q.split(",")[0][:60]
+        elif style == "formal":
+            return f"could you please {q.lower()}?"
+        elif style == "casual":
+            return f"hey, {q.lower()} please" if idx % 2 == 0 else f"can u {q.lower()}?"
+        elif style == "inquisitive":
+            return f"{q}? how does that work?" if idx % 3 == 0 else f"can you help me {q.lower()}?"
+        elif style == "narrative":
+            return (
+                f"i need to {q.lower()}"
+                if idx % 2 == 0
+                else f"been meaning to {q.lower()}, can you?"
+            )
+        elif style == "authoritative":
+            return f"{q.upper()} - DO IT NOW!" if idx % 2 == 0 else f"execute: {q}"
+        elif style == "expressive":
+            return f"🌟 {q} 🌟" if idx % 2 == 0 else f"hey! {q.lower()} please!"
+        elif style == "minimal":
+            words = {
+                0: "email + contacts + todos",
+                1: "email list/search/read",
+                2: "contacts + send email",
+                3: "todos CRUD",
+                4: "files list/read/write/edit/delete",
+                5: "file search glob/grep",
+                6: "shell + files",
+                7: "memory + todos",
+                8: "time + todos",
+                9: "skills + web",
+                10: "subagent create/invoke/schedule",
+                11: "contacts CRUD",
+                12: "web scrape/search",
+                13: "email sync + extract",
+                14: "shell commands",
+            }
+            return words.get(idx % 15, "task")
+        elif style == "technical":
+            return f"execute {q} with default params"
+        elif style == "uncertain":
+            return (
+                f"i don't know how to {q.lower()}, can you help?"
+                if idx % 2 == 0
+                else f"could you help me {q.lower()}? confused."
+            )
+        return q
 
-    return queries[:10]
+    # Generate queries with variations for count > 10
+    queries = []
+    for i in range(count):
+        base_idx = i % len(base_queries)
+        q = base_queries[base_idx]
+        # Add variation for repeated queries
+        if i >= len(base_queries):
+            variations = [
+                f"also {q.lower()}",
+                f"again: {q.lower()}",
+                f"repeat: {q.lower()}",
+                f"once more: {q.lower()}",
+            ]
+            q = f"{variations[i % len(variations)]}"
+        queries.append(style_query(q, i))
+
+    return queries[:count]
