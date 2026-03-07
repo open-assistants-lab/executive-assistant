@@ -141,6 +141,147 @@ PERSONAS = [
         ],
         "system_prompt_addition": "Be patient and helpful. Offer guidance and explain steps clearly.",
     },
+    # Additional 10 personas for comprehensive testing
+    {
+        "id": "p11",
+        "name": "Analytical Alex",
+        "description": "Data-driven. Asks for metrics. Wants numbers and facts.",
+        "style": "analytical",
+        "sample_phrases": [
+            "What's my email open rate?",
+            "How many contacts do I have?",
+            "Show me todo completion statistics",
+            "What files were modified today?",
+            "What's my memory usage?",
+        ],
+        "system_prompt_addition": "Provide data-driven responses with metrics and numbers.",
+    },
+    {
+        "id": "p12",
+        "name": "Efficient Eddie",
+        "description": "Optimizes for speed. Wants shortcuts. Results-focused.",
+        "style": "efficient",
+        "sample_phrases": [
+            "Quick - sync my email",
+            "Fastest way to find John?",
+            "Send update email NOW",
+            "List files quick",
+            "Brief todo status",
+        ],
+        "system_prompt_addition": "Be concise and result-focused. Prioritize speed.",
+    },
+    {
+        "id": "p13",
+        "name": "Verbose Victor",
+        "description": "Very detailed. Explains everything. Comprehensive responses.",
+        "style": "verbose",
+        "sample_phrases": [
+            "Could you please explain in detail how to check my emails?",
+            "I'd like a comprehensive overview of my contacts.",
+            "Please provide a thorough explanation of the email sending process.",
+            "Give me all the details about my files.",
+            "I need a complete breakdown of my todos.",
+        ],
+        "system_prompt_addition": "Provide comprehensive, detailed responses. Don't skip details.",
+    },
+    {
+        "id": "p14",
+        "name": "Curious Casey",
+        "description": "Asks follow-ups. Wants to learn. Explores options.",
+        "style": "curious",
+        "sample_phrases": [
+            "What if I wanted to filter by date?",
+            "Can I also search by subject?",
+            "What other options do I have?",
+            "Is there a way to export this?",
+            "Why did you choose that approach?",
+        ],
+        "system_prompt_addition": "Offer options and alternatives. Explain trade-offs.",
+    },
+    {
+        "id": "p15",
+        "name": "Busy Brian",
+        "description": "Multi-tasking. Gives multiple tasks at once.",
+        "style": "busy",
+        "sample_phrases": [
+            "While I check email, search contacts",
+            "List files AND sync inbox",
+            "Add todo AND send email",
+            "Search web while I read this",
+            "Create subagent AND schedule task",
+        ],
+        "system_prompt_addition": "Handle multiple tasks efficiently. Parallelize when possible.",
+    },
+    {
+        "id": "p16",
+        "name": "Organized Olivia",
+        "description": "Structures everything. Lists and categories. Orderly.",
+        "style": "organized",
+        "sample_phrases": [
+            "Group my contacts by category",
+            "Organize todos by priority",
+            "List files in folders",
+            "Categorize my emails",
+            "Sort by date",
+        ],
+        "system_prompt_addition": "Organize information clearly. Use lists and categories.",
+    },
+    {
+        "id": "p17",
+        "name": "Flexible Fran",
+        "description": "Adaptable. Changes mind. Goes with flow.",
+        "style": "flexible",
+        "sample_phrases": [
+            "Actually, let's do emails instead of files",
+            "Maybe just a quick summary",
+            "Whichever works best",
+            "I'm not sure, you decide",
+            "Whatever approach you prefer",
+        ],
+        "system_prompt_addition": "Be flexible. Adapt to changing requirements smoothly.",
+    },
+    {
+        "id": "p18",
+        "name": "Goal-Oriented Gary",
+        "description": "Focuses on outcomes. Tracks progress. Milestones.",
+        "style": "goal_oriented",
+        "sample_phrases": [
+            "What's the progress on my tasks?",
+            "Show me completion rate",
+            "What milestones can we track?",
+            "Any blockers?",
+            "Next steps?",
+        ],
+        "system_prompt_addition": "Track progress toward goals. Highlight milestones and blockers.",
+    },
+    {
+        "id": "p19",
+        "name": "Collaborative Carol",
+        "description": "Team-focused. Considers others. Shares context.",
+        "style": "collaborative",
+        "sample_phrases": [
+            "Share with the team",
+            "CC my manager",
+            "Add to shared folder",
+            "Team visibility please",
+            "Who should be included?",
+        ],
+        "system_prompt_addition": "Consider team collaboration. Suggest sharing options.",
+    },
+    {
+        "id": "p20",
+        "name": "Privacy-First Paul",
+        "description": "Security conscious. Minimizes data. Careful sharing.",
+        "style": "privacy",
+        "sample_phrases": [
+            "Don't log this",
+            "Keep it private",
+            "Don't share externally",
+            "Is this secure?",
+            "Delete after use",
+        ],
+        "system_prompt_addition": "Prioritize privacy and security. Minimize data exposure.",
+    },
 ]
 
 
@@ -275,6 +416,26 @@ def generate_test_queries(persona: dict, count: int = 10) -> list[str]:
                 if idx % 2 == 0
                 else f"could you help me {q.lower()}? confused."
             )
+        elif style == "analytical":
+            return f"give me metrics: {q.lower()}"
+        elif style == "efficient":
+            return f"fast: {q.lower()}"
+        elif style == "verbose":
+            return f"please provide comprehensive details about {q.lower()}"
+        elif style == "curious":
+            return f"what if I wanted to {q.lower()}? also how about {q.lower().split()[0]}?"
+        elif style == "busy":
+            return f"while doing this, also {q.lower()}"
+        elif style == "organized":
+            return f"group and organize: {q.lower()}"
+        elif style == "flexible":
+            return f"actually, let's try {q.lower()} instead"
+        elif style == "goal_oriented":
+            return f"track progress: {q.lower()} - what's the status?"
+        elif style == "collaborative":
+            return f"share with team: {q.lower()}"
+        elif style == "privacy":
+            return f"do this privately: {q.lower()} - don't log"
         return q
 
     # Generate queries with variations for count > 10
