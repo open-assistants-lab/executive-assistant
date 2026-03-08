@@ -282,6 +282,82 @@ PERSONAS = [
         ],
         "system_prompt_addition": "Prioritize privacy and security. Minimize data exposure.",
     },
+    # Performance testing personas
+    {
+        "id": "p21",
+        "name": "Quick Quinn",
+        "description": "Performance-focused. Tests speed. Single quick commands.",
+        "style": "quick",
+        "sample_phrases": [
+            "time",
+            "list todos",
+            "list files",
+            "contacts",
+            "skills",
+        ],
+        "system_prompt_addition": "Respond as quickly as possible with minimal verbosity.",
+    },
+    {
+        "id": "p22",
+        "name": "Deep Diver",
+        "description": "Complex queries. Multi-step. Tests accuracy under load.",
+        "style": "deep",
+        "sample_phrases": [
+            "Research AI trends, summarize, add todo, email to team",
+            "Find contacts, filter by company, export, create follow-up",
+            "Search emails, extract action items, create todos, schedule reminder",
+            "Load skill, run analysis, save results, notify team",
+            "Sync inbox, categorize contacts, prioritize todos, report",
+        ],
+        "system_prompt_addition": "Handle complex multi-step queries accurately.",
+    },
+    {
+        "id": "p23",
+        "name": "Error-Prone Eddie",
+        "description": "Edge cases. Bad inputs. Tests error handling.",
+        "style": "error",
+        "sample_phrases": [
+            "Connect to fake email xyz123 invalid",
+            "Search with /*illegal regex*",
+            "Delete non-existent file /tmp/nonexistent.txt",
+            "Add contact with invalid email not-an-email",
+            "Schedule for invalid date 2024-02-30",
+        ],
+        "system_prompt_addition": "Handle errors gracefully with clear messages.",
+    },
+    {
+        "id": "p24",
+        "name": "Context Carter",
+        "description": "Context-dependent. References previous. Tests memory.",
+        "style": "context",
+        "sample_phrases": [
+            "Do that again but for Bob",
+            "Also email the contact I just added",
+            "What was my last email about?",
+            "Remember that file I mentioned?",
+            "Update the contact from earlier",
+        ],
+        "system_prompt_addition": "Maintain context across interactions.",
+    },
+    {
+        "id": "p25",
+        "name": "Mixed Mike",
+        "description": "Mixed workload. Random queries. General stress test.",
+        "style": "mixed",
+        "sample_phrases": [
+            "What's the time?",
+            "Add todo buy milk",
+            "Find John's email",
+            "List my files",
+            "Send email to mom",
+            "Create contact Bob",
+            "Search web for weather",
+            "Check memory",
+            "Load skill python",
+            "Schedule reminder tomorrow",
+        ],
+        "system_prompt_addition": "Handle varied queries efficiently.",
+    },
 ]
 
 
@@ -436,6 +512,16 @@ def generate_test_queries(persona: dict, count: int = 10) -> list[str]:
             return f"share with team: {q.lower()}"
         elif style == "privacy":
             return f"do this privately: {q.lower()} - don't log"
+        elif style == "quick":
+            return q.split(",")[0].split()[0] if "," in q else q.split()[0]
+        elif style == "deep":
+            return q  # Full complex query
+        elif style == "error":
+            return q  # Error-inducing query
+        elif style == "context":
+            return q  # Context-dependent query
+        elif style == "mixed":
+            return q.split(",")[0] if "," in q else q  # Shortened
         return q
 
     # Generate queries with variations for count > 10

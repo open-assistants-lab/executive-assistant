@@ -25,7 +25,9 @@ async def call_agent_via_http(user_id: str, message: str, messages: list) -> dic
             "message": message,
             "user_id": user_id,
         }
+        start_time = time.time()
         async with session.post(f"{HTTP_BASE_URL}/message", json=payload) as resp:
+            response_time_ms = int((time.time() - start_time) * 1000)
             if resp.status != 200:
                 text = await resp.text()
                 raise Exception(f"HTTP {resp.status}: {text}")
@@ -33,6 +35,9 @@ async def call_agent_via_http(user_id: str, message: str, messages: list) -> dic
             return {
                 "response": data.get("response", ""),
                 "messages": [AIMessage(content=data.get("response", ""))],
+                "response_time_ms": response_time_ms,
+                "tool_calls": data.get("tool_calls", []),
+                "tokens": data.get("tokens", 0),
             }
 
 
@@ -51,6 +56,10 @@ class InteractionResult:
     context_maintained: bool = True
     hallucinated: bool = False
     topic_switch_detected: bool = False
+    # Performance metrics
+    response_time_ms: int = 0
+    tool_call_count: int = 0
+    accuracy: float = 1.0  # 0-1 scale for response quality
 
 
 @dataclass
@@ -59,6 +68,7 @@ class PersonaEvaluationResult:
 
     persona_id: str
     persona_name: str
+    persona_style: str
     total_interactions: int
     successful_interactions: int
     failed_interactions: int
@@ -69,6 +79,14 @@ class PersonaEvaluationResult:
     hallucination_count: int
     topic_switch_issues: int
     accuracy_score: float
+    # Performance metrics
+    avg_response_time_ms: float = 0
+    min_response_time_ms: int = 0
+    max_response_time_ms: int = 0
+    p50_response_time_ms: int = 0
+    p95_response_time_ms: int = 0
+    p99_response_time_ms: int = 0
+    total_tokens: int = 0
     interactions: list[InteractionResult] = field(default_factory=list)
 
 
@@ -97,11 +115,15 @@ class AgentEvaluator:
             )
 
             duration_ms = int((time.time() - start_time) * 1000)
+            response_time_ms = result.get("response_time_ms", duration_ms)
+            tool_calls = result.get("tool_calls", [])
+            tool_call_count = len(tool_calls)
 
             response_text = result.get("response", "")
-            tool_calls = result.get("tool_calls", [])
-
             success = response_text.strip() != ""
+
+            # Basic accuracy: has response and no error
+            accuracy = 1.0 if success else 0.0
 
             return InteractionResult(
                 persona_id=persona["id"],
@@ -110,6 +132,9 @@ class AgentEvaluator:
                 tool_calls=tool_calls,
                 duration_ms=duration_ms,
                 success=success,
+                response_time_ms=response_time_ms,
+                tool_call_count=tool_call_count,
+                accuracy=accuracy,
             )
 
         except Exception as e:
@@ -121,6 +146,7 @@ class AgentEvaluator:
                 duration_ms=duration_ms,
                 success=False,
                 error=str(e),
+                accuracy=0.0,
             )
 
     async def evaluate_persona(
@@ -138,6 +164,8 @@ class AgentEvaluator:
         context_maintained = 0
         hallucinations = 0
         topic_switches = 0
+        response_times = []
+        total_tokens = 0
 
         for i, query in enumerate(queries):
             print(f"  [{i + 1}/{num_interactions}] {query[:50]}...")
@@ -145,8 +173,9 @@ class AgentEvaluator:
             result = await self.run_single_interaction(persona, query, run_agent_fn)
             interactions.append(result)
 
-            total_tool_calls += len(result.tool_calls)
+            total_tool_calls += result.tool_call_count
             total_tool_errors += len(result.tool_errors)
+            response_times.append(result.response_time_ms)
 
             if result.success:
                 context_maintained += 1
@@ -163,9 +192,24 @@ class AgentEvaluator:
         failed = len(interactions) - successful
         accuracy = (successful / len(interactions)) * 100 if interactions else 0
 
+        # Calculate response time percentiles
+        response_times_sorted = sorted(response_times) if response_times else [0]
+        p50 = response_times_sorted[len(response_times_sorted) // 2]
+        p95 = (
+            response_times_sorted[int(len(response_times_sorted) * 0.95)]
+            if response_times_sorted
+            else 0
+        )
+        p99 = (
+            response_times_sorted[int(len(response_times_sorted) * 0.99)]
+            if response_times_sorted
+            else 0
+        )
+
         return PersonaEvaluationResult(
             persona_id=persona["id"],
             persona_name=persona["name"],
+            persona_style=persona.get("style", ""),
             total_interactions=len(interactions),
             successful_interactions=successful,
             failed_interactions=failed,
@@ -178,6 +222,13 @@ class AgentEvaluator:
             hallucination_count=hallucinations,
             topic_switch_issues=topic_switches,
             accuracy_score=accuracy,
+            avg_response_time_ms=sum(response_times) / len(response_times) if response_times else 0,
+            min_response_time_ms=min(response_times) if response_times else 0,
+            max_response_time_ms=max(response_times) if response_times else 0,
+            p50_response_time_ms=p50,
+            p95_response_time_ms=p95,
+            p99_response_time_ms=p99,
+            total_tokens=total_tokens,
             interactions=interactions,
         )
 
@@ -266,15 +317,35 @@ class AgentEvaluator:
         report.append(f"Tool Errors: {total_tool_errors}")
         report.append("")
 
+        # Performance summary
+        all_response_times = []
+        for r in results:
+            if r.avg_response_time_ms > 0:
+                all_response_times.append(r.avg_response_time_ms)
+
+        if all_response_times:
+            avg_overall = sum(all_response_times) / len(all_response_times)
+            report.append("-" * 80)
+            report.append("PERFORMANCE METRICS")
+            report.append("-" * 80)
+            report.append(f"Avg Response Time: {avg_overall:.0f}ms")
+            report.append("")
+
         report.append("-" * 80)
         report.append("PERSONA BREAKDOWN")
         report.append("-" * 80)
 
         for r in results:
-            report.append(f"\n{r.persona_name} ({r.persona_id}):")
+            report.append(f"\n{r.persona_name} ({r.persona_id}) - Style: {r.persona_style}:")
             report.append(f"  Accuracy: {r.accuracy_score:.1f}%")
             report.append(f"  Tool Calls: {r.total_tool_calls}, Errors: {r.tool_errors}")
-            report.append(f"  Avg Duration: {r.avg_duration_ms:.0f}ms")
+            report.append(f"  Avg Response Time: {r.avg_response_time_ms:.0f}ms")
+            report.append(
+                f"  Response Time (p50/p95/p99): {r.p50_response_time_ms}/{r.p95_response_time_ms}/{r.p99_response_time_ms}ms"
+            )
+            report.append(
+                f"  Min/Max Response: {r.min_response_time_ms}/{r.max_response_time_ms}ms"
+            )
             report.append(
                 f"  Context Maintained: {r.context_maintained_count}/{r.total_interactions}"
             )

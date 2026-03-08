@@ -3,11 +3,9 @@
 import asyncio
 import json
 import os
-import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 HTTP_BASE_URL = os.environ.get("EVAL_HTTP_URL", "http://localhost:8000")
 
