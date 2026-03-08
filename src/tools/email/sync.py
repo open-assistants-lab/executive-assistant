@@ -458,6 +458,8 @@ async def _sync_all_accounts() -> None:
     from src.storage.user import get_all_user_ids
 
     user_ids = get_all_user_ids()
+    # Filter out "default" user - it's not valid for email operations
+    user_ids = [uid for uid in user_ids if uid and uid != "default"]
     batch_size = SETTINGS.email_sync.batch_size
 
     for user_id in user_ids:
