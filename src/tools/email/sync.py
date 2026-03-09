@@ -391,7 +391,11 @@ def start_background_sync(user_id: str, account_id: str) -> None:
             )
 
     try:
-        asyncio.create_task(_backfill())
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(_backfill())
+        except RuntimeError:
+            asyncio.run(_backfill())
     except Exception:
         pass
 
