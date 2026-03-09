@@ -778,3 +778,81 @@ review-agent → workspace/review_report.md + planning/review/*
 ---
 
 Last updated: 2026-03-15
+
+---
+
+## App Builder Tests (SQLite + FTS5 + ChromaDB)
+
+### Implemented Features
+
+| Feature | Status | Implementation |
+|---------|--------|----------------|
+| app_create | ✅ | Create app with tables |
+| app_list | ✅ | List user's apps |
+| app_schema | ✅ | Show app schema |
+| app_delete | ✅ | Delete app |
+| app_insert | ✅ | Insert row |
+| app_update | ✅ | Update row |
+| app_delete_row | ✅ | Delete row |
+| app_column_add | ✅ | Add column |
+| app_column_delete | ✅ | Delete column |
+| app_column_rename | ✅ | Rename column |
+| app_query | ✅ | Execute SQL query |
+| app_search_fts | ✅ | Keyword search (FTS5) |
+| app_search_semantic | ✅ | Vector search (ChromaDB) |
+| app_search_hybrid | ✅ | Hybrid search (keyword + semantic) |
+
+### Tech Stack
+
+| Component | Technology |
+|-----------|------------|
+| Database | SQLite with FTS5 |
+| Vector Search | ChromaDB |
+| Embeddings | sentence-transformers (all-MiniLM-L6-v2) |
+| Model Cache | ~/.cache/sentence-transformers/ |
+
+### Vector-Indexed Columns
+
+- TEXT columns NOT containing: `full_text`, `content`, `body` (excluded for size)
+- Examples: `description`, `notes`, `title`, `summary`
+
+### Test Cases (HTTP)
+
+| # | Test | Status |
+|---|------|--------|
+| 1 | Create library app with books table | ✅ |
+| 2 | Insert book with description | ✅ |
+| 3 | Insert multiple books | ✅ |
+| 4 | FTS search on description | ✅ |
+| 5 | Semantic search on description | ✅ |
+| 6 | Hybrid search on description | ✅ |
+| 7 | Create todo app with tasks | ✅ |
+| 8 | Insert task with notes | ✅ |
+| 9 | Semantic search on notes | ✅ |
+| 10 | Create CRM app with contacts | ✅ |
+| 11 | Hybrid search on CRM notes | ✅ |
+| 12 | Create blog app with posts | ✅ |
+| 13 | Hybrid search on blog content | ✅ |
+
+### Performance
+
+| Dataset | Query Time |
+|---------|------------|
+| 100 books | ~20ms |
+| 1000 books | ~20ms |
+
+### Example Usage
+
+```bash
+# Create app
+curl -X POST http://localhost:8000/message \
+  -d '{"message": "Create a library app with books table having title TEXT, description TEXT, category TEXT"}'
+
+# Insert data
+curl -X POST http://localhost:8000/message \
+  -d '{"message": "Insert into library.books: title=1984, description=Dystopian novel about totalitarianism, category=SciFi"}'
+
+# Hybrid search
+curl -X POST http://localhost:8000/message \
+  -d '{"message": "Search library.books description for dystopian future using app_search_hybrid"}'
+```

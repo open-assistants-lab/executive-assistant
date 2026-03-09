@@ -8,6 +8,8 @@ from pathlib import Path
 
 import chromadb
 
+from src.tools.apps.storage import get_embedding
+
 
 @dataclass
 class Message:
@@ -97,7 +99,7 @@ class ConversationStore:
         )
 
     def add_message(self, role: str, content: str, metadata: dict | None = None) -> int:
-        """Add a message to the conversation."""
+        """Add a message to the conversation with auto-generated embedding."""
         ts = datetime.now(UTC).isoformat()
         conn = sqlite3.connect(self.messages_db_path)
         cursor = conn.execute(
@@ -107,6 +109,15 @@ class ConversationStore:
         msg_id = cursor.lastrowid
         conn.commit()
         conn.close()
+
+        # Auto-generate embedding and add to ChromaDB
+        embedding = get_embedding(content)
+        self.collection.add(
+            ids=[str(msg_id)],
+            embeddings=[embedding],
+            documents=[content],
+            metadatas=[{"role": role, "ts": ts}],
+        )
         return msg_id
 
     def add_message_with_embedding(

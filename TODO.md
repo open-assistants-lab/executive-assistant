@@ -319,9 +319,9 @@ User: "What did we decide about the tech stack?"
 Allow users to build ad-hoc mini apps: todo, CRM, stock management, etc.
 
 **Tools:**
-- [ ] `sqlite_query` - Execute SQL queries
-- [ ] `sqlite_list_databases` - List user's databases
-- [ ] `sqlite_describe` - Show schema of a database
+- [x] `sqlite_query` - Execute SQL queries
+- [x] `sqlite_list_databases` - List user's databases
+- [x] `sqlite_describe` - Show schema of a database
 - [ ] `sqlite_backup` - Export database
 
 **Features:**
@@ -329,6 +329,38 @@ Allow users to build ad-hoc mini apps: todo, CRM, stock management, etc.
 - Automatic FTS5 for text columns
 - Schema creation on first use
 - Safe query execution (no DROP DATABASE, etc.)
+
+### App Builder (SQLite + FTS5 + ChromaDB)
+
+Build structured data apps with hybrid search.
+
+**Storage:** `data/users/{user_id}/apps/{app_name}.db`
+
+**Tools:**
+- [x] `app_create` - Create app with tables
+- [x] `app_list` - List user's apps
+- [x] `app_schema` - Show app schema
+- [x] `app_delete` - Delete app
+- [x] `app_insert` - Insert row
+- [x] `app_update` - Update row
+- [x] `app_delete_row` - Delete row
+- [x] `app_column_add` - Add column
+- [x] `app_column_delete` - Delete column
+- [x] `app_column_rename` - Rename column
+- [x] `app_query` - Execute SQL query
+- [x] `app_search_fts` - Keyword search (FTS5)
+- [x] `app_search_semantic` - Vector search (ChromaDB)
+- [x] `app_search_hybrid` - Hybrid search (keyword + semantic)
+
+**Tech Stack:**
+- SQLite with FTS5 for keyword search
+- ChromaDB for vector search
+- sentence-transformers (all-MiniLM-L6-v2) for embeddings
+- Cached at ~/.cache/sentence-transformers/
+
+**Vector-Indexed Columns:**
+- TEXT columns NOT containing: `full_text`, `content`, `body` (excluded for size)
+- Examples: `description`, `notes`, `title`, `summary`
 
 ### SQLite + FTS5 + ChromaDB (Knowledge Base Tool)
 

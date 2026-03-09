@@ -1,25 +1,11 @@
 """Progressive disclosure tool - allows agent to query historical context."""
 
-import hashlib
 from datetime import date
 
 from langchain_core.tools import tool
 
 from src.storage.conversation import get_conversation_store
-
-
-def _simple_embedding(text: str) -> list[float]:
-    """Simple fallback embedding using hash."""
-    words = text.lower().split()
-    dim = 384
-    embedding = [0.0] * dim
-    for word in words:
-        hash_val = int(hashlib.md5(word.encode()).hexdigest(), 16) % dim
-        embedding[hash_val] += 1.0
-    mag = sum(x**2 for x in embedding) ** 0.5
-    if mag > 0:
-        embedding = [x / mag for x in embedding]
-    return embedding
+from src.tools.apps.storage import get_embedding
 
 
 @tool
@@ -94,7 +80,7 @@ def memory_search(
         Search results
     """
     conversation = get_conversation_store(user_id)
-    embedding = _simple_embedding(query)
+    embedding = get_embedding(query)
     results = conversation.search_hybrid(query, embedding, limit=20)
 
     if not results:

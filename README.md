@@ -53,6 +53,7 @@ data/users/{user_id}/subagents/{subagent_name}/
 | Category | Tools |
 |----------|-------|
 | **Subagents** | `subagent_create`, `subagent_invoke`, `subagent_list`, `subagent_progress`, `subagent_validate`, `subagent_batch`, `subagent_schedule` |
+| **App Builder** | `app_create`, `app_list`, `app_schema`, `app_delete`, `app_insert`, `app_update`, `app_delete_row`, `app_column_add`, `app_column_delete`, `app_column_rename`, `app_query`, `app_search_fts`, `app_search_semantic`, `app_search_hybrid` |
 | **Filesystem** | `list_files`, `read_file`, `write_file`, `edit_file`, `delete_file` (HITL) |
 | **File Search** | `files_glob_search` (e.g., `*.py`, `**/*.json`), `files_grep_search` (regex) |
 | **Shell** | `shell_execute` (restricted to: `python3`, `node`, `echo`, `date`, `whoami`, `pwd`) |
@@ -73,6 +74,54 @@ Skills use a progressive disclosure pattern to optimize token usage:
 2. **Load Skill** (`skills_load`) - Load full skill content when needed
 
 This follows the same pattern as [claude-mem](https://github.com/thedotmack/claude-mem)'s 3-layer memory workflow for token-efficient context retrieval.
+
+### App Builder
+
+Build structured data apps with SQLite + FTS5 + ChromaDB (hybrid search):
+
+```bash
+# Create app with tables
+app_create(app="library", tables={
+    "books": {
+        "title": "TEXT",
+        "author": "TEXT", 
+        "description": "TEXT",  # Vector indexed
+        "category": "TEXT"
+    }
+})
+
+# Insert data
+app_insert(app="library", table="books", data={
+    "title": "1984",
+    "author": "Orwell", 
+    "description": "Dystopian novel about totalitarianism",
+    "category": "Sci-Fi"
+})
+
+# Search with hybrid (keyword + semantic)
+app_search_hybrid(app="library", table="books", column="description", query="future dystopia")
+```
+
+**Search Methods:**
+
+| Tool | Description | Best For |
+|------|-------------|----------|
+| `app_search_fts` | Keyword search (FTS5) | Exact matches |
+| `app_search_semantic` | Vector search (ChromaDB) | Conceptual/semantic |
+| `app_search_hybrid` | Combined keyword + semantic | Best of both |
+
+**Tech Stack:**
+
+| Component | Technology |
+|-----------|------------|
+| Database | SQLite with FTS5 |
+| Vector Search | ChromaDB |
+| Embeddings | sentence-transformers (all-MiniLM-L6-v2) |
+| Model Cache | ~/.cache/sentence-transformers/ |
+
+**Vector-Indexed Columns:**
+- TEXT columns NOT containing: `full_text`, `content`, `body` (excluded for size)
+- Examples: `description`, `notes`, `title`, `summary`
 
 ### Channels
 
