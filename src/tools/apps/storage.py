@@ -98,20 +98,20 @@ class ChromaManager:
     """Manages ChromaDB collections for apps.
 
     Structure:
-        data/users/{user_id}/apps/.chromadb/{app_name}/{table_name}_{column}/
+        data/users/{user_id}/apps/{app_name}/.chromadb/{table_name}_{column}/
     """
 
     def __init__(self, user_id: str, apps_path: Path):
         self.user_id = user_id
-        self.base_path = apps_path / ".chromadb"
-        self.base_path.mkdir(parents=True, exist_ok=True)
+        self.apps_path = apps_path
         self._clients: dict[str, chromadb.PersistentClient] = {}
         self._embedding_function = None
 
     def _get_client(self, app_name: str) -> chromadb.PersistentClient:
         """Get or create ChromaDB client for an app."""
         if app_name not in self._clients:
-            app_chroma_path = self.base_path / app_name
+            safe_name = "".join(c if c.isalnum() or c == "_" else "_" for c in app_name.lower())
+            app_chroma_path = self.apps_path / safe_name / ".chromadb"
             app_chroma_path.mkdir(parents=True, exist_ok=True)
             self._clients[app_name] = chromadb.PersistentClient(
                 path=str(app_chroma_path),
@@ -215,14 +215,15 @@ class AppStorage:
 
     Structure:
         data/users/{user_id}/apps/
-        ├── library.db              # SQLite + FTS5
-        ├── library.db-wal
-        ├── library.db-shm
-        └── .chromadb/            # ChromaDB for semantic search
-            └── library/
-                └── books_title   # Collection for title column
-                └── books_author  # Collection for author column
-                └── books_excerpt # Collection for excerpt column
+        ├── library/
+        │   ├── data.db              # SQLite + FTS5
+        │   ├── data.db-wal
+        │   ├── data.db-shm
+        │   └── .chromadb/           # ChromaDB for semantic search
+        │       └── books_title      # Collection for title column
+        │       └── books_author     # Collection for author column
+        └── todo/
+            └── data.db
     """
 
     def __init__(self, user_id: str):
@@ -232,10 +233,16 @@ class AppStorage:
         self.base_path = base_path
         self.chroma = ChromaManager(user_id, base_path)
 
-    def _get_db_path(self, app_name: str) -> Path:
-        """Get path to app database."""
+    def _get_app_path(self, app_name: str) -> Path:
+        """Get path to app directory."""
         safe_name = "".join(c if c.isalnum() or c == "_" else "_" for c in app_name.lower())
-        return (self.base_path / f"{safe_name}.db").resolve()
+        app_path = self.base_path / safe_name
+        app_path.mkdir(parents=True, exist_ok=True)
+        return app_path
+
+    def _get_db_path(self, app_name: str) -> Path:
+        """Get path to app SQLite database."""
+        return (self._get_app_path(app_name) / "data.db").resolve()
 
     def _get_conn(self, app_name: str) -> sqlite3.Connection:
         """Get connection to app database."""

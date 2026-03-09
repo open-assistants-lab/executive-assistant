@@ -54,3 +54,4 @@ docs/benchmarks/*.py
 *.db
 
 .DS_Store
+~/.cache/

@@ -123,6 +123,17 @@ app_search_hybrid(app="library", table="books", column="description", query="fut
 - TEXT columns NOT containing: `full_text`, `content`, `body` (excluded for size)
 - Examples: `description`, `notes`, `title`, `summary`
 
+**Storage Structure:**
+```
+data/users/{user_id}/apps/
+├── library/
+│   ├── data.db              # SQLite + FTS5
+│   └── .chromadb/           # ChromaDB vectors
+│       └── books_description
+└── todo/
+    └── data.db
+```
+
 ### Channels
 
 - **HTTP API** - FastAPI server on port 8000 (`/message`, `/message/stream`, `/health`, `/health/ready`)

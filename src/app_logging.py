@@ -118,7 +118,7 @@ class Logger:
 
         # Add standard fields - match original format
         log_entry = {
-            "timestamp": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z",
+            "timestamp": datetime.now().astimezone().isoformat().replace("+00:00", "Z"),
             "user_id": user_id,
             "event": event,
             "level": log_level.name.lower(),

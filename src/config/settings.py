@@ -3,15 +3,14 @@
 from pathlib import Path
 
 import yaml
-from pydantic import Field
+from pydantic import ConfigDict, Field
 from pydantic_settings import BaseSettings
 
 
 class _BaseSettings(BaseSettings):
     """Base settings with common config."""
 
-    class Config:
-        extra = "ignore"
+    model_config = ConfigDict(extra="ignore")
 
 
 class AgentConfig(_BaseSettings):
@@ -21,8 +20,7 @@ class AgentConfig(_BaseSettings):
     model: str = Field(default="ollama:minimax-m2.5")
     system_prompt: str = Field(default="You are a helpful executive assistant.")
 
-    class Config:
-        env_prefix = "AGENT_"
+    model_config = ConfigDict(env_prefix="AGENT_")
 
 
 class DatabaseConfig(_BaseSettings):
@@ -35,6 +33,8 @@ class DatabaseConfig(_BaseSettings):
     password: str = Field(default="")
     pool_size: int = Field(default=10)
 
+    model_config = ConfigDict(env_prefix="DB_")
+
     @property
     def connection_string(self) -> str:
         """Generate asyncpg connection string."""
@@ -44,9 +44,6 @@ class DatabaseConfig(_BaseSettings):
     def sync_connection_string(self) -> str:
         """Generate psycopg2 connection string."""
         return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
-
-    class Config:
-        env_prefix = "DB_"
 
 
 class CheckpointerConfig(_BaseSettings):
@@ -58,10 +55,11 @@ class CheckpointerConfig(_BaseSettings):
         N = keep for N days
     """
 
-    retention_days: int = 0  # 0=disabled, -1=forever, N=days
+    enabled: bool = Field(default=False)
+    path: str = Field(default="")
+    retention_days: int = Field(default=7)
 
-    class Config:
-        env_prefix = "CHECKPOINT_"
+    model_config = ConfigDict(env_prefix="CHECKPOINT_")
 
 
 class MessagesConfig(_BaseSettings):
@@ -70,8 +68,7 @@ class MessagesConfig(_BaseSettings):
     enabled: bool = True
     user_directory: str = "data/users/{user_id}/.conversation"
 
-    class Config:
-        env_prefix = "MESSAGES_"
+    model_config = ConfigDict(env_prefix="MESSAGES_")
 
 
 class StoreConfig(_BaseSettings):
@@ -79,8 +76,7 @@ class StoreConfig(_BaseSettings):
 
     enabled: bool = True
 
-    class Config:
-        env_prefix = "STORE_"
+    model_config = ConfigDict(env_prefix="STORE_")
 
 
 class SummarizationConfig(_BaseSettings):
@@ -91,8 +87,7 @@ class SummarizationConfig(_BaseSettings):
     keep_messages: int = 20
     model: str = Field(default="ollama:minimax-m2.5")
 
-    class Config:
-        env_prefix = "SUMMARY_"
+    model_config = ConfigDict(env_prefix="SUMMARY_")
 
 
 class MemoryConfig(_BaseSettings):
@@ -113,9 +108,6 @@ class LangfuseConfig(_BaseSettings):
     host: str = "https://cloud.langfuse.com"
     environment: str = ""  # production, development, staging
 
-    class Config:
-        env_prefix = "LANGFUSE_"
-
 
 class LoggingConfig(_BaseSettings):
     """Logging configuration."""
@@ -124,8 +116,7 @@ class LoggingConfig(_BaseSettings):
     level: str = "info"  # debug, info, warning, error
     json_dir: str = "data/logs"
 
-    class Config:
-        env_prefix = "LOGGING_"
+    model_config = ConfigDict(env_prefix="LOGGING_")
 
 
 class ObservabilityConfig(_BaseSettings):
@@ -136,42 +127,24 @@ class ObservabilityConfig(_BaseSettings):
 
 
 class ApiConfig(_BaseSettings):
-    """API server configuration."""
+    """API configuration."""
 
     host: str = "0.0.0.0"
     port: int = 8000
-    reload: bool = False
-    workers: int = 1
 
-    class Config:
-        env_prefix = "API_"
+    model_config = ConfigDict(env_prefix="API_")
 
 
 class CliConfig(_BaseSettings):
     """CLI configuration."""
 
-    history_file: str = "~/.ea_history"
-    prompt: str = "> "
-
-    class Config:
-        env_prefix = "CLI_"
+    model_config = ConfigDict(env_prefix="CLI_")
 
 
 class ToolsConfig(_BaseSettings):
-    """Tools configuration.
+    """Tools configuration."""
 
-    Environment variables:
-        FIRECRAWL_API_KEY: Firecrawl API key
-        FIRECRAWL_BASE_URL: Firecrawl base URL for self-hosted
-    """
-
-    firecrawl_api_key: str = Field(default="", alias="FIRECRAWL_API_KEY")
-    firecrawl_base_url: str = Field(default="", alias="FIRECRAWL_BASE_URL")
-    max_retries: int = 3
-    timeout: int = 30
-
-    class Config:
-        extra = "ignore"
+    model_config = ConfigDict(env_prefix="TOOLS_")
 
 
 class SkillsConfig(_BaseSettings):
@@ -179,12 +152,11 @@ class SkillsConfig(_BaseSettings):
 
     user_directory: str = "data/users/{user_id}/skills"
 
+    model_config = ConfigDict(env_prefix="SKILLS_")
+
     def get_user_directory(self, user_id: str) -> str:
         """Get user-specific skills directory."""
         return self.user_directory.format(user_id=user_id)
-
-    class Config:
-        env_prefix = "SKILLS_"
 
 
 class FilesystemConfig(_BaseSettings):
@@ -194,9 +166,7 @@ class FilesystemConfig(_BaseSettings):
     user_root: str = "data/users/{user_id}/workspace"
     max_file_size_mb: int = 10
 
-    class Config:
-        env_prefix = "FILESYSTEM_"
-        extra = "ignore"
+    model_config = ConfigDict(env_prefix="FILESYSTEM_")
 
 
 class ShellToolConfig(_BaseSettings):
@@ -209,9 +179,7 @@ class ShellToolConfig(_BaseSettings):
     timeout_seconds: int = 30
     max_output_kb: int = 100
 
-    class Config:
-        env_prefix = "SHELL_TOOL_"
-        extra = "ignore"
+    model_config = ConfigDict(env_prefix="SHELL_TOOL_")
 
 
 class EmailSyncConfig(_BaseSettings):
@@ -222,9 +190,7 @@ class EmailSyncConfig(_BaseSettings):
     batch_size: int = 100
     backfill_limit: int = 1000
 
-    class Config:
-        env_prefix = "EMAIL_SYNC_"
-        extra = "ignore"
+    model_config = ConfigDict(env_prefix="EMAIL_SYNC_")
 
 
 class MCPConfig(_BaseSettings):
@@ -233,9 +199,7 @@ class MCPConfig(_BaseSettings):
     enabled: bool = True
     idle_timeout_minutes: int = 30
 
-    class Config:
-        env_prefix = "MCP_"
-        extra = "ignore"
+    model_config = ConfigDict(env_prefix="MCP_")
 
 
 class AppConfig(_BaseSettings):
@@ -254,6 +218,8 @@ class AppConfig(_BaseSettings):
     email_sync: EmailSyncConfig = Field(default_factory=EmailSyncConfig)
     mcp: MCPConfig = Field(default_factory=MCPConfig)
 
+    model_config = ConfigDict(env_file=".env", env_nested_delimiter="__")
+
     @classmethod
     def from_yaml(cls, path: str | Path) -> "AppConfig":
         """Load configuration from YAML file."""
@@ -268,11 +234,6 @@ class AppConfig(_BaseSettings):
             return cls()
 
         return cls(**data)
-
-    class Config:
-        env_file = ".env"
-        env_nested_delimiter = "__"
-        extra = "ignore"
 
 
 _config: AppConfig | None = None
