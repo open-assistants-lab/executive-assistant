@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 WORKDIR /app
 
@@ -13,6 +13,7 @@ RUN uv sync --frozen --no-dev
 
 # Copy source
 COPY src/ src/
+COPY config.yaml ./
 
 # Default command
-CMD ["uv", "run", "ea", "cli"]
+CMD ["uv", "run", "ea", "http"]

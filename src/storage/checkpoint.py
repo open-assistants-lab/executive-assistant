@@ -22,6 +22,11 @@ class CheckpointManager:
         base_path.mkdir(parents=True, exist_ok=True)
         self.db_path = str((base_path / "checkpoints.db").resolve())
 
+    @property
+    def checkpointer(self):
+        """Get the checkpointer (may be None if not initialized)."""
+        return self._checkpointer
+
     async def initialize(self):
         """Initialize the checkpoint manager."""
         settings = get_settings()
@@ -36,10 +41,10 @@ class CheckpointManager:
             return
 
         import aiosqlite
-        from langgraph.checkpoint.sqlite import SqliteSaver
+        from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
         conn = await aiosqlite.connect(self.db_path)
-        self._checkpointer = SqliteSaver(conn)
+        self._checkpointer = AsyncSqliteSaver(conn)
 
         self._logger.info(
             "checkpoint.enabled",

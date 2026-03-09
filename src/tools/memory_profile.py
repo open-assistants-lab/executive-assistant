@@ -1,59 +1,13 @@
-"""Profile and instincts tools."""
+"""Instincts tools for learning user preferences and behavioral patterns."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from langchain_core.tools import tool
 
 from src.app_logging import get_logger
 from src.storage.instincts import get_instincts_store
-from src.storage.profile import get_profile_store
 
 logger = get_logger()
-
-
-@tool
-def profile_get(user_id: str = "default") -> str:
-    """Get user profile information.
-
-    Returns the user's profile including name, role, company, city, bio,
-    preferences, interests, and other background information.
-
-    Args:
-        user_id: User identifier
-
-    Returns:
-        Formatted profile information
-    """
-    store = get_profile_store(user_id)
-    profile = store.get_profile()
-
-    if not profile:
-        return f"No profile found for user {user_id}. Use profile_set to add information."
-
-    parts = [f"## User Profile: {user_id}"]
-
-    if profile.name:
-        parts.append(f"Name: {profile.name}")
-    if profile.role:
-        parts.append(f"Role: {profile.role}")
-    if profile.company:
-        parts.append(f"Company: {profile.company}")
-    if profile.city:
-        parts.append(f"City: {profile.city}")
-    if profile.bio:
-        parts.append(f"Bio: {profile.bio}")
-    if profile.preferences:
-        parts.append(f"Preferences: {profile.preferences}")
-    if profile.interests:
-        parts.append(f"Interests: {profile.interests}")
-    if profile.background:
-        parts.append(f"Background: {profile.background}")
-
-    parts.append(f"\nSource: {profile.source}")
-    parts.append(f"Confidence: {profile.confidence}")
-    parts.append(f"Updated: {profile.updated_at}")
-
-    return "\n".join(parts)
 
 
 @tool
@@ -63,9 +17,14 @@ def profile_set(
     company: str | None = None,
     city: str | None = None,
     bio: str | None = None,
+    interests: str | None = None,
+    skills: str | None = None,
     user_id: str = "default",
 ) -> str:
     """Set user profile information manually.
+
+    Stores profile information as instincts with high confidence (1.0) so they
+    are always injected into context and not overwritten by auto-learned patterns.
 
     Args:
         name: User's name
@@ -73,21 +32,77 @@ def profile_set(
         company: User's company
         city: User's city/location
         bio: Short bio about the user
+        interests: Comma-separated interests (e.g., "AI, hiking, cooking")
+        skills: Comma-separated skills (e.g., "Python, TypeScript, React")
         user_id: User identifier
 
     Returns:
         Confirmation message
     """
-    store = get_profile_store(user_id)
+    store = get_instincts_store(user_id)
 
-    store.set_profile(
-        name=name,
-        role=role,
-        company=company,
-        city=city,
-        bio=bio,
-        source="manual",
-    )
+    if name:
+        store.add_instinct(
+            trigger="when user provides name",
+            action=name,
+            confidence=1.0,
+            domain="personal",
+            source="manual",
+        )
+    if role:
+        store.add_instinct(
+            trigger="when user provides role",
+            action=role,
+            confidence=1.0,
+            domain="work",
+            source="manual",
+        )
+    if company:
+        store.add_instinct(
+            trigger="when user provides company",
+            action=company,
+            confidence=1.0,
+            domain="work",
+            source="manual",
+        )
+    if city:
+        store.add_instinct(
+            trigger="when user provides location",
+            action=city,
+            confidence=1.0,
+            domain="location",
+            source="manual",
+        )
+    if bio:
+        store.add_instinct(
+            trigger="when user provides bio",
+            action=bio,
+            confidence=1.0,
+            domain="personal",
+            source="manual",
+        )
+    if interests:
+        for interest in interests.split(","):
+            interest = interest.strip()
+            if interest:
+                store.add_instinct(
+                    trigger="when user provides interest",
+                    action=interest,
+                    confidence=1.0,
+                    domain="interests",
+                    source="manual",
+                )
+    if skills:
+        for skill in skills.split(","):
+            skill = skill.strip()
+            if skill:
+                store.add_instinct(
+                    trigger="when user provides skill",
+                    action=skill,
+                    confidence=1.0,
+                    domain="skills",
+                    source="manual",
+                )
 
     logger.info(
         "profile.set",
@@ -101,7 +116,7 @@ def profile_set(
         user_id=user_id,
     )
 
-    return f"Profile updated for {user_id}:\n" + store.to_context()
+    return f"Profile updated for {user_id}. Use instincts_list to view all instincts."
 
 
 @tool
@@ -138,7 +153,8 @@ def instincts_list(
 
     for instinct in instincts:
         recency = ""
-        days_old = (datetime.now() - instinct.updated_at).days
+        now = datetime.now(UTC)
+        days_old = (now - instinct.updated_at).days
         if days_old < 7:
             recency = " (recent)"
         elif days_old > 90:

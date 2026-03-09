@@ -1,6 +1,5 @@
-"""Storage middleware for profile and instincts."""
+"""Storage middleware for instincts."""
 
 from src.storage.middleware.instincts import InstinctsMiddleware
-from src.storage.middleware.profile import ProfileMiddleware
 
-__all__ = ["ProfileMiddleware", "InstinctsMiddleware"]
+__all__ = ["InstinctsMiddleware"]

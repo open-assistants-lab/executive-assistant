@@ -150,16 +150,6 @@ class AgentFactory:
                 channel="agent",
             )
 
-        # Add profile middleware
-        from src.storage.middleware import ProfileMiddleware
-
-        middleware.append(ProfileMiddleware(user_id=self.user_id))
-        logger.info(
-            "profile.middleware.configured",
-            {"user_id": self.user_id},
-            channel="agent",
-        )
-
         # Add instincts middleware
         from src.storage.middleware import InstinctsMiddleware
 
@@ -177,17 +167,15 @@ class AgentFactory:
 
             all_tools = list(all_tools) + [skills_load, skills_list]
 
-        # Add profile and instincts tools
+        # Add instincts tools
         from src.tools.memory_profile import (
             instincts_list,
             instincts_remove,
             instincts_search,
-            profile_get,
             profile_set,
         )
 
         all_tools = list(all_tools) + [
-            profile_get,
             profile_set,
             instincts_list,
             instincts_remove,

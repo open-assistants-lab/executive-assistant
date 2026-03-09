@@ -3,7 +3,7 @@
 import hashlib
 import sqlite3
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import chromadb
@@ -117,6 +117,25 @@ class InstinctsStore:
         content = f"{trigger}:{action}"
         return hashlib.sha256(content.encode()).hexdigest()[:16]
 
+    def maybe_decay_confidence(self) -> None:
+        """Decrease confidence for instincts not observed recently."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        thirty_days_ago = datetime.now(UTC) - timedelta(days=30)
+        cursor.execute(
+            """
+            UPDATE instincts
+            SET confidence = MAX(0.3, confidence - 0.1),
+                updated_at = ?
+            WHERE updated_at < ?
+        """,
+            (datetime.now(UTC).isoformat(), thirty_days_ago.isoformat()),
+        )
+
+        conn.commit()
+        conn.close()
+
     def add_instinct(
         self,
         trigger: str,
@@ -126,6 +145,8 @@ class InstinctsStore:
         source: str = "auto-learned",
     ) -> Instinct:
         """Add or update an instinct."""
+        self.maybe_decay_confidence()
+
         now = datetime.now(UTC).isoformat()
         instinct_id = self._generate_id(trigger, action)
 
@@ -161,7 +182,10 @@ class InstinctsStore:
 
         self._update_vector(instinct_id, trigger, action)
 
-        return self.get_instinct(instinct_id)
+        result = self.get_instinct(instinct_id)
+        if result is None:
+            raise RuntimeError(f"Failed to create instinct: {instinct_id}")
+        return result
 
     def _update_vector(self, instinct_id: str, trigger: str, action: str) -> None:
         """Update ChromaDB vector."""
@@ -169,7 +193,7 @@ class InstinctsStore:
             embedding = get_embedding(f"{trigger}: {action}")
             self.collection.upsert(
                 ids=[instinct_id],
-                embeddings=[embedding],
+                embeddings=[embedding],  # type: ignore[arg-type]
                 documents=[f"{trigger}: {action}"],
             )
         except Exception:
@@ -212,7 +236,7 @@ class InstinctsStore:
         cursor = conn.cursor()
 
         query = "SELECT * FROM instincts WHERE confidence >= ?"
-        params = [min_confidence]
+        params: list[float | str] = [min_confidence]
 
         if domain:
             query += " AND domain = ?"
@@ -300,7 +324,7 @@ class InstinctsStore:
         try:
             embedding = get_embedding(query)
             results = self.collection.query(
-                query_embeddings=[embedding],
+                query_embeddings=[embedding],  # type: ignore[arg-type]
                 n_results=limit,
             )
 
@@ -308,7 +332,7 @@ class InstinctsStore:
                 return []
 
             instinct_ids = results["ids"][0]
-            return [self.get_instinct(i) for i in instinct_ids if self.get_instinct(i)]
+            return [i for i in (self.get_instinct(i) for i in instinct_ids) if i is not None]
         except Exception:
             return []
 
@@ -350,3 +374,6 @@ def get_instincts_store(user_id: str) -> InstinctsStore:
     if user_id not in _instincts_store_cache:
         _instincts_store_cache[user_id] = InstinctsStore(user_id)
     return _instincts_store_cache[user_id]
+
+
+__all__ = ["InstinctsStore", "Instinct", "get_instincts_store"]

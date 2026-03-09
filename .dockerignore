@@ -1,0 +1,50 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info
+.eggs
+pip-log.txt
+
+# Virtual environments
+.venv
+venv
+env
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Testing
+.pytest_cache
+.coverage
+htmlcov
+.tox
+
+# Documentation
+docs/_build
+*.md
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data (should be mounted in production)
+data/
+!docker/data/.gitkeep
+
+# Local config
+.env
+.env.local
+*.local
+
+# Docker
+docker/data
