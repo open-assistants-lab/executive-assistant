@@ -524,9 +524,9 @@ def email_sync(
     if not user_id:
         return "Error: user_id is required."
 
-    from src.tools.email.account import _get_account_id_by_name
+    from src.tools.email.db import get_account_id_by_name
 
-    account_id = _get_account_id_by_name(account_name, user_id)
+    account_id = get_account_id_by_name(account_name, user_id)
     if not account_id:
         return f"Error: Account '{account_name}' not found."
 
