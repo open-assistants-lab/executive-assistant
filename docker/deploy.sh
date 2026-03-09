@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+git pull
+
 echo "⏬ Building new images..."
 docker compose build
 
