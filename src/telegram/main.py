@@ -402,6 +402,13 @@ async def main():
         print("TELEGRAM_BOT_TOKEN not set in environment")
         return
 
+    # Initialize schedulers
+    from src.agents.subagent.scheduler import get_scheduler
+    from src.tools.email.sync import start_interval_sync
+
+    get_scheduler()
+    await start_interval_sync()
+
     mode = os.environ.get("TELEGRAM_MODE", "polling").lower()
     webhook_url = os.environ.get("TELEGRAM_WEBHOOK_URL", "")
     secret = os.environ.get("TELEGRAM_SECRET", "")
