@@ -47,6 +47,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ./data:/app/data
+      - hf_cache:/root/.cache/huggingface
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -71,6 +72,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ./data:/app/data
+      - hf_cache:/root/.cache/huggingface
     restart: unless-stopped
     depends_on:
       - app
@@ -78,3 +80,4 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+  hf_cache:
