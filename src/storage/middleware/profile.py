@@ -1,5 +1,6 @@
 """Profile middleware for extracting and injecting user profile."""
 
+import json
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware, AgentState, hook_config
@@ -9,6 +10,34 @@ from src.app_logging import get_logger
 from src.storage.profile import get_profile_store
 
 logger = get_logger()
+
+EXTRACTION_PROMPT = """You are a user profile extraction system. Analyze the conversation below and extract information about the user.
+
+Extract these types of information:
+1. **Basic info** - name, role, company, city/location
+2. **Communication preferences** - how they want to be addressed, detail level, tone
+3. **Interests** - topics they care about
+4. **Background** - experience level, industry, skills
+5. **Explicit statements** - anything they explicitly told you about themselves
+
+For each piece of information found, return a JSON object with these exact keys (use null if not found):
+{{
+  "name": "John" (if mentioned),
+  "role": "developer" (if mentioned),
+  "company": "Acme Inc" (if mentioned),
+  "city": "Tokyo" (if mentioned),
+  "bio": "experienced developer focused on AI" (if mentioned),
+  "interests": ["Python", "machine learning"] (extract 2-5 topics),
+  "preferences": {{"communication_style": "concise", "format": "markdown"}} (how they like to communicate),
+  "background": {{"years_exp": 10, "industry": "tech"}} (any background info)
+}}
+
+Only return valid JSON with these exact keys (use null if not found), no other text.
+
+Conversation:
+{conversation}
+
+Profile (JSON):"""
 
 
 class ProfileState(AgentState):
@@ -28,6 +57,15 @@ class ProfileMiddleware(AgentMiddleware[ProfileState]):
     def __init__(self, user_id: str | None = None):
         self.user_id = user_id or "default"
         self.profile_store = get_profile_store(self.user_id)
+        self._model = None
+
+    def _get_model(self):
+        """Get the LLM model for extraction."""
+        if self._model is None:
+            from src.agents.manager import get_model
+
+            self._model = get_model()
+        return self._model
 
     def _get_profile_context(self) -> str:
         """Build the profile context for injection."""
@@ -37,6 +75,7 @@ class ProfileMiddleware(AgentMiddleware[ProfileState]):
             return ""
 
         parts = ["## User Information"]
+
         if profile.name:
             parts.append(f"Name: {profile.name}")
         if profile.role:
@@ -47,10 +86,15 @@ class ProfileMiddleware(AgentMiddleware[ProfileState]):
             parts.append(f"Location: {profile.city}")
         if profile.bio:
             parts.append(f"Bio: {profile.bio}")
-        if profile.preferences:
-            parts.append(f"Preferences: {profile.preferences}")
+
         if profile.interests:
             parts.append(f"Interests: {profile.interests}")
+
+        if profile.preferences:
+            parts.append(f"Preferences: {profile.preferences}")
+
+        if profile.background:
+            parts.append(f"Background: {profile.background}")
 
         if len(parts) == 1:
             return ""
@@ -96,61 +140,154 @@ class ProfileMiddleware(AgentMiddleware[ProfileState]):
         runtime: Runtime,
         response: Any,
     ) -> dict[str, Any] | None:
-        """Extract profile information from conversation.
+        """Extract profile information from conversation using LLM.
 
-        This is a simplified version - in production, this would
-        use an LLM to analyze and extract profile information.
+        This is a non-blocking extraction - profile info is analyzed
+        asynchronously after the response is sent.
         """
         messages = state.get("messages", [])
         if not messages:
             return None
 
         recent = []
-        for msg in messages[-4:]:
-            if hasattr(msg, "content"):
-                recent.append(msg.content)
+        for msg in messages[-8:]:
+            role = getattr(msg, "type", "unknown")
+            content = getattr(msg, "content", "")
+            if content:
+                recent.append(f"{role}: {content[:600]}")
 
         if len(recent) < 2:
             return None
 
-        self._extract_profile(recent)
+        self._extract_with_llm(recent)
 
         return None
 
-    def _extract_profile(self, messages: list[str]) -> None:
-        """Extract profile information from recent messages."""
-        full_text = " ".join(messages)
+    def _extract_with_llm(self, messages: list[str]) -> None:
+        """Extract profile information using LLM."""
+        try:
+            conversation = "\n\n".join(messages)
+            prompt = EXTRACTION_PROMPT.format(conversation=conversation)
 
-        name_indicators = ["my name is", "i am", "i'm"]
-        for indicator in name_indicators:
-            if indicator in full_text.lower():
-                idx = full_text.lower().find(indicator)
-                potential = full_text[idx : idx + 50].split(".")[0].strip()
-                if len(potential) > 3 and len(potential) < 50:
-                    name = potential.replace(indicator, "").strip().title()
-                    if name:
-                        self.profile_store.update_field(
-                            "name", name, confidence=0.7, source="extracted"
-                        )
-                        break
+            model = self._get_model()
 
-        role_keywords = {
-            "developer": ["developer", "engineer", "programmer", "coder"],
-            "manager": ["manager", "lead", "director", "head of"],
-            "designer": ["designer", "ui", "ux", "artist"],
-            "writer": ["writer", "author", "blogger", "content"],
-        }
+            response = model.invoke([{"type": "human", "content": prompt}])
 
-        for role, keywords in role_keywords.items():
-            for keyword in keywords:
-                if keyword in full_text.lower():
-                    self.profile_store.update_field(
-                        "role", role, confidence=0.6, source="extracted"
-                    )
-                    break
+            content = response.content if hasattr(response, "content") else str(response)
 
-        logger.info(
-            "profile.extracted",
-            {"user_id": self.user_id},
-            user_id=self.user_id,
-        )
+            profile_data = self._parse_json_response(content)
+
+            if not profile_data:
+                return
+
+            updates_made = False
+
+            if profile_data.get("name"):
+                self.profile_store.update_field(
+                    "name",
+                    profile_data["name"],
+                    confidence=0.7,
+                    source="extracted",
+                )
+                updates_made = True
+
+            if profile_data.get("role"):
+                self.profile_store.update_field(
+                    "role",
+                    profile_data["role"],
+                    confidence=0.6,
+                    source="extracted",
+                )
+                updates_made = True
+
+            if profile_data.get("company"):
+                self.profile_store.update_field(
+                    "company",
+                    profile_data["company"],
+                    confidence=0.6,
+                    source="extracted",
+                )
+                updates_made = True
+
+            if profile_data.get("city"):
+                self.profile_store.update_field(
+                    "city",
+                    profile_data["city"],
+                    confidence=0.6,
+                    source="extracted",
+                )
+                updates_made = True
+
+            if profile_data.get("bio"):
+                self.profile_store.update_field(
+                    "bio",
+                    profile_data["bio"],
+                    confidence=0.5,
+                    source="extracted",
+                )
+                updates_made = True
+
+            if profile_data.get("interests") and isinstance(profile_data["interests"], list):
+                self.profile_store.update_field(
+                    "interests",
+                    json.dumps(profile_data["interests"]),
+                    confidence=0.5,
+                    source="extracted",
+                )
+                updates_made = True
+
+            if profile_data.get("preferences") and isinstance(profile_data["preferences"], dict):
+                self.profile_store.update_field(
+                    "preferences",
+                    json.dumps(profile_data["preferences"]),
+                    confidence=0.5,
+                    source="extracted",
+                )
+                updates_made = True
+
+            if profile_data.get("background") and isinstance(profile_data["background"], dict):
+                self.profile_store.update_field(
+                    "background",
+                    json.dumps(profile_data["background"]),
+                    confidence=0.5,
+                    source="extracted",
+                )
+                updates_made = True
+
+            if updates_made:
+                logger.info(
+                    "profile.extracted",
+                    {"fields": list(profile_data.keys()), "user_id": self.user_id},
+                    user_id=self.user_id,
+                )
+
+        except Exception as e:
+            logger.warning(
+                "profile.extraction_failed",
+                {"error": str(e), "user_id": self.user_id},
+                user_id=self.user_id,
+            )
+
+    def _parse_json_response(self, content: str) -> dict[str, Any] | None:
+        """Parse JSON from LLM response."""
+        content = content.strip()
+
+        if content.startswith("```"):
+            parts = content.split("```")
+            for part in parts:
+                part = part.strip()
+                if part.startswith("json"):
+                    part = part[4:].strip()
+                elif part:
+                    try:
+                        return json.loads(part)
+                    except json.JSONDecodeError:
+                        continue
+
+        if content.startswith("{"):
+            try:
+                return json.loads(content)
+            except json.JSONDecodeError:
+                pass
+
+        return None
