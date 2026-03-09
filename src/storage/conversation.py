@@ -37,7 +37,7 @@ class ConversationStore:
     """Manages conversation storage (messages only).
 
     Structure:
-        /data/users/{user_id}/.conversation/
+        /data/users/{user_id}/messages/
         ├── messages.db  # SQLite + FTS5
         └── vectors/    # ChromaDB for semantic search
     """

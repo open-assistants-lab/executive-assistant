@@ -10,99 +10,51 @@ class CheckpointManager:
     """Manages LangGraph checkpoints with SQLite and automatic 7-day retention.
 
     Structure:
-        /data/users/{user_id}/.conversation/checkpoints.db
+        /data/users/{user_id}/messages/checkpoints.db
     """
 
     def __init__(self, user_id: str):
         self.user_id = user_id
-        settings = get_settings()
-        config = settings.memory.checkpointer
-
-        base_path = Path.cwd() / "data" / "users" / user_id / ".conversation"
-        base_path.mkdir(parents=True, exist_ok=True)
-
-        self.db_path = str(base_path.resolve() / "checkpoints.db")
-        self.retention_days = config.retention_days
         self._logger = get_logger()
-
         self._checkpointer = None
-        self._initialized = False
+
+        base_path = Path(f"data/users/{user_id}/messages")
+        base_path.mkdir(parents=True, exist_ok=True)
+        self.db_path = str((base_path / "checkpoints.db").resolve())
 
     async def initialize(self):
-        """Initialize the checkpointer."""
-        # Always refresh config from settings
+        """Initialize the checkpoint manager."""
         settings = get_settings()
-        self.retention_days = settings.memory.checkpointer.retention_days
+        memory_config = settings.memory
 
-        # If retention=0, skip checkpointer entirely
-        if self.retention_days == 0:
+        if not memory_config.checkpointer.enabled:
             self._logger.info(
                 "checkpoint.disabled",
-                {"user_id": self.user_id, "retention_days": 0},
+                {"user_id": self.user_id},
                 channel="system",
             )
-            self._initialized = True
             return
-
-        if self._initialized:
-            # Already initialized - run cleanup to handle retention changes
-            await self._cleanup_old_checkpoints()
-            return
-
-        # Initialize checkpointer for retention > 0 or -1
 
         import aiosqlite
-        from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+        from langgraph.checkpoint.sqlite import SqliteSaver
 
-        conn_string = self.db_path
+        conn = await aiosqlite.connect(self.db_path)
+        self._checkpointer = SqliteSaver(conn)
 
-        conn = await aiosqlite.connect(conn_string)
-        self._checkpointer = AsyncSqliteSaver(conn)
-        await self._checkpointer.setup()
-        self._initialized = True
+        self._logger.info(
+            "checkpoint.enabled",
+            {"user_id": self.user_id, "path": self.db_path},
+            channel="system",
+        )
 
         await self._cleanup_old_checkpoints()
 
-    @property
-    def checkpointer(self):
-        """Get the underlying checkpointer."""
-        if not self._initialized:
-            raise RuntimeError("CheckpointManager not initialized. Call initialize() first.")
-        if self._checkpointer is None:
-            return None
-        return self._checkpointer
-
     async def _cleanup_old_checkpoints(self):
-        """Delete checkpoints based on retention policy."""
+        """Clean up old checkpoints, keeping only recent ones."""
         try:
-            if not Path(self.db_path).exists():
-                return
+            import aiosqlite
 
-            conn = await self._get_conn()
-
-            # 0 days = no checkpoint
-            if self.retention_days == 0:
-                await conn.execute("DELETE FROM checkpoints WHERE thread_id = ?", [self.user_id])
-                try:
-                    await conn.execute("DELETE FROM writes WHERE thread_id = ?", [self.user_id])
-                except Exception:
-                    pass  # Table may not exist
-                await conn.commit()
-                self._logger.info(
-                    "checkpoint.cleanup",
-                    {"event": "deleted_all", "user_id": self.user_id, "retention_days": 0},
-                    channel="system",
-                )
-                await self._close_conn(conn)
-                return
-
-            # -1 = keep forever
-            if self.retention_days == -1:
-                await self._close_conn(conn)
-                return
-
-            # Delete old checkpoints using ULID (checkpoint_id encodes timestamp)
-            # Keep only checkpoints newer than retention_days
+            conn = await aiosqlite.connect(self.db_path)
             await conn.execute(
                 """
                 DELETE FROM checkpoints
@@ -113,7 +65,7 @@ class CheckpointManager:
                     ORDER BY checkpoint_id DESC
                     LIMIT 100
                 )
-                """,
+            """,
                 [self.user_id, self.user_id],
             )
             await conn.commit()
@@ -149,7 +101,6 @@ class CheckpointManager:
             await self._checkpointer.adelete_thread(self.user_id)
 
 
-# Singleton per user
 _managers: dict[str, CheckpointManager] = {}
 
 

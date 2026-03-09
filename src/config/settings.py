@@ -66,7 +66,7 @@ class MessagesConfig(_BaseSettings):
     """Messages (long-term) configuration using SQLite + FTS5 + ChromaDB."""
 
     enabled: bool = True
-    user_directory: str = "data/users/{user_id}/.conversation"
+    user_directory: str = "data/users/{user_id}/messages"
 
     model_config = ConfigDict(env_prefix="MESSAGES_")
 

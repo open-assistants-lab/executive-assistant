@@ -27,7 +27,7 @@ class DatabaseManager:
         settings = get_settings()
         user_id = settings.database.user or "default"
 
-        checkpoint_path = Path("data/users") / user_id / ".conversation" / "checkpoints.db"
+        checkpoint_path = Path("data/users") / user_id / "messages" / "checkpoints.db"
         checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
 
         self._checkpointer = SqliteSaver.from_conn_string(f"sqlite:///{checkpoint_path}")
