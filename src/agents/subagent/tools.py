@@ -170,24 +170,66 @@ def subagent_list(user_id: str) -> str:
 
 
 @tool
-def subagent_progress(task_name: str, user_id: str) -> str:
-    """Get subagent progress from planning files.
+def subagent_progress(job_id: str, user_id: str) -> str:
+    """Get status and results from a subagent job.
+
+    Supports both job ID (from subagent_invoke/schedule) and task name (from planning).
 
     Args:
-        task_name: Name of the planning task
+        job_id: Job ID or task name
         user_id: The user ID (required)
 
     Returns:
-        Progress information
+        Job/task status and results
     """
-    manager = get_subagent_manager(user_id)
+    from src.agents.subagent.scheduler import get_job_status
 
-    progress = manager.get_progress(task_name)
+    status = get_job_status(job_id)
+
+    if status:
+        job_status = status.get("status", "unknown")
+        result = status.get("result", {})
+
+        if job_status == "running":
+            return f"""Job Status: Running
+
+**Job ID**: {job_id}
+**Subagent**: {status.get("subagent_name")}
+**Task**: {status.get("task")}
+**Status**: {job_status}
+
+The job is still running..."""
+
+        if job_status == "completed":
+            output = result.get("output", "No output")
+            return f"""Job Status: Completed
+
+**Job ID**: {job_id}
+**Subagent**: {status.get("subagent_name")}
+**Task**: {status.get("task")}
+**Completed at**: {status.get("completed_at")}
+
+**Output**:
+{output}"""
+
+        if job_status == "failed":
+            error = result.get("error", "Unknown error")
+            return f"""Job Status: Failed
+
+**Job ID**: {job_id}
+**Subagent**: {status.get("subagent_name")}
+**Task**: {status.get("task")}
+**Error**: {error}"""
+
+        return f"Job Status: {job_status}"
+
+    manager = get_subagent_manager(user_id)
+    progress = manager.get_progress(job_id)
 
     if not progress["exists"]:
-        return f"No planning files found for task: {task_name}"
+        return f"No job or planning found for: {job_id}"
 
-    lines = [f"## Progress: {task_name}\n"]
+    lines = [f"## Progress: {job_id}\n"]
 
     if progress.get("task_plan"):
         lines.append("### Task Plan")
@@ -205,61 +247,6 @@ def subagent_progress(task_name: str, user_id: str) -> str:
         lines.append("")
 
     return "\n".join(lines)
-
-
-@tool
-def subagent_results(job_id: str, user_id: str) -> str:
-    """Get results from a scheduled subagent job.
-
-    Args:
-        job_id: Job ID from subagent_invoke
-        user_id: The user ID (required)
-
-    Returns:
-        Job status and results if complete
-    """
-    from src.agents.subagent.scheduler import get_job_status
-
-    status = get_job_status(job_id)
-
-    if not status:
-        return f"Job '{job_id}' not found."
-
-    job_status = status.get("status", "unknown")
-    result = status.get("result", {})
-
-    if job_status == "running":
-        return f"""Job Status: Running
-
-**Job ID**: {job_id}
-**Subagent**: {status.get("subagent_name")}
-**Task**: {status.get("task")}
-**Status**: {job_status}
-
-The job is still running. Check again later or use `subagent_progress` for planning tasks."""
-
-    if job_status == "completed":
-        output = result.get("output", "No output")
-        return f"""Job Status: Completed ✅
-
-**Job ID**: {job_id}
-**Subagent**: {status.get("subagent_name")}
-**Task**: {status.get("task")}
-**Completed at**: {status.get("completed_at")}
-
-**Output**:
-{output}"""
-
-    if job_status == "failed":
-        error = result.get("error", "Unknown error")
-        return f"""Job Status: Failed ❌
-
-**Job ID**: {job_id}
-**Subagent**: {status.get("subagent_name")}
-**Task**: {status.get("task")}
-**Error**: {error}"""
-
-    return f"Job Status: {job_status}"
 
 
 @tool
