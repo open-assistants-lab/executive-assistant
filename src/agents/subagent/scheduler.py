@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_MISSED
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -14,7 +15,7 @@ from src.app_logging import get_logger
 
 logger = get_logger()
 
-JOBS_DB_PATH = Path("data/jobs.db")
+JOBS_DB_PATH = Path("data/users/system/jobs/jobs.db")
 
 _jobstores: dict = {}
 _scheduler: BackgroundScheduler | None = None
@@ -25,6 +26,7 @@ def _get_jobstores() -> dict:
     """Get jobstores dict with SQLite persistence."""
     global _jobstores
     if not _jobstores:
+        JOBS_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
         _jobstores = {
             "default": SQLAlchemyJobStore(url=f"sqlite:///{JOBS_DB_PATH}"),
         }
@@ -36,6 +38,25 @@ def get_scheduler() -> BackgroundScheduler:
     global _scheduler
     if _scheduler is None:
         _scheduler = BackgroundScheduler(jobstores=_get_jobstores())
+
+        def job_missed(event):
+            logger.warning(
+                "subagent.job_missed",
+                {"job_id": event.job_id, "scheduled_run_time": str(event.scheduled_run_time)},
+                user_id="system",
+            )
+
+        def job_executed(event):
+            if event.exception:
+                logger.error(
+                    "subagent.job_failed",
+                    {"job_id": event.job_id, "exception": str(event.exception)},
+                    user_id="system",
+                )
+
+        _scheduler.add_listener(job_missed, EVENT_JOB_MISSED)
+        _scheduler.add_listener(job_executed, EVENT_JOB_EXECUTED)
+
         _scheduler.start()
         logger.info("subagent.scheduler.started", {}, user_id="system")
     return _scheduler
