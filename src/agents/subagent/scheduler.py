@@ -1,5 +1,7 @@
 """Subagent scheduler using APScheduler."""
 
+import json
+import sqlite3
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -16,10 +18,89 @@ from src.app_logging import get_logger
 logger = get_logger()
 
 JOBS_DB_PATH = Path("data/jobs.db")
+RESULTS_DB_PATH = Path("data/jobs_results.db")
 
 _jobstores: dict = {}
 _scheduler: BackgroundScheduler | None = None
-_jobs: dict[str, dict[str, Any]] = {}
+
+
+def _init_results_db():
+    """Initialize results database."""
+    RESULTS_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(RESULTS_DB_PATH)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS job_results (
+            job_id TEXT PRIMARY KEY,
+            user_id TEXT,
+            subagent_name TEXT,
+            task TEXT,
+            status TEXT,
+            result TEXT,
+            error TEXT,
+            completed_at TEXT,
+            created_at TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
+def _save_job_result(
+    job_id: str,
+    user_id: str,
+    subagent_name: str,
+    task: str,
+    status: str,
+    result: dict | None = None,
+    error: str | None = None,
+):
+    """Save job result to database."""
+    conn = sqlite3.connect(RESULTS_DB_PATH)
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO job_results 
+        (job_id, user_id, subagent_name, task, status, result, error, completed_at, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """,
+        (
+            job_id,
+            user_id,
+            subagent_name,
+            task,
+            status,
+            json.dumps(result) if result else None,
+            error,
+            datetime.now().isoformat(),
+            datetime.now().isoformat(),
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_job_status(job_id: str) -> dict[str, Any] | None:
+    """Get status of a job from database."""
+    conn = sqlite3.connect(RESULTS_DB_PATH)
+    cursor = conn.execute(
+        "SELECT job_id, user_id, subagent_name, task, status, result, error, completed_at FROM job_results WHERE job_id = ?",
+        (job_id,),
+    )
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        return None
+
+    return {
+        "job_id": row[0],
+        "user_id": row[1],
+        "subagent_name": row[2],
+        "task": row[3],
+        "status": row[4],
+        "result": json.loads(row[5]) if row[5] else None,
+        "error": row[6],
+        "completed_at": row[7],
+    }
 
 
 def _get_jobstores() -> dict:
@@ -30,6 +111,7 @@ def _get_jobstores() -> dict:
         _jobstores = {
             "default": SQLAlchemyJobStore(url=f"sqlite:///{JOBS_DB_PATH}"),
         }
+        _init_results_db()
     return _jobstores
 
 
@@ -75,22 +157,28 @@ def _run_subagent_job(user_id: str, subagent_name: str, task: str, job_id: str) 
     try:
         manager = get_subagent_manager(user_id)
         result = manager.invoke(subagent_name, task)
-        _jobs[job_id] = {
-            "status": "completed" if result.get("success") else "failed",
-            "result": result,
-            "completed_at": datetime.now().isoformat(),
-        }
+        _save_job_result(
+            job_id=job_id,
+            user_id=user_id,
+            subagent_name=subagent_name,
+            task=task,
+            status="completed" if result.get("success") else "failed",
+            result=result,
+        )
         logger.info(
             "subagent.scheduled_run_completed",
             {"job_id": job_id, "success": result.get("success")},
             user_id=user_id,
         )
     except Exception as e:
-        _jobs[job_id] = {
-            "status": "failed",
-            "error": str(e),
-            "completed_at": datetime.now().isoformat(),
-        }
+        _save_job_result(
+            job_id=job_id,
+            user_id=user_id,
+            subagent_name=subagent_name,
+            task=task,
+            status="failed",
+            error=str(e),
+        )
         logger.error(
             "subagent.scheduled_run_failed",
             {"job_id": job_id, "error": str(e)},
@@ -127,15 +215,13 @@ def schedule_once(
         args=[user_id, subagent_name, task, job_id],
     )
 
-    _jobs[job_id] = {
-        "user_id": user_id,
-        "subagent_name": subagent_name,
-        "task": task,
-        "schedule_type": "once",
-        "run_at": run_at.isoformat(),
-        "status": "scheduled",
-        "created_at": datetime.now().isoformat(),
-    }
+    _save_job_result(
+        job_id=job_id,
+        user_id=user_id,
+        subagent_name=subagent_name,
+        task=task,
+        status="scheduled",
+    )
 
     logger.info(
         "subagent.scheduled",
@@ -197,15 +283,13 @@ def schedule_recurring(
         args=[user_id, subagent_name, task, job_id],
     )
 
-    _jobs[job_id] = {
-        "user_id": user_id,
-        "subagent_name": subagent_name,
-        "task": task,
-        "schedule_type": "recurring",
-        "cron": cron,
-        "status": "scheduled",
-        "created_at": datetime.now().isoformat(),
-    }
+    _save_job_result(
+        job_id=job_id,
+        user_id=user_id,
+        subagent_name=subagent_name,
+        task=task,
+        status="scheduled",
+    )
 
     logger.info(
         "subagent.scheduled_recurring",
@@ -229,9 +313,7 @@ def cancel_job(job_id: str) -> bool:
     job = scheduler.get_job(job_id)
     if job:
         job.remove()
-        if job_id in _jobs:
-            _jobs[job_id]["status"] = "cancelled"
-        logger.info("subagent.job_cancelled", {"job_id": job_id})
+        _save_job_result(job_id=job_id, user_id="", subagent_name="", task="", status="cancelled")
         return True
     return False
 
@@ -245,22 +327,26 @@ def list_jobs(user_id: str | None = None) -> list[dict[str, Any]]:
     Returns:
         List of job info dicts
     """
+    conn = sqlite3.connect(RESULTS_DB_PATH)
+    if user_id:
+        cursor = conn.execute(
+            "SELECT job_id, user_id, subagent_name, task, status FROM job_results WHERE user_id = ?",
+            (user_id,),
+        )
+    else:
+        cursor = conn.execute(
+            "SELECT job_id, user_id, subagent_name, task, status FROM job_results"
+        )
     jobs = []
-    for job_id, info in _jobs.items():
-        if user_id is None or info.get("user_id") == user_id:
-            jobs.append({"job_id": job_id, **info})
+    for row in cursor.fetchall():
+        jobs.append(
+            {
+                "job_id": row[0],
+                "user_id": row[1],
+                "subagent_name": row[2],
+                "task": row[3],
+                "status": row[4],
+            }
+        )
+    conn.close()
     return jobs
-
-
-def get_job_status(job_id: str) -> dict[str, Any] | None:
-    """Get status of a job.
-
-    Args:
-        job_id: Job ID
-
-    Returns:
-        Job info or None if not found
-    """
-    if job_id not in _jobs:
-        return None
-    return {"job_id": job_id, **_jobs[job_id]}
