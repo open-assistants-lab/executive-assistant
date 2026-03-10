@@ -69,7 +69,10 @@ def subagent_create(
 
 @tool
 def subagent_invoke(name: str, task: str, user_id: str) -> str:
-    """Invoke a subagent to execute a task.
+    """Invoke a subagent to execute a task asynchronously.
+
+    The task is scheduled to run immediately in the background.
+    Use subagent_progress to check status, or subagent_results to get results.
 
     Args:
         name: Subagent name
@@ -77,16 +80,21 @@ def subagent_invoke(name: str, task: str, user_id: str) -> str:
         user_id: The user ID (required)
 
     Returns:
-        Subagent execution result
+        Job ID and status message
     """
-    manager = get_subagent_manager(user_id)
+    from src.agents.subagent.scheduler import schedule_now
 
-    result = manager.invoke(name, task)
+    job_id = schedule_now(user_id, name, task)
 
-    if not result["success"]:
-        return f"Error: {result['error']}"
+    return f"""Task scheduled for subagent '{name}'.
 
-    return result["output"]
+**Job ID**: {job_id}
+**Task**: {task}
+**Status**: Running in background...
+
+Use these commands to check progress:
+- `subagent_progress {job_id}` - Check task progress
+- `subagent_results {job_id}` - Get task results (once complete)"""
 
 
 @tool
@@ -197,6 +205,61 @@ def subagent_progress(task_name: str, user_id: str) -> str:
         lines.append("")
 
     return "\n".join(lines)
+
+
+@tool
+def subagent_results(job_id: str, user_id: str) -> str:
+    """Get results from a scheduled subagent job.
+
+    Args:
+        job_id: Job ID from subagent_invoke
+        user_id: The user ID (required)
+
+    Returns:
+        Job status and results if complete
+    """
+    from src.agents.subagent.scheduler import get_job_status
+
+    status = get_job_status(job_id)
+
+    if not status:
+        return f"Job '{job_id}' not found."
+
+    job_status = status.get("status", "unknown")
+    result = status.get("result", {})
+
+    if job_status == "running":
+        return f"""Job Status: Running
+
+**Job ID**: {job_id}
+**Subagent**: {status.get("subagent_name")}
+**Task**: {status.get("task")}
+**Status**: {job_status}
+
+The job is still running. Check again later or use `subagent_progress` for planning tasks."""
+
+    if job_status == "completed":
+        output = result.get("output", "No output")
+        return f"""Job Status: Completed ✅
+
+**Job ID**: {job_id}
+**Subagent**: {status.get("subagent_name")}
+**Task**: {status.get("task")}
+**Completed at**: {status.get("completed_at")}
+
+**Output**:
+{output}"""
+
+    if job_status == "failed":
+        error = result.get("error", "Unknown error")
+        return f"""Job Status: Failed ❌
+
+**Job ID**: {job_id}
+**Subagent**: {status.get("subagent_name")}
+**Task**: {status.get("task")}
+**Error**: {error}"""
+
+    return f"Job Status: {job_status}"
 
 
 @tool

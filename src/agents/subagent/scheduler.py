@@ -146,6 +146,24 @@ def schedule_once(
     return job_id
 
 
+def schedule_now(
+    user_id: str,
+    subagent_name: str,
+    task: str,
+) -> str:
+    """Schedule a subagent to run immediately (async).
+
+    Args:
+        user_id: User ID
+        subagent_name: Subagent to invoke
+        task: Task description
+
+    Returns:
+        Job ID
+    """
+    return schedule_once(user_id, subagent_name, task, datetime.now())
+
+
 def schedule_recurring(
     user_id: str,
     subagent_name: str,
