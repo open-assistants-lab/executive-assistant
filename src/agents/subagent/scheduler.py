@@ -15,7 +15,7 @@ from src.app_logging import get_logger
 
 logger = get_logger()
 
-JOBS_DB_PATH = Path("data/users/system/jobs/jobs.db")
+JOBS_DB_PATH = Path("data/jobs.db")
 
 _jobstores: dict = {}
 _scheduler: BackgroundScheduler | None = None
