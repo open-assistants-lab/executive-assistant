@@ -92,9 +92,7 @@ def subagent_invoke(name: str, task: str, user_id: str) -> str:
 **Task**: {task}
 **Status**: Running in background...
 
-Use these commands to check progress:
-- `subagent_progress {job_id}` - Check task progress
-- `subagent_results {job_id}` - Get task results (once complete)"""
+Use `subagent_progress {job_id}` to check status and results."""
 
 
 @tool
