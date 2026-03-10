@@ -187,7 +187,6 @@ You have access to tools and skills as configured. Always use the planning-with-
                 config=config,
             )
         except Exception as e:
-            _current_user_id.reset(token)
             logger.error(
                 "subagent.invoke_failed",
                 {"name": name, "error": str(e)},
