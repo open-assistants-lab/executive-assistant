@@ -20,11 +20,13 @@ class MessageRequest(BaseModel):
     message: str
     model: str | None = None
     user_id: str | None = None
+    verbose: bool = False  # Include middleware events in stream
 
 
 class MessageResponse(BaseModel):
     response: str
     error: str | None = None
+    verbose_data: dict | None = None  # Additional info when verbose=True
 
 
 @asynccontextmanager
@@ -119,13 +121,135 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
 
         logger = get_logger()
 
-        with timer("agent", {"message": msg_content, "user_id": user_id}, channel="http"):
+        verbose_data: dict | None = None
+        response: str = ""
+
+        with timer(
+            "agent",
+            {"message": msg_content, "user_id": user_id, "verbose": req.verbose},
+            channel="http",
+        ):
             with propagate_attributes(user_id=user_id):
-                result = await run_agent(
-                    user_id=user_id,
-                    messages=langgraph_messages,
-                    message=msg_content,
-                )
+                if req.verbose:
+                    # Use streaming with verbose=True to collect middleware events
+                    middleware_events = []
+                    tool_events = []
+                    ai_content = []
+
+                    async for chunk in run_agent_stream(
+                        user_id=user_id,
+                        messages=langgraph_messages,
+                        message=msg_content,
+                        verbose=True,
+                    ):
+                        # Parse verbose events
+                        if isinstance(chunk, dict) and "event" in chunk:
+                            event_type = chunk.get("event", "")
+                            name = chunk.get("name", "")
+
+                            if "Middleware" in name:
+                                middleware_events.append(
+                                    {
+                                        "name": name,
+                                        "event": event_type,
+                                    }
+                                )
+                            elif "tool" in event_type:
+                                data = chunk.get("data", {})
+                                if "start" in event_type:
+                                    tool_name = (
+                                        data.get("name", name) if isinstance(data, dict) else name
+                                    )
+                                    tool_events.append({"tool": tool_name, "stage": "start"})
+                                elif (
+                                    "end" in event_type
+                                    and isinstance(data, dict)
+                                    and "output" in data
+                                ):
+                                    tool_events.append(
+                                        {
+                                            "tool": data.get("name", name),
+                                            "stage": "end",
+                                            "output": str(data.get("output", ""))[:200],
+                                        }
+                                    )
+                            elif "chat_model_stream" in event_type:
+                                data = chunk.get("data", {})
+                                content = ""
+                                if isinstance(data, dict):
+                                    if "chunk" in data:
+                                        chunk_obj = data["chunk"]
+                                        content = (
+                                            chunk_obj.content
+                                            if hasattr(chunk_obj, "content")
+                                            else str(chunk_obj)
+                                        )
+                                elif hasattr(data, "content"):
+                                    content = data.content
+                                if content:
+                                    ai_content.append(content)
+
+                    verbose_data = {
+                        "middleware_events": middleware_events,
+                        "tool_events": tool_events,
+                    }
+
+                    # Build response from accumulated content
+                    if tool_events:
+                        response = "\n".join(
+                            [
+                                t.get("output", f"Tool: {t.get('tool')}")
+                                for t in tool_events
+                                if t.get("stage") == "end"
+                            ]
+                        )
+                    elif ai_content:
+                        response = "".join(ai_content)
+
+                    # If still no response, run agent normally to get response
+                    if not response or response == "Task completed.":
+                        result = await run_agent(
+                            user_id=user_id,
+                            messages=langgraph_messages,
+                            message=msg_content,
+                        )
+
+                        # Extract response from result
+                        messages = result.get("messages", [])
+                        tool_results = []
+                        for msg in messages:
+                            msg_type = getattr(msg, "type", None)
+                            if msg_type == "tool":
+                                content = getattr(msg, "content", None)
+                                if content:
+                                    tool_results.append(content)
+
+                        for msg in reversed(messages):
+                            msg_type = getattr(msg, "type", None)
+                            content = getattr(msg, "content", None)
+                            if msg_type == "ai":
+                                tool_calls = getattr(msg, "tool_calls", None)
+                                if tool_calls and tool_results:
+                                    response = "\n".join(tool_results)
+                                    break
+                                if tool_calls:
+                                    response = f"Tool(s) executed: {', '.join([tc.get('name', 'unknown') for tc in tool_calls])}"
+                                    break
+                                if content and content.strip():
+                                    response = content
+                                    break
+
+                        if not response:
+                            response = "Task completed."
+
+                    # Use result for interrupt check
+                    result = {"messages": []}
+                else:
+                    result = await run_agent(
+                        user_id=user_id,
+                        messages=langgraph_messages,
+                        message=msg_content,
+                    )
 
         # Check for human-in-the-loop interrupt
         if "__interrupt__" in result:
@@ -155,7 +279,6 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
 
         messages = result.get("messages", [])
 
-        response = None
         tool_results = []
 
         for msg in messages:
@@ -187,9 +310,14 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
 
         conversation.add_message("assistant", response)
 
-        logger.info("agent.response", {"response": response}, user_id=user_id, channel="http")
+        logger.info(
+            "agent.response",
+            {"response": response, "verbose": req.verbose},
+            user_id=user_id,
+            channel="http",
+        )
 
-        return MessageResponse(response=response)
+        return MessageResponse(response=response, verbose_data=verbose_data)
 
     except Exception as e:
         return MessageResponse(response="", error=str(e))
@@ -217,12 +345,124 @@ async def message_stream(req: MessageRequest):
         async def generate():
             all_messages = []
             tool_results = []
+            ai_content = []
 
             async for chunk in run_agent_stream(
                 user_id=user_id,
                 messages=langgraph_messages,
                 message=req.message,
+                verbose=req.verbose,
             ):
+                # Verbose mode: astream_events returns dict with event, name, data
+                if isinstance(chunk, dict) and "event" in chunk:
+                    event_type = chunk.get("event", "")
+                    name = chunk.get("name", "")
+                    data = chunk.get("data", {})
+
+                    # Middleware events
+                    if "Middleware" in name:
+                        if "start" in event_type:
+                            yield f"data: {json.dumps({'type': 'middleware', 'content': f'Starting: {name}'})}\n\n"
+                        elif "end" in event_type:
+                            yield f"data: {json.dumps({'type': 'middleware', 'content': f'Finished: {name}'})}\n\n"
+
+                    # Model tokens (chat_model_stream)
+                    elif "chat_model_stream" in event_type:
+                        content = ""
+                        if isinstance(data, dict):
+                            if "chunk" in data:
+                                chunk_obj = data["chunk"]
+                                content = (
+                                    chunk_obj.content
+                                    if hasattr(chunk_obj, "content")
+                                    else str(chunk_obj)
+                                )
+                            elif "content" in data:
+                                content = str(data.get("content", ""))
+                        elif hasattr(data, "content"):
+                            content = data.content
+
+                        if content:
+                            ai_content.append(content)
+                            yield f"data: {json.dumps({'type': 'ai', 'content': content})}\n\n"
+
+                    # Tool events
+                    elif "tool" in event_type:
+                        if "start" in event_type:
+                            tool_name = data.get("name", name) if isinstance(data, dict) else name
+                            yield f"data: {json.dumps({'type': 'tool', 'content': f'Using tool: {tool_name}'})}\n\n"
+                        elif "end" in event_type:
+                            if isinstance(data, dict) and "output" in data:
+                                output = str(data.get("output", ""))[:500]
+                                tool_results.append(output)
+                                yield f"data: {json.dumps({'type': 'tool', 'content': output})}\n\n"
+
+                    all_messages.append(chunk)
+                    continue
+
+                # Non-verbose mode: v1 format with multiple modes: (mode, data) tuple
+                if isinstance(chunk, tuple) and len(chunk) == 2:
+                    mode, data = chunk
+
+                    if mode == "messages":
+                        # data is (message_chunk, metadata)
+                        if isinstance(data, tuple) and len(data) == 2:
+                            message_chunk, metadata = data
+                            content = getattr(message_chunk, "content", "")
+                            if content:
+                                yield f"data: {json.dumps({'type': 'ai', 'content': content})}\n\n"
+
+                    elif mode == "updates":
+                        # data is {node_name: state_update}
+                        if isinstance(data, dict):
+                            for node_name, state in data.items():
+                                if isinstance(state, dict):
+                                    if "messages" in state:
+                                        for msg in state["messages"]:
+                                            msg_type = getattr(msg, "type", None)
+                                            msg_content = getattr(msg, "content", "")
+                                            if msg_type == "tool":
+                                                if msg_content:
+                                                    tool_results.append(msg_content)
+                                                    yield f"data: {json.dumps({'type': 'tool', 'content': msg_content})}\n\n"
+                                            elif msg_type == "ai":
+                                                if msg_content:
+                                                    yield f"data: {json.dumps({'type': 'ai', 'content': msg_content})}\n\n"
+
+                    all_messages.append(chunk)
+                    continue
+
+                # v2 format: dict with type, ns, data
+                if isinstance(chunk, dict):
+                    chunk_type = chunk.get("type")
+                    data = chunk.get("data")
+
+                    if chunk_type == "messages" and data:
+                        if isinstance(data, tuple) and len(data) == 2:
+                            message_chunk, metadata = data
+                            content = getattr(message_chunk, "content", "")
+                            if content:
+                                yield f"data: {json.dumps({'type': 'ai', 'content': content})}\n\n"
+
+                    elif chunk_type == "updates" and data:
+                        if isinstance(data, dict):
+                            for node_name, state in data.items():
+                                if isinstance(state, dict) and "messages" in state:
+                                    for msg in state["messages"]:
+                                        msg_type = getattr(msg, "type", None)
+                                        msg_content = getattr(msg, "content", "")
+                                        if msg_type == "tool":
+                                            if msg_content:
+                                                tool_results.append(msg_content)
+                                                yield f"data: {json.dumps({'type': 'tool', 'content': msg_content})}\n\n"
+                                        elif msg_type == "ai":
+                                            if msg_content:
+                                                yield f"data: {json.dumps({'type': 'ai', 'content': msg_content})}\n\n"
+
+                    all_messages.append(chunk)
+                    continue
+
+                # Handle message objects directly (legacy)
                 chunk_type = getattr(chunk, "type", None)
 
                 if chunk_type == "tool":
@@ -238,22 +478,32 @@ async def message_stream(req: MessageRequest):
 
                 all_messages.append(chunk)
 
+            # Build final response
             response = None
-            for msg in reversed(all_messages):
-                msg_type = getattr(msg, "type", None)
-                content = getattr(msg, "content", None)
-                if msg_type == "ai":
-                    tool_calls = getattr(msg, "tool_calls", None)
-                    if tool_calls and tool_results:
-                        response = "\n".join(tool_results)
-                        break
-                    if tool_calls:
-                        tool_names = [tc.get("name", "unknown") for tc in tool_calls]
-                        response = f"Tool(s) executed: {', '.join(tool_names)}"
-                        break
-                    if content and content.strip():
-                        response = content
-                        break
+
+            # For verbose mode, use accumulated content
+            if req.verbose:
+                if tool_results:
+                    response = "\n".join(tool_results)
+                elif ai_content:
+                    response = "".join(ai_content)
+            else:
+                # For non-verbose mode, look at all_messages
+                for msg in reversed(all_messages):
+                    msg_type = getattr(msg, "type", None)
+                    content = getattr(msg, "content", None)
+                    if msg_type == "ai":
+                        tool_calls = getattr(msg, "tool_calls", None)
+                        if tool_calls and tool_results:
+                            response = "\n".join(tool_results)
+                            break
+                        if tool_calls:
+                            tool_names = [tc.get("name", "unknown") for tc in tool_calls]
+                            response = f"Tool(s) executed: {', '.join(tool_names)}"
+                            break
+                        if content and content.strip():
+                            response = content
+                            break
 
             if not response:
                 response = "Task completed."

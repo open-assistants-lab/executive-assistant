@@ -1,7 +1,7 @@
 # Agent Configuration
 agent:
   name: "Executive Assistant"
-  model: "ollama-cloud:minimax-m2.5"
+  model: "ollama:minimax-m2.5"
   system_prompt: |
     You are a helpful executive assistant.
 

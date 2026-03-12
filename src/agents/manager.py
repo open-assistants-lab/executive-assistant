@@ -154,6 +154,7 @@ async def run_agent_stream(
     user_id: str,
     messages: list[Any],
     message: str,
+    verbose: bool = False,
 ):
     """Run agent with streaming - yields chunks for real-time output.
 
@@ -161,6 +162,7 @@ async def run_agent_stream(
         user_id: User identifier
         messages: Previous conversation messages
         message: Current user message
+        verbose: If True, include middleware events (via astream_events)
 
     Yields:
         Chunks of the agent's response
@@ -176,11 +178,23 @@ async def run_agent_stream(
         if app_logger.langfuse_handler:
             config["callbacks"] = [app_logger.langfuse_handler]
 
-        async for chunk in instance.agent.astream(
-            {"messages": messages},
-            config=config,
-        ):
-            yield chunk
+        if verbose:
+            # Use astream_events for full verbose output (middleware + tokens + tools)
+            async for event in instance.agent.astream_events(
+                {"messages": messages},
+                config=config,
+                version="v2",
+            ):
+                yield event
+        else:
+            # Use astream with messages/updates modes for efficient streaming
+            async for chunk in instance.agent.astream(
+                {"messages": messages},
+                config=config,
+                stream_mode=["messages", "updates"],
+                version="v2",
+            ):
+                yield chunk
 
 
 def get_model() -> BaseChatModel:
@@ -213,10 +227,26 @@ def get_default_tools(user_id: str) -> list[Any]:
         subagent_validate,
     )
     from src.skills.example_constrained_tool import sql_write_query
-    from src.skills.tools import skills_list, skills_load, skill_create
+    from src.skills.tools import skill_create, skills_list, skills_load
     from src.telegram.main import (
         telegram_send_file_tool,
         telegram_send_message_tool,
+    )
+    from src.tools.apps import (
+        app_column_add,
+        app_column_delete,
+        app_column_rename,
+        app_create,
+        app_delete,
+        app_delete_row,
+        app_insert,
+        app_list,
+        app_query,
+        app_schema,
+        app_search_fts,
+        app_search_hybrid,
+        app_search_semantic,
+        app_update,
     )
     from src.tools.contacts import (
         contacts_add,
@@ -235,22 +265,6 @@ def get_default_tools(user_id: str) -> list[Any]:
         email_search,
         email_send,
         email_sync,
-    )
-    from src.tools.apps import (
-        app_column_add,
-        app_column_delete,
-        app_column_rename,
-        app_create,
-        app_delete,
-        app_delete_row,
-        app_insert,
-        app_list,
-        app_query,
-        app_schema,
-        app_search_fts,
-        app_search_semantic,
-        app_search_hybrid,
-        app_update,
     )
     from src.tools.file_search import files_glob_search, files_grep_search
     from src.tools.filesystem import (
