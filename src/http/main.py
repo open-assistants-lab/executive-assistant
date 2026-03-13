@@ -506,20 +506,7 @@ async def message_stream(req: MessageRequest):
                         if isinstance(data, tuple) and len(data) == 2:
                             message_chunk, metadata = data
                             content = getattr(message_chunk, "content", "")
-                            # Track summarization state across chunks
                             if content:
-                                # Detect start of summarization
-                                if not in_summarization_stream:
-                                    content_upper = content.upper()
-                                    if (
-                                        "##" in content
-                                        or "SESSION INTENT" in content_upper
-                                        or "SUMMARY" in content_upper
-                                        or "ARTIFACTS" in content_upper
-                                        or "NEXT STEP" in content_upper
-                                    ):
-                                        in_summarization_stream = True
-                                # Output only if not in summarization
                                 if not in_summarization_stream:
                                     ai_content.append(content)
                                     yield f"data: {json.dumps({'type': 'ai', 'content': content})}\n\n"
@@ -537,17 +524,6 @@ async def message_stream(req: MessageRequest):
                                                 yield f"data: {json.dumps({'type': 'tool', 'content': msg_content})}\n\n"
                                         elif msg_type == "ai":
                                             if msg_content:
-                                                # Track summarization state across chunks
-                                                if not in_summarization_stream:
-                                                    content_upper = msg_content.upper()
-                                                    if (
-                                                        "##" in msg_content
-                                                        or "SESSION INTENT" in content_upper
-                                                        or "SUMMARY" in content_upper
-                                                        or "ARTIFACTS" in content_upper
-                                                        or "NEXT STEP" in content_upper
-                                                    ):
-                                                        in_summarization_stream = True
                                                 if not in_summarization_stream:
                                                     ai_content.append(msg_content)
                                                     yield f"data: {json.dumps({'type': 'ai', 'content': msg_content})}\n\n"
@@ -567,17 +543,6 @@ async def message_stream(req: MessageRequest):
                 elif chunk_type == "ai":
                     content = getattr(chunk, "content", "")
                     if content:
-                        # Track summarization state
-                        if not in_summarization_stream:
-                            content_upper = content.upper()
-                            if (
-                                "##" in content
-                                or "SESSION INTENT" in content_upper
-                                or "SUMMARY" in content_upper
-                                or "ARTIFACTS" in content_upper
-                                or "NEXT STEP" in content_upper
-                            ):
-                                in_summarization_stream = True
                         if not in_summarization_stream:
                             ai_content.append(content)
                             yield f"data: {json.dumps({'type': 'ai', 'content': content})}\n\n"
