@@ -1,6 +1,56 @@
 """HTTP server for Executive Assistant."""
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from collections.abc import AsyncGenerator
+
+
+def _looks_like_summarization_response(content: str) -> bool:
+    """Check if content is from summarization (works with partial chunks during streaming)."""
+    if not content:
+        return False
+
+    content_stripped = content.strip()
+    content_lower = content_stripped.lower()
+
+    # Check for markdown headers (very common in summarization) - use stripped content
+    if "##" in content_stripped[:10]:  # Check first 10 chars after stripping
+        return True
+
+    # Check for partial phrases that indicate summarization
+    partial_phrases = [
+        "the user",
+        "session intent",
+        "summary",
+        "artifacts",
+        "next steps",
+        "conversation includes",
+        "conversation consists",
+        "primary goal",
+        "main task",
+    ]
+    if any(phrase in content_lower for phrase in partial_phrases):
+        return True
+
+    # For longer content (>50 chars), do more thorough check
+    if len(content) > 50:
+        content_lower = content.lower()
+        summarization_markers = [
+            "the user has been",
+            "the user appears to",
+            "the user made many",
+            "the user tested",
+            "key information",
+            "potential follow",
+        ]
+        if any(marker in content_lower for marker in summarization_markers):
+            return True
+
+    return False
+
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
@@ -70,6 +120,37 @@ async def health():
 async def ready():
     """Readiness check."""
     return {"status": "ready"}
+
+
+@app.get("/conversation")
+async def get_conversation(user_id: str = "default", limit: int = 100):
+    """Get conversation history."""
+    from src.storage.conversation import get_conversation_store
+
+    conversation = get_conversation_store(user_id)
+    messages = conversation.get_recent_messages(limit)
+
+    return {
+        "messages": [
+            {"role": m.role, "content": m.content, "timestamp": m.ts.isoformat() if m.ts else None}
+            for m in messages
+        ]
+    }
+
+
+@app.delete("/conversation")
+async def clear_conversation(user_id: str = "default"):
+    """Clear conversation history."""
+    import sqlite3
+    from src.storage.conversation import get_conversation_store
+
+    conversation = get_conversation_store(user_id)
+    conn = sqlite3.connect(conversation.messages_db_path)
+    conn.execute("DELETE FROM messages")
+    conn.commit()
+    conn.close()
+
+    return {"status": "cleared", "user_id": user_id}
 
 
 @app.post("/message", response_model=MessageResponse)
@@ -305,10 +386,20 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
                     response = content
                     break
 
-        if not response:
-            response = "Task completed."
+            if not response:
+                response = "Task completed."
 
-        conversation.add_message("assistant", response)
+            logger.warning(
+                "agent.response.final",
+                {
+                    "ai_content_count": len(ai_content) if "ai_content" in dir() else 0,
+                    "response": response[:50],
+                },
+                user_id=user_id,
+                channel="http",
+            )
+
+            conversation.add_message("assistant", response)
 
         logger.info(
             "agent.response",
@@ -346,7 +437,9 @@ async def message_stream(req: MessageRequest):
             all_messages = []
             tool_results = []
             ai_content = []
+            summarization_ran = False  # Track if summarization ran in this request
 
+            in_summarization_stream = False  # Track if we're streaming summarization output
             async for chunk in run_agent_stream(
                 user_id=user_id,
                 messages=langgraph_messages,
@@ -359,11 +452,15 @@ async def message_stream(req: MessageRequest):
                     name = chunk.get("name", "")
                     data = chunk.get("data", {})
 
-                    # Middleware events
+                    # Middleware events - track summarization
                     if "Middleware" in name:
                         if "start" in event_type:
+                            if "Summarization" in name:
+                                in_summarization_stream = True
                             yield f"data: {json.dumps({'type': 'middleware', 'content': f'Starting: {name}'})}\n\n"
                         elif "end" in event_type:
+                            if "Summarization" in name:
+                                in_summarization_stream = False
                             yield f"data: {json.dumps({'type': 'middleware', 'content': f'Finished: {name}'})}\n\n"
 
                     # Model tokens (chat_model_stream)
@@ -383,8 +480,25 @@ async def message_stream(req: MessageRequest):
                             content = data.content
 
                         if content:
-                            ai_content.append(content)
-                            yield f"data: {json.dumps({'type': 'ai', 'content': content})}\n\n"
+                            # Check if this looks like the start of summarization
+                            is_summarization = _looks_like_summarization_response(content)
+
+                            # If we see a markdown header (likely start of summarization), track it
+                            if is_summarization:
+                                in_summarization_stream = True
+
+                            # If we're in summarization mode, filter all content
+                            if in_summarization_stream:
+                                # Only turn off filtering if we see a clear end AND it's not part of a header
+                                # Look for patterns like "## <next section>" which means summary is done
+                                content_stripped = content.strip()
+                                if "\n\n" in content and not content_stripped.startswith("##"):
+                                    in_summarization_stream = False
+                                if req.verbose:
+                                    yield f"data: {json.dumps({'type': 'middleware', 'content': f'[SummarizationMiddleware] {content}'})}\n\n"
+                            else:
+                                ai_content.append(content)
+                                yield f"data: {json.dumps({'type': 'ai', 'content': content})}\n\n"
 
                     # Tool events
                     elif "tool" in event_type:
@@ -409,8 +523,18 @@ async def message_stream(req: MessageRequest):
                         if isinstance(data, tuple) and len(data) == 2:
                             message_chunk, metadata = data
                             content = getattr(message_chunk, "content", "")
+                            # Use content-based detection for summarization
+                            is_summarization = _looks_like_summarization_response(content)
+                            if is_summarization:
+                                in_summarization_stream = True
                             if content:
-                                yield f"data: {json.dumps({'type': 'ai', 'content': content})}\n\n"
+                                if in_summarization_stream:
+                                    if req.verbose:
+                                        tool_results.append(f"[Summarization] {content}")
+                                    yield f"data: {json.dumps({'type': 'middleware', 'content': f'[Summarization] {content}'})}\n\n"
+                                else:
+                                    ai_content.append(content)
+                                    yield f"data: {json.dumps({'type': 'ai', 'content': content})}\n\n"
 
                     elif mode == "updates":
                         # data is {node_name: state_update}
@@ -427,7 +551,20 @@ async def message_stream(req: MessageRequest):
                                                     yield f"data: {json.dumps({'type': 'tool', 'content': msg_content})}\n\n"
                                             elif msg_type == "ai":
                                                 if msg_content:
-                                                    yield f"data: {json.dumps({'type': 'ai', 'content': msg_content})}\n\n"
+                                                    is_summ = _looks_like_summarization_response(
+                                                        msg_content
+                                                    )
+                                                    if is_summ:
+                                                        in_summarization_stream = True
+                                                    if in_summarization_stream:
+                                                        if req.verbose:
+                                                            tool_results.append(
+                                                                f"[Summarization] {msg_content}"
+                                                            )
+                                                            yield f"data: {json.dumps({'type': 'middleware', 'content': f'[Summarization] {msg_content}'})}\n\n"
+                                                    else:
+                                                        ai_content.append(msg_content)
+                                                        yield f"data: {json.dumps({'type': 'ai', 'content': msg_content})}\n\n"
 
                     all_messages.append(chunk)
                     continue
@@ -442,7 +579,16 @@ async def message_stream(req: MessageRequest):
                             message_chunk, metadata = data
                             content = getattr(message_chunk, "content", "")
                             if content:
-                                yield f"data: {json.dumps({'type': 'ai', 'content': content})}\n\n"
+                                is_summ = _looks_like_summarization_response(content)
+                                if is_summ:
+                                    in_summarization_stream = True
+                                if in_summarization_stream:
+                                    if req.verbose:
+                                        tool_results.append(f"[Summarization] {content}")
+                                        yield f"data: {json.dumps({'type': 'middleware', 'content': f'[Summarization] {content}'})}\n\n"
+                                else:
+                                    ai_content.append(content)
+                                    yield f"data: {json.dumps({'type': 'ai', 'content': content})}\n\n"
 
                     elif chunk_type == "updates" and data:
                         if isinstance(data, dict):
@@ -457,7 +603,20 @@ async def message_stream(req: MessageRequest):
                                                 yield f"data: {json.dumps({'type': 'tool', 'content': msg_content})}\n\n"
                                         elif msg_type == "ai":
                                             if msg_content:
-                                                yield f"data: {json.dumps({'type': 'ai', 'content': msg_content})}\n\n"
+                                                is_summ = _looks_like_summarization_response(
+                                                    msg_content
+                                                )
+                                                if is_summ:
+                                                    in_summarization_stream = True
+                                                if in_summarization_stream:
+                                                    if req.verbose:
+                                                        tool_results.append(
+                                                            f"[Summarization] {msg_content}"
+                                                        )
+                                                        yield f"data: {json.dumps({'type': 'middleware', 'content': f'[Summarization] {msg_content}'})}\n\n"
+                                                else:
+                                                    ai_content.append(msg_content)
+                                                    yield f"data: {json.dumps({'type': 'ai', 'content': msg_content})}\n\n"
 
                     all_messages.append(chunk)
                     continue
@@ -474,38 +633,78 @@ async def message_stream(req: MessageRequest):
                 elif chunk_type == "ai":
                     content = getattr(chunk, "content", "")
                     if content:
-                        yield f"data: {json.dumps({'type': 'ai', 'content': content})}\n\n"
+                        if summarization_ran > 0:
+                            # Show as middleware during summarization
+                            if req.verbose:
+                                tool_results.append(f"[Summarization] {content}")
+                                yield f"data: {json.dumps({'type': 'middleware', 'content': f'[Summarization] {content}'})}\n\n"
+                        else:
+                            ai_content.append(content)
+                            yield f"data: {json.dumps({'type': 'ai', 'content': content})}\n\n"
 
                 all_messages.append(chunk)
 
             # Build final response
             response = None
 
-            # For verbose mode, use accumulated content
+            # For verbose mode, use accumulated content (includes tool messages)
             if req.verbose:
+                # In verbose mode, also include tool_results
+                verbose_content = list(ai_content)
+
                 if tool_results:
                     response = "\n".join(tool_results)
-                elif ai_content:
+                elif verbose_content:
+                    response = "".join(verbose_content)
+                else:
                     response = "".join(ai_content)
             else:
-                # For non-verbose mode, look at all_messages
-                for msg in reversed(all_messages):
-                    msg_type = getattr(msg, "type", None)
-                    content = getattr(msg, "content", None)
-                    if msg_type == "ai":
-                        tool_calls = getattr(msg, "tool_calls", None)
-                        if tool_calls and tool_results:
-                            response = "\n".join(tool_results)
-                            break
-                        if tool_calls:
-                            tool_names = [tc.get("name", "unknown") for tc in tool_calls]
-                            response = f"Tool(s) executed: {', '.join(tool_names)}"
-                            break
-                        if content and content.strip():
-                            response = content
+                # For non-verbose mode, use ai_content (most reliable)
+                # Get the last substantial chunk (the complete response)
+                response = None
+                if ai_content:
+                    # Filter out summarization chunks if summarization ran
+                    if summarization_ran:
+                        non_summary = [
+                            c for c in ai_content if not c.strip().startswith("##") and len(c) > 3
+                        ]
+                    else:
+                        non_summary = ai_content
+
+                    # Find the last chunk that looks like a complete response (>20 chars)
+                    for c in reversed(non_summary):
+                        if len(c) > 20:
+                            response = c
                             break
 
+                    # If no good response found, join all non-summary unique chunks
+                    if not response:
+                        seen = set()
+                        unique = []
+                        for c in non_summary:
+                            if c not in seen:
+                                seen.add(c)
+                                unique.append(c)
+                        response = "".join(unique)
+
+                # Fallback
+                if not response:
+                    response = "Task completed."
+
             if not response:
+                response = "Task completed."
+
+            # Deduplicate response for database
+            if response and response.count(response[:20]) > 1:
+                for check_len in range(20, len(response) // 2, 10):
+                    prefix = response[:check_len]
+                    first_end = response.find(prefix, check_len)
+                    if first_end > check_len:
+                        response = response[:first_end]
+                        break
+
+            # Don't save summarization output to database
+            if summarization_ran or _looks_like_summarization_response(response):
                 response = "Task completed."
 
             conversation.add_message("assistant", response)
