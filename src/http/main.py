@@ -5,52 +5,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from collections.abc import AsyncGenerator
-
-
-def _looks_like_summarization_response(content: str) -> bool:
-    """Check if content is from summarization (works with partial chunks during streaming)."""
-    if not content:
-        return False
-
-    content_stripped = content.strip()
-    content_lower = content_stripped.lower()
-
-    # Check for markdown headers (very common in summarization) - use stripped content
-    if "##" in content_stripped[:10]:  # Check first 10 chars after stripping
-        return True
-
-    # Check for partial phrases that indicate summarization
-    partial_phrases = [
-        "the user",
-        "session intent",
-        "summary",
-        "artifacts",
-        "next steps",
-        "conversation includes",
-        "conversation consists",
-        "primary goal",
-        "main task",
-    ]
-    if any(phrase in content_lower for phrase in partial_phrases):
-        return True
-
-    # For longer content (>50 chars), do more thorough check
-    if len(content) > 50:
-        content_lower = content.lower()
-        summarization_markers = [
-            "the user has been",
-            "the user appears to",
-            "the user made many",
-            "the user tested",
-            "key information",
-            "potential follow",
-        ]
-        if any(marker in content_lower for marker in summarization_markers):
-            return True
-
-    return False
-
-
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
@@ -452,7 +406,7 @@ async def message_stream(req: MessageRequest):
                     name = chunk.get("name", "")
                     data = chunk.get("data", {})
 
-                    # Middleware events - track summarization
+                    # Middleware events - track summarization to filter its output
                     if "Middleware" in name:
                         if "start" in event_type:
                             if "Summarization" in name:
@@ -480,22 +434,9 @@ async def message_stream(req: MessageRequest):
                             content = data.content
 
                         if content:
-                            # Check if this looks like the start of summarization
-                            is_summarization = _looks_like_summarization_response(content)
-
-                            # If we see a markdown header (likely start of summarization), track it
-                            if is_summarization:
-                                in_summarization_stream = True
-
-                            # If we're in summarization mode, filter all content
+                            # Skip content during summarization (in_summarization_stream set by middleware events)
                             if in_summarization_stream:
-                                # Only turn off filtering if we see a clear end AND it's not part of a header
-                                # Look for patterns like "## <next section>" which means summary is done
-                                content_stripped = content.strip()
-                                if "\n\n" in content and not content_stripped.startswith("##"):
-                                    in_summarization_stream = False
-                                if req.verbose:
-                                    yield f"data: {json.dumps({'type': 'middleware', 'content': f'[SummarizationMiddleware] {content}'})}\n\n"
+                                pass  # Skip - filter out
                             else:
                                 ai_content.append(content)
                                 yield f"data: {json.dumps({'type': 'ai', 'content': content})}\n\n"
@@ -523,15 +464,10 @@ async def message_stream(req: MessageRequest):
                         if isinstance(data, tuple) and len(data) == 2:
                             message_chunk, metadata = data
                             content = getattr(message_chunk, "content", "")
-                            # Use content-based detection for summarization
-                            is_summarization = _looks_like_summarization_response(content)
-                            if is_summarization:
-                                in_summarization_stream = True
                             if content:
                                 if in_summarization_stream:
-                                    if req.verbose:
-                                        tool_results.append(f"[Summarization] {content}")
-                                    yield f"data: {json.dumps({'type': 'middleware', 'content': f'[Summarization] {content}'})}\n\n"
+                                    # Skip - don't send to client at all
+                                    pass
                                 else:
                                     ai_content.append(content)
                                     yield f"data: {json.dumps({'type': 'ai', 'content': content})}\n\n"
@@ -551,17 +487,9 @@ async def message_stream(req: MessageRequest):
                                                     yield f"data: {json.dumps({'type': 'tool', 'content': msg_content})}\n\n"
                                             elif msg_type == "ai":
                                                 if msg_content:
-                                                    is_summ = _looks_like_summarization_response(
-                                                        msg_content
-                                                    )
-                                                    if is_summ:
-                                                        in_summarization_stream = True
                                                     if in_summarization_stream:
-                                                        if req.verbose:
-                                                            tool_results.append(
-                                                                f"[Summarization] {msg_content}"
-                                                            )
-                                                            yield f"data: {json.dumps({'type': 'middleware', 'content': f'[Summarization] {msg_content}'})}\n\n"
+                                                        # Skip - don't send to client at all
+                                                        pass
                                                     else:
                                                         ai_content.append(msg_content)
                                                         yield f"data: {json.dumps({'type': 'ai', 'content': msg_content})}\n\n"
@@ -578,15 +506,21 @@ async def message_stream(req: MessageRequest):
                         if isinstance(data, tuple) and len(data) == 2:
                             message_chunk, metadata = data
                             content = getattr(message_chunk, "content", "")
+                            # Track summarization state across chunks
                             if content:
-                                is_summ = _looks_like_summarization_response(content)
-                                if is_summ:
-                                    in_summarization_stream = True
-                                if in_summarization_stream:
-                                    if req.verbose:
-                                        tool_results.append(f"[Summarization] {content}")
-                                        yield f"data: {json.dumps({'type': 'middleware', 'content': f'[Summarization] {content}'})}\n\n"
-                                else:
+                                # Detect start of summarization
+                                if not in_summarization_stream:
+                                    content_upper = content.upper()
+                                    if (
+                                        "##" in content
+                                        or "SESSION INTENT" in content_upper
+                                        or "SUMMARY" in content_upper
+                                        or "ARTIFACTS" in content_upper
+                                        or "NEXT STEP" in content_upper
+                                    ):
+                                        in_summarization_stream = True
+                                # Output only if not in summarization
+                                if not in_summarization_stream:
                                     ai_content.append(content)
                                     yield f"data: {json.dumps({'type': 'ai', 'content': content})}\n\n"
 
@@ -603,18 +537,18 @@ async def message_stream(req: MessageRequest):
                                                 yield f"data: {json.dumps({'type': 'tool', 'content': msg_content})}\n\n"
                                         elif msg_type == "ai":
                                             if msg_content:
-                                                is_summ = _looks_like_summarization_response(
-                                                    msg_content
-                                                )
-                                                if is_summ:
-                                                    in_summarization_stream = True
-                                                if in_summarization_stream:
-                                                    if req.verbose:
-                                                        tool_results.append(
-                                                            f"[Summarization] {msg_content}"
-                                                        )
-                                                        yield f"data: {json.dumps({'type': 'middleware', 'content': f'[Summarization] {msg_content}'})}\n\n"
-                                                else:
+                                                # Track summarization state across chunks
+                                                if not in_summarization_stream:
+                                                    content_upper = msg_content.upper()
+                                                    if (
+                                                        "##" in msg_content
+                                                        or "SESSION INTENT" in content_upper
+                                                        or "SUMMARY" in content_upper
+                                                        or "ARTIFACTS" in content_upper
+                                                        or "NEXT STEP" in content_upper
+                                                    ):
+                                                        in_summarization_stream = True
+                                                if not in_summarization_stream:
                                                     ai_content.append(msg_content)
                                                     yield f"data: {json.dumps({'type': 'ai', 'content': msg_content})}\n\n"
 
@@ -633,12 +567,18 @@ async def message_stream(req: MessageRequest):
                 elif chunk_type == "ai":
                     content = getattr(chunk, "content", "")
                     if content:
-                        if summarization_ran > 0:
-                            # Show as middleware during summarization
-                            if req.verbose:
-                                tool_results.append(f"[Summarization] {content}")
-                                yield f"data: {json.dumps({'type': 'middleware', 'content': f'[Summarization] {content}'})}\n\n"
-                        else:
+                        # Track summarization state
+                        if not in_summarization_stream:
+                            content_upper = content.upper()
+                            if (
+                                "##" in content
+                                or "SESSION INTENT" in content_upper
+                                or "SUMMARY" in content_upper
+                                or "ARTIFACTS" in content_upper
+                                or "NEXT STEP" in content_upper
+                            ):
+                                in_summarization_stream = True
+                        if not in_summarization_stream:
                             ai_content.append(content)
                             yield f"data: {json.dumps({'type': 'ai', 'content': content})}\n\n"
 
@@ -703,8 +643,16 @@ async def message_stream(req: MessageRequest):
                         response = response[:first_end]
                         break
 
-            # Don't save summarization output to database
-            if summarization_ran or _looks_like_summarization_response(response):
+            # Don't save summarization output to database - use in_summarization_stream flag
+            if in_summarization_stream:
+                response = "Task completed."
+            # Also fix the done event content if it contains summarization
+            response_upper = response.upper() if response else ""
+            if (
+                "SESSION INTENT" in response_upper
+                or "ARTIFACTS" in response_upper
+                or "NEXT STEP" in response_upper
+            ):
                 response = "Task completed."
 
             conversation.add_message("assistant", response)
