@@ -178,12 +178,13 @@ async def run_agent_stream(
         if app_logger.langfuse_handler:
             config["callbacks"] = [app_logger.langfuse_handler]
 
-        # Use astream_events to get all events including middleware
-        # This provides comprehensive event stream
+        # Use astream_events with subgraphs=True to get subagent events
+        # subgraphs=True enables streaming from nested agents
         async for chunk in instance.agent.astream_events(
             {"messages": messages},
             config=config,
             version="v2",
+            subgraphs=True,
         ):
             yield chunk
 

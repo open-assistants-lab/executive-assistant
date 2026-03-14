@@ -422,6 +422,16 @@ async def message_stream(req: MessageRequest):
                     # Model tokens (chat_model_stream) -> messages
                     elif "chat_model_stream" in event_type:
                         content = ""
+
+                        # Check for subagent name in metadata (for subgraphs)
+                        agent_name = (
+                            data.get("metadata", {}).get("lc_agent_name")
+                            if isinstance(data, dict)
+                            else None
+                        )
+                        if agent_name:
+                            ns = agent_name  # Use subagent name as namespace
+
                         if isinstance(data, dict):
                             if "chunk" in data:
                                 chunk_obj = data["chunk"]
