@@ -178,14 +178,14 @@ async def run_agent_stream(
         if app_logger.langfuse_handler:
             config["callbacks"] = [app_logger.langfuse_handler]
 
-        # Always use astream_events to get middleware events for summarization detection
-        # The verbose flag only controls what gets sent to the client
-        async for event in instance.agent.astream_events(
+        # Use astream_events to get all events including middleware
+        # This provides comprehensive event stream
+        async for chunk in instance.agent.astream_events(
             {"messages": messages},
             config=config,
             version="v2",
         ):
-            yield event
+            yield chunk
 
 
 def get_model() -> BaseChatModel:

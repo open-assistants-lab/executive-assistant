@@ -400,106 +400,81 @@ async def message_stream(req: MessageRequest):
                 message=req.message,
                 verbose=req.verbose,
             ):
-                # Verbose mode: astream_events returns dict with event, name, data
+                # LangChain astream_events format: {"event": "...", "name": "...", "data": {...}}
+                # Convert to LangChain streaming format: {"type": "...", "ns": "...", "data": {...}}
                 if isinstance(chunk, dict) and "event" in chunk:
                     event_type = chunk.get("event", "")
                     name = chunk.get("name", "")
                     data = chunk.get("data", {})
+                    ns = name  # Use name as namespace
 
                     # Middleware events - track summarization to filter its output
                     if "Middleware" in name:
                         if "start" in event_type:
                             if "Summarization" in name:
                                 in_summarization_stream = True
-                            yield f"data: {json.dumps({'type': 'middleware', 'content': f'Starting: {name}'})}\n\n"
+                            yield f"data: {json.dumps({'type': 'custom', 'ns': ns, 'data': {'content': f'Starting: {name}'}})}\n\n"
                         elif "end" in event_type:
                             if "Summarization" in name:
                                 in_summarization_stream = False
-                            yield f"data: {json.dumps({'type': 'middleware', 'content': f'Finished: {name}'})}\n\n"
+                            yield f"data: {json.dumps({'type': 'custom', 'ns': ns, 'data': {'content': f'Finished: {name}'}})}\n\n"
 
-                    # Model tokens (chat_model_stream)
+                    # Model tokens (chat_model_stream) -> messages
                     elif "chat_model_stream" in event_type:
                         content = ""
                         if isinstance(data, dict):
                             if "chunk" in data:
                                 chunk_obj = data["chunk"]
-                                content = (
-                                    chunk_obj.content
-                                    if hasattr(chunk_obj, "content")
-                                    else str(chunk_obj)
-                                )
+                                # Get content from AIMessageChunk
+                                if hasattr(chunk_obj, "content_blocks"):
+                                    # New content blocks format
+                                    blocks = chunk_obj.content_blocks
+                                    text_parts = [
+                                        b.get("text", "") for b in blocks if b.get("type") == "text"
+                                    ]
+                                    reasoning_parts = [
+                                        b.get("reasoning", "")
+                                        for b in blocks
+                                        if b.get("type") == "reasoning"
+                                    ]
+                                    content = "".join(text_parts)
+                                    # Also yield reasoning if present
+                                    reasoning = "".join(reasoning_parts)
+                                    if reasoning:
+                                        yield f"data: {json.dumps({'type': 'messages', 'ns': ns, 'data': {'content': f'[Reasoning] {reasoning}'}})}\n\n"
+                                elif hasattr(chunk_obj, "content"):
+                                    content = chunk_obj.content
+                                else:
+                                    content = str(chunk_obj)
                             elif "content" in data:
                                 content = str(data.get("content", ""))
                         elif hasattr(data, "content"):
                             content = data.content
 
                         if content:
-                            # Skip content during summarization (in_summarization_stream set by middleware events)
                             if in_summarization_stream:
                                 pass  # Skip - filter out
                             else:
                                 ai_content.append(content)
-                                yield f"data: {json.dumps({'type': 'ai', 'content': content})}\n\n"
+                                yield f"data: {json.dumps({'type': 'messages', 'ns': ns, 'data': {'content': content}})}\n\n"
 
-                    # Tool events
+                    # Tool events -> updates
                     elif "tool" in event_type:
                         if "start" in event_type:
                             tool_name = data.get("name", name) if isinstance(data, dict) else name
-                            yield f"data: {json.dumps({'type': 'tool', 'content': f'Using tool: {tool_name}'})}\n\n"
+                            yield f"data: {json.dumps({'type': 'updates', 'ns': ns, 'data': {'content': f'Using tool: {tool_name}'}})}\n\n"
                         elif "end" in event_type:
                             if isinstance(data, dict) and "output" in data:
                                 output = str(data.get("output", ""))[:500]
                                 tool_results.append(output)
-                                yield f"data: {json.dumps({'type': 'tool', 'content': output})}\n\n"
+                                yield f"data: {json.dumps({'type': 'updates', 'ns': ns, 'data': {'content': output}})}\n\n"
 
                     all_messages.append(chunk)
                     continue
 
-                # Non-verbose mode: v1 format with multiple modes: (mode, data) tuple
-                if isinstance(chunk, tuple) and len(chunk) == 2:
-                    mode, data = chunk
-
-                    if mode == "messages":
-                        # data is (message_chunk, metadata)
-                        if isinstance(data, tuple) and len(data) == 2:
-                            message_chunk, metadata = data
-                            content = getattr(message_chunk, "content", "")
-                            if content:
-                                if in_summarization_stream:
-                                    # Skip - don't send to client at all
-                                    pass
-                                else:
-                                    ai_content.append(content)
-                                    yield f"data: {json.dumps({'type': 'ai', 'content': content})}\n\n"
-
-                    elif mode == "updates":
-                        # data is {node_name: state_update}
-                        if isinstance(data, dict):
-                            for node_name, state in data.items():
-                                if isinstance(state, dict):
-                                    if "messages" in state:
-                                        for msg in state["messages"]:
-                                            msg_type = getattr(msg, "type", None)
-                                            msg_content = getattr(msg, "content", "")
-                                            if msg_type == "tool":
-                                                if msg_content:
-                                                    tool_results.append(msg_content)
-                                                    yield f"data: {json.dumps({'type': 'tool', 'content': msg_content})}\n\n"
-                                            elif msg_type == "ai":
-                                                if msg_content:
-                                                    if in_summarization_stream:
-                                                        # Skip - don't send to client at all
-                                                        pass
-                                                    else:
-                                                        ai_content.append(msg_content)
-                                                        yield f"data: {json.dumps({'type': 'ai', 'content': msg_content})}\n\n"
-
-                    all_messages.append(chunk)
-                    continue
-
-                # v2 format: dict with type, ns, data
+                # Fallback for other formats
                 if isinstance(chunk, dict):
-                    chunk_type = chunk.get("type")
+                    chunk_type = getattr(chunk, "type", None)
                     data = chunk.get("data")
 
                     if chunk_type == "messages" and data:
@@ -509,7 +484,7 @@ async def message_stream(req: MessageRequest):
                             if content:
                                 if not in_summarization_stream:
                                     ai_content.append(content)
-                                    yield f"data: {json.dumps({'type': 'ai', 'content': content})}\n\n"
+                                    yield f"data: {json.dumps({'type': 'messages', 'ns': 'model', 'data': {'content': content}})}\n\n"
 
                     elif chunk_type == "updates" and data:
                         if isinstance(data, dict):
@@ -521,31 +496,31 @@ async def message_stream(req: MessageRequest):
                                         if msg_type == "tool":
                                             if msg_content:
                                                 tool_results.append(msg_content)
-                                                yield f"data: {json.dumps({'type': 'tool', 'content': msg_content})}\n\n"
+                                                yield f"data: {json.dumps({'type': 'updates', 'ns': node_name, 'data': {'content': msg_content}})}\n\n"
                                         elif msg_type == "ai":
                                             if msg_content:
                                                 if not in_summarization_stream:
                                                     ai_content.append(msg_content)
-                                                    yield f"data: {json.dumps({'type': 'ai', 'content': msg_content})}\n\n"
+                                                    yield f"data: {json.dumps({'type': 'messages', 'ns': node_name, 'data': {'content': msg_content}})}\n\n"
 
                     all_messages.append(chunk)
                     continue
 
-                # Handle message objects directly (legacy)
+                # Legacy format handling - convert to v2 format
                 chunk_type = getattr(chunk, "type", None)
 
                 if chunk_type == "tool":
                     content = getattr(chunk, "content", None)
                     if content:
                         tool_results.append(content)
-                        yield f"data: {json.dumps({'type': 'tool', 'content': content})}\n\n"
+                        yield f"data: {json.dumps({'type': 'updates', 'ns': 'tools', 'data': {'content': content}})}\n\n"
 
                 elif chunk_type == "ai":
                     content = getattr(chunk, "content", "")
                     if content:
                         if not in_summarization_stream:
                             ai_content.append(content)
-                            yield f"data: {json.dumps({'type': 'ai', 'content': content})}\n\n"
+                            yield f"data: {json.dumps({'type': 'messages', 'ns': 'model', 'data': {'content': content}})}\n\n"
 
                 all_messages.append(chunk)
 
@@ -568,8 +543,8 @@ async def message_stream(req: MessageRequest):
                 # Get the last substantial chunk (the complete response)
                 response = None
                 if ai_content:
-                    # Filter out summarization chunks if summarization ran
-                    if summarization_ran:
+                    # Use in_summarization_stream flag to filter
+                    if in_summarization_stream:
                         non_summary = [
                             c for c in ai_content if not c.strip().startswith("##") and len(c) > 3
                         ]
