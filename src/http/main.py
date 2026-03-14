@@ -623,8 +623,6 @@ async def message_stream(req: MessageRequest):
             conversation.add_message("assistant", response)
             logger.info("agent.response", {"response": response}, user_id=user_id, channel="http")
 
-            yield f"data: {json.dumps({'type': 'done', 'content': response})}\n\n"
-
         import json
 
         return StreamingResponse(generate(), media_type="text/event-stream")
