@@ -258,6 +258,9 @@ memory:
 | 1.8 | Skills | User isolation | Different user_id | Different skills shown |
 | 1.9 | Skills | New skill | Add skill file, ask list | New skill appears |
 | 1.10 | Skills | Natural load | "I need help with SQL" | Agent loads skill |
+| 1.11 | Skills | Create skill | "create skill called my-skill with description for testing" | Skill created |
+| 1.12 | Skills | Trigger detection | "show skills about planning" | Returns matching skills |
+| 1.13 | Skills | Eval & Benchmark | Test list/load/create triggers | Agent handles correctly |
 
 | 2.1 | Filesystem | List files | "what files do I have?" | File list |
 | 2.2 | Filesystem | Read file | "read hello.txt" | File content |
@@ -777,7 +780,78 @@ review-agent → workspace/review_report.md + planning/review/*
 
 ---
 
-Last updated: 2026-03-15
+## Instincts System Tests (2026-03-11)
+
+### Implemented Features
+
+| Feature | Status | Implementation |
+|---------|--------|----------------|
+| InstinctsMiddleware | ✅ | Unified from ProfileMiddleware |
+| 14 Domains | ✅ | personal, work, location, interests, skills, goals, constraints, communication, tools, languages, correction, workflow, lesson, dislikes |
+| LLM Extraction | ✅ | Extract patterns from conversations |
+| Confidence | ✅ | 0.0-1.0 confidence scoring |
+| Profile Unification | ✅ | Profile stored as confidence=1.0 instincts |
+| Storage | ✅ | SQLite + FTS5 + ChromaDB |
+| Confidence Decay | ✅ | Old patterns decay over time |
+
+### 14 Domain Definitions
+
+| Domain | What to extract | Examples |
+|--------|-----------------|-----------|
+| **personal** | Name, age, family, bio | "I'm John", "married with kids" |
+| **work** | Role, company, team, seniority | "senior developer at Acme", "tech lead" |
+| **location** | City, country, timezone | "in Tokyo", "PST timezone" |
+| **interests** | Topics, hobbies, passions | "into AI", "love hiking" |
+| **skills** | Experience, expertise, tech stack | "10 years Python", "expert at React" |
+| **goals** | Objectives, targets, ambitions | "building a startup", "learning to code" |
+| **constraints** | Limitations, requirements | "small budget", "tight deadline" |
+| **communication** | Style preferences | "be concise", "use bullet points" |
+| **tools** | Preferred tools, software | "use VS Code", "prefer PostgreSQL" |
+| **languages** | Spoken/programming | "speak English", "code in Python" |
+| **correction** | Corrections to AI | "no don't do X", "use Y instead" |
+| **workflow** | Habits, processes | "always test first", "start with plan" |
+| **lesson** | Things taught to AI | "validate input first", "check errors" |
+| **dislikes** | Explicitly unwanted | "hate meetings", "no buzzwords" |
+
+### Test Cases
+
+| # | Test | Description | Status |
+|---|------|-------------|--------|
+| 1 | Pattern extraction | Conversation → LLM extracts patterns | ✅ |
+| 2 | Domain classification | Patterns assigned correct domain | ✅ |
+| 3 | Confidence scoring | Extracted patterns have confidence | ✅ |
+| 4 | Profile storage | profile_set → stored as instinct | ✅ |
+| 5 | Profile retrieval | Get profile as high-confidence instincts | ✅ |
+| 6 | Hybrid search | FTS5 + ChromaDB for instinct search | ✅ |
+| 7 | Confidence decay | Old patterns decay over time | ✅ |
+| 8 | User isolation | Different users have separate instincts | ✅ |
+
+---
+
+## Subagent Async Tests (2026-03-11)
+
+### Implemented Features
+
+| Feature | Status | Implementation |
+|---------|--------|----------------|
+| Async invoke | ✅ | Returns immediately, runs in background |
+| Database persistence | ✅ | Results in jobs_results.db |
+| Progress tool | ✅ | Unified subagent_progress tool |
+| Schedule now | ✅ | Immediate async invocation |
+
+### Test Cases
+
+| # | Test | Description | Status |
+|---|------|-------------|--------|
+| 1 | Async invoke returns | subagent_invoke returns immediately | ✅ |
+| 2 | Background execution | Task runs without blocking main agent | ✅ |
+| 3 | Result retrieval | subagent_progress gets stored results | ✅ |
+| 4 | Cross-process | Results accessible from different processes | ✅ |
+| 5 | HTTP + CLI | HTTP invoke, CLI progress check | ✅ |
+
+---
+
+Last updated: 2026-03-11
 
 ---
 

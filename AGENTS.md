@@ -433,25 +433,77 @@ executive-assistant/
 
 ### Running Evaluation
 ```bash
-# Run full evaluation (10 personas × 100 interactions = 1000 total)
+# Run full evaluation (25 personas × 200 interactions = 5000 total)
 uv run python tests/evaluation/evaluate.py
+
+# Run with verbose output
+uv run python tests/evaluation/evaluate.py --verbose
+
+# Run specific personas
+uv run python tests/evaluation/evaluate.py --personas p1,p2,p3 --interactions 50
+
+# Save all responses to JSON for analysis
+uv run python tests/evaluation/evaluate.py --save-responses
 
 # Results saved to data/evaluations/
 ```
 
-### Available Personas
-| ID | Name | Style |
-|----|------|-------|
-| p1 | Direct Dave | Terse, short commands |
-| p2 | Polite Pam | Formal, polite |
-| p3 | Casual Chris | Informal, casual |
-| p4 | Questioning Quinn | Inquisitive |
-| p5 | Storytelling Sam | Narrative, gives context |
-| p6 | Commanding Chris | Authoritative |
-| p7 | Emoji Eva | Expressive, uses emojis |
-| p8 | Minimalist Mike | Extremely brief |
-| p9 | Technical Terry | Technical, precise |
-| p10 | Confused Clara | Uncertain, needs help |
+### Available Personas (25)
+| ID | Name | Style | Purpose |
+|----|------|-------|---------|
+| p1 | Direct Dave | terse | Short commands |
+| p2 | Polite Pam | formal | Polite requests |
+| p3 | Casual Chris | casual | Informal |
+| p4 | Questioning Quinn | inquisitive | Clarification |
+| p5 | Storytelling Sam | narrative | Context-rich |
+| p6 | Commanding Chris | authoritative | Commands |
+| p7 | Emoji Eva | expressive | Emojis |
+| p8 | Minimalist Mike | minimal | Ultra-brief |
+| p9 | Technical Terry | technical | Technical |
+| p10 | Confused Clara | uncertain | Help-seeking |
+| p11 | Analytical Alex | analytical | Metrics |
+| p12 | Efficient Eddie | efficient | Speed |
+| p13 | Verbose Victor | verbose | Detailed |
+| p14 | Curious Casey | curious | Follow-ups |
+| p15 | Busy Brian | busy | Multi-tasking |
+| p16 | Organized Olivia | organized | Structure |
+| p17 | Flexible Fran | flexible | Adaptable |
+| p18 | Goal-Oriented Gary | goal_oriented | Milestones |
+| p19 | Collaborative Carol | collaborative | Team |
+| p20 | Privacy-First Paul | privacy | Security |
+| p21 | Quick Quinn | quick | Performance |
+| p22 | Deep Diver | deep | Complex |
+| p23 | Error-Prone Eddie | error | Edge cases |
+| p24 | Context Carter | context | Memory |
+| p25 | Mixed Mike | mixed | Mixed style |
+
+### Test Coverage (25 queries per persona)
+Each persona runs 25 test cases covering ALL tools:
+1. Email (connect, list, search, read, send, reply)
+2. Email + Contacts + Todos
+3. Contacts CRUD
+4. Todos CRUD
+5. Files (list, read, write, edit, delete)
+6. File search (glob, grep)
+7. Shell + Files
+8. Memory + Todos
+9. Time operations
+10. **Skills - List, Load, Create** (EVAL & BENCHMARK)
+11. **Skills - Trigger detection, Gated tools** (EVAL & BENCHMARK)
+12. Subagent create + invoke
+13. Subagent batch + schedule
+14. Web scraping
+15. Email sync + extract
+16. App Builder create + insert
+17. App Builder search (FTS, semantic, hybrid)
+18. Memory history + search
+19. MCP operations
+20. Profile/Instincts
+21. Subagent validate + delete
+22. Telegram messaging
+23. Email accounts + disconnect
+24. App Builder update + delete
+25. Edge cases - Error handling
 
 ### Evaluation Metrics
 - **Accuracy**: Successful responses / Total interactions

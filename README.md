@@ -15,6 +15,30 @@ A general purpose executive assistant agent built with LangChain and LangGraph, 
 | **Skills** | Extensible skill system with progressive disclosure |
 | **MCP Integration** | Dynamic Model Context Protocol server tools per user |
 | **Subagents** | Create and manage specialized subagents with custom skills/tools |
+| **Instincts** | 14-domain behavior learning system (unified with profile) |
+
+### Instincts System
+
+The system learns user preferences across 14 behavioral domains:
+
+| Domain | What it captures |
+|--------|-----------------|
+| `personal` | Name, age, family, bio |
+| `work` | Role, company, team, seniority |
+| `location` | City, country, timezone |
+| `interests` | Topics, hobbies, passions |
+| `skills` | Experience, expertise, tech stack |
+| `goals` | Objectives, targets, ambitions |
+| `constraints` | Limitations, requirements |
+| `communication` | Style preferences (concise, bullet points, etc.) |
+| `tools` | Preferred tools, software |
+| `languages` | Spoken/programming languages |
+| `correction` | Corrections to AI responses |
+| `workflow` | Habits, processes |
+| `lesson` | Things taught to AI |
+| `dislikes` | Explicitly unwanted |
+
+Patterns are extracted via LLM from conversations and stored with confidence scores. Profile settings are stored as high-confidence instincts (confidence=1.0). |
 
 ### Subagent System
 
@@ -26,17 +50,22 @@ curl -X POST http://localhost:8000/message \
   -H "Content-Type: application/json" \
   -d '{"message": "Create subagent research-agent with skills: planning-with-files, tools: search_web,scrape_url, description: Research assistant", "user_id": "my_user"}'
 
-# Invoke subagent
+# Invoke subagent (async - returns immediately, results stored in database)
 curl -X POST http://localhost:8000/message \
   -H "Content-Type: application/json" \
   -d '{"message": "Invoke subagent research-agent to research: LangGraph framework", "user_id": "my_user"}'
 ```
 
+**Key Features:**
+- **Async invocation**: `subagent_invoke` schedules task immediately and returns right away
+- **Database persistence**: Results stored in `data/jobs_results.db` for cross-process access
+- **Progress tracking**: `subagent_progress` tool shows status and retrieves results
+
 **Subagent Tools:**
 - `subagent_create` - Create subagent with custom config
-- `subagent_invoke` - Execute task with subagent
+- `subagent_invoke` - Execute task asynchronously (schedule now)
 - `subagent_list` - List all subagents
-- `subagent_progress` - Get task progress from planning files
+- `subagent_progress` - Get task status and results
 - `subagent_validate` - Validate subagent config
 - `subagent_batch` - Invoke multiple subagents in parallel
 - `subagent_schedule` - Schedule one-off or recurring tasks

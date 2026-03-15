@@ -4,7 +4,7 @@ from datetime import date
 
 from langchain_core.tools import tool
 
-from src.storage.conversation import get_conversation_store
+from src.storage.messages import get_conversation_store
 from src.tools.apps.storage import get_embedding
 
 

@@ -14,7 +14,7 @@ from langfuse import propagate_attributes
 from pydantic import BaseModel
 
 from src.agents.manager import run_agent, run_agent_stream
-from src.storage.conversation import get_conversation_store
+from src.storage.messages import get_conversation_store
 
 # Store pending approvals: user_id -> interrupt data
 _pending_approvals: dict[str, dict] = {}
@@ -79,7 +79,7 @@ async def ready():
 @app.get("/conversation")
 async def get_conversation(user_id: str = "default", limit: int = 100):
     """Get conversation history."""
-    from src.storage.conversation import get_conversation_store
+    from src.storage.messages import get_conversation_store
 
     conversation = get_conversation_store(user_id)
     messages = conversation.get_recent_messages(limit)
@@ -96,7 +96,7 @@ async def get_conversation(user_id: str = "default", limit: int = 100):
 async def clear_conversation(user_id: str = "default"):
     """Clear conversation history."""
     import sqlite3
-    from src.storage.conversation import get_conversation_store
+    from src.storage.messages import get_conversation_store
 
     conversation = get_conversation_store(user_id)
     conn = sqlite3.connect(conversation.messages_db_path)
@@ -145,7 +145,7 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
         msg_content = req.message  # Restore original message
         conversation = get_conversation_store(user_id)
         conversation.add_message("user", msg_content)
-        recent_messages = conversation.get_recent_messages(50)
+        recent_messages = conversation.get_messages_with_summary(50)
 
         langgraph_messages = [
             HumanMessage(content=m.content) if m.role == "user" else AIMessage(content=m.content)
@@ -355,6 +355,18 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
 
             conversation.add_message("assistant", response)
 
+            # Check for summarization and persist if happened
+            if verbose_data and verbose_data.get("middleware_events"):
+                for event in verbose_data["middleware_events"]:
+                    if "Summarization" in event.get("name", ""):
+                        logger.info(
+                            "summarization.detected",
+                            {"events": verbose_data["middleware_events"]},
+                            user_id=user_id,
+                            channel="http",
+                        )
+                        break
+
         logger.info(
             "agent.response",
             {"response": response, "verbose": req.verbose},
@@ -376,7 +388,7 @@ async def message_stream(req: MessageRequest):
 
         conversation = get_conversation_store(user_id)
         conversation.add_message("user", req.message)
-        recent_messages = conversation.get_recent_messages(50)
+        recent_messages = conversation.get_messages_with_summary(50)
 
         langgraph_messages = [
             HumanMessage(content=m.content) if m.role == "user" else AIMessage(content=m.content)

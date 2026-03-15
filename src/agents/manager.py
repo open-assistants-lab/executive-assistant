@@ -9,6 +9,7 @@ from typing import Any
 from langchain_core.language_models import BaseChatModel
 
 from src.agents.factory import get_agent_factory
+from src.agents.messages_manager import MessageManager, get_message_manager
 from src.app_logging import get_logger
 from src.config import get_settings
 from src.llm import create_model_from_config
@@ -18,6 +19,7 @@ logger = get_logger()
 _model: BaseChatModel | None = None
 _checkpoint_managers: dict[str, Any] = {}
 _agent_pools: dict[str, "AgentPool"] = {}
+
 _pools_lock = asyncio.Lock()
 
 
@@ -62,8 +64,13 @@ class AgentPool:
         checkpoint_manager = await get_checkpoint_manager(self.user_id)
         checkpointer = checkpoint_manager.checkpointer
 
+        message_mgr = get_message_manager(self.user_id)
+
         factory = get_agent_factory(
-            checkpointer=checkpointer, enable_skills=True, user_id=self.user_id
+            checkpointer=checkpointer,
+            enable_skills=True,
+            user_id=self.user_id,
+            on_summarize=lambda content: message_mgr.on_summarize(content),
         )
         agent = factory.create(model=model, tools=tools, system_prompt=system_prompt)
 

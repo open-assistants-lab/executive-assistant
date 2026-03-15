@@ -90,6 +90,12 @@ Tracking implementation progress for the Executive Assistant agent.
 ### Shell Tool
 - [x] shell_execute - restricted command execution
 - [x] Configurable allowed commands
+- [ ] Add: `bash` - Full bash shell (with security config, timeout)
+- [ ] Add: `ctags` - Code navigation (generate tags for codebases)
+- [ ] Add: `git` - Version control (restricted flags)
+- [ ] Add: `npm` / `yarn` - Package management
+- [ ] Add: `uv` / `pip` - Python package management
+- [ ] Add: `curl` / `wget` - HTTP requests
 
 ### Time Tool
 - [x] time_get - get current time with timezone support
@@ -239,8 +245,17 @@ description: Extract text and tables from PDF files, fill forms, merge documents
 - [x] MemoryContextMiddleware (progressive disclosure, MemoryStore)
 - [ ] MemoryLearningMiddleware (12 memory types, rule + LLM extraction)
 - [x] LoggingMiddleware
+- [x] InstinctsMiddleware (profile + behavior learning, 14 domains)
 - [ ] CheckinMiddleware
 - [ ] RateLimitMiddleware
+
+### Instincts System (Profile Unified)
+- [x] InstinctsMiddleware (unified from ProfileMiddleware)
+- [x] Profile stored as high-confidence instincts (confidence=1.0)
+- [x] 14 domains: personal, work, location, interests, skills, goals, constraints, communication, tools, languages, correction, workflow, lesson, dislikes
+- [x] LLM-based pattern extraction from conversations
+- [x] Confidence decay for old patterns
+- [x] SQLite + FTS5 + ChromaDB storage
 
 ### Time System
 - [x] Time tools with DST support (`src/tools/time.py`)
@@ -256,6 +271,168 @@ description: Extract text and tables from PDF files, fill forms, merge documents
 - [x] Hybrid search (FTS5 keyword + ChromaDB semantic)
 - [x] MEMORY_WORKFLOW in system prompt
 - [x] Integrated into agent factory as tools
+
+---
+
+## Memory System Enhancements (Based on Research)
+
+### Reference: MemoryOS (arXiv 2506.06326)
+
+**Paper:** "Memory OS of AI Agent" by Kang et al. (Beijing University of Posts/Tencent AI Lab)
+**Published:** May 2025
+**Benchmark Results:** 49.11% F1 improvement on LoCoMo, 46.18% BLEU-1 improvement
+
+#### Core Concepts from MemoryOS
+
+Inspired by OS memory management, MemoryOS proposes a **three-tier hierarchical memory architecture**:
+
+| Tier | Name | Purpose | Your Implementation |
+|------|------|---------|-------------------|
+| **STM** | Short-Term Memory | Current conversation (last 7 pages) | ✅ LangGraph state + message store |
+| **MTM** | Mid-Term Memory | Topic-segmented summaries (200 segments max) | ❌ Not implemented |
+| **LPM** | Long-term Persona | User/agent traits + knowledge base | ⚠️ Instincts (partial) |
+
+#### Key Innovations from MemoryOS
+
+1. **Dialogue-Chain FIFO (STM → MTM)**
+   - Queue of 7 dialogue pages in STM
+   - When full, oldest page moves to MTM as topic segment
+   - **Your gap:** No topic segmentation or MTM layer
+
+2. **Heat-Based Eviction (MTM → LPM)**
+   - Each segment has a "heat" score: `Heat = α·N_visit + β·L_interaction + γ·R_recency`
+   - Segments with heat > τ (5) promoted to LPM
+   - Low-heat segments evicted when MTM exceeds 200
+   - **Your gap:** No heat-based scoring or eviction
+
+3. **Segmented Page Organization**
+   - Pages with similar topics grouped into segments
+   - Uses semantic + keyword similarity to group
+   - Each segment has LLM-generated summary
+   - **Your gap:** Messages stored flat, no topic grouping
+
+4. **Persona Module (LPM)**
+   - User Profile: static (name, gender) + User KB + User Traits (90 dimensions)
+   - Agent Profile: fixed settings + dynamic traits
+   - **Your gap:** Instincts has 14 domains, but no structured KB
+
+#### What to Learn/Adopt
+
+| Feature | Priority | Effort | Description |
+|---------|----------|--------|-------------|
+| **Memory Consolidation** | HIGH | Medium | Merge similar instincts/triggers (e.g., multiple "prefer concise" → single) |
+| **Memory Forgetting** | HIGH | Medium | Auto-delete instincts with confidence < 0.2 after 90 days |
+| **Memory Attribution** | MEDIUM | Low | Track source of each instinct (from "email", from "user correction", etc.) |
+| **Heat-Based Prioritization** | MEDIUM | High | Score memories by retrieval count, recency, interaction volume |
+| **Topic Segmentation** | LOW | High | Group messages by topic for MTM (complex, may not be needed) |
+
+---
+
+### Reference: OpenSearch Agentic Memory (2025)
+
+**Source:** OpenSearch 3.3 (December 2025)
+**Blog:** "OpenSearch as an agentic memory solution"
+
+#### Core Concepts
+
+OpenSearch provides a **memory container** architecture with:
+
+| Component | Description | Your Implementation |
+|-----------|-------------|-------------------|
+| **Memory Container** | Logical unit per use case | ❌ Not implemented |
+| **Sessions** | Conversation context with metadata | ⚠️ No explicit sessions |
+| **Working Memory** | Active conversation storage | ✅ ConversationStore |
+| **Long-term Memory** | Processed knowledge via LLM | ⚠️ Instincts (partial) |
+| **Namespaces** | Access control + organization | ⚠️ Per-user isolation only |
+
+#### Memory Processing Strategies (Built-in)
+
+| Strategy | Purpose | Your Equivalent |
+|----------|---------|----------------|
+| **SEMANTIC** | Store facts/knowledge | ❌ Not implemented |
+| **USER_PREFERENCE** | Store preferences | ✅ Instincts (communication, tools, etc.) |
+| **SUMMARY** | Session summaries | ❌ Not implemented |
+
+#### What to Learn/Adopt
+
+| Feature | Priority | Effort | Description |
+|---------|----------|--------|-------------|
+| **Memory Namespaces** | MEDIUM | Medium | Add flexible namespaces (e.g., project, session, channel) beyond user_id |
+| **Strategy Configuration** | MEDIUM | High | Configurable LLM-based extraction (SEMANTIC, USER_PREFERENCE, SUMMARY) |
+| **PII Exclusion** | HIGH | Low | Auto-exclude PII from long-term memory |
+| **Session Metadata** | LOW | Medium | Store session metadata (start_time, channel, topic) |
+
+---
+
+### Recommended Enhancements
+
+#### Priority 1: Memory Consolidation & Forgetting
+
+```python
+# In src/storage/instincts.py - add consolidation logic
+
+class InstinctsStore:
+    def consolidate_similar(self) -> int:
+        """Merge instincts with similar triggers/actions in same domain."""
+        # Find instincts with > 0.8 similarity in same domain
+        # Keep highest confidence, delete others
+        pass
+    
+    def prune_old_low_confidence(self, days: int = 90, threshold: float = 0.2) -> int:
+        """Delete instincts older than days with confidence below threshold."""
+        pass
+```
+
+#### Priority 2: Memory Attribution
+
+```python
+@dataclass
+class Instinct:
+    trigger: str
+    action: str
+    domain: str
+    confidence: float
+    source: str  # NEW: "auto-learned", "email", "user_correction", "profile_set"
+    created_at: datetime
+    updated_at: datetime
+```
+
+#### Priority 3: Memory Namespaces
+
+```python
+# Allow instincts to be scoped to namespaces beyond user_id
+# E.g., project-specific, session-specific
+
+class InstinctsStore:
+    def add_instinct(
+        self,
+        trigger: str,
+        action: str,
+        domain: str,
+        confidence: float = 0.5,
+        source: str = "auto-learned",
+        namespace: dict[str, str] | None = None,  # NEW
+    ):
+        pass
+```
+
+---
+
+### When to Consider OpenSearch
+
+**Stick with SQLite + ChromaDB if:**
+- Single-user local deployment
+- < 100k messages
+- Simple query patterns
+- No multi-tenant SaaS
+
+**Consider OpenSearch if:**
+- Building multi-tenant SaaS (1000+ users)
+- Need enterprise access control
+- Need distributed/clustered deployment
+- Want built-in memory strategies (SEMANTIC, USER_PREFERENCE, SUMMARY)
+
+**Migration path:** Keep SQLite + ChromaDB for single-user, add OpenSearch as optional backend for enterprise.
 
 ### Time System
 - [x] Time tools with DST support (`src/tools/time.py`)
@@ -362,52 +539,38 @@ Build structured data apps with hybrid search.
 - TEXT columns NOT containing: `full_text`, `content`, `body` (excluded for size)
 - Examples: `description`, `notes`, `title`, `summary`
 
-### SQLite + FTS5 + ChromaDB (Knowledge Base Tool)
+---
 
-Allow users to build notes, knowledge bases, organize search/scrape results.
-Uses same hybrid architecture as memory system.
+### Agent Evaluation Framework
 
-**Storage:** User determines location. Default suggestions:
-- `/data/users/{user_id}/notes/` for personal notes
-- `/data/users/{user_id}/projects/{project}/kb/` for project knowledge bases
-- Any user-specified path under `/data/users/{user_id}/`
+Systematic way to test agent quality; critical for production confidence.
 
-**Schema (per knowledge base):**
-```sql
-CREATE TABLE documents (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    content TEXT,
-    collection TEXT NOT NULL,  -- "notes", "articles", "research", etc.
-    source_url TEXT,
-    tags TEXT,                 -- JSON array
-    created_at TEXT NOT NULL,
-    updated_at TEXT,
-    archived INTEGER DEFAULT 0
-);
+**Evaluation Categories:**
 
-CREATE VIRTUAL TABLE documents_fts USING fts5(
-    title, content, tags,
-    content='documents',
-    content_rowid='rowid'
-);
-```
+| Category | Description | Implementation |
+|----------|-------------|----------------|
+| **Task Success** | Did agent complete the goal? | Compare expected vs actual |
+| **Tool Selection** | Did it use right tools? | Trace tool calls |
+| **Steps Taken** | Optimal path vs actual | Step counting |
+| **Output Quality** | LLM-as-judge scoring | Prompt-based evaluation |
 
-**Tools (Progressive Disclosure):**
-- [ ] `kb_create` - Create new knowledge base at specified path
-- [ ] `kb_search` - Layer 1: Search index (compact results with IDs)
-- [ ] `kb_get` - Layer 2: Get full documents by IDs
-- [ ] `kb_add` - Add document to knowledge base
-- [ ] `kb_update` - Update existing document
-- [ ] `kb_delete` - Archive/delete document
-- [ ] `kb_list` - List user's knowledge bases
+**Standard Benchmarks:**
 
-**Use Cases:**
-- Notes with semantic + keyword search
-- Knowledge base from scraped articles
-- Research document organization
-- Personal wiki
-- Organized web search results
+| Benchmark | Focus | Docker Required |
+|-----------|-------|-----------------|
+| **SWE-bench** | Code writing/fixing | Yes |
+| **AgentBench** | Multi-domain tasks | No |
+| **WebArena** | Web interaction | Yes |
+| **GAIA** | General AI tasks | No |
+
+**Implementation:**
+- [ ] `agent_evaluate` - Run evaluation suite on custom tasks
+- [ ] `agent_benchmark` - Run against standard benchmarks
+- [ ] `agent_eval_result` - Get last evaluation results
+
+**Reference:** `tests/evaluation/evaluate.py` (already exists - persona-based testing)
+
+---
 
 ### DuckDB / chDB (Analytics Tool) - FUTURE
 
@@ -1190,4 +1353,29 @@ def subagent_progress(task_name: str) -> str:
 
 ---
 
-Last updated: 2026-03-04
+## Recent Changes (2026-03-11)
+
+### Subagent Async Invocation (2026-03-11)
+- Made `subagent_invoke` async - schedules task to run immediately in background
+- Main agent continues conversation immediately without waiting
+- Results stored in `data/jobs_results.db` (SQLite) for cross-process persistence
+- Added `subagent_progress` tool to check status and get results
+- Combined `subagent_progress` and `subagent_results` into unified tool
+
+### Scheduler Database Persistence (2026-03-11)
+- Jobs now persist in `jobs_results.db` instead of in-memory dict
+- Fixes process isolation issue (HTTP server vs CLI vs separate scripts)
+- Added `schedule_now()` method for immediate async invocation
+
+### Bug Fixes (2026-03-11)
+- Fixed duplicate token reset in subagent manager
+- Fixed email import error (`_get_account_id_by_name` → `get_account_id_by_name`)
+- Fixed background sync coroutine not being awaited
+- Removed profile storage files (unified into instincts)
+
+### Docker Improvements (2026-03-11)
+- Created `.dockerignore` and `.env.example` template
+- Fixed Dockerfile (removed README.md reference, pyproject.toml readme line)
+- Added HuggingFace cache volume (`hf_cache`) for model persistence
+
+Last updated: 2026-03-11

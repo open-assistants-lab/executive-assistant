@@ -38,8 +38,8 @@ memory:
   # Summarization: LangChain SummarizationMiddleware (short-term token reduction)
   summarization:
     enabled: true
-    trigger_tokens: 10000
-    keep_messages: 10
+    trigger_tokens: 50000
+    keep_tokens: 1000
 
 # Observability
 observability:

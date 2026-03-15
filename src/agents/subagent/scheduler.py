@@ -58,7 +58,7 @@ def _save_job_result(
     conn = sqlite3.connect(RESULTS_DB_PATH)
     conn.execute(
         """
-        INSERT OR REPLACE INTO job_results 
+        INSERT OR REPLACE INTO job_results
         (job_id, user_id, subagent_name, task, status, result, error, completed_at, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """,
@@ -119,7 +119,10 @@ def get_scheduler() -> BackgroundScheduler:
     """Get or create the global scheduler."""
     global _scheduler
     if _scheduler is None:
-        _scheduler = BackgroundScheduler(jobstores=_get_jobstores())
+        _scheduler = BackgroundScheduler(
+            jobstores=_get_jobstores(),
+            misfire_grace_time=300,
+        )
 
         def job_missed(event):
             logger.warning(
@@ -140,8 +143,44 @@ def get_scheduler() -> BackgroundScheduler:
         _scheduler.add_listener(job_executed, EVENT_JOB_EXECUTED)
 
         _scheduler.start()
+        _restore_scheduled_jobs(_scheduler)
         logger.info("subagent.scheduler.started", {}, user_id="system")
     return _scheduler
+
+
+def _restore_scheduled_jobs(scheduler: BackgroundScheduler) -> None:
+    """Restore scheduled jobs from results DB on startup."""
+    conn = sqlite3.connect(RESULTS_DB_PATH)
+    cursor = conn.execute(
+        "SELECT job_id, user_id, subagent_name, task FROM job_results WHERE status = 'scheduled'"
+    )
+    rows = cursor.fetchall()
+    conn.close()
+
+    if not rows:
+        return
+
+    logger.info("subagent.restoring_jobs", {"count": len(rows)}, user_id="system")
+
+    for job_id, user_id, subagent_name, task in rows:
+        try:
+            from datetime import datetime, timedelta
+
+            run_at = datetime.now() + timedelta(seconds=30)
+            scheduler.add_job(
+                _run_subagent_job,
+                trigger=DateTrigger(run_date=run_at),
+                id=job_id,
+                args=[user_id, subagent_name, task, job_id],
+                replace_existing=True,
+            )
+            logger.info("subagent.job_restored", {"job_id": job_id}, user_id=user_id)
+        except Exception as e:
+            logger.error(
+                "subagent.job_restore_failed",
+                {"job_id": job_id, "error": str(e)},
+                user_id=user_id,
+            )
 
 
 def _run_subagent_job(user_id: str, subagent_name: str, task: str, job_id: str) -> None:
@@ -213,6 +252,7 @@ def schedule_once(
         trigger=DateTrigger(run_date=run_at),
         id=job_id,
         args=[user_id, subagent_name, task, job_id],
+        replace_existing=True,
     )
 
     _save_job_result(

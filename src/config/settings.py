@@ -83,8 +83,8 @@ class SummarizationConfig(_BaseSettings):
     """Summarization middleware configuration (short-term token reduction)."""
 
     enabled: bool = True
-    trigger_tokens: int = 4000
-    keep_messages: int = 20
+    trigger_tokens: int = 50000
+    keep_tokens: int = 1000
     model: str = Field(default="ollama:minimax-m2.5")
 
     model_config = ConfigDict(env_prefix="SUMMARY_")
@@ -143,6 +143,11 @@ class CliConfig(_BaseSettings):
 
 class ToolsConfig(_BaseSettings):
     """Tools configuration."""
+
+    firecrawl_api_key: str = Field(default="", validation_alias="FIRECRAWL_API_KEY")
+    firecrawl_base_url: str = Field(default="", validation_alias="FIRECRAWL_BASE_URL")
+    max_retries: int = 3
+    timeout: int = 30
 
     model_config = ConfigDict(env_prefix="TOOLS_")
 
