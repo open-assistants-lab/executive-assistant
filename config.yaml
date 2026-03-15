@@ -1,7 +1,7 @@
 # Agent Configuration
 agent:
   name: "Executive Assistant"
-  model: "ollama-cloud:minimax-m2.5"
+  model: "ollama:minimax-m2.5"
   system_prompt: |
     You are a helpful executive assistant.
 
@@ -38,8 +38,8 @@ memory:
   # Summarization: LangChain SummarizationMiddleware (short-term token reduction)
   summarization:
     enabled: true
-    trigger_tokens: 10000
-    keep_messages: 10
+    trigger_tokens: 50000
+    keep_tokens: 1000
 
 # Observability
 observability:

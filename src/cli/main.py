@@ -14,7 +14,7 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 
 from src.agents.manager import run_agent_stream
-from src.storage.conversation import get_conversation_store
+from src.storage.messages import get_conversation_store
 
 console = Console()
 
@@ -118,7 +118,7 @@ class ExecutiveAssistantCLI:
                         continue
 
                 self.conversation.add_message("user", user_input)
-                recent_messages = self.conversation.get_recent_messages(50)
+                recent_messages = self.conversation.get_messages_with_summary(50)
 
                 langgraph_messages = [
                     HumanMessage(content=m.content)

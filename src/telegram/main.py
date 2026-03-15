@@ -14,7 +14,7 @@ from langfuse import propagate_attributes
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 from src.agents.manager import get_checkpoint_manager, run_agent
-from src.storage.conversation import get_conversation_store
+from src.storage.messages import get_conversation_store
 from telegram import Update
 
 # Store pending approvals: user_id -> interrupt data
@@ -88,9 +88,9 @@ async def telegram_send_file(
         return f"Error: User {user_id} not found. User must send a message first."
 
     try:
-        from telegram import Bot
-        from telegram import InputFile
         import os
+
+        from telegram import Bot, InputFile
 
         token = os.environ.get("TELEGRAM_BOT_TOKEN")
         if not token:
@@ -156,7 +156,7 @@ async def handle_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     # Normal message handling
     conversation = get_conversation_store(user_id)
     conversation.add_message("user", text)
-    recent_messages = conversation.get_recent_messages(50)
+    recent_messages = conversation.get_messages_with_summary(50)
 
     langgraph_messages = [
         HumanMessage(content=m.content) if m.role == "user" else AIMessage(content=m.content)

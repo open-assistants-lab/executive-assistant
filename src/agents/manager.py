@@ -9,6 +9,7 @@ from typing import Any
 from langchain_core.language_models import BaseChatModel
 
 from src.agents.factory import get_agent_factory
+from src.agents.messages_manager import MessageManager, get_message_manager
 from src.app_logging import get_logger
 from src.config import get_settings
 from src.llm import create_model_from_config
@@ -18,6 +19,7 @@ logger = get_logger()
 _model: BaseChatModel | None = None
 _checkpoint_managers: dict[str, Any] = {}
 _agent_pools: dict[str, "AgentPool"] = {}
+
 _pools_lock = asyncio.Lock()
 
 
@@ -62,8 +64,13 @@ class AgentPool:
         checkpoint_manager = await get_checkpoint_manager(self.user_id)
         checkpointer = checkpoint_manager.checkpointer
 
+        message_mgr = get_message_manager(self.user_id)
+
         factory = get_agent_factory(
-            checkpointer=checkpointer, enable_skills=True, user_id=self.user_id
+            checkpointer=checkpointer,
+            enable_skills=True,
+            user_id=self.user_id,
+            on_summarize=lambda content: message_mgr.on_summarize(content),
         )
         agent = factory.create(model=model, tools=tools, system_prompt=system_prompt)
 
@@ -154,6 +161,7 @@ async def run_agent_stream(
     user_id: str,
     messages: list[Any],
     message: str,
+    verbose: bool = False,
 ):
     """Run agent with streaming - yields chunks for real-time output.
 
@@ -161,6 +169,7 @@ async def run_agent_stream(
         user_id: User identifier
         messages: Previous conversation messages
         message: Current user message
+        verbose: If True, include middleware events (via astream_events)
 
     Yields:
         Chunks of the agent's response
@@ -176,9 +185,13 @@ async def run_agent_stream(
         if app_logger.langfuse_handler:
             config["callbacks"] = [app_logger.langfuse_handler]
 
-        async for chunk in instance.agent.astream(
+        # Use astream_events with subgraphs=True to get subagent events
+        # subgraphs=True enables streaming from nested agents
+        async for chunk in instance.agent.astream_events(
             {"messages": messages},
             config=config,
+            version="v2",
+            subgraphs=True,
         ):
             yield chunk
 
@@ -213,10 +226,26 @@ def get_default_tools(user_id: str) -> list[Any]:
         subagent_validate,
     )
     from src.skills.example_constrained_tool import sql_write_query
-    from src.skills.tools import skills_list, skills_load, skill_create
+    from src.skills.tools import skill_create, skills_list, skills_load
     from src.telegram.main import (
         telegram_send_file_tool,
         telegram_send_message_tool,
+    )
+    from src.tools.apps import (
+        app_column_add,
+        app_column_delete,
+        app_column_rename,
+        app_create,
+        app_delete,
+        app_delete_row,
+        app_insert,
+        app_list,
+        app_query,
+        app_schema,
+        app_search_fts,
+        app_search_hybrid,
+        app_search_semantic,
+        app_update,
     )
     from src.tools.contacts import (
         contacts_add,
@@ -235,22 +264,6 @@ def get_default_tools(user_id: str) -> list[Any]:
         email_search,
         email_send,
         email_sync,
-    )
-    from src.tools.apps import (
-        app_column_add,
-        app_column_delete,
-        app_column_rename,
-        app_create,
-        app_delete,
-        app_delete_row,
-        app_insert,
-        app_list,
-        app_query,
-        app_schema,
-        app_search_fts,
-        app_search_semantic,
-        app_search_hybrid,
-        app_update,
     )
     from src.tools.file_search import files_glob_search, files_grep_search
     from src.tools.filesystem import (

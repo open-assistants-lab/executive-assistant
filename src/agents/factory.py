@@ -1,16 +1,14 @@
 """Agent factory for Executive Assistant."""
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any
 
 from langchain.agents import create_agent
-from langchain.agents.middleware import (
-    HumanInTheLoopMiddleware,
-    SummarizationMiddleware,
-)
+from langchain.agents.middleware import HumanInTheLoopMiddleware
 from langchain_core.language_models import BaseChatModel
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
+from src.agents.middleware.summarization import SummarizationMiddleware
 from src.app_logging import get_logger
 from src.config import get_settings
 
@@ -27,6 +25,7 @@ class AgentFactory:
         enable_skills: bool = True,
         enable_mcp: bool = True,
         user_id: str | None = None,
+        on_summarize: Callable[[str], Any] | None = None,
     ):
         """Initialize agent factory.
 
@@ -36,12 +35,14 @@ class AgentFactory:
             enable_skills: Whether to enable skills middleware and tools
             enable_mcp: Whether to enable MCP tools
             user_id: User ID for loading user-specific skills
+            on_summarize: Callback when summarization occurs, receives summary content
         """
         self.checkpointer = checkpointer
         self.enable_summarization = enable_summarization
         self.enable_skills = enable_skills
         self.enable_mcp = enable_mcp
         self.user_id = user_id
+        self._on_summarize = on_summarize
 
     def _get_middleware(self, model: BaseChatModel) -> list[Any]:
         """Get middleware list for the agent."""
@@ -57,15 +58,17 @@ class AgentFactory:
                     SummarizationMiddleware(
                         model=model,
                         trigger=("tokens", summary_config.trigger_tokens),
-                        keep=("messages", summary_config.keep_messages),
+                        keep=("tokens", summary_config.keep_tokens),
+                        on_summarize=self._on_summarize,
                     )
                 )
                 logger.info(
                     "summarization.middleware.configured",
                     {
                         "trigger_tokens": summary_config.trigger_tokens,
-                        "keep_messages": summary_config.keep_messages,
+                        "keep_tokens": summary_config.keep_tokens,
                         "model": str(model),
+                        "has_callback": self._on_summarize is not None,
                     },
                     channel="agent",
                 )
@@ -241,6 +244,7 @@ def get_agent_factory(
     enable_skills: bool = True,
     enable_mcp: bool = True,
     user_id: str | None = None,
+    on_summarize: Callable[[str], Any] | None = None,
 ) -> AgentFactory:
     """Get or create agent factory.
 
@@ -249,6 +253,7 @@ def get_agent_factory(
         enable_summarization: Whether to enable summarization middleware
         enable_skills: Whether to enable skills middleware and tools
         user_id: User ID for loading user-specific skills
+        on_summarize: Callback when summarization occurs
 
     Returns:
         AgentFactory instance
@@ -259,4 +264,5 @@ def get_agent_factory(
         enable_skills=enable_skills,
         enable_mcp=enable_mcp,
         user_id=user_id,
+        on_summarize=on_summarize,
     )
