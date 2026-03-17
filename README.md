@@ -227,11 +227,39 @@ The memory system is inspired by [claude-mem](https://github.com/thedotmack/clau
 ### Storage Layout
 
 ```text
-data/users/{user_id}/.conversation/
-├── messages.db      # SQLite with FTS5
-├── vectors/         # ChromaDB vectors
-└── checkpoints.db   # LangGraph checkpoints (when enabled)
+data/users/{user_id}/
+├── memory/
+│   ├── memory.db     # SQLite (memories + insights)
+│   └── vectors/      # ChromaDB vectors
+├── messages/
+│   └── messages.db  # Conversation history
+└── checkpoints/     # LangGraph checkpoints
 ```
+
+### Memory Types
+
+| Type | Description | Confidence |
+|------|-------------|------------|
+| `fact` | Factual information (name, workplace) | 0.2-1.0 |
+| `preference` | User preferences (likes dark mode) | 0.2-0.7 |
+| `correction` | Corrections to AI responses | 0.7 |
+| `workflow` | Habits, processes | 0.2-0.7 |
+| `lesson` | Things taught to AI | 0.7-1.0 |
+
+### Two-Layer Memory
+
+1. **Working Memory**: High-confidence memories (≥0.5) - always injected into context
+2. **Long-term Memory**: Retrieved on-demand via semantic/keyword search
+
+### Consolidation
+
+The system periodically runs consolidation to:
+- Detect contradictions (e.g., "uses Google Workspace" vs "uses Microsoft 365")
+- Generate synthesized insights from grouped memories
+- Mark superseded memories
+
+Consolidation runs every N messages (configurable via `consolidate_after_messages`).
+Insights are stored in `memory.db` and can be retrieved via the API.
 
 ## Configuration
 
@@ -261,6 +289,7 @@ memory:
     enabled: true
   checkpointer:
     retention_days: 0  # 0=disabled, -1=forever
+  consolidate_after_messages: 10  # 0=disabled, N=consolidate every N messages
 
 # Skills
 skills:

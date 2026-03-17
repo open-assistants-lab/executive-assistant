@@ -35,11 +35,15 @@ memory:
   messages:
     enabled: true
 
+  # Memory consolidation
+  # consolidate_after_messages: N messages before triggering consolidation (0=disabled)
+  consolidate_after_messages: 10
+
   # Summarization: LangChain SummarizationMiddleware (short-term token reduction)
   summarization:
     enabled: true
-    trigger_tokens: 50000
-    keep_tokens: 1000
+    trigger_tokens: 500
+    keep_tokens: 100
 
 # Observability
 observability:

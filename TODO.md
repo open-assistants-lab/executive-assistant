@@ -266,11 +266,21 @@ description: Extract text and tables from PDF files, fill forms, merge documents
 **Note:** Replaces LangGraph store - we use our own custom memory for better control.
 
 - [x] Custom MemoryStore with SQLite + FTS5 + ChromaDB
-- [ ] 12 memory types (profile, contact, preference, schedule, task, decision, insight, context, goal, chat, feedback, personal)
+- [x] 12 memory types (profile, contact, preference, schedule, task, decision, insight, context, goal, chat, feedback, personal)
 - [x] Progressive disclosure tools (memory_search, memory_timeline, memory_get, memory_save)
 - [x] Hybrid search (FTS5 keyword + ChromaDB semantic)
 - [x] MEMORY_WORKFLOW in system prompt
 - [x] Integrated into agent factory as tools
+
+### Memory Consolidation (2026-03-17)
+- [x] Rename instincts → memory throughout codebase
+- [x] Two-layer memory: working (confidence ≥0.5) + long-term (semantic search)
+- [x] Memory types: preference, fact, workflow, correction
+- [x] Source tracking: explicit (user-set) vs learned (auto-extracted)
+- [x] Correction handling: is_superseded, superseded_by fields
+- [x] Consolidation: find contradictions, generate insights, link related memories
+- [x] Message-count based trigger (configurable via config.yaml)
+- [x] DB migration for existing insights tables
 
 ---
 
