@@ -1,11 +1,14 @@
 """HTTP server for Executive Assistant."""
 
+import json
+
 from dotenv import load_dotenv
 
 load_dotenv()
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from datetime import UTC
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
@@ -96,6 +99,7 @@ async def get_conversation(user_id: str = "default", limit: int = 100):
 async def clear_conversation(user_id: str = "default"):
     """Clear conversation history."""
     import sqlite3
+
     from src.storage.messages import get_conversation_store
 
     conversation = get_conversation_store(user_id)
@@ -128,16 +132,10 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
                 return MessageResponse(response=f"❌ {tool_name} rejected.")
 
             # Execute the tool directly
-            if tool_name == "email_delete":
-                from src.tools.email import email_delete
+            if tool_name == "files_delete":
+                from src.tools.filesystem import files_delete
 
-                result = email_delete.invoke(tool_args)
-                return MessageResponse(response=f"✅ {result}")
-
-            if tool_name == "delete_file":
-                from src.tools.filesystem import delete_file
-
-                result = delete_file.invoke(tool_args)
+                result = files_delete.invoke(tool_args)
                 return MessageResponse(response=f"✅ {result}")
 
             return MessageResponse(response=f"Unknown tool: {tool_name}")
@@ -147,10 +145,25 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
         conversation.add_message("user", msg_content)
         recent_messages = conversation.get_messages_with_summary(50)
 
-        langgraph_messages = [
-            HumanMessage(content=m.content) if m.role == "user" else AIMessage(content=m.content)
-            for m in recent_messages
-        ] + [HumanMessage(content=msg_content)]
+        # Convert DB messages to LangChain format
+        # - user → HumanMessage
+        # - assistant → AIMessage
+        # - tool → ToolMessage (if we want to preserve tool call structure)
+        # - summary → HumanMessage (treat as context, not AI response)
+        langgraph_messages = []
+        for m in recent_messages:
+            if m.role == "user":
+                langgraph_messages.append(HumanMessage(content=m.content))
+            elif m.role == "summary":
+                # Summary is context, treat as HumanMessage
+                langgraph_messages.append(
+                    HumanMessage(content=f"[SUMMARY OF PREVIOUS CONVERSATION]\n{m.content}")
+                )
+            else:
+                # assistant and anything else → AIMessage
+                langgraph_messages.append(AIMessage(content=m.content))
+
+        langgraph_messages.append(HumanMessage(content=msg_content))
 
         from src.app_logging import get_logger, timer
 
@@ -229,6 +242,16 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
                         "tool_events": tool_events,
                     }
 
+                    # Save tool messages from tool_events to DB
+                    for tool_event in tool_events:
+                        if tool_event.get("stage") == "end" and tool_event.get("output"):
+                            tool_metadata = {
+                                "tool_name": tool_event.get("tool", "unknown"),
+                            }
+                            conversation.add_message(
+                                "tool", str(tool_event.get("output", "")), metadata=tool_metadata
+                            )
+
                     # Build response from accumulated content
                     if tool_events:
                         response = "\n".join(
@@ -256,13 +279,27 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
                             msg_type = getattr(msg, "type", None)
                             if msg_type == "tool":
                                 content = getattr(msg, "content", None)
+                                tool_name = getattr(msg, "name", "unknown")
+                                tool_call_id = getattr(msg, "tool_call_id", "")
                                 if content:
                                     tool_results.append(content)
+                                    # Save tool message as separate entry
+                                    tool_metadata = {
+                                        "tool_name": tool_name,
+                                        "tool_call_id": tool_call_id,
+                                    }
+                                    conversation.add_message(
+                                        "tool", str(content), metadata=tool_metadata
+                                    )
 
                         for msg in reversed(messages):
                             msg_type = getattr(msg, "type", None)
                             content = getattr(msg, "content", None)
                             if msg_type == "ai":
+                                # Priority: use AI's own content first
+                                if content and content.strip():
+                                    response = content
+                                    break
                                 tool_calls = getattr(msg, "tool_calls", None)
                                 if tool_calls and tool_results:
                                     response = "\n".join(tool_results)
@@ -270,12 +307,26 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
                                 if tool_calls:
                                     response = f"Tool(s) executed: {', '.join([tc.get('name', 'unknown') for tc in tool_calls])}"
                                     break
-                                if content and content.strip():
-                                    response = content
-                                    break
 
                         if not response:
                             response = "Task completed."
+
+                    logger.warning(
+                        "agent.response.final.verbose",
+                        {"response": response[:50], "user_id": user_id},
+                        user_id=user_id,
+                        channel="http",
+                    )
+
+                    # Save assistant response to DB - with logging
+                    logger.info(
+                        "http.before_save.verbose",
+                        {"user_id": user_id},
+                        user_id=user_id,
+                        channel="http",
+                    )
+                    # Note: Assistant message will be saved at the end of the function
+                    # Don't save here to avoid duplicate
 
                     # Use result for interrupt check
                     result = {"messages": []}
@@ -316,56 +367,58 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
 
         tool_results = []
 
+        # Save tool messages to DB
         for msg in messages:
             msg_type = getattr(msg, "type", None)
             if msg_type == "tool":
                 content = getattr(msg, "content", None)
+                tool_name = getattr(msg, "name", "unknown")
+                tool_call_id = getattr(msg, "tool_call_id", "")
                 if content:
                     tool_results.append(content)
+                    # Save tool message as separate entry
+                    tool_metadata = {"tool_name": tool_name, "tool_call_id": tool_call_id}
+                    conversation.add_message("tool", str(content), metadata=tool_metadata)
 
         for msg in reversed(messages):
             msg_type = getattr(msg, "type", None)
             content = getattr(msg, "content", None)
             if msg_type == "ai":
+                # Priority: use AI's own content first (even if brief)
+                if content and content.strip():
+                    response = content
+                    break
+                # Only use tool results if AI has no content
                 tool_calls = getattr(msg, "tool_calls", None)
                 if tool_calls and tool_results:
-                    # Include tool results in response
                     response = "\n".join(tool_results)
                     break
                 if tool_calls:
                     tool_names = [tc.get("name", "unknown") for tc in tool_calls]
                     response = f"Tool(s) executed: {', '.join(tool_names)}"
                     break
-                if content and content.strip():
-                    response = content
-                    break
 
             if not response:
                 response = "Task completed."
 
-            logger.warning(
-                "agent.response.final",
-                {
-                    "ai_content_count": len(ai_content) if "ai_content" in dir() else 0,
-                    "response": response[:50],
-                },
-                user_id=user_id,
-                channel="http",
-            )
+        logger.warning(
+            "agent.response.final",
+            {
+                "tool_results_count": len(tool_results),
+                "response": response[:50],
+                "user_id": user_id,
+            },
+            user_id=user_id,
+            channel="http",
+        )
 
-            conversation.add_message("assistant", response)
-
-            # Check for summarization and persist if happened
-            if verbose_data and verbose_data.get("middleware_events"):
-                for event in verbose_data["middleware_events"]:
-                    if "Summarization" in event.get("name", ""):
-                        logger.info(
-                            "summarization.detected",
-                            {"events": verbose_data["middleware_events"]},
-                            user_id=user_id,
-                            channel="http",
-                        )
-                        break
+        # Save assistant response to DB - only save middleware_events if there are actual events
+        assistant_metadata = None
+        if verbose_data and verbose_data.get("middleware_events"):
+            # Only save if there are actual middleware events (verbose mode)
+            assistant_metadata = {"middleware_events": verbose_data["middleware_events"]}
+        # If no middleware events, don't save metadata at all (None)
+        conversation.add_message("assistant", response, metadata=assistant_metadata)
 
         logger.info(
             "agent.response",
@@ -377,6 +430,9 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
         return MessageResponse(response=response, verbose_data=verbose_data)
 
     except Exception as e:
+        import traceback
+
+        traceback.print_exc()
         return MessageResponse(response="", error=str(e))
 
 
@@ -390,10 +446,19 @@ async def message_stream(req: MessageRequest):
         conversation.add_message("user", req.message)
         recent_messages = conversation.get_messages_with_summary(50)
 
-        langgraph_messages = [
-            HumanMessage(content=m.content) if m.role == "user" else AIMessage(content=m.content)
-            for m in recent_messages
-        ] + [HumanMessage(content=req.message)]
+        # Convert DB messages to LangChain format
+        langgraph_messages = []
+        for m in recent_messages:
+            if m.role == "user":
+                langgraph_messages.append(HumanMessage(content=m.content))
+            elif m.role == "summary":
+                langgraph_messages.append(
+                    HumanMessage(content=f"[SUMMARY OF PREVIOUS CONVERSATION]\n{m.content}")
+                )
+            else:
+                langgraph_messages.append(AIMessage(content=m.content))
+
+        langgraph_messages.append(HumanMessage(content=req.message))
 
         from src.app_logging import get_logger
 
@@ -402,6 +467,7 @@ async def message_stream(req: MessageRequest):
         async def generate():
             all_messages = []
             tool_results = []
+            tool_metadata_list = []  # Track tool names and call IDs
             ai_content = []
             summarization_ran = False  # Track if summarization ran in this request
 
@@ -484,6 +550,7 @@ async def message_stream(req: MessageRequest):
                     elif "tool" in event_type:
                         if "start" in event_type:
                             tool_name = data.get("name", name) if isinstance(data, dict) else name
+                            tool_metadata_list.append({"tool_name": tool_name, "tool_call_id": ""})
                             yield f"data: {json.dumps({'type': 'updates', 'ns': ns, 'data': {'content': f'Using tool: {tool_name}'}})}\n\n"
                         elif "end" in event_type:
                             if isinstance(data, dict) and "output" in data:
@@ -617,7 +684,16 @@ async def message_stream(req: MessageRequest):
             ):
                 response = "Task completed."
 
-            conversation.add_message("assistant", response)
+            # Save tool messages to DB (streaming endpoint)
+            for i, tool_content in enumerate(tool_results):
+                tool_meta = (
+                    tool_metadata_list[i]
+                    if i < len(tool_metadata_list)
+                    else {"tool_name": "unknown", "tool_call_id": ""}
+                )
+                conversation.add_message("tool", str(tool_content), metadata=tool_meta)
+
+            conversation.add_message("assistant", response, metadata={"stream": True})
             logger.info("agent.response", {"response": response}, user_id=user_id, channel="http")
 
         import json
@@ -628,11 +704,399 @@ async def message_stream(req: MessageRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/skills")
+async def list_skills(user_id: str = "default"):
+    """List all available skills."""
+    from src.skills.registry import SkillRegistry
+
+    registry = SkillRegistry(system_dir="src/skills", user_id=user_id)
+    all_skills = registry.get_all_skills()
+    system_skills = registry.get_system_skills()
+    system_names = {s["name"] for s in system_skills}
+
+    skills = []
+    for s in all_skills:
+        skills.append(
+            {
+                "name": s["name"],
+                "description": s["description"],
+                "is_system": s["name"] in system_names,
+            }
+        )
+
+    return {"skills": skills}
+
+
+@app.post("/skills")
+async def create_skill(name: str, description: str, content: str, user_id: str = "default"):
+    """Create a new skill."""
+    from src.skills.storage import UserSkillStorage
+
+    storage = UserSkillStorage(user_id)
+    skill_dir = storage.base_dir / name
+    skill_dir.mkdir(parents=True, exist_ok=True)
+
+    skill_file = skill_dir / "SKILL.md"
+    skill_file.write_text(content, encoding="utf-8")
+
+    return {"status": "created", "name": name, "path": str(skill_dir)}
+
+
+@app.delete("/skills/{skill_name}")
+async def delete_skill(skill_name: str, user_id: str = "default"):
+    """Delete a user skill."""
+    from src.skills.storage import UserSkillStorage
+
+    storage = UserSkillStorage(user_id)
+    skill_dir = storage.base_dir / skill_name
+    if skill_dir.exists():
+        import shutil
+
+        shutil.rmtree(skill_dir)
+
+    return {"status": "deleted", "name": skill_name}
+
+
+@app.get("/subagents")
+async def list_subagents(user_id: str = "default"):
+    """List all subagents."""
+    from src.agents.subagent.manager import get_subagent_manager
+
+    manager = get_subagent_manager(user_id)
+    subagents = manager.list_all()
+
+    # For now, all subagents are user-created (no system subagents)
+    # This can be extended later if system subagents are added
+    return {
+        "subagents": [
+            {
+                "name": s["name"],
+                "description": s.get("description", ""),
+                "is_system": False,
+            }
+            for s in subagents
+        ]
+    }
+
+
+@app.post("/subagents")
+async def create_subagent(
+    name: str,
+    description: str = "",
+    model: str | None = None,
+    skills: list[str] | None = None,
+    tools: list[str] | None = None,
+    system_prompt: str | None = None,
+    user_id: str = "default",
+):
+    """Create a new subagent."""
+    from src.agents.subagent.manager import get_subagent_manager
+
+    manager = get_subagent_manager(user_id)
+    subagent, result = manager.create(
+        name=name,
+        model=model,
+        description=description,
+        skills=skills,
+        tools=tools,
+        system_prompt=system_prompt,
+    )
+
+    if subagent is None:
+        raise HTTPException(status_code=400, detail=result.get("errors", "Validation failed"))
+
+    return {"status": "created", "name": name}
+
+
+@app.delete("/subagents/{subagent_name}")
+async def delete_subagent(subagent_name: str, user_id: str = "default"):
+    """Delete a subagent."""
+    import shutil
+
+    from src.agents.subagent.manager import get_subagent_manager
+
+    manager = get_subagent_manager(user_id)
+    subagent_path = manager.base_path / subagent_name
+    if subagent_path.exists():
+        shutil.rmtree(subagent_path)
+
+    return {"status": "deleted", "name": subagent_name}
+
+
+@app.get("/memories")
+async def list_memories(
+    user_id: str = "default",
+    domain: str | None = None,
+    memory_type: str | None = None,
+    min_confidence: float = 0.0,
+    limit: int = 100,
+):
+    """List user memories/preferences."""
+    from src.storage.memory import get_memory_store
+
+    store = get_memory_store(user_id)
+    memories = store.list_memories(
+        domain=domain,
+        memory_type=memory_type,
+        min_confidence=min_confidence,
+        limit=limit,
+    )
+
+    return {
+        "memories": [
+            {
+                "id": m.id,
+                "trigger": m.trigger,
+                "action": m.action,
+                "confidence": m.confidence,
+                "domain": m.domain,
+                "memory_type": m.memory_type,
+                "source": m.source,
+                "is_superseded": m.is_superseded,
+                "superseded_by": m.superseded_by,
+                "updated_at": m.updated_at.isoformat() if m.updated_at else None,
+            }
+            for m in memories
+        ]
+    }
+
+
+@app.delete("/memories/{memory_id}")
+async def remove_memory(memory_id: str, user_id: str = "default"):
+    """Remove a memory."""
+    from src.storage.memory import get_memory_store
+
+    store = get_memory_store(user_id)
+    removed = store.remove_memory(memory_id)
+
+    return {"status": "removed" if removed else "not_found", "id": memory_id}
+
+
+@app.post("/memories/consolidate")
+async def consolidate_memories(user_id: str = "default"):
+    """Trigger memory consolidation manually."""
+    from src.storage.consolidation import trigger_consolidation
+
+    result = trigger_consolidation(user_id)
+    return result
+
+
+@app.get("/memories/insights")
+async def list_insights(user_id: str = "default", limit: int = 20):
+    """List synthesized insights from memory consolidation."""
+    from src.storage.memory import get_memory_store
+
+    store = get_memory_store(user_id)
+    insights = store.list_insights(limit=limit)
+
+    return {
+        "insights": [
+            {
+                "id": i.id,
+                "summary": i.summary,
+                "domain": i.domain,
+                "confidence": i.confidence,
+                "linked_memories": i.linked_memories,
+                "is_superseded": i.is_superseded,
+                "created_at": i.created_at.isoformat() if i.created_at else None,
+            }
+            for i in insights
+        ]
+    }
+
+
+@app.get("/workspace/read/{path:path}")
+async def read_workspace_file(path: str, user_id: str = "default"):
+    """Read file - auto-mark as downloaded."""
+    from pathlib import Path
+
+    from src.tools.file_cache import get_file_cache
+    from src.tools.filesystem import files_read
+
+    # Read the file content
+    result = files_read.invoke({"path": path, "user_id": user_id})
+
+    # Auto-update sync status (mark as downloaded when opened)
+    file_cache = get_file_cache(user_id)
+    workspace_path = Path(f"data/users/{user_id}/workspace/{path}")
+    server_modified = str(workspace_path.stat().st_mtime) if workspace_path.exists() else ""
+
+    # Update sync status - file is now "synced" locally
+    file_cache.update_sync(path, server_modified)
+
+    return {"response": str(result), "path": path}
+
+
+@app.get("/workspace/{path:path}")
+async def list_workspace_files(path: str = "", user_id: str = "default"):
+    """List files in workspace."""
+    from src.tools.filesystem import files_list
+
+    result = files_list.invoke({"path": path, "user_id": user_id})
+    return {"response": str(result)}
+
+
+@app.post("/workspace/{path:path}")
+async def write_workspace_file(
+    path: str,
+    user_id: str = "default",
+    request: dict | None = None,
+):
+    """Write file to workspace."""
+    if request is None:
+        return {"error": "content is required"}
+
+    content = request.get("content", "")
+
+    from src.tools.filesystem import files_write
+
+    result = files_write.invoke({"path": path, "content": content, "user_id": user_id})
+    return {"response": str(result)}
+
+
+@app.delete("/workspace/{path:path}")
+async def delete_workspace_file(path: str, user_id: str = "default"):
+    """Delete file from workspace."""
+    from src.tools.filesystem import files_delete
+
+    result = files_delete.invoke({"path": path, "user_id": user_id})
+    return {"response": str(result)}
+
+
 def run():
     """Run the HTTP server."""
     import uvicorn
 
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+@app.get("/sync/status")
+async def get_sync_status(user_id: str = "default"):
+    """Get sync status for all files."""
+    from src.tools.file_cache import get_file_cache
+
+    cache = get_file_cache(user_id)
+    return {"status": cache.get_all()}
+
+
+@app.post("/sync/pin/{path:path}")
+async def pin_file(path: str, user_id: str = "default"):
+    """Pin a file (keep downloaded)."""
+    from src.tools.file_cache import get_file_cache
+
+    cache = get_file_cache(user_id)
+    cache.mark_pinned(path)
+    return {"status": "pinned", "path": path}
+
+
+@app.delete("/sync/pin/{path:path}")
+async def unpin_file(path: str, user_id: str = "default"):
+    """Unpin a file (remove from keep downloaded)."""
+    from src.tools.file_cache import get_file_cache
+
+    cache = get_file_cache(user_id)
+    cache.mark_cloud_only(path)
+    return {"status": "cloud_only", "path": path}
+
+
+@app.post("/sync/download/{path:path}")
+async def mark_downloaded(path: str, user_id: str = "default"):
+    """Mark a file as downloaded."""
+    from src.tools.file_cache import get_file_cache
+
+    cache = get_file_cache(user_id)
+    cache.mark_downloaded(path)
+    return {"status": "downloaded", "path": path}
+
+
+@app.get("/sync/stream")
+async def sync_stream(user_id: str = "default"):
+    """SSE stream for real-time file change notifications."""
+    import asyncio
+    from datetime import datetime
+    from pathlib import Path
+
+    from fastapi.responses import StreamingResponse
+
+    from src.tools.file_cache import get_file_cache
+
+    async def event_generator():
+        cache = get_file_cache(user_id)
+        workspace_path = Path(f"data/users/{user_id}/workspace")
+
+        # Track all data stores
+        skills_path = Path(f"data/users/{user_id}/skills")
+        subagents_path = Path(f"data/users/{user_id}/subagents")
+
+        last_state = {
+            "workspace": {},
+            "skills": {},
+            "subagents": {},
+        }
+
+        while True:
+            try:
+                current_state = {
+                    "workspace": {},
+                    "skills": {},
+                    "subagents": {},
+                }
+
+                # Watch workspace files
+                if workspace_path.exists():
+                    for f in workspace_path.rglob("*"):
+                        if f.is_file():
+                            rel_path = str(f.relative_to(workspace_path))
+                            mtime = str(f.stat().st_mtime)
+                            current_state["workspace"][rel_path] = mtime
+
+                # Watch skills (stored as subdirectories with SKILL.md)
+                if skills_path.exists():
+                    for f in skills_path.glob("*/SKILL.md"):
+                        skill_name = f.parent.name
+                        current_state["skills"][skill_name] = str(f.stat().st_mtime)
+
+                # Watch subagents (stored as subdirectories with config.yaml)
+                if subagents_path.exists():
+                    for f in subagents_path.glob("*/config.yaml"):
+                        agent_name = f.parent.name
+                        current_state["subagents"][agent_name] = str(f.stat().st_mtime)
+
+                # Check for changes in each category
+                for category in ["workspace", "skills", "subagents"]:
+                    new_items = set(current_state[category].keys()) - set(
+                        last_state[category].keys()
+                    )
+                    changed_items = []
+
+                    for path, mtime in current_state[category].items():
+                        if path not in last_state[category]:
+                            changed_items.append(path)
+                        elif last_state[category][path] != mtime:
+                            changed_items.append(path)
+
+                    if changed_items or new_items:
+                        all_changed = list(set(changed_items) | set(new_items))
+                        for item in all_changed:
+                            data = {
+                                "type": f"{category}_changed",
+                                "category": category,
+                                "path": item,
+                                "action": "created" if item in new_items else "modified",
+                                "timestamp": datetime.now(UTC).isoformat(),
+                            }
+                            yield f"data: {json.dumps(data)}\n\n"
+
+                last_state = current_state
+                await asyncio.sleep(3)
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+                await asyncio.sleep(5)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 if __name__ == "__main__":
