@@ -1,36 +1,22 @@
 services:
-  # Caddy reverse proxy with automatic HTTPS
-  caddy:
-    image: caddy:2-alpine
-    container_name: ea_caddy
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - app
-    restart: unless-stopped
-
   # Executive Assistant HTTP API
   app:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: ea_app
+    ports:
+      - "8000:8000"
     command: ["uv", "run", "ea", "http"]
     environment:
       # Ollama LLM (use your local or cloud instance)
       OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-https://ollama.com}
       
       # Firecrawl for web search/scraping (self-hosted or cloud)
       # Self-hosted: set FIRECRAWL_BASE_URL (no key needed)
       # Cloud: set FIRECRAWL_API_KEY (get from firecrawl.dev)
-      FIRECRAWL_BASE_URL: ${FIRECRAWL_BASE_URL:-http://host.docker.internal:3002}
+      FIRECRAWL_BASE_URL: ${FIRECRAWL_BASE_URL:-}
       FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
       
       # Telegram Bot (get from @BotFather)
@@ -47,7 +33,6 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ./data:/app/data
-      - hf_cache:/root/.cache/huggingface
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -55,29 +40,5 @@ services:
       timeout: 10s
       retries: 3
 
-  # Telegram Bot
-  telegram:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    container_name: ea_telegram
-    command: ["uv", "run", "ea", "telegram"]
-    environment:
-      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-      FIRECRAWL_BASE_URL: ${FIRECRAWL_BASE_URL:-http://host.docker.internal:3002}
-      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
-      DATA_DIR: /app/data
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-    volumes:
-      - ./data:/app/data
-      - hf_cache:/root/.cache/huggingface
-    restart: unless-stopped
-    depends_on:
-      - app
-
 volumes:
-  caddy_data:
-  caddy_config:
   hf_cache:

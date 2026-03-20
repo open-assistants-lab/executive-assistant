@@ -81,7 +81,7 @@ class AgentFactory:
 
         # Add filesystem delete tool
         if filesystem_config.enabled:
-            interrupt_config["delete_file"] = {
+            interrupt_config["files_delete"] = {
                 "allowed_decisions": ["approve", "edit", "reject"],
             }
 
@@ -153,12 +153,12 @@ class AgentFactory:
                 channel="agent",
             )
 
-        # Add instincts middleware
-        from src.storage.middleware import InstinctsMiddleware
+        # Add memory middleware
+        from src.storage.middleware import MemoryMiddleware
 
-        middleware.append(InstinctsMiddleware(user_id=self.user_id))
+        middleware.append(MemoryMiddleware(user_id=self.user_id))
         logger.info(
-            "instincts.middleware.configured",
+            "memory.middleware.configured",
             {"user_id": self.user_id},
             channel="agent",
         )
@@ -170,19 +170,19 @@ class AgentFactory:
 
             all_tools = list(all_tools) + [skills_load, skills_list]
 
-        # Add instincts tools
+        # Add memory tools
         from src.tools.memory_profile import (
-            instincts_list,
-            instincts_remove,
-            instincts_search,
+            memory_list,
+            memory_remove,
+            memory_search,
             profile_set,
         )
 
         all_tools = list(all_tools) + [
             profile_set,
-            instincts_list,
-            instincts_remove,
-            instincts_search,
+            memory_list,
+            memory_remove,
+            memory_search,
         ]
 
         # Add MCP management tools + dynamically load MCP server tools

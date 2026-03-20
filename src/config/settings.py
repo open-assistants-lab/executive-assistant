@@ -97,6 +97,7 @@ class MemoryConfig(_BaseSettings):
     messages: MessagesConfig = Field(default_factory=MessagesConfig)
     store: StoreConfig = Field(default_factory=StoreConfig)
     summarization: SummarizationConfig = Field(default_factory=SummarizationConfig)
+    consolidate_after_messages: int = 10  # 0=disabled, N=consolidate after N messages
 
 
 class LangfuseConfig(_BaseSettings):

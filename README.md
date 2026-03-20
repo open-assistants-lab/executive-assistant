@@ -46,12 +46,12 @@ Create specialized subagents that can execute tasks in parallel or sequentially:
 
 ```bash
 # Create subagent via HTTP
-curl -X POST http://localhost:8000/message \
+curl -X POST http://localhost:8080/message \
   -H "Content-Type: application/json" \
   -d '{"message": "Create subagent research-agent with skills: planning-with-files, tools: search_web,scrape_url, description: Research assistant", "user_id": "my_user"}'
 
 # Invoke subagent (async - returns immediately, results stored in database)
-curl -X POST http://localhost:8000/message \
+curl -X POST http://localhost:8080/message \
   -H "Content-Type: application/json" \
   -d '{"message": "Invoke subagent research-agent to research: LangGraph framework", "user_id": "my_user"}'
 ```
@@ -165,7 +165,7 @@ data/users/{user_id}/apps/
 
 ### Channels
 
-- **HTTP API** - FastAPI server on port 8000 (`/message`, `/message/stream`, `/health`, `/health/ready`)
+- **HTTP API** - FastAPI server on port 8080 (`/message`, `/message/stream`, `/health`, `/health/ready`)
 - **CLI** - Interactive command-line interface with streaming output
 - **Telegram** - Telegram bot integration (polling and webhook modes)
 
@@ -195,13 +195,13 @@ uv run ea telegram
 
 ```bash
 # Send a message
-curl -X POST http://localhost:8000/message \
+curl -X POST http://localhost:8080/message \
   -H "Content-Type: application/json" \
   -d '{"message": "hello", "user_id": "my_user"}'
 
 # Health checks
-curl http://localhost:8000/health
-curl http://localhost:8000/health/ready
+curl http://localhost:8080/health
+curl http://localhost:8080/health/ready
 ```
 
 ### CLI Commands
@@ -427,6 +427,6 @@ uv run mypy src/
 
 - **Agent**: LangChain `create_agent()` with tool calling
 - **Concurrency**: Per-user `AgentPool` reusing agent instances and thread IDs
-- **Middleware**: SkillMiddleware, SummarizationMiddleware, HumanInTheLoopMiddleware
+- **Middleware**: SkillMiddleware, SummarizationMiddleware (with failure detection), HumanInTheLoopMiddleware
 - **Storage**: SQLite (messages), ChromaDB (vectors), LangGraph (checkpoints)
 - **LLM Providers**: Ollama/Ollama Cloud, OpenAI, Anthropic

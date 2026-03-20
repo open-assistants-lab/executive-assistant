@@ -1,11 +1,17 @@
-"""Instincts tools for learning user preferences and behavioral patterns."""
+"""Memory tools for learning user preferences and behavioral patterns."""
 
 from datetime import UTC, datetime
 
 from langchain_core.tools import tool
 
 from src.app_logging import get_logger
-from src.storage.instincts import get_instincts_store
+from src.storage.memory import (
+    DEFAULT_CONFIDENCE,
+    MEMORY_TYPE_FACT,
+    MEMORY_TYPE_PREFERENCE,
+    SOURCE_EXPLICIT,
+    get_memory_store,
+)
 
 logger = get_logger()
 
@@ -23,7 +29,7 @@ def profile_set(
 ) -> str:
     """Set user profile information manually.
 
-    Stores profile information as instincts with high confidence (1.0) so they
+    Stores profile information as memories with high confidence (1.0) so they
     are always injected into context and not overwritten by auto-learned patterns.
 
     Args:
@@ -39,69 +45,83 @@ def profile_set(
     Returns:
         Confirmation message
     """
-    store = get_instincts_store(user_id)
+    store = get_memory_store(user_id)
 
     if name:
-        store.add_instinct(
+        store.add_memory(
             trigger="when user provides name",
             action=name,
             confidence=1.0,
             domain="personal",
-            source="manual",
+            source=SOURCE_EXPLICIT,
+            memory_type=MEMORY_TYPE_FACT,
+            is_update=True,
         )
     if role:
-        store.add_instinct(
+        store.add_memory(
             trigger="when user provides role",
             action=role,
             confidence=1.0,
             domain="work",
-            source="manual",
+            source=SOURCE_EXPLICIT,
+            memory_type=MEMORY_TYPE_FACT,
+            is_update=True,
         )
     if company:
-        store.add_instinct(
+        store.add_memory(
             trigger="when user provides company",
             action=company,
             confidence=1.0,
             domain="work",
-            source="manual",
+            source=SOURCE_EXPLICIT,
+            memory_type=MEMORY_TYPE_FACT,
+            is_update=True,
         )
     if city:
-        store.add_instinct(
+        store.add_memory(
             trigger="when user provides location",
             action=city,
             confidence=1.0,
             domain="location",
-            source="manual",
+            source=SOURCE_EXPLICIT,
+            memory_type=MEMORY_TYPE_FACT,
+            is_update=True,
         )
     if bio:
-        store.add_instinct(
+        store.add_memory(
             trigger="when user provides bio",
             action=bio,
             confidence=1.0,
             domain="personal",
-            source="manual",
+            source=SOURCE_EXPLICIT,
+            memory_type=MEMORY_TYPE_FACT,
+            is_update=True,
         )
     if interests:
         for interest in interests.split(","):
             interest = interest.strip()
             if interest:
-                store.add_instinct(
+                store.add_memory(
                     trigger="when user provides interest",
                     action=interest,
                     confidence=1.0,
                     domain="interests",
-                    source="manual",
+                    source=SOURCE_EXPLICIT,
+                    memory_type=MEMORY_TYPE_FACT,
+                    is_update=True,
                 )
     if skills:
         for skill in skills.split(","):
             skill = skill.strip()
             if skill:
-                store.add_instinct(
+                store.add_memory(
                     trigger="when user provides skill",
                     action=skill,
                     confidence=1.0,
                     domain="skills",
-                    source="manual",
+                    source=SOURCE_EXPLICIT,
+                    memory_type=MEMORY_TYPE_FACT,
+                    is_update=True,
                 )
 
     logger.info(
@@ -116,90 +136,102 @@ def profile_set(
         user_id=user_id,
     )
 
-    return f"Profile updated for {user_id}. Use instincts_list to view all instincts."
+    return f"Profile updated for {user_id}. Use memory_list to view all memories."
 
 
 @tool
-def instincts_list(
+def memory_list(
     domain: str | None = None,
-    min_confidence: float = 0.0,
+    memory_type: str | None = None,
+    min_confidence: float = DEFAULT_CONFIDENCE,
     limit: int = 20,
     user_id: str = "default",
 ) -> str:
-    """List learned user instincts/preferences.
+    """List learned user memories/preferences.
 
-    Instincts are behavioral patterns learned from user interactions,
+    Memories are behavioral patterns learned from user interactions,
     including corrections, preferences, and workflow habits.
 
     Args:
-        domain: Filter by domain (preference, workflow, correction, lesson)
+        domain: Filter by domain (personal, work, location, interests, etc.)
+        memory_type: Filter by memory type (preference, fact, workflow, correction)
         min_confidence: Minimum confidence score (0-1)
         limit: Maximum number of results
         user_id: User identifier
 
     Returns:
-        Formatted list of instincts
+        Formatted list of memories
     """
-    store = get_instincts_store(user_id)
-    instincts = store.list_instincts(domain=domain, min_confidence=min_confidence, limit=limit)
+    store = get_memory_store(user_id)
+    memories = store.list_memories(
+        domain=domain,
+        memory_type=memory_type,
+        min_confidence=min_confidence,
+        limit=limit,
+    )
 
-    if not instincts:
-        return f"No instincts found for user {user_id}."
+    if not memories:
+        return f"No memories found for user {user_id}."
 
-    parts = [f"## Learned Instincts for {user_id}"]
+    parts = [f"## Learned Memories for {user_id}"]
     if domain:
         parts.append(f"(filtered by domain: {domain})")
+    if memory_type:
+        parts.append(f"(filtered by type: {memory_type})")
     parts.append("")
 
-    for instinct in instincts:
+    for memory in memories:
         recency = ""
         now = datetime.now(UTC)
-        days_old = (now - instinct.updated_at).days
+        days_old = (now - memory.updated_at).days
         if days_old < 7:
             recency = " (recent)"
         elif days_old > 90:
             recency = " (outdated)"
 
-        parts.append(f"### {instinct.id}")
-        parts.append(f"- **When**: {instinct.trigger}")
-        parts.append(f"- **Action**: {instinct.action}")
-        parts.append(f"- **Confidence**: {instinct.confidence:.0%}{recency}")
-        parts.append(f"- **Domain**: {instinct.domain}")
-        parts.append(f"- **Observations**: {instinct.observations}")
+        source_marker = "★" if memory.source == SOURCE_EXPLICIT else ""
+
+        parts.append(f"### {memory.id}{source_marker}")
+        parts.append(f"- **When**: {memory.trigger}")
+        parts.append(f"- **Action**: {memory.action}")
+        parts.append(f"- **Confidence**: {memory.confidence:.0%}{recency}")
+        parts.append(f"- **Domain**: {memory.domain}")
+        parts.append(f"- **Type**: {memory.memory_type}")
+        parts.append(f"- **Observations**: {memory.observations}")
         parts.append("")
 
     return "\n".join(parts)
 
 
 @tool
-def instincts_remove(instinct_id: str, user_id: str = "default") -> str:
-    """Remove a learned instinct.
+def memory_remove(memory_id: str, user_id: str = "default") -> str:
+    """Remove a learned memory.
 
     Args:
-        instinct_id: The instinct ID to remove
+        memory_id: The memory ID to remove
         user_id: User identifier
 
     Returns:
         Confirmation message
     """
-    store = get_instincts_store(user_id)
-    removed = store.remove_instinct(instinct_id)
+    store = get_memory_store(user_id)
+    removed = store.remove_memory(memory_id)
 
     if removed:
-        logger.info("instinct.removed", {"instinct_id": instinct_id}, user_id=user_id)
-        return f"Removed instinct: {instinct_id}"
+        logger.info("memory.removed", {"memory_id": memory_id}, user_id=user_id)
+        return f"Removed memory: {memory_id}"
     else:
-        return f"Instinct not found: {instinct_id}"
+        return f"Memory not found: {memory_id}"
 
 
 @tool
-def instincts_search(
+def memory_search(
     query: str,
     method: str = "hybrid",
     limit: int = 10,
     user_id: str = "default",
 ) -> str:
-    """Search instincts using keyword, semantic, or hybrid search.
+    """Search memories using keyword, semantic, or hybrid search.
 
     Args:
         query: Search query
@@ -210,7 +242,7 @@ def instincts_search(
     Returns:
         Search results
     """
-    store = get_instincts_store(user_id)
+    store = get_memory_store(user_id)
 
     if method == "fts":
         results = store.search_fts(query, limit=limit)
@@ -223,7 +255,23 @@ def instincts_search(
         return f"No results found for: {query}"
 
     parts = [f"## Search Results for '{query}' ({method})"]
-    for instinct in results:
-        parts.append(f"- **{instinct.trigger}**: {instinct.action}")
+    for memory in results:
+        parts.append(f"- **{memory.trigger}**: {memory.action}")
 
     return "\n".join(parts)
+
+
+# Backward compatibility aliases
+instincts_list = memory_list
+instincts_remove = memory_remove
+instincts_search = memory_search
+
+__all__ = [
+    "profile_set",
+    "memory_list",
+    "memory_remove",
+    "memory_search",
+    "instincts_list",
+    "instincts_remove",
+    "instincts_search",
+]

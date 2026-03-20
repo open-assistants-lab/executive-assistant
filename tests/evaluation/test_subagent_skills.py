@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-HTTP_BASE_URL = os.environ.get("EVAL_HTTP_URL", "http://localhost:8000")
+HTTP_BASE_URL = os.environ.get("EVAL_HTTP_URL", "http://localhost:8080")
 
 
 @dataclass

@@ -34,7 +34,7 @@ def create_ollama_local_model(
 def create_ollama_cloud_model(
     model: str = "minimax-m2.5",
     api_key: str | None = None,
-    base_url: str = "https://ollama.com",
+    base_url: str | None = None,
     **kwargs: Any,
 ) -> BaseChatModel:
     """Create Ollama Cloud chat model.
@@ -47,8 +47,9 @@ def create_ollama_cloud_model(
     Returns:
         Initialized chat model
     """
-    api_key = api_key or os.environ.get("OLLAMA_API_KEY")
-    base_url = base_url or os.environ.get("OLLAMA_BASE_URL", "https://ollama.com")
+    api_key = api_key or os.environ.get("OLLAMA_API_KEY") or None
+    if base_url is None:
+        base_url = os.environ.get("OLLAMA_BASE_URL", "https://ollama.com")
 
     return init_chat_model(
         model=model, model_provider="ollama", api_key=api_key, base_url=base_url, **kwargs

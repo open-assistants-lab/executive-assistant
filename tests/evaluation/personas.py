@@ -412,37 +412,71 @@ def generate_test_queries(persona: dict, count: int = 10) -> list[str]:
     style = persona["style"]
 
     # Multi-step queries that cover many tools
+    # Covering ALL available tools in the system
+    # Including skills system for evaluation and benchmarking
     base_queries = [
-        # 1. Email + Contacts + Todos (5+ tools)
-        "Connect Gmail account, search emails from John, add him to contacts, create follow-up todo",
-        # 2. Email operations (3 tools)
-        "List my recent emails, search for meeting invites, read the latest one",
-        # 3. Email send + Contacts (2 tools)
-        "Find contact for Alice, send her an email about the project update",
+        # 1. Email operations (5 tools)
+        "Connect Gmail account test@gmail.com with password apppassword, list recent emails, search for meeting invites, read the latest one, send reply",
+        # 2. Email + Contacts + Todos (5+ tools)
+        "Search emails from John, add him to contacts, create follow-up todo, send email about follow-up",
+        # 3. Contacts CRUD (4 tools)
+        "List all contacts, add new contact bob@company.com with name Bob Smith, update his phone to 555-1234, delete old contact",
         # 4. Todos CRUD (4 tools)
-        "List all todos, add new todo for tomorrow, mark urgent ones, delete completed",
-        # 5. Files operations (5 tools)
-        "List files in directory, read README, write meeting notes, edit typos, delete temp files",
-        # 6. File search (2 tools)
-        "Find all Python files modified this week, grep for TODO comments",
-        # 7. Shell + Files (2 tools)
-        "Run python script to list files, save output to results.txt",
-        # 8. Memory + Todos (3 tools)
-        "Search conversation history for project discussions, create todos for action items",
-        # 9. Time + Todos (2 tools)
-        "Get current time, schedule a todo reminder for 2 hours from now",
-        # 10. Skills + Web (4 tools)
-        "List available skills, load SQL skill, search web for latest tech news, summarize findings",
-        # 11. Subagent operations (3 tools)
-        "Create a research subagent, invoke it to find info, schedule follow-up",
-        # 12. Contacts CRUD (4 tools)
-        "List contacts, add new contact Bob, update his email, delete old contact",
-        # 13. Web scraping (3 tools)
-        "Search web for AI news, scrape top article, map related pages",
-        # 14. Email sync + extract (2 tools)
-        "Sync my inbox, extract todos from recent emails",
-        # 15. Shell commands (2 tools)
-        "Check current directory, run date command",
+        "List all todos, add new todo for tomorrow meeting, mark urgent ones as high priority, delete completed todos",
+        # 5. Files operations - list, read, write, edit, delete (5 tools)
+        "List files in workspace, read config.yaml, write meeting notes to notes.txt, edit typos in notes, delete temp files",
+        # 6. Files extended - mkdir, rename, versions (4 tools)
+        "Create directory called testfolder in workspace, rename it to newfolder, list file versions, restore previous version",
+        # 7. File search (2 tools)
+        "Find all Python files using glob pattern, grep for TODO comments in source files",
+        # 8. Shell + Files (2 tools)
+        "Run python command to list current directory, save output to results.txt",
+        # 9. Memory + Todos (3 tools)
+        "Search conversation history for project discussions using memory, create todos for action items found",
+        # 10. Memory - list, remove (2 tools)
+        "List all saved memories, remove outdated memory about old project",
+        # 11. Time operations (1 tool)
+        "Get current time and date, also tell me time in Tokyo and New York",
+        # 12. Skills - List, Load, Create (4 tools) - EVAL & BENCHMARK
+        "List all available skills, load planning-with-files skill, load deep-research skill, create new skill called my-custom-skill with description for data analysis",
+        # 13. Skills - Trigger detection & Gated tools (3 tools) - EVAL & BENCHMARK
+        "Show skills about planning, load skill-creator, use sql_write_query to select all from users table",
+        # 14. Subagent create + invoke + list (4 tools)
+        "Create research subagent with skills planning-with-files, invoke it to find AI trends, check progress, list all subagents",
+        # 15. Subagent batch + schedule + cancel (4 tools)
+        "Run multiple subagents in parallel using batch, schedule daily reminder task, list scheduled jobs, cancel job",
+        # 16. Subagent validate + delete (2 tools)
+        "Validate research subagent configuration, delete old subagent that's no longer needed",
+        # 17. Web scraping (3 tools)
+        "Search web for Python tutorials, scrape example.com, map all links on homepage",
+        # 18. Web crawling + status (3 tools)
+        "Start crawl job for example.com with limit 5 pages, check crawl status, cancel if still running",
+        # 19. Email sync + extract (2 tools)
+        "Sync my inbox with new mode, extract todos from recent emails",
+        # 20. Email disconnect + accounts (2 tools)
+        "List all connected email accounts, disconnect old account",
+        # 21. App Builder - Create + Insert + Query (4 tools)
+        "Create library app with books table having title TEXT, author TEXT, description TEXT, insert 1984 by Orwell with description, query all books",
+        # 22. App Builder - Search (3 tools)
+        "Search library books using FTS for dystopia, search using semantic for romantic story, combine with hybrid search",
+        # 23. App Builder - Update + Delete + Column (4 tools)
+        "Update book description in library, add new column rating to books table, rename column to score, delete row from books",
+        # 24. MCP operations (3 tools)
+        "List available MCP servers, reload MCP configuration, list tools from MCP filesystem server",
+        # 25. Profile/Memory (2 tools)
+        "Set my profile: name is John, work as senior developer, prefer concise responses, interested in AI",
+        # 26. Vault operations (3 tools)
+        "Unlock vault with password secret123, add credential for Gmail with app password, list all credentials, lock vault",
+        # 27. Summarization middleware (test via long conversation)
+        "Summarize: "
+        + "reply " * 50
+        + " - trigger summarization by sending many messages to build up conversation history",
+        # 28. Memory get history + search (2 tools)
+        "Get conversation history from last 7 days, search memory for Python discussions",
+        # 29. Memory extraction
+        "Tell me: I prefer bullet points, use Python not Java, hate meetings, always test first - learn my preferences",
+        # 30. Edge cases - Error handling (10 edge cases)
+        "Try to connect with invalid email xyz123, search with empty query, delete non-existent file /tmp/nonexistent.txt, add contact with invalid email not-an-email, schedule for invalid date 2024-02-30, create subagent with invalid name @invalid!, invoke non-existent subagent, load skill that doesn't exist, query app that doesn't exist, search memory with special regex characters /*",
     ]
 
     # Apply persona style transformations
@@ -467,23 +501,33 @@ def generate_test_queries(persona: dict, count: int = 10) -> list[str]:
             return f"🌟 {q} 🌟" if idx % 2 == 0 else f"hey! {q.lower()} please!"
         elif style == "minimal":
             words = {
-                0: "email + contacts + todos",
-                1: "email list/search/read",
-                2: "contacts + send email",
+                0: "email connect/list/search/read/reply",
+                1: "email + contacts + todos",
+                2: "contacts CRUD",
                 3: "todos CRUD",
                 4: "files list/read/write/edit/delete",
-                5: "file search glob/grep",
+                5: "file glob + grep",
                 6: "shell + files",
                 7: "memory + todos",
-                8: "time + todos",
-                9: "skills + web",
-                10: "subagent create/invoke/schedule",
-                11: "contacts CRUD",
-                12: "web scrape/search",
-                13: "email sync + extract",
-                14: "shell commands",
+                8: "time get",
+                9: "skills list/load/create - EVAL",
+                10: "skills trigger + gated - EVAL",
+                11: "subagent create/invoke/progress",
+                12: "subagent batch/schedule/cancel",
+                13: "web scrape/search/map",
+                14: "email sync + extract",
+                15: "app create/insert/query",
+                16: "app FTS/semantic/hybrid search",
+                17: "memory history + search",
+                18: "MCP list/reload/tools",
+                19: "profile set",
+                20: "subagent validate/delete",
+                21: "telegram send message/file",
+                22: "email accounts + disconnect",
+                23: "app update/delete column",
+                24: "edge cases - error handling",
             }
-            return words.get(idx % 15, "task")
+            return words.get(idx % 25, "task")
         elif style == "technical":
             return f"execute {q} with default params"
         elif style == "uncertain":

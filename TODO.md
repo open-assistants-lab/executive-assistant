@@ -97,6 +97,12 @@ Tracking implementation progress for the Executive Assistant agent.
 - [ ] Add: `uv` / `pip` - Python package management
 - [ ] Add: `curl` / `wget` - HTTP requests
 
+### Summarization Fix (2026-03-18)
+- [x] Fix duplicate summarization in single cycle
+- [x] Detect failure messages ("too long to summarize")
+- [x] Prevent message deletion on summarization failure
+- [x] Log failure reasons in middleware
+
 ### Time Tool
 - [x] time_get - get current time with timezone support
 

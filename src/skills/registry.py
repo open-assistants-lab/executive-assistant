@@ -50,6 +50,10 @@ class SkillRegistry:
         user = self._load_user_skills()
         return system + user
 
+    def get_system_skills(self) -> list[Skill]:
+        """Get system skills only."""
+        return self._load_system_skills()
+
     def get_skill(self, skill_name: str) -> Skill | None:
         """Get a specific skill by name.
 

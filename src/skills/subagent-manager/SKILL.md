@@ -106,13 +106,19 @@ Always include `planning-with-files` for tasks with multiple steps.
 When creating a subagent, you can assign these tools:
 
 **File Operations:**
-- `list_files`: List files in a directory
+- `files_list`: List files in a directory
 - `files_read`: Read file content
 - `files_write`: Write content to a file
-- `edit_file`: Edit a file
-- `delete_file`: Delete a file
+- `files_edit`: Edit a file
+- `files_delete`: Delete a file
+- `files_mkdir`: Create a directory
+- `files_rename`: Rename a file or directory
 - `files_glob_search`: Search files by pattern
 - `files_grep_search`: Search file contents
+- `files_versions_list`: List file versions
+- `files_versions_restore`: Restore file version
+- `files_versions_delete`: Delete file version
+- `files_versions_clean`: Clean up old versions
 
 **Web:**
 - `search_web`: Search the web

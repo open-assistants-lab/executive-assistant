@@ -62,7 +62,7 @@ def _resolve_path(path: str | None, user_id: str) -> Path:
 
 
 @tool
-def list_files(path: str = ".", user_id: str = "default") -> str:
+def files_list(path: str = ".", user_id: str = "default") -> str:
     """List files in a directory.
 
     Args:
@@ -92,7 +92,7 @@ def list_files(path: str = ".", user_id: str = "default") -> str:
 
         return "\n".join(["", *items, ""])
     except Exception as e:
-        logger.error("list_files.error", {"path": path, "error": str(e)}, user_id=user_id)
+        logger.error("files_list.error", {"path": path, "error": str(e)}, user_id=user_id)
         return f"Error: {e}"
 
 
@@ -144,6 +144,23 @@ def files_write(path: str, content: str, user_id: str = "default") -> str:
     """
     try:
         target = _resolve_path(path, user_id)
+
+        # Capture version before overwriting - check if file exists first
+        old_content = None
+        if target.exists() and target.is_file():
+            old_content = target.read_text(encoding="utf-8")
+            if old_content != content:
+                try:
+                    from src.tools.versioning import capture_version as _capture_version
+
+                    _capture_version(user_id, path, content)
+                except Exception as e:
+                    logger.error(
+                        "version_check_error", {"path": path, "error": str(e)}, user_id=user_id
+                    )
+        elif target.exists() and target.is_dir():
+            return f"Cannot write to directory: {path}"
+
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
 
@@ -155,7 +172,7 @@ def files_write(path: str, content: str, user_id: str = "default") -> str:
 
 
 @tool
-def edit_file(path: str, old: str, new: str, user_id: str = "default") -> str:
+def files_edit(path: str, old: str, new: str, user_id: str = "default") -> str:
     """Edit a file by replacing text.
 
     Args:
@@ -173,23 +190,31 @@ def edit_file(path: str, old: str, new: str, user_id: str = "default") -> str:
         if not target.exists():
             return f"File not found: {path}"
 
+        if not target.is_file():
+            return f"Not a file: {path}"
+
         content = target.read_text(encoding="utf-8")
 
         if old not in content:
             return f"Text not found in file: {old[:50]}..."
 
         new_content = content.replace(old, new)
+
+        from src.tools.versioning import capture_version
+
+        capture_version(user_id, path, new_content)
+
         target.write_text(new_content, encoding="utf-8")
 
-        logger.info("edit_file", {"path": str(target)}, user_id=user_id)
+        logger.info("files_edit", {"path": str(target)}, user_id=user_id)
         return f"Edited {path}"
     except Exception as e:
-        logger.error("edit_file.error", {"path": path, "error": str(e)}, user_id=user_id)
+        logger.error("files_edit.error", {"path": path, "error": str(e)}, user_id=user_id)
         return f"Error: {e}"
 
 
 @tool
-def delete_file(path: str, user_id: str = "default") -> str:
+def files_delete(path: str, user_id: str = "default") -> str:
     """Delete a file.
 
     NOTE: This tool requires human approval before execution.
@@ -214,8 +239,70 @@ def delete_file(path: str, user_id: str = "default") -> str:
         else:
             target.unlink()
 
-        logger.info("delete_file", {"path": str(target)}, user_id=user_id)
+        logger.info("files_delete", {"path": str(target)}, user_id=user_id)
         return f"Deleted {path}"
     except Exception as e:
-        logger.error("delete_file.error", {"path": path, "error": str(e)}, user_id=user_id)
+        logger.error("files_delete.error", {"path": path, "error": str(e)}, user_id=user_id)
+        return f"Error: {e}"
+
+
+@tool
+def files_mkdir(path: str, user_id: str = "default") -> str:
+    """Create a directory.
+
+    Args:
+        path: Directory path relative to user files
+        user_id: User identifier
+
+    Returns:
+        Success or error message
+    """
+    try:
+        target = _resolve_path(path, user_id)
+
+        if target.exists():
+            return f"Path already exists: {path}"
+
+        target.mkdir(parents=True, exist_ok=True)
+
+        logger.info("files_mkdir", {"path": str(target)}, user_id=user_id)
+        return f"Created directory: {path}"
+    except Exception as e:
+        logger.error("files_mkdir.error", {"path": path, "error": str(e)}, user_id=user_id)
+        return f"Error: {e}"
+
+
+@tool
+def files_rename(path: str, new_name: str, user_id: str = "default") -> str:
+    """Rename a file or directory.
+
+    Args:
+        path: Current path relative to user files
+        new_name: New name for the file or directory
+        user_id: User identifier
+
+    Returns:
+        Success or error message
+    """
+    try:
+        target = _resolve_path(path, user_id)
+
+        if not target.exists():
+            return f"Path not found: {path}"
+
+        new_path = target.parent / new_name
+
+        if new_path.exists():
+            return f"Name already exists: {new_name}"
+
+        target.rename(new_path)
+
+        logger.info("files_rename", {"old": str(target), "new": str(new_path)}, user_id=user_id)
+        return f"Renamed {path} to {new_name}"
+    except Exception as e:
+        logger.error(
+            "files_rename.error",
+            {"path": path, "new_name": new_name, "error": str(e)},
+            user_id=user_id,
+        )
         return f"Error: {e}"

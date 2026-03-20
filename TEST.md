@@ -315,6 +315,9 @@ Note: Todo Tool is for AGENT task planning, NOT user task management
 | 8.2 | Summarization | Trigger | ~10000 tokens | Summarizes |
 | 8.3 | Summarization | Keep messages | After summarize | 10 kept |
 | 8.4 | Summarization | Quality | Check summary | Coherent |
+| 8.5 | Summarization | Failure detection | LLM returns "too long to summarize" | Prevents message deletion |
+| 8.6 | Summarization | Duplicate prevention | Multiple model calls in cycle | Skips duplicate |
+| 8.7 | Summarization | Failure logging | Check logs | Logs failure reasons |
 
 | 9.1 | TodoList Middleware | **PENDING COMPARISON** | See TodoList vs write_todos comparison below |
 
@@ -851,7 +854,61 @@ review-agent → workspace/review_report.md + planning/review/*
 
 ---
 
-Last updated: 2026-03-11
+---
+
+## Summarization Fix Tests (2026-03-18)
+
+### Problem
+Summarization middleware was being triggered multiple times per cycle, causing:
+1. Duplicate summaries being saved
+2. 96-character "too long to summarize" failure messages being stored
+3. Infinite loop when summarization LLM fails
+
+### Solution
+1. **Detect failure BEFORE applying changes**: Check if summary contains failure messages
+2. **Return None on failure**: Prevents LangChain from applying RemoveMessage
+3. **Message count guard**: Track last summarized message count to prevent duplicates in same cycle
+4. **Log failure reasons**: For debugging
+
+### Implementation
+```python
+# In src/agents/middleware/summarization.py
+- Check for "too long to summarize", "failed to summarize", "cannot summarize"
+- Also check for summary < 200 chars (too short = likely failure)
+- If failure detected, return None (don't apply summarization)
+- Log failure reasons to "summarization.middleware.failed"
+```
+
+### Test Results
+
+| # | Test | Status |
+|---|------|--------|
+| 1 | Normal summarization | ✅ 1000+ char summaries |
+| 2 | Duplicate prevention | ✅ Skips in same cycle |
+| 3 | Failure detection | ✅ Blocks "too long to summarize" |
+| 4 | Failure logging | ✅ Logs to "summarization.middleware.failed" |
+| 5 | No message deletion on failure | ✅ Preserves original messages |
+
+### Log Events
+
+| Event | Description |
+|-------|-------------|
+| `summarization.callback.invoking` | Summary saved successfully |
+| `summarization.middleware.failed` | Failure detected, message preserved |
+| `summarization.middleware.skipped` | Duplicate in same cycle (if applicable) |
+
+### Example Failure Log
+```json
+{
+  "event": "summarization.middleware.failed",
+  "data": {
+    "failure_reasons": ["content_too_long_for_summary"],
+    "summary_preview": "Here is a summary of the conversation to date:\n\nPrevious conversation was too long to summarize."
+  }
+}
+```
+
+Last updated: 2026-03-18
 
 ---
 

@@ -13,7 +13,7 @@ from langchain_core.messages import AIMessage
 
 from tests.evaluation.personas import PERSONAS, generate_test_queries
 
-HTTP_BASE_URL = os.environ.get("EVAL_HTTP_URL", "http://localhost:8000")
+HTTP_BASE_URL = os.environ.get("EVAL_HTTP_URL", "http://localhost:8080")
 
 
 async def call_agent_via_http(user_id: str, message: str, messages: list) -> dict:
@@ -32,12 +32,17 @@ async def call_agent_via_http(user_id: str, message: str, messages: list) -> dic
                 text = await resp.text()
                 raise Exception(f"HTTP {resp.status}: {text}")
             data = await resp.json()
+
+            response_text = data.get("response", "")
+            error_text = data.get("error", "")
+
             return {
-                "response": data.get("response", ""),
-                "messages": [AIMessage(content=data.get("response", ""))],
+                "response": response_text if not error_text else f"ERROR: {error_text}",
+                "messages": [AIMessage(content=response_text)],
                 "response_time_ms": response_time_ms,
                 "tool_calls": data.get("tool_calls", []),
                 "tokens": data.get("tokens", 0),
+                "raw_error": error_text,
             }
 
 
@@ -103,9 +108,13 @@ class AgentEvaluator:
         persona: dict,
         query: str,
         run_agent_fn,
+        verbose: bool = False,
     ) -> InteractionResult:
         """Run a single interaction with the agent via HTTP."""
         start_time = time.time()
+
+        if verbose:
+            print(f"  → Query: {query[:80]}...")
 
         try:
             result = await call_agent_via_http(
@@ -154,6 +163,7 @@ class AgentEvaluator:
         persona: dict,
         num_interactions: int,
         run_agent_fn,
+        verbose: bool = False,
     ) -> PersonaEvaluationResult:
         """Evaluate agent with a specific persona."""
         queries = generate_test_queries(persona, num_interactions)
@@ -170,7 +180,9 @@ class AgentEvaluator:
         for i, query in enumerate(queries):
             print(f"  [{i + 1}/{num_interactions}] {query[:50]}...")
 
-            result = await self.run_single_interaction(persona, query, run_agent_fn)
+            result = await self.run_single_interaction(
+                persona, query, run_agent_fn, verbose=verbose
+            )
             interactions.append(result)
 
             total_tool_calls += result.tool_call_count
@@ -236,12 +248,15 @@ class AgentEvaluator:
         self,
         num_interactions: int = 100,
         persona_ids: list[str] | None = None,
+        verbose: bool = False,
     ) -> list[PersonaEvaluationResult]:
         """Run evaluation across all or selected personas via HTTP."""
         if persona_ids:
             personas = [p for p in PERSONAS if p["id"] in persona_ids]
         else:
             personas = PERSONAS
+
+        print(f"Found {len(personas)} personas to evaluate")
 
         results = []
 
@@ -250,10 +265,20 @@ class AgentEvaluator:
             print(f"Evaluating: {persona['name']} ({persona['style']})")
             print(f"{'=' * 60}")
 
-            result = await self.evaluate_persona(persona, num_interactions, None)
-            results.append(result)
+            try:
+                result = await self.evaluate_persona(
+                    persona, num_interactions, None, verbose=verbose
+                )
+                print(
+                    f"Completed {persona['name']} - Success: {result.successful_interactions}/{result.total_interactions}"
+                )
+                results.append(result)
+                self._save_result(result)
+            except Exception as e:
+                print(f"ERROR evaluating {persona['name']}: {e}")
+                import traceback
 
-            self._save_result(result)
+                traceback.print_exc()
 
         return results
 
@@ -381,24 +406,64 @@ async def main():
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--interactions", type=int, default=200, help="Interactions per persona")
-    parser.add_argument("--personas", type=str, help="Comma-separated persona IDs (e.g., p1,p2)")
+    parser.add_argument("--interactions", type=int, default=100, help="Interactions per persona")
+    parser.add_argument(
+        "--personas", type=str, help="Comma-separated persona IDs (e.g., p1,p2) or 'all'"
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        default="data/evaluations",
+        help="Output directory for evaluation results",
+    )
+    parser.add_argument(
+        "--user-id",
+        type=str,
+        default="eval_user",
+        help="User ID for evaluation",
+    )
+    parser.add_argument(
+        "--http-url",
+        type=str,
+        default=os.environ.get("EVAL_HTTP_URL", "http://localhost:8080"),
+        help="HTTP server URL",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print detailed output for each interaction",
+    )
+    parser.add_argument(
+        "--save-responses",
+        action="store_true",
+        help="Save all responses to JSON file",
+    )
     args = parser.parse_args()
 
-    persona_ids = args.personas.split(",") if args.personas else None
+    # Handle "all" or empty personas
+    if args.personas and args.personas.lower() == "all":
+        persona_ids = None  # Will use all PERSONAS
+    else:
+        persona_ids = args.personas.split(",") if args.personas else None
 
-    print("Starting persona evaluation via HTTP...")
-    print(f"HTTP URL: {HTTP_BASE_URL}")
+    print("=" * 80)
+    print("EXECUTIVE ASSISTANT - PERSONA EVALUATION")
+    print("=" * 80)
+    print(f"HTTP URL: {args.http_url}")
     print(f"Personas: {len(PERSONAS)}")
     print(f"Interactions per persona: {args.interactions}")
     print(f"Total: {len(PERSONAS) * args.interactions} interactions")
+    print(f"User ID: {args.user_id}")
+    print(f"Output: {args.output}")
+    print("=" * 80)
     print("")
 
-    evaluator = AgentEvaluator(user_id="eval_user")
+    evaluator = AgentEvaluator(user_id=args.user_id, output_dir=args.output)
 
     results = await evaluator.run_evaluation(
         num_interactions=args.interactions,
         persona_ids=persona_ids,
+        verbose=args.verbose,
     )
 
     report = evaluator.generate_summary_report(results)
@@ -408,6 +473,31 @@ async def main():
     with open(summary_path, "w") as f:
         f.write(report)
     print(f"\nSummary saved to {summary_path}")
+
+    if args.save_responses:
+        import json
+
+        responses_path = (
+            evaluator.output_dir / f"responses_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        )
+        all_data = []
+        for r in results:
+            for i in r.interactions:
+                all_data.append(
+                    {
+                        "persona_id": i.persona_id,
+                        "query": i.query,
+                        "response": i.response,
+                        "success": i.success,
+                        "tool_calls": i.tool_calls,
+                        "tool_call_count": i.tool_call_count,
+                        "response_time_ms": i.response_time_ms,
+                        "error": i.error,
+                    }
+                )
+        with open(responses_path, "w") as f:
+            json.dump(all_data, f, indent=2)
+        print(f"Responses saved to {responses_path}")
 
 
 if __name__ == "__main__":

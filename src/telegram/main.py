@@ -143,10 +143,10 @@ async def handle_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             await update.message.reply_text(f"✅ {result}")
             return
 
-        if tool_name == "delete_file":
-            from src.tools.filesystem import delete_file
+        if tool_name == "files_delete":
+            from src.tools.filesystem import files_delete
 
-            result = delete_file.invoke(tool_args)
+            result = files_delete.invoke(tool_args)
             await update.message.reply_text(f"✅ {result}")
             return
 

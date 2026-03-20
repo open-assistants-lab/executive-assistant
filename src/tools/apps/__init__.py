@@ -12,8 +12,8 @@ from src.tools.apps.tools import (
     app_query,
     app_schema,
     app_search_fts,
-    app_search_semantic,
     app_search_hybrid,
+    app_search_semantic,
     app_update,
 )
 

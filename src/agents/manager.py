@@ -116,7 +116,10 @@ class AgentPool:
 
     def get_config(self, instance: AgentInstance) -> dict[str, Any]:
         """Get LangGraph config for an agent instance."""
-        return {"configurable": {"thread_id": instance.thread_id}}
+        return {
+            "configurable": {"thread_id": instance.thread_id},
+            "recursion_limit": 1000,
+        }
 
 
 async def get_agent_pool(user_id: str) -> AgentPool:
@@ -267,11 +270,19 @@ def get_default_tools(user_id: str) -> list[Any]:
     )
     from src.tools.file_search import files_glob_search, files_grep_search
     from src.tools.filesystem import (
-        delete_file,
-        edit_file,
+        files_delete,
+        files_edit,
+        files_list,
+        files_mkdir,
         files_read,
+        files_rename,
         files_write,
-        list_files,
+    )
+    from src.tools.versioning import (
+        files_versions_clean,
+        files_versions_delete,
+        files_versions_list,
+        files_versions_restore,
     )
     from src.tools.firecrawl import (
         cancel_crawl,
@@ -296,11 +307,17 @@ def get_default_tools(user_id: str) -> list[Any]:
     return [
         memory_get_history,
         memory_search,
-        list_files,
+        files_list,
         files_read,
         files_write,
-        edit_file,
-        delete_file,
+        files_edit,
+        files_mkdir,
+        files_rename,
+        files_delete,
+        files_versions_list,
+        files_versions_restore,
+        files_versions_delete,
+        files_versions_clean,
         files_glob_search,
         files_grep_search,
         shell_execute,
