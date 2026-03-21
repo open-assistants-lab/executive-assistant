@@ -14,7 +14,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage
 from langfuse import propagate_attributes
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import Any
 
 from src.agents.manager import run_agent, run_agent_stream
 from src.storage.messages import get_conversation_store
@@ -34,6 +35,9 @@ class MessageResponse(BaseModel):
     response: str
     error: str | None = None
     verbose_data: dict | None = None  # Additional info when verbose=True
+    tool_calls: list[dict[str, Any]] | None = Field(
+        default=None
+    )  # Only populated when verbose=True
 
 
 @asynccontextmanager
@@ -365,6 +369,10 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
 
         messages = result.get("messages", [])
 
+        # Debug: log message types
+        msg_types = [getattr(m, "type", None) for m in messages]
+        logger.debug("http.messages_types", {"types": msg_types}, user_id=user_id)
+
         tool_results = []
 
         # Save tool messages to DB
@@ -380,6 +388,30 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
                     tool_metadata = {"tool_name": tool_name, "tool_call_id": tool_call_id}
                     conversation.add_message("tool", str(content), metadata=tool_metadata)
 
+        # Extract tool_calls from tool results since LangChain may not populate tool_calls properly
+        tool_calls_list = []
+        for msg in messages:
+            msg_type = getattr(msg, "type", None)
+            if msg_type == "tool":
+                tool_name = getattr(msg, "name", "unknown")
+                tool_call_id = getattr(msg, "tool_call_id", "")
+                tool_calls_list.append(
+                    {
+                        "name": tool_name,
+                        "tool_call_id": tool_call_id,
+                        "id": tool_call_id,
+                    }
+                )
+
+        # Deduplicate by tool_call_id
+        seen_ids = set()
+        unique_tool_calls = []
+        for tc in tool_calls_list:
+            if tc["tool_call_id"] not in seen_ids:
+                seen_ids.add(tc["tool_call_id"])
+                unique_tool_calls.append(tc)
+        tool_calls_list = unique_tool_calls
+
         for msg in reversed(messages):
             msg_type = getattr(msg, "type", None)
             content = getattr(msg, "content", None)
@@ -389,13 +421,8 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
                     response = content
                     break
                 # Only use tool results if AI has no content
-                tool_calls = getattr(msg, "tool_calls", None)
-                if tool_calls and tool_results:
+                if tool_results:
                     response = "\n".join(tool_results)
-                    break
-                if tool_calls:
-                    tool_names = [tc.get("name", "unknown") for tc in tool_calls]
-                    response = f"Tool(s) executed: {', '.join(tool_names)}"
                     break
 
             if not response:
@@ -427,7 +454,11 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
             channel="http",
         )
 
-        return MessageResponse(response=response, verbose_data=verbose_data)
+        return MessageResponse(
+            response=response,
+            verbose_data=verbose_data,
+            tool_calls=tool_calls_list if req.verbose else None,
+        )
 
     except Exception as e:
         import traceback

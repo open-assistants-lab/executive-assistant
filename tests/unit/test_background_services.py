@@ -1,9 +1,6 @@
 """Unit tests for background services (email sync)."""
 
-import asyncio
-import tempfile
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -15,7 +12,6 @@ class TestEmailSync:
     async def test_sync_all_accounts_empty(self):
         """Test syncing with no accounts."""
         from src.tools.email.sync import _sync_all_accounts
-        from src.tools.email.sync import _load_accounts
 
         with patch("src.tools.email.sync._load_accounts") as mock_load:
             with patch("src.tools.email.sync._sync_emails") as mock_sync:

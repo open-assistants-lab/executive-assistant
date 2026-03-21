@@ -8,7 +8,6 @@ from src.app_logging import get_logger
 from src.storage.memory import (
     DEFAULT_CONFIDENCE,
     MEMORY_TYPE_FACT,
-    MEMORY_TYPE_PREFERENCE,
     SOURCE_EXPLICIT,
     get_memory_store,
 )

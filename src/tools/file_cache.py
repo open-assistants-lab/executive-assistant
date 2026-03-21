@@ -1,7 +1,7 @@
 """File cache tracking for sync status."""
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -33,14 +33,14 @@ class FileCache:
     def mark_downloaded(self, path: str) -> None:
         self._cache[path] = {
             "status": "downloaded",
-            "downloaded_at": datetime.now(timezone.utc).isoformat(),
+            "downloaded_at": datetime.now(UTC).isoformat(),
         }
         self._save()
 
     def mark_pinned(self, path: str) -> None:
         self._cache[path] = {
             "status": "pinned",
-            "pinned_at": datetime.now(timezone.utc).isoformat(),
+            "pinned_at": datetime.now(UTC).isoformat(),
         }
         self._save()
 
@@ -79,7 +79,7 @@ class FileCache:
         if last_synced is None or existing.get("server_modified") != server_modified:
             self._cache[path] = {
                 "status": "downloaded",
-                "synced_at": datetime.now(timezone.utc).isoformat(),
+                "synced_at": datetime.now(UTC).isoformat(),
                 "server_modified": server_modified,
             }
             self._save()

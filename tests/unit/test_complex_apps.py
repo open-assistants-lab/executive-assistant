@@ -1,9 +1,9 @@
 """Tests for complex multi-table app use cases."""
 
-import pytest
 import shutil
 from pathlib import Path
 
+import pytest
 
 TEST_USER_ID = "test_complex_user"
 
@@ -860,9 +860,12 @@ class TestMultiTableCRUD:
         """,
         )
 
-        assert len(results) == 1
-        assert results[0]["name"] == "Alice"
-        assert results[0]["product"] == "Widget"
+        assert len(results) == 1, f"Expected 1 result, got {len(results)}"
+        assert results[0]["name"] == "Alice", f"Expected name 'Alice', got {results[0]['name']}"
+        assert results[0]["product"] == "Widget", (
+            f"Expected product 'Widget', got {results[0]['product']}"
+        )
+        assert results[0]["quantity"] == 2, f"Expected quantity 2, got {results[0]['quantity']}"
 
     def test_aggregation_queries(self, storage):
         """Test aggregation queries."""

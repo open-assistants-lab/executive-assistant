@@ -9,7 +9,7 @@ from typing import Any
 from langchain_core.language_models import BaseChatModel
 
 from src.agents.factory import get_agent_factory
-from src.agents.messages_manager import MessageManager, get_message_manager
+from src.agents.messages_manager import get_message_manager
 from src.app_logging import get_logger
 from src.config import get_settings
 from src.llm import create_model_from_config
@@ -278,12 +278,6 @@ def get_default_tools(user_id: str) -> list[Any]:
         files_rename,
         files_write,
     )
-    from src.tools.versioning import (
-        files_versions_clean,
-        files_versions_delete,
-        files_versions_list,
-        files_versions_restore,
-    )
     from src.tools.firecrawl import (
         cancel_crawl,
         crawl_url,
@@ -302,6 +296,12 @@ def get_default_tools(user_id: str) -> list[Any]:
         todos_extract,
         todos_list,
         todos_update,
+    )
+    from src.tools.versioning import (
+        files_versions_clean,
+        files_versions_delete,
+        files_versions_list,
+        files_versions_restore,
     )
 
     return [

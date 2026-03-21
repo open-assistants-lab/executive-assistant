@@ -1,8 +1,6 @@
 """Tests for config module."""
 
 import os
-import pytest
-from pydantic import ValidationError
 
 
 class TestConfigValidation:

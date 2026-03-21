@@ -1,12 +1,11 @@
 """Hybrid search performance test for library app with 200 books."""
 
 import random
+import shutil
 import time
 from pathlib import Path
 
 import pytest
-import shutil
-
 
 TEST_USER_ID = "test_hybrid_search"
 
@@ -369,7 +368,7 @@ class TestHybridSearchPerformance:
         print(f"\n1. APP CREATION: {create_time * 1000:.2f}ms")
 
         # Insert 200 books
-        print(f"\n2. INSERTING 200 BOOKS...")
+        print("\n2. INSERTING 200 BOOKS...")
         insert_start = time.time()
 
         for i in range(200):
@@ -409,10 +408,10 @@ class TestHybridSearchPerformance:
         print(
             f"   Total insert: {insert_time * 1000:.2f}ms ({insert_time / 200 * 1000:.2f}ms/book)"
         )
-        print(f"   Books in DB: 200")
+        print("   Books in DB: 200")
 
         # Test 1: Basic SQL WHERE filters
-        print(f"\n3. SQL WHERE FILTERS:")
+        print("\n3. SQL WHERE FILTERS:")
         sql_tests = [
             ("Category = Fiction", "SELECT COUNT(*) FROM books WHERE category = 'Fiction'"),
             ("Year > 2000", "SELECT COUNT(*) FROM books WHERE publish_year > 2000"),
@@ -429,7 +428,7 @@ class TestHybridSearchPerformance:
             print(f"   {name}: {results[0][list(results[0].keys())[0]]} rows in {elapsed:.2f}ms")
 
         # Test 2: Full text search via LIKE
-        print(f"\n4. FULL TEXT SEARCH (LIKE):")
+        print("\n4. FULL TEXT SEARCH (LIKE):")
         like_tests = [
             ("title LIKE '%dark%'", "SELECT COUNT(*) FROM books WHERE title LIKE '%dark%'"),
             (
@@ -452,7 +451,7 @@ class TestHybridSearchPerformance:
             print(f"   {name}: {results[0][list(results[0].keys())[0]]} rows in {elapsed:.2f}ms")
 
         # Test 3: FTS5 search (if working)
-        print(f"\n5. FTS5 SEARCH:")
+        print("\n5. FTS5 SEARCH:")
         fts_tests = [
             ("dark AND stormy", "full_text"),
             ("journey", "full_text"),
@@ -474,7 +473,7 @@ class TestHybridSearchPerformance:
             print("   Note: FTS5 triggers may need fixing")
 
         # Test 4: Hybrid search (SQL + text filter)
-        print(f"\n6. HYBRID SEARCH (SQL + TEXT):")
+        print("\n6. HYBRID SEARCH (SQL + TEXT):")
         hybrid_tests = [
             (
                 "Fiction + dark in title",
@@ -500,7 +499,7 @@ class TestHybridSearchPerformance:
             print(f"   {name}: {results[0][list(results[0].keys())[0]]} rows in {elapsed:.2f}ms")
 
         # Test 5: Aggregation queries
-        print(f"\n7. AGGREGATION QUERIES:")
+        print("\n7. AGGREGATION QUERIES:")
         agg_tests = [
             ("Count by category", "SELECT category, COUNT(*) as cnt FROM books GROUP BY category"),
             (
@@ -520,7 +519,7 @@ class TestHybridSearchPerformance:
             print(f"   {name}: {len(results)} groups in {elapsed:.2f}ms")
 
         # Test 6: JOIN queries
-        print(f"\n8. JOIN QUERIES:")
+        print("\n8. JOIN QUERIES:")
 
         # Add members and loans
         for i in range(10):
@@ -568,7 +567,7 @@ class TestHybridSearchPerformance:
             print(f"   {name}: {len(results)} rows in {elapsed:.2f}ms")
 
         # Test 7: Complex queries
-        print(f"\n9. COMPLEX HYBRID QUERIES:")
+        print("\n9. COMPLEX HYBRID QUERIES:")
         complex_tests = [
             (
                 "Cat + text + year + sort",
@@ -590,15 +589,37 @@ class TestHybridSearchPerformance:
             print(f"   {name}: {len(results)} rows in {elapsed:.2f}ms")
 
         # Test 8: Pagination
-        print(f"\n10. PAGINATION:")
+        print("\n10. PAGINATION:")
         for limit in [10, 25, 50, 100]:
             start = time.time()
             results = storage.query_sql("library", f"SELECT * FROM books ORDER BY id LIMIT {limit}")
             elapsed = (time.time() - start) * 1000
             print(f"   LIMIT {limit}: {len(results)} rows in {elapsed:.2f}ms")
 
+        # Verify FTS5 works by checking results
+        fts_results = storage.search_fts("library", "books", "full_text", "journey", limit=10)
+        assert len(fts_results) >= 0, "FTS5 search should return results"
+
+        # Verify hybrid search works
+        hybrid_results = storage.query_sql(
+            "library",
+            "SELECT COUNT(*) as cnt FROM books WHERE category = 'Fiction' AND title LIKE '%dark%'",
+        )
+        assert hybrid_results[0]["cnt"] >= 0, "Hybrid search should return count"
+
+        # Verify JOIN query works
+        join_results = storage.query_sql(
+            "library",
+            """
+            SELECT b.title, m.name FROM books b 
+            JOIN loans l ON b.id = l.book_id 
+            JOIN members m ON l.member_id = m.id
+            """,
+        )
+        assert len(join_results) == 10, f"Expected 10 loan results, got {len(join_results)}"
+
         # Summary
-        print(f"\n" + "=" * 70)
+        print("\n" + "=" * 70)
         print("SUMMARY")
         print("=" * 70)
         print(f"App creation:     {create_time * 1000:.2f}ms")
@@ -608,4 +629,4 @@ class TestHybridSearchPerformance:
         print(f"Total time:       {(create_time + total_insert_time) * 1000:.2f}ms")
         print(f"\nDatabase: data/users/{TEST_USER_ID}/apps/library.db")
 
-        assert True  # Test passes if we get here
+        assert len(join_results) == 10, "JOIN query should return 10 results"

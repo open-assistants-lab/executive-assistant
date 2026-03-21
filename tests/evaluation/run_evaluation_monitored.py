@@ -4,11 +4,9 @@
 import asyncio
 import json
 import os
-import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from threading import Thread
 
 import aiohttp
 
@@ -137,7 +135,7 @@ async def run_single_interaction(
                 "response_time_ms": response_time_ms,
                 "tool_calls": len(data.get("tool_calls", [])),
             }
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return {
             "success": False,
             "error": "Timeout",
@@ -194,7 +192,7 @@ async def run_persona_evaluation(
 
 def generate_test_queries():
     """Generate test queries that cover all tools."""
-    from tests.evaluation.personas import generate_test_queries, PERSONAS
+    from tests.evaluation.personas import PERSONAS, generate_test_queries
 
     all_queries = {}
     for persona in PERSONAS:

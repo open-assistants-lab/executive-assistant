@@ -361,8 +361,8 @@ PERSONAS = [
 ]
 
 
-# Test cases mapping: 10 test cases per persona, covering ALL tools
-# Tool coverage: 20+ tools across all test cases
+# Test cases mapping: 100 test cases per persona, covering ALL tools and middleware
+# Tool coverage: 45+ tools across all test cases
 TEST_CASES = {
     # Test case index -> (query, tools_expected)
     1: ("Connect my Gmail account with password test123", ["email_connect"]),
@@ -375,6 +375,16 @@ TEST_CASES = {
     8: ("Add a new todo for meeting tomorrow", ["todos_add"]),
     9: ("List files in my directory", ["files_list"]),
     10: ("Read the README.txt file", ["files_read"]),
+    11: ("Write a new note with content", ["files_write"]),
+    12: ("Edit the note to fix a typo", ["files_edit"]),
+    13: ("Create a new folder called projects", ["files_mkdir"]),
+    14: ("Rename folder projects to myprojects", ["files_rename"]),
+    15: ("Delete the old notes file", ["files_delete"]),
+    16: ("Find all Python files in workspace", ["files_glob_search"]),
+    17: ("Search for TODO comments in files", ["files_grep_search"]),
+    18: ("Run echo hello command", ["shell_execute"]),
+    19: ("Get current time", ["time_get"]),
+    20: ("List all skills available", ["skills_list"]),
 }
 
 
@@ -411,72 +421,130 @@ def generate_test_queries(persona: dict, count: int = 10) -> list[str]:
     """
     style = persona["style"]
 
-    # Multi-step queries that cover many tools
-    # Covering ALL available tools in the system
-    # Including skills system for evaluation and benchmarking
+    # 100 queries covering ALL features, tools, and middleware
+    # Each query may trigger multiple tools
+    # Middleware: SkillMiddleware, SummarizationMiddleware, HumanInTheLoopMiddleware, MemoryMiddleware
     base_queries = [
-        # 1. Email operations (5 tools)
-        "Connect Gmail account test@gmail.com with password apppassword, list recent emails, search for meeting invites, read the latest one, send reply",
-        # 2. Email + Contacts + Todos (5+ tools)
-        "Search emails from John, add him to contacts, create follow-up todo, send email about follow-up",
-        # 3. Contacts CRUD (4 tools)
-        "List all contacts, add new contact bob@company.com with name Bob Smith, update his phone to 555-1234, delete old contact",
-        # 4. Todos CRUD (4 tools)
-        "List all todos, add new todo for tomorrow meeting, mark urgent ones as high priority, delete completed todos",
-        # 5. Files operations - list, read, write, edit, delete (5 tools)
-        "List files in workspace, read config.yaml, write meeting notes to notes.txt, edit typos in notes, delete temp files",
-        # 6. Files extended - mkdir, rename, versions (4 tools)
-        "Create directory called testfolder in workspace, rename it to newfolder, list file versions, restore previous version",
-        # 7. File search (2 tools)
-        "Find all Python files using glob pattern, grep for TODO comments in source files",
-        # 8. Shell + Files (2 tools)
-        "Run python command to list current directory, save output to results.txt",
-        # 9. Memory + Todos (3 tools)
-        "Search conversation history for project discussions using memory, create todos for action items found",
-        # 10. Memory - list, remove (2 tools)
-        "List all saved memories, remove outdated memory about old project",
-        # 11. Time operations (1 tool)
-        "Get current time and date, also tell me time in Tokyo and New York",
-        # 12. Skills - List, Load, Create (4 tools) - EVAL & BENCHMARK
-        "List all available skills, load planning-with-files skill, load deep-research skill, create new skill called my-custom-skill with description for data analysis",
-        # 13. Skills - Trigger detection & Gated tools (3 tools) - EVAL & BENCHMARK
-        "Show skills about planning, load skill-creator, use sql_write_query to select all from users table",
-        # 14. Subagent create + invoke + list (4 tools)
-        "Create research subagent with skills planning-with-files, invoke it to find AI trends, check progress, list all subagents",
-        # 15. Subagent batch + schedule + cancel (4 tools)
-        "Run multiple subagents in parallel using batch, schedule daily reminder task, list scheduled jobs, cancel job",
-        # 16. Subagent validate + delete (2 tools)
-        "Validate research subagent configuration, delete old subagent that's no longer needed",
-        # 17. Web scraping (3 tools)
-        "Search web for Python tutorials, scrape example.com, map all links on homepage",
-        # 18. Web crawling + status (3 tools)
-        "Start crawl job for example.com with limit 5 pages, check crawl status, cancel if still running",
-        # 19. Email sync + extract (2 tools)
-        "Sync my inbox with new mode, extract todos from recent emails",
-        # 20. Email disconnect + accounts (2 tools)
-        "List all connected email accounts, disconnect old account",
-        # 21. App Builder - Create + Insert + Query (4 tools)
-        "Create library app with books table having title TEXT, author TEXT, description TEXT, insert 1984 by Orwell with description, query all books",
-        # 22. App Builder - Search (3 tools)
-        "Search library books using FTS for dystopia, search using semantic for romantic story, combine with hybrid search",
-        # 23. App Builder - Update + Delete + Column (4 tools)
-        "Update book description in library, add new column rating to books table, rename column to score, delete row from books",
-        # 24. MCP operations (3 tools)
-        "List available MCP servers, reload MCP configuration, list tools from MCP filesystem server",
-        # 25. Profile/Memory (2 tools)
-        "Set my profile: name is John, work as senior developer, prefer concise responses, interested in AI",
-        # 26. Vault operations (3 tools)
-        "Unlock vault with password secret123, add credential for Gmail with app password, list all credentials, lock vault",
-        # 27. Summarization middleware (test via long conversation)
-        "Summarize: "
-        + "reply " * 50
-        + " - trigger summarization by sending many messages to build up conversation history",
-        # 28. Memory get history + search (2 tools)
-        "Get conversation history from last 7 days, search memory for Python discussions",
-        # 29. Memory extraction
-        "Tell me: I prefer bullet points, use Python not Java, hate meetings, always test first - learn my preferences",
-        # 30. Edge cases - Error handling (10 edge cases)
-        "Try to connect with invalid email xyz123, search with empty query, delete non-existent file /tmp/nonexistent.txt, add contact with invalid email not-an-email, schedule for invalid date 2024-02-30, create subagent with invalid name @invalid!, invoke non-existent subagent, load skill that doesn't exist, query app that doesn't exist, search memory with special regex characters /*",
+        # 1-5: Email operations
+        "Connect Gmail account test@gmail.com with password apppassword",
+        "List all connected email accounts",
+        "List recent emails from inbox",
+        "Search emails with meeting in subject",
+        "Read the most recent email",
+        # 6-10: Email send/reply
+        "Send email to team@example.com subject Hello about the project update",
+        "Send reply to the latest email saying thanks",
+        "Search for emails from John",
+        "Extract todos from recent emails",
+        "Sync my Gmail inbox",
+        # 11-15: Contacts CRUD
+        "List all my contacts",
+        "Add new contact Alice with email alice@company.com",
+        "Update Alice's phone number to 555-1234",
+        "Search contacts for Smith",
+        "Delete contact with email bob@old.com",
+        # 16-20: Todos CRUD
+        "List all my todos",
+        "Add todo for team meeting tomorrow",
+        "Update todo status to completed",
+        "Delete finished todos",
+        "Extract action items from emails",
+        # 21-25: Files - list, read, write, edit, delete
+        "List files in workspace",
+        "Read the config file",
+        "Write meeting notes to notes.txt",
+        "Edit notes to fix typo",
+        "Delete temporary files",
+        # 26-30: Files - mkdir, rename, versions
+        "Create projects directory",
+        "Rename projects to myprojects",
+        "List file versions",
+        "Restore previous version of notes",
+        "Clean old file versions",
+        # 31-35: File search
+        "Find all Python files using glob",
+        "Search for TODO comments",
+        "Find all text files",
+        "Search for function definitions",
+        "Find files modified recently",
+        # 36-40: Shell + Files
+        "Run python -c 'print(1+1)'",
+        "Execute echo test and save to file",
+        "Run ls command",
+        "Execute date command",
+        "Run whoami command",
+        # 41-45: Memory
+        "Get conversation history",
+        "Search memory for Python",
+        "List all saved memories",
+        "Remove outdated memory",
+        "Learn that I prefer bullet points",
+        # 46-50: Time
+        "What time is it?",
+        "Get time in Tokyo",
+        "Get time in New York",
+        "What date is it today?",
+        "Get time in London",
+        # 51-55: Skills - list, load, create
+        "List all available skills",
+        "Load planning-with-files skill",
+        "Load deep-research skill",
+        "Create new skill called analysis-skill",
+        "What skills do I have?",
+        # 56-60: Skills - trigger, gated tools
+        "Show me skills about planning",
+        "Load skill-creator skill",
+        "Use sql_write_query skill",
+        "Load subagent-manager skill",
+        "List skill descriptions",
+        # 61-65: Subagent - create, invoke, list
+        "Create research subagent",
+        "Invoke research subagent",
+        "Check subagent progress",
+        "List all subagents",
+        "Invoke subagent with query",
+        # 66-70: Subagent - batch, schedule, cancel
+        "Batch invoke multiple subagents",
+        "Schedule daily reminder task",
+        "List scheduled jobs",
+        "Cancel scheduled job",
+        "Create recurring subagent",
+        # 71-75: Subagent - validate, delete
+        "Validate subagent configuration",
+        "Delete old subagent",
+        "Update subagent settings",
+        "Get subagent details",
+        "Test subagent creation",
+        # 76-80: Web scraping
+        "Search web for AI trends",
+        "Scrape example.com homepage",
+        "Map all links on docs site",
+        "Get page text from URL",
+        "Crawl website with limit 5",
+        # 81-85: Web crawling + status
+        "Start crawl job for news site",
+        "Check crawl status",
+        "Cancel running crawl",
+        "Search for tutorials",
+        "Extract data from page",
+        # 86-90: App Builder
+        "Create library app with books table",
+        "Insert book 1984 by Orwell",
+        "Query all books",
+        "Search books with FTS",
+        "Search books semantically",
+        # 91-95: App Builder - hybrid, update, delete
+        "Hybrid search books",
+        "Update book description",
+        "Add rating column",
+        "Delete book row",
+        "Query with JOIN",
+        # 96-100: MCP, Profile, Vault, Edge cases, Middleware
+        "List MCP servers",
+        "Reload MCP config",
+        "Set profile: name is John",
+        "List memory profile",
+        "Try edge cases: invalid email xyz123, empty search, non-existent file",
     ]
 
     # Apply persona style transformations
