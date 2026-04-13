@@ -9,13 +9,13 @@ load_dotenv()
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import UTC
+from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage
 from langfuse import propagate_attributes
 from pydantic import BaseModel, Field
-from typing import Any
 
 from src.agents.manager import run_agent, run_agent_stream
 from src.storage.messages import get_conversation_store
@@ -38,6 +38,36 @@ class MessageResponse(BaseModel):
     tool_calls: list[dict[str, Any]] | None = Field(
         default=None
     )  # Only populated when verbose=True
+
+
+class MemorySearchRequest(BaseModel):
+    query: str
+    method: str = "hybrid"
+    limit: int = 10
+    user_id: str = "default"
+
+
+class InsightSearchRequest(BaseModel):
+    query: str
+    method: str = "hybrid"
+    limit: int = 5
+    user_id: str = "default"
+
+
+class SearchAllRequest(BaseModel):
+    query: str
+    memories_limit: int = 5
+    messages_limit: int = 5
+    insights_limit: int = 3
+    user_id: str = "default"
+
+
+class ConnectionRequest(BaseModel):
+    memory_id: str
+    target_id: str
+    relationship: str = "relates_to"
+    strength: float = 1.0
+    user_id: str = "default"
 
 
 @asynccontextmanager
@@ -102,15 +132,8 @@ async def get_conversation(user_id: str = "default", limit: int = 100):
 @app.delete("/conversation")
 async def clear_conversation(user_id: str = "default"):
     """Clear conversation history."""
-    import sqlite3
-
-    from src.storage.messages import get_conversation_store
-
     conversation = get_conversation_store(user_id)
-    conn = sqlite3.connect(conversation.messages_db_path)
-    conn.execute("DELETE FROM messages")
-    conn.commit()
-    conn.close()
+    conversation.clear()
 
     return {"status": "cleared", "user_id": user_id}
 
@@ -268,8 +291,11 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
                     elif ai_content:
                         response = "".join(ai_content)
 
-                    # If still no response, run agent normally to get response
-                    if not response or response == "Task completed.":
+                    # If still no response and no tool events were captured,
+                    # run agent normally as a fallback. But if tool events
+                    # already executed, do NOT re-invoke the agent (which would
+                    # duplicate side effects like email_send, files_write, etc.)
+                    if (not response or response == "Task completed.") and not tool_events:
                         result = await run_agent(
                             user_id=user_id,
                             messages=langgraph_messages,
@@ -659,8 +685,7 @@ async def message_stream(req: MessageRequest):
                 else:
                     response = "".join(ai_content)
             else:
-                # For non-verbose mode, use ai_content (most reliable)
-                # Get the last substantial chunk (the complete response)
+                # For non-verbose mode, use ai_content ONLY - tool results shown via toasts
                 response = None
                 if ai_content:
                     # Use in_summarization_stream flag to filter
@@ -671,7 +696,7 @@ async def message_stream(req: MessageRequest):
                     else:
                         non_summary = ai_content
 
-                    # Find the last chunk that looks like a complete response (>20 chars)
+                    # Find the last substantial chunk (the complete response (>20 chars))
                     for c in reversed(non_summary):
                         if len(c) > 20:
                             response = c
@@ -861,6 +886,8 @@ async def list_memories(
     memory_type: str | None = None,
     min_confidence: float = 0.0,
     limit: int = 100,
+    scope: str | None = None,
+    project_id: str | None = None,
 ):
     """List user memories/preferences."""
     from src.storage.memory import get_memory_store
@@ -871,6 +898,8 @@ async def list_memories(
         memory_type=memory_type,
         min_confidence=min_confidence,
         limit=limit,
+        scope=scope,
+        project_id=project_id,
     )
 
     return {
@@ -885,6 +914,18 @@ async def list_memories(
                 "source": m.source,
                 "is_superseded": m.is_superseded,
                 "superseded_by": m.superseded_by,
+                "scope": m.scope,
+                "project_id": m.project_id,
+                "access_count": m.access_count,
+                "structured_data": m.structured_data,
+                "connections": [
+                    {
+                        "target_id": c.target_id,
+                        "relationship": c.relationship,
+                        "strength": c.strength,
+                    }
+                    for c in m.connections
+                ],
                 "updated_at": m.updated_at.isoformat() if m.updated_at else None,
             }
             for m in memories
@@ -903,6 +944,41 @@ async def remove_memory(memory_id: str, user_id: str = "default"):
     return {"status": "removed" if removed else "not_found", "id": memory_id}
 
 
+@app.post("/memories/search")
+async def search_memories(request: MemorySearchRequest):
+    """Search memories using keyword, semantic, hybrid, or field search."""
+    from src.storage.memory import get_memory_store
+
+    store = get_memory_store(request.user_id)
+
+    if request.method == "fts":
+        results = store.search_fts(request.query, limit=request.limit)
+    elif request.method == "semantic":
+        results = store.search_semantic(request.query, limit=request.limit)
+    elif request.method == "field":
+        results = store.search_field_semantic(request.query, limit=request.limit)
+    else:
+        results = store.search_hybrid(request.query, limit=request.limit)
+
+    return {
+        "query": request.query,
+        "method": request.method,
+        "results": [
+            {
+                "id": m.id,
+                "trigger": m.trigger,
+                "action": m.action,
+                "confidence": m.confidence,
+                "domain": m.domain,
+                "memory_type": m.memory_type,
+                "scope": m.scope,
+                "project_id": m.project_id,
+            }
+            for m in results
+        ],
+    }
+
+
 @app.post("/memories/consolidate")
 async def consolidate_memories(user_id: str = "default"):
     """Trigger memory consolidation manually."""
@@ -913,12 +989,12 @@ async def consolidate_memories(user_id: str = "default"):
 
 
 @app.get("/memories/insights")
-async def list_insights(user_id: str = "default", limit: int = 20):
+async def list_insights(user_id: str = "default", limit: int = 20, domain: str | None = None):
     """List synthesized insights from memory consolidation."""
     from src.storage.memory import get_memory_store
 
     store = get_memory_store(user_id)
-    insights = store.list_insights(limit=limit)
+    insights = store.list_insights(limit=limit, domain=domain)
 
     return {
         "insights": [
@@ -933,6 +1009,120 @@ async def list_insights(user_id: str = "default", limit: int = 20):
             }
             for i in insights
         ]
+    }
+
+
+@app.delete("/memories/insights/{insight_id}")
+async def remove_insight(insight_id: str, user_id: str = "default"):
+    """Remove an insight."""
+    from src.storage.memory import get_memory_store
+
+    store = get_memory_store(user_id)
+    removed = store.remove_insight(insight_id)
+
+    return {"status": "removed" if removed else "not_found", "id": insight_id}
+
+
+@app.post("/memories/insights/search")
+async def search_insights(request: InsightSearchRequest):
+    """Search insights using keyword or semantic search."""
+    from src.storage.memory import get_memory_store
+
+    store = get_memory_store(request.user_id)
+
+    if request.method == "fts":
+        results = store.search_insights(request.query, limit=request.limit)
+    elif request.method == "semantic":
+        results = store.search_insights_semantic(request.query, limit=request.limit)
+    else:
+        results = store.search_insights(request.query, limit=request.limit)
+        if not results:
+            results = store.search_insights_semantic(request.query, limit=request.limit)
+
+    return {
+        "query": request.query,
+        "method": request.method,
+        "results": [
+            {
+                "id": i.id,
+                "summary": i.summary,
+                "domain": i.domain,
+                "confidence": i.confidence,
+                "linked_memories": i.linked_memories,
+            }
+            for i in results
+        ],
+    }
+
+
+@app.post("/memories/connections")
+async def add_connection(request: ConnectionRequest):
+    """Create a connection between two memories."""
+    from src.storage.memory import get_memory_store
+
+    store = get_memory_store(request.user_id)
+    store.add_connection(
+        request.memory_id,
+        request.target_id,
+        relationship=request.relationship,
+        strength=request.strength,
+    )
+
+    return {
+        "status": "connected",
+        "memory_id": request.memory_id,
+        "target_id": request.target_id,
+        "relationship": request.relationship,
+        "strength": request.strength,
+    }
+
+
+@app.get("/memories/stats")
+async def memory_stats(user_id: str = "default"):
+    """Get memory system statistics."""
+    from src.storage.memory import get_memory_store
+
+    store = get_memory_store(user_id)
+    return store.get_stats()
+
+
+@app.post("/memories/search-all")
+async def search_all(request: SearchAllRequest):
+    """Unified search across memories, messages, and insights."""
+    from src.storage.memory import get_memory_store
+
+    store = get_memory_store(request.user_id)
+    results = store.search_all(
+        request.query,
+        memories_limit=request.memories_limit,
+        messages_limit=request.messages_limit,
+        insights_limit=request.insights_limit,
+        user_id=request.user_id,
+    )
+
+    return {
+        "query": request.query,
+        "memories": [
+            {
+                "id": m.id,
+                "trigger": m.trigger,
+                "action": m.action,
+                "confidence": m.confidence,
+                "domain": m.domain,
+                "memory_type": m.memory_type,
+            }
+            for m in results["memories"]
+        ],
+        "insights": [
+            {
+                "id": i.id,
+                "summary": i.summary,
+                "domain": i.domain,
+                "confidence": i.confidence,
+            }
+            for i in results["insights"]
+        ],
+        "messages": results["messages"],
     }
 
 
@@ -992,6 +1182,389 @@ async def delete_workspace_file(path: str, user_id: str = "default"):
 
     result = files_delete.invoke({"path": path, "user_id": user_id})
     return {"response": str(result)}
+
+
+# =============================================================================
+# TODOS ENDPOINTS
+# =============================================================================
+
+
+@app.get("/todos")
+async def list_todos(user_id: str = "default"):
+    """List all todos."""
+    from src.tools.todos.tools import todos_list
+
+    result = todos_list.invoke({"user_id": user_id})
+    return {"todos": result}
+
+
+@app.post("/todos")
+async def add_todo(
+    content: str,
+    priority: int | None = None,
+    user_id: str = "default",
+):
+    """Add a new todo."""
+    from src.tools.todos.tools import todos_add
+
+    args = {"user_id": user_id, "content": content}
+    if priority is not None:
+        args["priority"] = str(priority)
+    result = todos_add.invoke(args)
+    return {"result": str(result)}
+
+
+@app.put("/todos/{todo_id}")
+async def update_todo(
+    todo_id: str,
+    content: str | None = None,
+    status: str | None = None,
+    priority: int | None = None,
+    user_id: str = "default",
+):
+    """Update a todo."""
+    from src.tools.todos.tools import todos_update
+
+    args = {"user_id": user_id, "todo_id": todo_id}
+    if content is not None:
+        args["content"] = content
+    if status is not None:
+        args["status"] = status
+    if priority is not None:
+        args["priority"] = priority
+    result = todos_update.invoke(args)
+    return {"result": str(result)}
+
+
+@app.delete("/todos/{todo_id}")
+async def delete_todo(todo_id: str, user_id: str = "default"):
+    """Delete a todo."""
+    from src.tools.todos.tools import todos_delete
+
+    result = todos_delete.invoke({"user_id": user_id, "todo_id": todo_id})
+    return {"result": str(result)}
+
+
+# =============================================================================
+# CONTACTS ENDPOINTS
+# =============================================================================
+
+
+@app.get("/contacts")
+async def list_contacts(user_id: str = "default"):
+    """List all contacts."""
+    from src.tools.contacts.tools import contacts_list
+
+    result = contacts_list.invoke({"user_id": user_id})
+    return {"contacts": result}
+
+
+@app.get("/contacts/search")
+async def search_contacts(query: str, user_id: str = "default"):
+    """Search contacts."""
+    from src.tools.contacts.tools import contacts_search
+
+    result = contacts_search.invoke({"user_id": user_id, "query": query})
+    return {"results": result}
+
+
+@app.post("/contacts")
+async def add_contact(
+    email: str,
+    name: str | None = None,
+    phone: str | None = None,
+    company: str | None = None,
+    user_id: str = "default",
+):
+    """Add a new contact."""
+    from src.tools.contacts.tools import contacts_add
+
+    args = {"user_id": user_id, "email": email}
+    if name is not None:
+        args["name"] = name
+    if phone is not None:
+        args["phone"] = phone
+    if company is not None:
+        args["company"] = company
+    result = contacts_add.invoke(args)
+    return {"result": str(result)}
+
+
+@app.put("/contacts/{contact_id}")
+async def update_contact(
+    contact_id: str,
+    email: str | None = None,
+    name: str | None = None,
+    phone: str | None = None,
+    company: str | None = None,
+    user_id: str = "default",
+):
+    """Update a contact."""
+    from src.tools.contacts.tools import contacts_update
+
+    args = {"user_id": user_id, "contact_id": contact_id}
+    if email is not None:
+        args["email"] = email
+    if name is not None:
+        args["name"] = name
+    if phone is not None:
+        args["phone"] = phone
+    if company is not None:
+        args["company"] = company
+    result = contacts_update.invoke(args)
+    return {"result": str(result)}
+
+
+@app.delete("/contacts/{contact_id}")
+async def delete_contact(contact_id: str, user_id: str = "default"):
+    """Delete a contact."""
+    from src.tools.contacts.tools import contacts_delete
+
+    result = contacts_delete.invoke({"user_id": user_id, "contact_id": contact_id})
+    return {"result": str(result)}
+
+
+# =============================================================================
+# EMAIL ENDPOINTS
+# =============================================================================
+
+
+@app.get("/email/accounts")
+async def list_email_accounts(user_id: str = "default"):
+    """List connected email accounts."""
+    from src.tools.email.account import email_accounts
+
+    result = email_accounts.invoke({"user_id": user_id})
+    return {"accounts": result}
+
+
+class EmailConnectRequest(BaseModel):
+    email: str
+    password: str
+    provider: str | None = None
+    user_id: str = "default"
+
+
+@app.post("/email/accounts")
+async def connect_email(req: EmailConnectRequest):
+    """Connect an email account."""
+    from src.tools.email.account import email_connect
+
+    args = {"user_id": req.user_id, "email": req.email, "password": req.password}
+    if req.provider is not None:
+        args["provider"] = req.provider
+    result = email_connect.invoke(args)
+    return {"result": str(result)}
+
+
+@app.delete("/email/accounts/{account_name}")
+async def disconnect_email(account_name: str, user_id: str = "default"):
+    """Disconnect an email account."""
+    from src.tools.email.account import email_disconnect
+
+    result = email_disconnect.invoke({"user_id": user_id, "account_name": account_name})
+    return {"result": str(result)}
+
+
+@app.get("/email/messages")
+async def list_emails(
+    account_name: str = "default",
+    limit: int = 20,
+    folder: str = "INBOX",
+    user_id: str = "default",
+):
+    """List emails from an account."""
+    from src.tools.email.read import email_list
+
+    result = email_list.invoke(
+        {"user_id": user_id, "account_name": account_name, "limit": limit, "folder": folder}
+    )
+    return {"emails": result}
+
+
+@app.get("/email/messages/{email_id}")
+async def get_email(
+    email_id: str,
+    account_name: str = "default",
+    user_id: str = "default",
+):
+    """Get a specific email."""
+    from src.tools.email.read import email_get
+
+    result = email_get.invoke(
+        {"user_id": user_id, "account_name": account_name, "email_id": email_id}
+    )
+    return {"email": result}
+
+
+@app.get("/email/search")
+async def search_emails(
+    query: str,
+    account_name: str = "default",
+    user_id: str = "default",
+):
+    """Search emails."""
+    from src.tools.email.read import email_search
+
+    result = email_search.invoke({"user_id": user_id, "account_name": account_name, "query": query})
+    return {"results": result}
+
+
+@app.post("/email/send")
+async def send_email(
+    to: str,
+    subject: str,
+    body: str,
+    account_name: str = "default",
+    user_id: str = "default",
+):
+    """Send an email."""
+    from src.tools.email.send import email_send
+
+    result = email_send.invoke(
+        {
+            "user_id": user_id,
+            "account_name": account_name,
+            "to": to,
+            "subject": subject,
+            "body": body,
+        }
+    )
+    return {"result": str(result)}
+
+
+# =============================================================================
+# SUBAGENT JOB ENDPOINTS
+# =============================================================================
+
+
+@app.get("/subagents/jobs")
+async def list_subagent_jobs(user_id: str = "default"):
+    """List all subagent jobs (scheduled, running, completed, failed)."""
+    from src.agents.subagent.scheduler import list_jobs
+
+    jobs = list_jobs(user_id)
+    return {"jobs": jobs}
+
+
+@app.get("/subagents/jobs/{job_id}")
+async def get_subagent_job(job_id: str):
+    """Get status of a specific subagent job."""
+    from src.agents.subagent.scheduler import get_job_status
+
+    status = get_job_status(job_id)
+    if status is None:
+        return {"error": "Job not found"}, 404
+    return {"job": status}
+
+
+@app.post("/subagents/invoke")
+async def invoke_subagent(
+    name: str,
+    task: str,
+    user_id: str = "default",
+):
+    """Invoke a subagent to execute a task (async)."""
+    from src.agents.subagent.tools import subagent_invoke
+
+    result = subagent_invoke.invoke({"user_id": user_id, "name": name, "task": task})
+    return {"result": str(result)}
+
+
+@app.post("/subagents/batch")
+async def batch_invoke_subagents(
+    tasks: list[dict[str, str]],
+    user_id: str = "default",
+):
+    """Batch invoke multiple subagents."""
+    import json
+
+    from src.agents.subagent.tools import subagent_batch
+
+    result = subagent_batch.invoke({"user_id": user_id, "tasks": json.dumps(tasks)})
+    return {"result": str(result)}
+
+
+@app.post("/subagents/schedule")
+async def schedule_subagent(
+    name: str,
+    task: str,
+    run_at: str | None = None,
+    cron: str | None = None,
+    user_id: str = "default",
+):
+    """Schedule a subagent task (one-time or recurring)."""
+    from src.agents.subagent.tools import subagent_schedule
+
+    args = {"user_id": user_id, "name": name, "task": task}
+    if run_at is not None:
+        args["run_at"] = run_at
+    if cron is not None:
+        args["cron"] = cron
+    result = subagent_schedule.invoke(args)
+    return {"result": str(result)}
+
+
+@app.delete("/subagents/jobs/{job_id}")
+async def cancel_subagent_job(job_id: str, user_id: str = "default"):
+    """Cancel a scheduled subagent job."""
+    from src.agents.subagent.tools import subagent_schedule_cancel
+
+    result = subagent_schedule_cancel.invoke({"user_id": user_id, "job_id": job_id})
+    return {"result": str(result)}
+
+
+# =============================================================================
+# MEMORY ENDPOINTS
+# =============================================================================
+
+
+@app.post("/memories")
+async def add_memory(
+    trigger: str,
+    action: str,
+    domain: str = "general",
+    memory_type: str = "fact",
+    user_id: str = "default",
+):
+    """Add a new memory entry."""
+    from src.storage.memory import get_memory_store
+
+    store = get_memory_store(user_id)
+    memory = store.add_memory(
+        trigger=trigger,
+        action=action,
+        domain=domain,
+        memory_type=memory_type,
+    )
+    return {"memory": memory}
+
+
+@app.put("/memories/{memory_id}")
+async def update_memory(
+    memory_id: str,
+    trigger: str | None = None,
+    action: str | None = None,
+    confidence: float | None = None,
+    user_id: str = "default",
+):
+    """Update a memory entry."""
+    from src.storage.memory import get_memory_store
+
+    store = get_memory_store(user_id)
+    updated = store.update_memory(
+        memory_id,
+        new_trigger=trigger,
+        new_action=action,
+    )
+    if updated is None:
+        return {"error": "Memory not found"}, 404
+    return {"result": "Memory updated"}
+
+
+# =============================================================================
+# SYNC ENDPOINTS
+# =============================================================================
 
 
 def run():

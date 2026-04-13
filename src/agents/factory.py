@@ -143,7 +143,8 @@ class AgentFactory:
                     SkillRegistry(
                         system_dir=system_dir,
                         user_id=self.user_id,
-                    )
+                    ),
+                    user_id=self.user_id,
                 )
 
             middleware.append(SkillMiddleware(system_dir=system_dir, user_id=self.user_id))
@@ -163,14 +164,18 @@ class AgentFactory:
             channel="agent",
         )
 
-        # Add skill tools
+        # Add skill tools (avoid duplicates with get_default_tools)
         all_tools = list(tools) if tools else []
+        existing_tool_names = {t.name for t in all_tools}
         if enable_skills:
             from src.skills import skills_list, skills_load
 
-            all_tools = list(all_tools) + [skills_load, skills_list]
+            for t in [skills_load, skills_list]:
+                if t.name not in existing_tool_names:
+                    all_tools.append(t)
+                    existing_tool_names.add(t.name)
 
-        # Add memory tools
+        # Add memory tools (avoid duplicates with get_default_tools)
         from src.tools.memory_profile import (
             memory_list,
             memory_remove,
@@ -178,12 +183,10 @@ class AgentFactory:
             profile_set,
         )
 
-        all_tools = list(all_tools) + [
-            profile_set,
-            memory_list,
-            memory_remove,
-            memory_search,
-        ]
+        for t in [profile_set, memory_list, memory_remove, memory_search]:
+            if t.name not in existing_tool_names:
+                all_tools.append(t)
+                existing_tool_names.add(t.name)
 
         # Add MCP management tools + dynamically load MCP server tools
         if enable_mcp and self.user_id:

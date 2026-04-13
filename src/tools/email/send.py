@@ -67,10 +67,18 @@ def send_via_smtp(
         all_recipients = to + (cc or [])
 
         server = smtplib.SMTP(smtp_host, smtp_port)
-        server.starttls()
-        server.login(email, password)
-        server.sendmail(email, all_recipients, msg.as_string())
-        server.quit()
+        try:
+            server.starttls()
+            server.login(email, password)
+            server.sendmail(email, all_recipients, msg.as_string())
+        finally:
+            try:
+                server.quit()
+            except Exception:
+                try:
+                    server.close()
+                except Exception:
+                    pass
 
         logger.info("email_sent", {"account": account_name, "to": to}, user_id=user_id)
 

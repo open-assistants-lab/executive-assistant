@@ -1,5 +1,6 @@
 """Shell tool for agent - restricted command execution."""
 
+import re
 import subprocess
 from pathlib import Path
 
@@ -18,6 +19,22 @@ DEFAULT_ALLOWED_COMMANDS = {
     "whoami",
     "pwd",
 }
+
+# Characters that enable shell injection when used with shell=True
+SHELL_METACHARACTERS = re.compile(r"[;|&$`\n\r\\!>{<]")
+
+# Patterns that indicate injection attempts even without metacharacters
+SHELL_INJECTION_PATTERNS = re.compile(
+    r"(?:"
+    r"\$\(|"  # Command substitution
+    r"\`|"  # Backtick command substitution
+    r"\.\./|"  # Path traversal
+    r"~\/|"  # Home directory access
+    r"/etc/|"  # System config access
+    r"/tmp/"  # Temp directory access
+    r")",
+    re.IGNORECASE,
+)
 
 
 def _get_shell_config():
@@ -58,6 +75,36 @@ def _is_allowed(cmd: str) -> bool:
     return cmd_base in allowed
 
 
+def _validate_command(command: str) -> str | None:
+    """Validate command for shell injection.
+
+    Returns:
+        Error message if command is dangerous, None if safe.
+    """
+    if not command.strip():
+        return "Empty command"
+
+    if SHELL_METACHARACTERS.search(command):
+        return (
+            "Command rejected: contains shell metacharacters. "
+            "Only simple commands are allowed (no ; & | $ ` etc.)."
+        )
+
+    if SHELL_INJECTION_PATTERNS.search(command):
+        return "Command rejected: contains potentially dangerous patterns."
+
+    cmd_parts = command.split()
+    if not cmd_parts:
+        return "Empty command"
+
+    cmd_base = cmd_parts[0]
+    # Ensure the base command is a simple name without path separators
+    if "/" in cmd_base or "\\" in cmd_base:
+        return f"Command rejected: use command name only, not paths (got '{cmd_base}')."
+
+    return None
+
+
 @tool
 def shell_execute(command: str, user_id: str = "default") -> str:
     """Run a shell command.
@@ -70,7 +117,13 @@ def shell_execute(command: str, user_id: str = "default") -> str:
         Command output or error message
     """
     try:
-        cmd_base = command.split()[0] if command.split() else ""
+        # Validate for shell injection first
+        validation_error = _validate_command(command)
+        if validation_error:
+            return validation_error
+
+        cmd_parts = command.split()
+        cmd_base = cmd_parts[0]
         is_allowed_cmd = _is_allowed(cmd_base)
 
         if not is_allowed_cmd:
@@ -80,9 +133,10 @@ def shell_execute(command: str, user_id: str = "default") -> str:
         root_path = _get_root_path(user_id)
         config = _get_shell_config()
 
+        # Use shell=False with args as a list for safety
         result = subprocess.run(
-            command,
-            shell=True,
+            cmd_parts,
+            shell=False,
             cwd=str(root_path),
             capture_output=True,
             text=True,
@@ -108,6 +162,8 @@ def shell_execute(command: str, user_id: str = "default") -> str:
     except subprocess.TimeoutExpired:
         config = _get_shell_config()
         return f"Error: Command timed out after {config['timeout_seconds']} seconds"
+    except FileNotFoundError:
+        return f"Error: Command not found: {cmd_parts[0]}"
     except Exception as e:
         logger.error("shell_execute.error", {"command": command, "error": str(e)}, user_id=user_id)
         return f"Error: {e}"

@@ -55,3 +55,4 @@ docs/benchmarks/*.py
 
 .DS_Store
 ~/.cache/
+LongMemEval/

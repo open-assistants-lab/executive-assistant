@@ -25,10 +25,18 @@ def _resolve_path(path: str | None, user_id: str) -> Path:
     if path is None:
         return root
 
-    resolved = (root / path).resolve()
+    # Allow data/users/{user_id}/skills/ for skill files
+    is_skills_path = path.startswith("data/users/") and "/skills/" in path
+    if is_skills_path:
+        expected_prefix = f"data/users/{user_id}/skills/"
+        if not path.startswith(expected_prefix):
+            raise ValueError(f"Can only search in your own skills directory: {expected_prefix}")
+        resolved = (Path.cwd() / path).resolve()
+    else:
+        resolved = (root / path).resolve()
 
-    if not resolved.is_relative_to(root):
-        raise ValueError(f"Path outside user directory: {path}")
+        if not resolved.is_relative_to(root):
+            raise ValueError(f"Path outside user directory: {path}")
 
     return resolved
 

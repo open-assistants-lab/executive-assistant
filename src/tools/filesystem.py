@@ -22,9 +22,6 @@ def get_user_id() -> str:
     return _current_user_id.get()
 
 
-_current_user_id: ContextVar[str] = ContextVar("current_user_id", default="default")
-
-
 def _resolve_path(path: str | None, user_id: str) -> Path:
     """Resolve path relative to user's root, prevent escape."""
     # Use context variable if user_id is "default"
@@ -290,7 +287,16 @@ def files_rename(path: str, new_name: str, user_id: str = "default") -> str:
         if not target.exists():
             return f"Path not found: {path}"
 
+        # Prevent path traversal in new_name
+        if "/" in new_name or "\\" in new_name or ".." in new_name:
+            return f"Invalid name: '{new_name}'. Must be a simple filename without path separators."
+
         new_path = target.parent / new_name
+
+        # Verify new_path stays within user workspace
+        root_path = Path(f"data/users/{user_id}/workspace").resolve()
+        if not new_path.resolve().is_relative_to(root_path):
+            return f"Invalid name: '{new_name}' resolves outside user directory."
 
         if new_path.exists():
             return f"Name already exists: {new_name}"

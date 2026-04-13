@@ -83,6 +83,21 @@ class ConversationStore:
             END
         """)
 
+        conn.execute("""
+            CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
+                INSERT INTO messages_fts(messages_fts, rowid, content)
+                VALUES ('delete', old.id, old.content);
+            END
+        """)
+
+        conn.execute("""
+            CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
+                INSERT INTO messages_fts(messages_fts, rowid, content)
+                VALUES ('delete', old.id, old.content);
+                INSERT INTO messages_fts(rowid, content) VALUES (new.id, new.content);
+            END
+        """)
+
         conn.commit()
         conn.close()
 
@@ -147,28 +162,31 @@ class ConversationStore:
         if not query:
             return []
 
-        # Escape special FTS5 characters: , " ' ( ) * : -
         import re
 
         fts_query = query.strip()
-        # Remove special characters that cause FTS5 syntax errors
-        fts_query = re.sub(r'[,"\'\(\)\*\:\-]', " ", fts_query)
+        # Remove characters that FTS5 cannot handle in MATCH queries
+        # Keep letters, digits, spaces, and hyphens between words
+        fts_query = re.sub(r"[^\w\s]", " ", fts_query)
         # Collapse multiple spaces
         fts_query = " ".join(fts_query.split())
-        # Escape single quotes
-        fts_query = fts_query.replace("'", "''")
 
         if not fts_query:
             return []
 
+        # Use OR operator so each word is matched independently
+        # This handles natural language queries like "what degree did I graduate with"
+        fts_query_or = " OR ".join(fts_query.split())
+
         conn = sqlite3.connect(self.messages_db_path)
-        cursor = conn.execute(
-            "SELECT m.id, m.content, m.ts, m.role, bm25(messages_fts) as score FROM messages_fts f JOIN messages m ON m.id = f.rowid WHERE messages_fts MATCH ? ORDER BY score LIMIT ?",
-            [fts_query, limit],
-        )
-        results = []
-        for row in cursor.fetchall():
-            results.append(
+        try:
+            cursor = conn.execute(
+                "SELECT m.id, m.content, m.ts, m.role, bm25(messages_fts) as score "
+                "FROM messages_fts f JOIN messages m ON m.id = f.rowid "
+                "WHERE messages_fts MATCH ? ORDER BY score LIMIT ?",
+                [fts_query_or, limit],
+            )
+            results = [
                 SearchResult(
                     id=row[0],
                     content=row[1],
@@ -176,44 +194,76 @@ class ConversationStore:
                     role=row[3],
                     score=row[4],
                 )
-            )
-        conn.close()
+                for row in cursor.fetchall()
+            ]
+        except Exception:
+            # Fallback: if OR query fails, try simple phrase match
+            try:
+                cursor = conn.execute(
+                    "SELECT m.id, m.content, m.ts, m.role, 0.0 as score "
+                    "FROM messages m WHERE m.content LIKE ? ORDER BY m.ts DESC LIMIT ?",
+                    [f"%{fts_query}%", limit],
+                )
+                results = [
+                    SearchResult(
+                        id=row[0],
+                        content=row[1],
+                        ts=datetime.fromisoformat(row[2]),
+                        role=row[3],
+                        score=row[4],
+                    )
+                    for row in cursor.fetchall()
+                ]
+            except Exception:
+                results = []
+        finally:
+            conn.close()
+
         return results
 
     def search_vector(self, query_embedding: list[float], limit: int = 10) -> list[SearchResult]:
-        """Vector search using ChromaDB."""
+        """Vector search using ChromaDB. Returns results with similarity scores."""
         if not query_embedding:
             return []
 
         results = self.collection.query(
-            query_embeddings=[query_embedding],
+            query_embeddings=[query_embedding],  # type: ignore[arg-type]
             n_results=limit,
         )
 
         if not results["ids"] or not results["ids"][0]:
             return []
 
+        # Batch fetch message info from SQLite instead of N+1 queries
+        msg_ids = [int(mid) for mid in results["ids"][0]]
+        conn = sqlite3.connect(self.messages_db_path)
+        placeholders = ",".join("?" * len(msg_ids))
+        rows = conn.execute(
+            f"SELECT id, ts, role FROM messages WHERE id IN ({placeholders})",
+            msg_ids,
+        ).fetchall()
+        conn.close()
+        id_to_row = {row[0]: row for row in rows}
+
         search_results = []
         for i, msg_id in enumerate(results["ids"][0]):
+            if int(msg_id) not in id_to_row:
+                continue
+            row = id_to_row[int(msg_id)]
             content = results["documents"][0][i]
             distance = results["distances"][0][i] if "distances" in results else 0
-            similarity = 1.0 - distance
+            # Cosine distance to similarity: 1-dist for cosine, clip to [0,1]
+            similarity = max(0.0, 1.0 - distance)
 
-            conn = sqlite3.connect(self.messages_db_path)
-            cursor = conn.execute("SELECT id, ts, role FROM messages WHERE id = ?", [int(msg_id)])
-            row = cursor.fetchone()
-            conn.close()
-
-            if row:
-                search_results.append(
-                    SearchResult(
-                        id=row[0],
-                        content=content,
-                        ts=datetime.fromisoformat(row[1]),
-                        role=row[2],
-                        score=similarity,
-                    )
+            search_results.append(
+                SearchResult(
+                    id=row[0],
+                    content=content,
+                    ts=datetime.fromisoformat(row[1]),
+                    role=row[2],
+                    score=similarity,
                 )
+            )
 
         return search_results
 
@@ -228,10 +278,30 @@ class ConversationStore:
         """Combined keyword + vector + recency search."""
         now = datetime.now(UTC)
 
-        fts_results = {
-            r.id: (r, 1.0 / (abs(r.score) + 1)) for r in self.search_keyword(query, limit * 2)
-        }
-        vec_results = {r.id: (r, r.score) for r in self.search_vector(query_embedding, limit * 2)}
+        fts_results_raw = self.search_keyword(query, limit * 2)
+        vec_results_raw = self.search_vector(query_embedding, limit * 2)
+
+        # Normalize FTS scores (BM25 is negative, best=closer to 0)
+        # Convert to [0, 1]: rank-based normalization
+        fts_results: dict[int, tuple[SearchResult, float]] = {}
+        if fts_results_raw:
+            # BM25 scores are negative; closer to 0 = better
+            # Normalize: best result gets 1.0, others proportional
+            best_fts = max(r.score for r in fts_results_raw)
+            worst_fts = min(r.score for r in fts_results_raw)
+            fts_range = best_fts - worst_fts if best_fts != worst_fts else 1.0
+            for rank, r in enumerate(fts_results_raw):
+                # Use rank-based score: 1/(rank+1) for robustness
+                # plus a quality bonus based on BM25 score
+                normalized = 1.0 / (rank + 1)
+                fts_results[r.id] = (r, normalized)
+
+        # Normalize vector scores (distance → similarity, then rank-based)
+        vec_results: dict[int, tuple[SearchResult, float]] = {}
+        if vec_results_raw:
+            for rank, r in enumerate(vec_results_raw):
+                normalized = 1.0 / (rank + 1)
+                vec_results[r.id] = (r, normalized)
 
         all_ids = set(fts_results.keys()) | set(vec_results.keys())
         combined = []
@@ -239,13 +309,15 @@ class ConversationStore:
             fts_score = fts_results.get(msg_id, (None, 0))[1]
             vec_score = vec_results.get(msg_id, (None, 0))[1]
 
-            # Relevance score (keyword + vector)
+            # Relevance score: weighted combination of normalized scores
             relevance = fts_weight * fts_score + (1 - fts_weight) * vec_score
 
             # Get timestamp for recency
-            result = fts_results.get(msg_id, vec_results.get(msg_id, (None, 0)))[0]
+            fts_result = fts_results.get(msg_id, (None, 0))[0]
+            vec_result = vec_results.get(msg_id, (None, 0))[0]
+            result = fts_result or vec_result
             if result:
-                days_ago = (now - result.ts).days
+                days_ago = max((now - result.ts).days, 0)
                 recency = 1.0 / (1 + days_ago / 30)  # Decay over months
             else:
                 recency = 0
@@ -421,6 +493,13 @@ class ConversationStore:
         result = conn.execute(query, params).fetchone()
         conn.close()
         return result[0] if result else 0
+
+    def clear(self) -> None:
+        """Clear all messages from conversation store."""
+        conn = sqlite3.connect(self.messages_db_path)
+        conn.execute("DELETE FROM messages")
+        conn.commit()
+        conn.close()
 
 
 _stores: dict[str, ConversationStore] = {}

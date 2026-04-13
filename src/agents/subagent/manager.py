@@ -1,3 +1,4 @@
+import asyncio
 import json
 from pathlib import Path
 from typing import Any
@@ -61,11 +62,8 @@ class SubagentManager:
             "system_prompt": system_prompt,
         }
 
-        # Create subagent directory
+        # Validate config before creating directory
         subagent_path = self.base_path / name
-        subagent_path.mkdir(parents=True, exist_ok=True)
-
-        # Validate config
         validation = validate_subagent_config(self.user_id, config_dict, subagent_path)
 
         if not validation.valid:
@@ -74,11 +72,19 @@ class SubagentManager:
                 {"name": name, "errors": validation.errors},
                 user_id=self.user_id,
             )
+            # Clean up directory if it was created during validation
+            if subagent_path.exists():
+                import shutil
+
+                shutil.rmtree(subagent_path, ignore_errors=True)
             return None, {
                 "valid": validation.valid,
                 "errors": validation.errors,
                 "warnings": validation.warnings,
             }
+
+        # Create subagent directory only after validation passes
+        subagent_path.mkdir(parents=True, exist_ok=True)
 
         # Build config dict for config.yaml
         config_dict_clean = {k: v for k, v in config_dict.items() if v is not None}
@@ -199,7 +205,19 @@ You have access to tools and skills as configured. Always use the planning-with-
         finally:
             _current_user_id.reset(token)
 
-        output = result.get("messages", [])[-1].content if result.get("messages") else ""
+        # Find the last AI message content (skip ToolMessages)
+        output = ""
+        for msg in reversed(result.get("messages", [])):
+            msg_type = getattr(msg, "type", None)
+            if msg_type == "ai":
+                content = getattr(msg, "content", "")
+                if content and content.strip():
+                    output = content
+                    break
+        if not output and result.get("messages"):
+            # Fallback: use last message content whatever type
+            last = result["messages"][-1]
+            output = getattr(last, "content", str(last))
 
         logger.info(
             "subagent.invoked",
@@ -280,14 +298,24 @@ You have access to tools and skills as configured. Always use the planning-with-
         """
         import concurrent.futures
 
+        from src.tools.filesystem import _current_user_id
+
+        # Capture the current user_id ContextVar value to propagate to worker threads
+        parent_user_id = _current_user_id.get()
+
         results = []
 
         def run_single(task_dict: dict[str, str]) -> dict[str, Any]:
-            name = task_dict.get("name", "")
-            task = task_dict.get("task", "")
-            result = self.invoke(name, task)
-            result["name"] = name
-            return result
+            # Inherit the parent's user_id ContextVar in the worker thread
+            token = _current_user_id.set(parent_user_id)
+            try:
+                name = task_dict.get("name", "")
+                task = task_dict.get("task", "")
+                result = self.invoke(name, task)
+                result["name"] = name
+                return result
+            finally:
+                _current_user_id.reset(token)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(tasks)) as executor:
             futures = [executor.submit(run_single, task) for task in tasks]
@@ -373,29 +401,49 @@ The main agent will track your progress via these files.
             if not mcp_config:
                 return []
 
-            # Get or create MCP manager for this user
             from src.tools.mcp.manager import get_mcp_manager
 
             mcp_manager = get_mcp_manager(self.user_id)
 
             # Run async get_tools in sync context
-            import asyncio
+            # Use run_coroutine_threadsafe when inside a running event loop
+            # (e.g., HTTP/Telegram server), otherwise use asyncio.run()
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
 
-            all_tools = asyncio.run(mcp_manager.get_tools())
+            if loop and loop.is_running():
+                import concurrent.futures
+
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    future = pool.submit(asyncio.run, mcp_manager.get_tools())
+                    all_tools = future.result(timeout=30)
+            else:
+                all_tools = asyncio.run(mcp_manager.get_tools())
 
             # Filter to only include servers defined in subagent's .mcp.json
+            # Use prefix matching (server_name + "_") instead of substring to avoid
+            # false positives like "sql" matching "mssql_query"
             allowed_servers = set(mcp_config.keys())
             filtered_tools = [
                 tool
                 for tool in all_tools
-                if hasattr(tool, "name") and any(server in tool.name for server in allowed_servers)
+                if hasattr(tool, "name")
+                and any(
+                    tool.name == server or tool.name.startswith(server + "_")
+                    for server in allowed_servers
+                )
             ]
 
             # Also include generic MCP tools that don't have server prefix
             generic_tools = [
                 tool
                 for tool in all_tools
-                if not any(server in tool.name for server in allowed_servers)
+                if not any(
+                    tool.name == server or tool.name.startswith(server + "_")
+                    for server in allowed_servers
+                )
             ]
 
             return filtered_tools + generic_tools
@@ -418,20 +466,27 @@ The main agent will track your progress via these files.
             del self._cache[name]
 
     def _get(self, name: str) -> Any | None:
-        """Get subagent - always recreates to pick up config changes."""
-        # Always reload to pick up config changes (skills, tools, MCP)
-        # Load config and recreate agent
+        """Get subagent from cache, recreating if config has changed."""
         subagent_path = self.base_path / name
         if not subagent_path.exists():
-            # Clear stale cache entry
             self.invalidate_cache(name)
             return None
 
+        # Check if config has changed since last cache
+        config_path = subagent_path / "config.yaml"
+        cached_agent = self._cache.get(name)
+        if cached_agent is not None and config_path.exists():
+            config_mtime = config_path.stat().st_mtime
+            cache_key = f"_mtime_{name}"
+            cached_mtime = getattr(self, cache_key, 0)
+            if config_mtime == cached_mtime:
+                return cached_agent
+
+        # Config changed or not cached — recreate
         config = self._load_config(name)
         system_prompt = self._build_system_prompt(config)
         agent_tools = self._get_tools(config)
 
-        # Load MCP tools
         mcp_tools = self._load_mcp_tools(subagent_path)
 
         from langchain.agents import create_agent
@@ -451,6 +506,9 @@ The main agent will track your progress via these files.
         )
 
         self._cache[name] = subagent
+        # Track config mtime for cache invalidation
+        if config_path.exists():
+            setattr(self, f"_mtime_{name}", config_path.stat().st_mtime)
 
         return subagent
 

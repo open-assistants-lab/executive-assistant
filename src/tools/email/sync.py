@@ -184,7 +184,10 @@ def _sync_folder(
         mailbox.folder.set(folder)
 
         if mode == "full":
-            # Full backfill - fetch all in batches (newest first)
+            # Full backfill - fetch all in batches (newest first), paginating
+            # by UID range so each batch fetches older emails than the last
+            from imap_tools import AND, UidRange
+
             synced = 0
 
             existing_ids = set()
@@ -200,9 +203,16 @@ def _sync_folder(
 
             batch_count = 0
             max_batches = 50  # Safety limit
+            min_uid_seen = None  # Track lowest UID for pagination
 
             while batch_count < max_batches:
-                messages = list(mailbox.fetch(limit=limit, reverse=True))
+                # First batch: fetch newest emails (no UID filter)
+                # Subsequent batches: fetch emails older than min_uid_seen
+                if min_uid_seen is not None:
+                    criteria = AND(uid_range=UidRange("1", str(min_uid_seen - 1)))
+                    messages = list(mailbox.fetch(criteria, limit=limit, reverse=True))
+                else:
+                    messages = list(mailbox.fetch(limit=limit, reverse=True))
 
                 if not messages:
                     break
@@ -248,15 +258,38 @@ def _sync_folder(
                     existing_ids.add(msg_uid)
                     synced += 1
 
+                # Track lowest UID for pagination
+                batch_uids = [msg.uid for msg in messages if msg.uid is not None]
+                if batch_uids:
+                    batch_min = min(batch_uids)
+                    if min_uid_seen is not None and batch_min >= min_uid_seen:
+                        # No progress — all returned UIDs are >= our threshold
+                        break
+                    min_uid_seen = batch_min
+
                 batch_count += 1
 
-                # If we got fewer than limit, we're done
+                # If we got fewer than limit, we've reached the end
                 if len(messages) < limit:
                     break
 
             if synced > 0:
                 account["last_sync"] = int(datetime.now(UTC).timestamp())
-                account["last_timestamp"] = int(datetime.now(UTC).timestamp())
+                # Use the oldest synced email's timestamp for incremental sync
+                # so future "new" syncs pick up from where we left off
+                with engine.connect() as conn:
+                    result = conn.execute(
+                        text(
+                            "SELECT MIN(timestamp) FROM emails "
+                            "WHERE account_id = :account_id AND folder = :folder"
+                        ),
+                        {"account_id": account_id, "folder": folder},
+                    )
+                    row = result.fetchone()
+                    if row and row[0]:
+                        account["last_timestamp"] = int(row[0])
+                    else:
+                        account["last_timestamp"] = int(datetime.now(UTC).timestamp())
                 _save_account(user_id, account_id, account)
 
             logger.info(
@@ -377,18 +410,12 @@ def start_background_sync(user_id: str, account_id: str) -> None:
     """Start background backfill sync (newest -> earliest)."""
 
     async def _backfill():
-        try:
-            limit = SETTINGS.email_sync.backfill_limit or 500
-            count = await _sync_emails(user_id, account_id, "INBOX", "full", limit)
-            logger.info(
-                "email.backfill_complete",
-                {"user_id": user_id, "account_id": account_id, "count": count},
-            )
-        except Exception as e:
-            logger.error(
-                "email.backfill_error",
-                {"user_id": user_id, "account_id": account_id, "error": str(e)},
-            )
+        limit = SETTINGS.email_sync.backfill_limit or 500
+        count = await _sync_emails(user_id, account_id, "INBOX", "full", limit)
+        logger.info(
+            "email.backfill_complete",
+            {"user_id": user_id, "account_id": account_id, "count": count},
+        )
 
     try:
         try:
@@ -396,8 +423,16 @@ def start_background_sync(user_id: str, account_id: str) -> None:
             loop.create_task(_backfill())
         except RuntimeError:
             asyncio.run(_backfill())
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(
+            "email.backfill_error",
+            {
+                "user_id": user_id,
+                "account_id": account_id,
+                "error": str(e),
+                "error_type": type(e).__name__,
+            },
+        )
 
 
 # Interval sync scheduler
@@ -534,8 +569,6 @@ def email_sync(
     if not account_id:
         return f"Error: Account '{account_name}' not found."
 
-    import asyncio
-
     async def _sync():
         limit = (
             SETTINGS.email_sync.backfill_limit if mode == "full" else SETTINGS.email_sync.batch_size
@@ -544,7 +577,19 @@ def email_sync(
         return count
 
     try:
-        count = asyncio.get_event_loop().run_until_complete(_sync())
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    try:
+        if loop and loop.is_running():
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                future = pool.submit(asyncio.run, _sync())
+                count = future.result(timeout=120)
+        else:
+            count = asyncio.run(_sync())
         return f"Synced {count} emails ({mode} mode) for {account_name}."
     except Exception as e:
         return f"Error syncing: {e}"

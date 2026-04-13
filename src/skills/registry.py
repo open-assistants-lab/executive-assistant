@@ -22,6 +22,7 @@ class SkillRegistry:
         self.user_storage = UserSkillStorage(user_id) if user_id else None
         self._system_skills: list[Skill] | None = None
         self._user_skills: list[Skill] | None = None
+        self._loaded_skills: set[str] = set()
 
     def _load_system_skills(self) -> list[Skill]:
         """Load system skills (cached)."""
@@ -39,6 +40,14 @@ class SkillRegistry:
         """Reload all skills (clear cache)."""
         self._system_skills = None
         self._user_skills = None
+
+    def mark_skill_loaded(self, skill_name: str) -> None:
+        """Track that a skill has been loaded into context."""
+        self._loaded_skills.add(skill_name)
+
+    def get_loaded_skills(self) -> list[str]:
+        """Get list of skills loaded in current session."""
+        return list(self._loaded_skills)
 
     def get_all_skills(self) -> list[Skill]:
         """Get all available skills (system + user).

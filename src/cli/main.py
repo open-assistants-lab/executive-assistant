@@ -60,6 +60,13 @@ class ExecutiveAssistantCLI:
             return True
         elif cmd == "/clear":
             self.messages = []
+            try:
+                from src.storage.messages import get_conversation_store
+
+                conversation = get_conversation_store(self.user_id)
+                conversation.clear()
+            except Exception:
+                pass
             console.print("[yellow]Conversation cleared[/yellow]")
             return True
         elif cmd in ("/quit", "/exit"):

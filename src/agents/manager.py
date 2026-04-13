@@ -1,6 +1,7 @@
 """Agent Manager with per-user pool for concurrent request handling."""
 
 import asyncio
+import threading
 import uuid
 from collections import deque
 from contextlib import asynccontextmanager
@@ -17,7 +18,9 @@ from src.llm import create_model_from_config
 logger = get_logger()
 
 _model: BaseChatModel | None = None
+_model_lock = threading.Lock()
 _checkpoint_managers: dict[str, Any] = {}
+_checkpoint_lock = threading.Lock()
 _agent_pools: dict[str, "AgentPool"] = {}
 
 _pools_lock = asyncio.Lock()
@@ -118,7 +121,7 @@ class AgentPool:
         """Get LangGraph config for an agent instance."""
         return {
             "configurable": {"thread_id": instance.thread_id},
-            "recursion_limit": 1000,
+            "recursion_limit": 25,
         }
 
 
@@ -200,17 +203,19 @@ async def run_agent_stream(
 
 
 def get_model() -> BaseChatModel:
-    """Get or create the shared model."""
+    """Get or create the shared model (thread-safe)."""
     global _model
     if _model is None:
-        _model = create_model_from_config()
-        model_name = getattr(_model, "model", "unknown")
-        provider = getattr(_model, "_provider", "ollama")
-        logger.info(
-            "agent_manager.model_initialized",
-            {"provider": provider, "model": model_name},
-            user_id="system",
-        )
+        with _model_lock:
+            if _model is None:
+                _model = create_model_from_config()
+                model_name = getattr(_model, "model", "unknown")
+                provider = getattr(_model, "_provider", "ollama")
+                logger.info(
+                    "agent_manager.model_initialized",
+                    {"provider": provider, "model": model_name},
+                    user_id="system",
+                )
     return _model
 
 
@@ -229,7 +234,7 @@ def get_default_tools(user_id: str) -> list[Any]:
         subagent_validate,
     )
     from src.skills.example_constrained_tool import sql_write_query
-    from src.skills.tools import skill_create, skills_list, skills_load
+    from src.skills.tools import skill_create
     from src.telegram.main import (
         telegram_send_file_tool,
         telegram_send_message_tool,
@@ -287,7 +292,7 @@ def get_default_tools(user_id: str) -> list[Any]:
         search_web,
     )
     from src.tools.mcp import mcp_list, mcp_reload, mcp_tools
-    from src.tools.memory import memory_get_history, memory_search
+    from src.tools.memory import memory_get_history
     from src.tools.shell import shell_execute
     from src.tools.time import time_get
     from src.tools.todos import (
@@ -306,7 +311,6 @@ def get_default_tools(user_id: str) -> list[Any]:
 
     return [
         memory_get_history,
-        memory_search,
         files_list,
         files_read,
         files_write,
@@ -334,8 +338,6 @@ def get_default_tools(user_id: str) -> list[Any]:
         get_crawl_status,
         cancel_crawl,
         sql_write_query,
-        skills_load,
-        skills_list,
         skill_create,
         email_connect,
         email_disconnect,
@@ -384,11 +386,13 @@ def get_default_tools(user_id: str) -> list[Any]:
 
 
 async def get_checkpoint_manager(user_id: str) -> Any:
-    """Get or create checkpoint manager for user."""
+    """Get or create checkpoint manager for user (thread-safe)."""
     if user_id not in _checkpoint_managers:
-        from src.storage.checkpoint import init_checkpoint_manager
+        with _checkpoint_lock:
+            if user_id not in _checkpoint_managers:
+                from src.storage.checkpoint import init_checkpoint_manager
 
-        _checkpoint_managers[user_id] = await init_checkpoint_manager(user_id)
+                _checkpoint_managers[user_id] = await init_checkpoint_manager(user_id)
     return _checkpoint_managers[user_id]
 
 

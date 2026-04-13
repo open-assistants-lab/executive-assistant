@@ -3,6 +3,8 @@
 import base64
 import json
 import os
+import threading
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +18,7 @@ from src.tools.vault.models import Credential, VaultConfig
 logger = get_logger()
 
 DEFAULT_ITERATIONS = 100000
+MAX_VAULTS = 100
 
 
 def _get_vault_path(user_id: str) -> Path:
@@ -166,24 +169,36 @@ class Vault:
         self._save_vault(config)
 
 
-# Session storage for unlocked vaults
-_vaults: dict[str, Vault] = {}
+# Session storage for unlocked vaults (LRU with thread-safe access)
+_vaults: OrderedDict[str, Vault] = OrderedDict()
+_vaults_lock = threading.Lock()
 
 
 def get_vault(user_id: str) -> Vault:
-    """Get vault for user."""
-    if user_id not in _vaults:
-        _vaults[user_id] = Vault(user_id)
-    return _vaults[user_id]
+    """Get vault for user (LRU eviction when MAX_VAULTS exceeded)."""
+    with _vaults_lock:
+        if user_id in _vaults:
+            _vaults.move_to_end(user_id)
+            return _vaults[user_id]
+        vault = Vault(user_id)
+        _vaults[user_id] = vault
+        # Evict oldest entries if over limit
+        while len(_vaults) > MAX_VAULTS:
+            _vaults.popitem(last=False)
+        return vault
 
 
 def unlock_vault(user_id: str, master_password: str) -> bool:
     """Unlock vault for user."""
-    vault = get_vault(user_id)
-    return vault.unlock(master_password)
+    with _vaults_lock:
+        vault = get_vault(user_id)
+        result = vault.unlock(master_password)
+        _vaults.move_to_end(user_id)
+        return result
 
 
 def lock_vault(user_id: str) -> None:
     """Lock vault for user."""
-    vault = get_vault(user_id)
-    vault.lock()
+    with _vaults_lock:
+        vault = get_vault(user_id)
+        vault.lock()

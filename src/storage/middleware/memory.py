@@ -1,16 +1,18 @@
 """Memory middleware for extracting and injecting learned behavioral patterns.
 
 Features:
-- Selective extraction: only extract when user explicitly corrects, expresses preference, or provides new info
+- Turn-based extraction: extracts every N turns instead of keyword detection
 - Two-layer memory: working (always injected) vs long-term (retrievable on demand)
+- Progressive disclosure: compact context → summary → full details
 - Memory types: preference, fact, workflow, correction
+- Connections graph: memories linked with relationship semantics
 - Source tracking: explicit (user-set) vs learned (auto-extracted)
 """
 
 import json
 import logging
 import threading
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any, NotRequired
 
 from langchain.agents.middleware import AgentMiddleware, AgentState, hook_config
@@ -21,54 +23,18 @@ from src.app_logging import get_logger
 from src.storage.memory import (
     DEFAULT_CONFIDENCE,
     MAX_CONFIDENCE,
+    MEMORY_DETAIL_SUMMARY,
     MEMORY_TYPE_CORRECTION,
     MEMORY_TYPE_FACT,
     MEMORY_TYPE_PREFERENCE,
     MEMORY_TYPE_WORKFLOW,
-    SOURCE_EXPLICIT,
     SOURCE_LEARNED,
     get_memory_store,
 )
 
 logger = get_logger()
 
-# Detection keywords for selective extraction
-CORRECTION_KEYWORDS = [
-    "no ",
-    "don't ",
-    "don't do",
-    "not like",
-    "wrong",
-    "actually",
-    "instead",
-    "please don't",
-    "never",
-    "avoid",
-    "not that",
-    "i meant",
-    "not what",
-    "that's not",
-    "stop",
-    "dislike",
-]
-
-PREFERENCE_KEYWORDS = [
-    "i prefer",
-    "i like",
-    "i want",
-    "i love",
-    "i hate",
-    "i don't like",
-    "always",
-    "never",
-    "usually",
-    "i'm used to",
-    "i'm comfortable with",
-    "my favorite",
-    "i'm a fan of",
-    "better with",
-    "instead of",
-]
+EXTRACTION_TURN_INTERVAL = 3
 
 CORRECTION_KEYWORDS = [
     "no ",
@@ -94,6 +60,24 @@ CORRECTION_KEYWORDS = [
     "hold on",
 ]
 
+PREFERENCE_KEYWORDS = [
+    "i prefer",
+    "i like",
+    "i want",
+    "i love",
+    "i hate",
+    "i don't like",
+    "always",
+    "never",
+    "usually",
+    "i'm used to",
+    "i'm comfortable with",
+    "my favorite",
+    "i'm a fan of",
+    "better with",
+    "instead of",
+]
+
 NEW_INFO_KEYWORDS = [
     "i am ",
     "i'm ",
@@ -110,7 +94,6 @@ NEW_INFO_KEYWORDS = [
     "speak ",
     "speaks ",
 ]
-
 
 EXTRACTION_PROMPT = """You are a user pattern extraction system. Analyze the conversation and extract ONLY meaningful behavioral patterns.
 
@@ -147,11 +130,28 @@ EXTRACTION_PROMPT = """You are a user pattern extraction system. Analyze the con
 | lesson | Things taught to AI |
 | dislikes | Explicitly unwanted |
 
+## STRUCTURED DATA:
+
+For **fact** type memories, include structured fields:
+```json
+{{"entity": "person/object", "attribute": "property name", "value": "the value"}}
+```
+
+For **workflow** type memories, include steps:
+```json
+{{"steps": ["step 1", "step 2"]}}
+```
+
+For **correction** type memories, include old and new:
+```json
+{{"old_value": "what was wrong", "new_value": "what is correct"}}
+```
+
 ## OUTPUT (JSON array):
 
 ```json
 [
-  {{"trigger": "when [situation]", "action": "what the user wants", "domain": "domain_name", "memory_type": "preference|fact|workflow|correction", "confidence": 0.0-1.0}}
+  {{"trigger": "when [situation]", "action": "what the user wants", "domain": "domain_name", "memory_type": "preference|fact|workflow|correction", "confidence": 0.0-1.0, "structured_data": {{}}}}
 ]
 ```
 
@@ -180,6 +180,7 @@ EXTRACTION_SCHEMA = {
                 ],
             },
             "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+            "structured_data": {"type": "object"},
         },
         "required": ["trigger", "action", "domain", "memory_type", "confidence"],
     },
@@ -191,29 +192,24 @@ class MemoryState(AgentState):
 
     extracted_memories: NotRequired[list[dict[str, Any]]]
     last_extraction_time: NotRequired[datetime]
+    turn_count: NotRequired[int]
 
 
 class MemoryMiddleware(AgentMiddleware[MemoryState]):
     """Middleware that extracts and injects learned memories.
 
-    Features:
-    - Selective extraction: only when meaningful patterns detected
-    - Two-layer memory: working (high confidence) + long-term (all)
-    - Memory type classification
-    - Source tracking (explicit vs learned)
+    Uses turn-based extraction (every N turns) instead of keyword detection,
+    with keyword detection as a correction signal amplifier.
     """
 
     state_schema = MemoryState
     tools = []
 
-    # Class-level extraction tracking
-    _extraction_count: dict[str, int] = {}
-
     def __init__(self, user_id: str | None = None):
         self.user_id = user_id or "default"
         self.memory_store = get_memory_store(self.user_id)
         self._model: Any = None
-        self._last_conversation_had_extraction = False
+        self._turn_count = 0
 
     def _get_model(self) -> Any | None:
         """Get the LLM model for extraction."""
@@ -242,96 +238,32 @@ class MemoryMiddleware(AgentMiddleware[MemoryState]):
         return str(content)
 
     def _should_extract(self, messages: list[Any]) -> bool:
-        """Determine if extraction should happen based on conversation content.
+        """Determine if extraction should happen.
 
-        Only extract when:
-        - User explicitly corrects the AI
-        - User expresses clear preferences
-        - User provides new personal information
+        Uses turn-based extraction (every N turns) with keyword boost for corrections.
+        This ensures no preferences slip through while keeping LLM calls manageable.
         """
+        self._turn_count += 1
+
+        if self._turn_count % EXTRACTION_TURN_INTERVAL == 0:
+            return True
+
         if not messages:
             return False
 
-        conversation_text = ""
-        for msg in messages[-6:]:
-            role = getattr(msg, "type", "unknown")
-            content = self._get_message_content(msg)
-            conversation_text += f"{role}: {content}\n"
-
-        conversation_lower = conversation_text.lower()
-
-        # Check for correction keywords
-        correction_count = sum(1 for kw in CORRECTION_KEYWORDS if kw in conversation_lower)
-
-        # Check for preference keywords
-        preference_count = sum(1 for kw in PREFERENCE_KEYWORDS if kw in conversation_lower)
-
-        # Check for new info keywords (but only from user)
         user_messages = [m for m in messages[-4:] if getattr(m, "type", "") == "human"]
         user_text = " ".join(self._get_message_content(m) for m in user_messages).lower()
+        conversation_lower = " ".join(self._get_message_content(m) for m in messages[-6:]).lower()
+
+        correction_count = sum(1 for kw in CORRECTION_KEYWORDS if kw in conversation_lower)
+        if correction_count >= 1:
+            return True
+
         new_info_count = sum(1 for kw in NEW_INFO_KEYWORDS if kw in user_text)
+        if new_info_count >= 1:
+            return True
 
-        # Only extract if there's meaningful content
-        has_meaningful_content = (
-            correction_count >= 1 or preference_count >= 2 or new_info_count >= 1
-        )
-
-        return has_meaningful_content
-
-    def _get_working_memory_context(self) -> str:
-        """Build working memory context - always injected into context."""
-        memories = self.memory_store.list_working_memories(min_confidence=0.3, limit=20)
-
-        if not memories:
-            return ""
-
-        now = datetime.now(UTC)
-
-        by_domain: dict[str, list[str]] = {}
-        for memory in memories:
-            domain = memory.domain
-            if domain not in by_domain:
-                by_domain[domain] = []
-
-            days_old = (now - memory.updated_at).days
-            if days_old < 7:
-                recency = ""
-            elif days_old > 90:
-                recency = " (outdated)"
-            else:
-                recency = f" ({days_old}d ago)"
-
-            source_marker = "★" if memory.source == SOURCE_EXPLICIT else ""
-            by_domain[domain].append(
-                f"  - {memory.trigger}: {memory.action}{recency}{source_marker}"
-            )
-
-        domain_order = [
-            "personal",
-            "work",
-            "location",
-            "interests",
-            "skills",
-            "goals",
-            "constraints",
-            "communication",
-            "tools",
-            "languages",
-            "correction",
-            "workflow",
-            "lesson",
-            "dislikes",
-        ]
-
-        parts = ["## User Profile & Preferences"]
-
-        for domain in domain_order:
-            if domain in by_domain:
-                domain_display = domain.capitalize()
-                parts.append(f"\n### {domain_display}")
-                parts.extend(by_domain[domain])
-
-        return "\n".join(parts)
+        return False
 
     @hook_config()
     def before_agent(
@@ -339,11 +271,12 @@ class MemoryMiddleware(AgentMiddleware[MemoryState]):
         state: MemoryState,
         runtime: Runtime,
     ) -> dict[str, Any] | None:
-        """Inject learned memories into context.
+        """Inject learned memories into context using progressive disclosure.
 
-        Uses working memory (high confidence, recent) for context injection.
+        Uses compact context by default to save tokens, with on-demand
+        expansion via memory_search tool.
         """
-        memory_context = self._get_working_memory_context()
+        memory_context = self.memory_store.get_memory_context(detail_level=MEMORY_DETAIL_SUMMARY)
 
         if not memory_context:
             return None
@@ -362,18 +295,16 @@ class MemoryMiddleware(AgentMiddleware[MemoryState]):
                     content = self._get_message_content(msg)
                     if "## User Profile & Preferences" not in content:
                         updated_content = content + "\n\n" + memory_context
-                        if hasattr(msg, "content"):
-                            msg.content = updated_content
                         current_messages[i] = SystemMessage(content=updated_content)
                     break
 
         logger.debug(
             "memory.injected",
-            {"context": memory_context[:100], "user_id": self.user_id},
+            {"context_length": len(memory_context), "user_id": self.user_id},
             user_id=self.user_id,
         )
 
-        return None
+        return {"messages": current_messages}
 
     @hook_config()
     def after_agent(
@@ -381,23 +312,17 @@ class MemoryMiddleware(AgentMiddleware[MemoryState]):
         state: MemoryState,
         runtime: Runtime,
     ) -> dict[str, Any] | None:
-        """Extract behavioral patterns from conversation - SELECTIVELY.
+        """Extract behavioral patterns from conversation.
 
-        Only extracts when conversation contains:
-        - User corrections
-        - Explicit preferences
-        - New personal information
+        Uses turn-based extraction every N turns, with immediate extraction
+        for corrections and new information.
         """
         messages = state.get("messages", [])
         if not messages:
             return None
 
         if not self._should_extract(messages):
-            self._last_conversation_had_extraction = False
             return None
-
-        # Track that this conversation had extraction
-        self._last_conversation_had_extraction = True
 
         recent_messages = []
         for msg in messages[-8:]:
@@ -415,7 +340,6 @@ class MemoryMiddleware(AgentMiddleware[MemoryState]):
             daemon=True,
         ).start()
 
-        # Check if should trigger consolidation (every N messages)
         self._check_and_trigger_consolidation()
 
         return None
@@ -459,34 +383,53 @@ class MemoryMiddleware(AgentMiddleware[MemoryState]):
 
             patterns = self._parse_json_response(content)
 
-            # Detect if this conversation contains a correction
             is_correction = self._detect_correction_in_messages(messages)
 
+            seen_triggers = set()
             for pattern in patterns:
                 trigger = pattern.get("trigger", "")
                 action = pattern.get("action", "")
                 domain = pattern.get("domain", "preference")
                 memory_type = pattern.get("memory_type", MEMORY_TYPE_PREFERENCE)
                 confidence = pattern.get("confidence", DEFAULT_CONFIDENCE)
+                structured_data = pattern.get("structured_data", {})
 
                 if not trigger or not action:
                     continue
 
-                # Check if similar memory exists (for corrections or updates)
+                trigger_key = (trigger.lower().strip(), domain.lower().strip())
+                if trigger_key in seen_triggers:
+                    continue
+                seen_triggers.add(trigger_key)
+
                 existing = self.memory_store.search_hybrid(trigger, limit=3)
                 similar = [m for m in existing if m.domain == domain and not m.is_superseded]
 
+                if not similar and memory_type == MEMORY_TYPE_FACT:
+                    domain_memories = self.memory_store.list_memories(
+                        domain=domain,
+                        memory_type=memory_type,
+                        min_confidence=0.5,
+                        limit=10,
+                    )
+                    existing_same = [m for m in domain_memories if not m.is_superseded]
+                    if existing_same:
+                        similar = [existing_same[0]]
+
                 if is_correction and similar:
-                    # Update existing memory instead of creating new
                     old_mem = similar[0]
                     new_mem = self.memory_store.update_memory(
                         old_mem.id,
                         new_trigger=trigger,
                         new_action=action,
                         new_domain=domain,
+                        new_structured_data=structured_data if structured_data else None,
                     )
                     if new_mem:
                         self.memory_store.supersede_memory(old_mem.id, new_mem.id)
+                        self.memory_store.add_connection(
+                            new_mem.id, old_mem.id, relationship="corrects"
+                        )
                         logger.info(
                             "memory.corrected",
                             {
@@ -498,7 +441,6 @@ class MemoryMiddleware(AgentMiddleware[MemoryState]):
                             user_id=self.user_id,
                         )
                 else:
-                    # Create new memory (normal case)
                     self.memory_store.add_memory(
                         trigger=trigger,
                         action=action,
@@ -506,6 +448,7 @@ class MemoryMiddleware(AgentMiddleware[MemoryState]):
                         domain=domain,
                         source=SOURCE_LEARNED,
                         memory_type=memory_type,
+                        structured_data=structured_data if structured_data else None,
                     )
 
                     logger.info(
@@ -529,7 +472,7 @@ class MemoryMiddleware(AgentMiddleware[MemoryState]):
 
     def _detect_correction_in_messages(self, messages: list[str]) -> bool:
         """Detect if conversation contains user corrections."""
-        conversation_text = " ".join(m[-500:] for m in messages if len(m) > 10).lower()
+        conversation_text = " ".join(m[-500:] for m in messages if m.strip()).lower()
         return any(kw in conversation_text for kw in CORRECTION_KEYWORDS)
 
     def _parse_json_response(self, content: str) -> list[dict[str, Any]]:
@@ -560,7 +503,7 @@ class MemoryMiddleware(AgentMiddleware[MemoryState]):
 
         return []
 
-    def retrieve_longterm_memories(self, query: str, limit: int = 10) -> list:
+    def retrieve_longterm_memories(self, query: str, limit: int = 10) -> list[Any]:
         """Retrieve relevant long-term memories for a query."""
         return self.memory_store.search_hybrid(query, limit=limit)
 
@@ -571,7 +514,7 @@ class MemoryMiddleware(AgentMiddleware[MemoryState]):
 
             trigger_consolidation(self.user_id)
         except Exception:
-            pass  # Silently fail if consolidation not available
+            pass
 
 
-__all__ = ["MemoryMiddleware", "MemoryState"]
+__all__ = ["MemoryMiddleware", "MemoryState", "EXTRACTION_TURN_INTERVAL"]

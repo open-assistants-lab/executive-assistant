@@ -54,26 +54,51 @@ def _save_job_result(
     result: dict | None = None,
     error: str | None = None,
 ):
-    """Save job result to database."""
+    """Save job result to database. Preserves created_at on updates."""
     conn = sqlite3.connect(RESULTS_DB_PATH)
-    conn.execute(
-        """
-        INSERT OR REPLACE INTO job_results
-        (job_id, user_id, subagent_name, task, status, result, error, completed_at, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """,
-        (
-            job_id,
-            user_id,
-            subagent_name,
-            task,
-            status,
-            json.dumps(result) if result else None,
-            error,
-            datetime.now().isoformat(),
-            datetime.now().isoformat(),
-        ),
-    )
+    # Check if record already exists to preserve created_at
+    existing = conn.execute(
+        "SELECT created_at FROM job_results WHERE job_id = ?", (job_id,)
+    ).fetchone()
+
+    if existing:
+        conn.execute(
+            """
+            UPDATE job_results
+            SET user_id = ?, subagent_name = ?, task = ?, status = ?,
+                result = ?, error = ?, completed_at = ?
+            WHERE job_id = ?
+        """,
+            (
+                user_id,
+                subagent_name,
+                task,
+                status,
+                json.dumps(result) if result else None,
+                error,
+                datetime.now().isoformat(),
+                job_id,
+            ),
+        )
+    else:
+        conn.execute(
+            """
+            INSERT INTO job_results
+            (job_id, user_id, subagent_name, task, status, result, error, completed_at, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+            (
+                job_id,
+                user_id,
+                subagent_name,
+                task,
+                status,
+                json.dumps(result) if result else None,
+                error,
+                datetime.now().isoformat(),
+                datetime.now().isoformat(),
+            ),
+        )
     conn.commit()
     conn.close()
 
@@ -353,7 +378,14 @@ def cancel_job(job_id: str) -> bool:
     job = scheduler.get_job(job_id)
     if job:
         job.remove()
-        _save_job_result(job_id=job_id, user_id="", subagent_name="", task="", status="cancelled")
+        # Preserve original metadata; only update status to cancelled
+        conn = sqlite3.connect(RESULTS_DB_PATH)
+        conn.execute(
+            "UPDATE job_results SET status = 'cancelled', completed_at = ? WHERE job_id = ?",
+            (datetime.now().isoformat(), job_id),
+        )
+        conn.commit()
+        conn.close()
         return True
     return False
 

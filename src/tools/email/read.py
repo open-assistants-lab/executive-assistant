@@ -96,6 +96,7 @@ def email_get(
     email_id: str,
     account_name: str,
     user_id: str = "",
+    folder: str = "INBOX",
 ) -> str:
     """Get full email content.
 
@@ -103,6 +104,7 @@ def email_get(
         email_id: Email ID (from email_list)
         account_name: Account name
         user_id: User ID (REQUIRED)
+        folder: Email folder (default: INBOX)
 
     Returns:
         Full email content
@@ -120,9 +122,9 @@ def email_get(
         result = conn.execute(
             text("""
                 SELECT * FROM emails
-                WHERE account_id = :account_id AND message_id = :email_id
+                WHERE account_id = :account_id AND folder = :folder AND message_id = :email_id
             """),
-            {"account_id": account_id, "email_id": email_id},
+            {"account_id": account_id, "folder": folder, "email_id": email_id},
         ).fetchone()
 
     if not result:

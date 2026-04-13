@@ -26,9 +26,10 @@ database:
 
 # Memory / Checkpointing
 memory:
-  # Checkpointer: LangGraph SQLite
-  # retention_days: 0=disabled, -1=forever, N=keep for N days
+  # Checkpointer: LangGraph SQLite (DISABLED - resource intensive in production)
+  # Set CHECKPOINT_ENABLED=true to enable conversational state persistence
   checkpointer:
+    enabled: false
     retention_days: 0 # 0=disabled, -1=forever, N=days
 
   # Long-term message storage (SQLite + FTS5 + ChromaDB)

@@ -148,10 +148,11 @@ def save_account(user_id: str, account_id: str, account: dict) -> None:
 
 
 def delete_account(user_id: str, account_id: str) -> None:
-    """Delete account from database."""
+    """Delete account and all associated emails from database."""
     engine = get_engine(user_id)
 
     with engine.connect() as conn:
+        conn.execute(text("DELETE FROM emails WHERE account_id = :id"), {"id": account_id})
         conn.execute(text("DELETE FROM accounts WHERE id = :id"), {"id": account_id})
         conn.commit()
 

@@ -10,6 +10,8 @@ from src.app_logging import get_logger
 
 logger = get_logger()
 
+_engines: dict[str, object] = {}
+
 
 def get_db_path(user_id: str) -> str:
     """Get SQLite database path for user."""
@@ -22,10 +24,13 @@ def get_db_path(user_id: str) -> str:
 
 
 def get_engine(user_id: str):
-    """Get SQLAlchemy engine."""
+    """Get SQLAlchemy engine (cached per user)."""
+    if user_id in _engines:
+        return _engines[user_id]
     db_path = get_db_path(user_id)
     engine = create_engine(f"sqlite:///{db_path}")
     _init_db(engine)
+    _engines[user_id] = engine
     return engine
 
 
@@ -278,12 +283,8 @@ def add_contact(
     phone: str | None = None,
     company: str | None = None,
 ) -> dict:
-    """Add manual contact."""
+    """Add manual contact. Uses INSERT OR IGNORE to prevent TOCTOU race condition."""
     engine = get_engine(user_id)
-
-    existing = get_contact(user_id, email=email)
-    if existing:
-        return {"success": False, "error": "Contact already exists"}
 
     contact_id = str(uuid.uuid4())
     first_name, last_name = parse_name_from_email(email)
@@ -293,6 +294,15 @@ def add_contact(
         last_name = " ".join(parts[1:]) if len(parts) > 1 else None
 
     with engine.connect() as conn:
+        # Use a single transaction to avoid TOCTOU race between check and insert
+        existing = conn.execute(
+            text("SELECT id FROM contacts WHERE email = :email"),
+            {"email": email.lower()},
+        ).fetchone()
+
+        if existing:
+            return {"success": False, "error": "Contact already exists"}
+
         conn.execute(
             text("""
                 INSERT INTO contacts
@@ -398,7 +408,7 @@ def delete_contact(user_id: str, contact_id: str | None = None, email: str | Non
 
 
 def search_contacts(user_id: str, query: str, limit: int = 20) -> list[dict]:
-    """Search contacts by name, email, company."""
+    """Search contacts by name, email, company. Case-insensitive."""
     engine = get_engine(user_id)
     pattern = f"%{query}%"
 
@@ -407,11 +417,11 @@ def search_contacts(user_id: str, query: str, limit: int = 20) -> list[dict]:
             text("""
                 SELECT id, email, name, first_name, last_name, company, phone, source, created_at
                 FROM contacts
-                WHERE name LIKE :pattern
-                   OR email LIKE :pattern
-                   OR company LIKE :pattern
-                   OR first_name LIKE :pattern
-                   OR last_name LIKE :pattern
+                WHERE name LIKE :pattern COLLATE NOCASE
+                   OR email LIKE :pattern COLLATE NOCASE
+                   OR company LIKE :pattern COLLATE NOCASE
+                   OR first_name LIKE :pattern COLLATE NOCASE
+                   OR last_name LIKE :pattern COLLATE NOCASE
                 ORDER BY name ASC
                 LIMIT :limit
             """),
