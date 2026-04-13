@@ -12,7 +12,6 @@ The protocol is designed to be:
 
 from pydantic import BaseModel, Field
 
-
 # ─── Client → Server Messages ───
 
 
