@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Executive Assistant - Test Harness</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0d1117; color: #c9d1d9; }
+  .container { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr auto; height: 100vh; gap: 8px; padding: 8px; }
+  .header { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 8px 16px; background: #161b22; border-radius: 8px; }
+  .header h1 { font-size: 16px; color: #58a6ff; }
+  .header .status { font-size: 12px; padding: 2px 8px; border-radius: 4px; }
+  .status.connected { background: #238636; color: white; }
+  .status.disconnected { background: #da3633; color: white; }
+  .status.connecting { background: #d29922; color: black; }
+  #wsUrl { flex: 1; padding: 6px 10px; background: #0d1117; border: 1px solid #30363d; border-radius: 4px; color: #c9d1d9; font-family: monospace; }
+  button { padding: 6px 14px; background: #238636; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; }
+  button:hover { background: #2ea043; }
+  button.danger { background: #da3633; }
+  button.danger:hover { background: #f85149; }
+  button.secondary { background: #30363d; color: #c9d1d9; }
+  button.secondary:hover { background: #484f58; }
+  .chat-panel { display: flex; flex-direction: column; background: #161b22; border-radius: 8px; overflow: hidden; }
+  .panel-header { padding: 8px 12px; background: #21262d; font-size: 13px; font-weight: 600; border-bottom: 1px solid #30363d; }
+  #messages { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .msg { padding: 8px 12px; border-radius: 8px; max-width: 85%; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; }
+  .msg.user { background: #1f6feb; color: white; align-self: flex-end; }
+  .msg.ai { background: #21262d; color: #c9d1d9; align-self: flex-start; border: 1px solid #30363d; }
+  .msg.tool { background: #161b22; color: #8b949e; align-self: flex-start; font-size: 12px; border-left: 3px solid #f0883e; padding-left: 10px; }
+  .msg.tool .tool-name { color: #f0883e; font-weight: 600; }
+  .msg.error { background: #3d1a1a; color: #f85149; align-self: flex-start; border: 1px solid #da3633; }
+  .msg.system { background: #1c2128; color: #8b949e; align-self: center; font-size: 12px; font-style: italic; }
+  .msg.reasoning { background: #1c1d2e; color: #a5a6f6; align-self: flex-start; font-size: 12px; font-style: italic; border-left: 3px solid #a5a6f6; }
+  .msg .interrupt-box { background: #2d1a00; border: 1px solid #d29922; border-radius: 6px; padding: 10px; margin: 6px 0; }
+  .msg .interrupt-box .approve-btns { margin-top: 8px; display: flex; gap: 6px; }
+  .input-area { display: flex; gap: 8px; padding: 12px; background: #21262d; border-top: 1px solid #30363d; }
+  #msgInput { flex: 1; padding: 8px 12px; background: #0d1117; border: 1px solid #30363d; border-radius: 4px; color: #c9d1d9; font-size: 14px; resize: none; }
+  #msgInput:focus { outline: none; border-color: #58a6ff; }
+  input[type="text"], select { padding: 6px 10px; background: #0d1117; border: 1px solid #30363d; border-radius: 4px; color: #c9d1d9; font-size: 13px; }
+  .tabs { display: flex; overflow-x: auto; background: #161b22; border-radius: 8px 8px 0 0; }
+  .tab { padding: 8px 16px; cursor: pointer; font-size: 13px; border-bottom: 2px solid transparent; white-space: nowrap; }
+  .tab.active { color: #58a6ff; border-bottom-color: #58a6ff; }
+  .tab:hover { color: #c9d1d9; }
+  .tab-content { flex: 1; overflow-y: auto; padding: 12px; background: #161b22; border-radius: 0 0 8px 8px; }
+  .api-panel { display: flex; flex-direction: column; background: #161b22; border-radius: 8px; overflow: hidden; }
+  .form-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .form-row label { min-width: 80px; font-size: 12px; color: #8b949e; }
+  .form-row input, .form-row select { flex: 1; }
+  .result-box { font-family: monospace; font-size: 12px; background: #0d1117; border: 1px solid #30363d; border-radius: 4px; padding: 8px; max-height: 400px; overflow-y: auto; white-space: pre-wrap; }
+  .footer { grid-column: 1 / -1; font-size: 11px; color: #484f58; text-align: center; padding: 4px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Executive Assistant</h1>
+    <span id="status" class="status disconnected">Disconnected</span>
+    <input type="text" id="wsUrl" value="ws://localhost:8080/ws/conversation" placeholder="WebSocket URL">
+    <button id="connectBtn" onclick="toggleConnection()">Connect</button>
+    <input type="text" id="userId" value="test_user" placeholder="User ID" style="width:120px">
+    <label><input type="checkbox" id="verbose" checked> Verbose</label>
+  </div>
+
+  <div class="chat-panel">
+    <div class="panel-header">Chat (WebSocket)</div>
+    <div id="messages"></div>
+    <div id="interruptArea" style="display:none; padding:8px; background:#2d1a00; border-top:1px solid #d29922;">
+      <div id="interruptInfo" style="font-size:13px; color:#d29922;"></div>
+      <div class="approve-btns" style="margin-top:6px;">
+        <button onclick="sendApprove()" class="secondary">Approve</button>
+        <button onclick="sendReject()" class="danger">Reject</button>
+      </div>
+    </div>
+    <div class="input-area">
+      <textarea id="msgInput" rows="1" placeholder="Type a message..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
+      <button onclick="sendMessage()">Send</button>
+      <button onclick="sendCancel()" class="danger">Cancel</button>
+    </div>
+  </div>
+
+  <div class="api-panel">
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('memories')">Memories</div>
+      <div class="tab" onclick="switchTab('contacts')">Contacts</div>
+      <div class="tab" onclick="switchTab('todos')">Todos</div>
+      <div class="tab" onclick="switchTab('files')">Files</div>
+      <div class="tab" onclick="switchTab('skills')">Skills</div>
+      <div class="tab" onclick="switchTab('email')">Email</div>
+    </div>
+    <div class="tab-content" id="tabContent">
+      <div id="tab-memories"></div>
+      <div id="tab-contacts" style="display:none"></div>
+      <div id="tab-todos" style="display:none"></div>
+      <div id="tab-files" style="display:none"></div>
+      <div id="tab-skills" style="display:none"></div>
+      <div id="tab-email" style="display:none"></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Executive Assistant Test Harness | Protocol: WS v1 | <span id="msgCount">0</span> messages
+  </div>
+</div>
+
+<script>
+let ws = null;
+let msgCount = 0;
+let pendingInterrupt = null;
+const API_BASE = window.location.origin || 'http://localhost:8080';
+
+// ─── WebSocket ───
+
+function toggleConnection() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.close();
+  } else {
+    connectWS();
+  }
+}
+
+function connectWS() {
+  const url = document.getElementById('wsUrl').value;
+  const statusEl = document.getElementById('status');
+  const btn = document.getElementById('connectBtn');
+  statusEl.className = 'status connecting';
+  statusEl.textContent = 'Connecting...';
+  btn.textContent = 'Disconnect';
+  btn.className = 'danger';
+
+  try {
+    ws = new WebSocket(url);
+  } catch (e) {
+    statusEl.className = 'status disconnected';
+    statusEl.textContent = 'Error';
+    return;
+  }
+
+  ws.onopen = () => {
+    statusEl.className = 'status connected';
+    statusEl.textContent = 'Connected';
+    addSystemMsg('Connected to ' + url);
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      handleServerMessage(data);
+    } catch (e) {
+      addMsg('ai', event.data);
+    }
+  };
+
+  ws.onclose = () => {
+    statusEl.className = 'status disconnected';
+    statusEl.textContent = 'Disconnected';
+    btn.textContent = 'Connect';
+    btn.className = '';
+    addSystemMsg('Disconnected');
+  };
+
+  ws.onerror = () => {
+    statusEl.className = 'status disconnected';
+    statusEl.textContent = 'Error';
+  };
+}
+
+function sendWS(msg) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    alert('Not connected. Click Connect first.');
+    return;
+  }
+  ws.send(JSON.stringify(msg));
+}
+
+function sendMessage() {
+  const input = document.getElementById('msgInput');
+  const content = input.value.trim();
+  if (!content) return;
+  const userId = document.getElementById('userId').value || 'test_user';
+  const verbose = document.getElementById('verbose').checked;
+  addMsg('user', content);
+  sendWS({ type: 'user_message', content, user_id: userId, verbose });
+  input.value = '';
+}
+
+function sendApprove() {
+  if (pendingInterrupt) {
+    sendWS({ type: 'approve', call_id: pendingInterrupt.call_id });
+    document.getElementById('interruptArea').style.display = 'none';
+    pendingInterrupt = null;
+  }
+}
+
+function sendReject() {
+  if (pendingInterrupt) {
+    sendWS({ type: 'reject', call_id: pendingInterrupt.call_id, reason: 'User rejected' });
+    document.getElementById('interruptArea').style.display = 'none';
+    pendingInterrupt = null;
+  }
+}
+
+function sendCancel() {
+  sendWS({ type: 'cancel' });
+}
+
+function handleServerMessage(data) {
+  msgCount++;
+  document.getElementById('msgCount').textContent = msgCount;
+  switch (data.type) {
+    case 'ai_token':
+      // Append to last AI message or create new
+      const lastMsg = document.getElementById('messages').lastElementChild;
+      if (lastMsg && lastMsg.classList.contains('ai') && !lastMsg.dataset.complete) {
+        lastMsg.textContent += data.content;
+      } else {
+        addMsg('ai', data.content);
+      }
+      break;
+    case 'tool_start':
+      addToolMsg(data.tool, 'started', data.args);
+      break;
+    case 'tool_end':
+      addToolMsg(data.tool, 'completed', data.result_preview);
+      break;
+    case 'interrupt':
+      pendingInterrupt = data;
+      const area = document.getElementById('interruptArea');
+      area.style.display = 'block';
+      document.getElementById('interruptInfo').innerHTML =
+        `<strong>⚠️ ${data.tool}</strong> wants to run with args: <code>${JSON.stringify(data.args)}</code><br>Actions: ${data.allowed_actions.join(', ')}`;
+      addSystemMsg(`Interrupt: ${data.tool} awaiting approval`);
+      break;
+    case 'middleware':
+      addSystemMsg(`Middleware: ${data.name} ${data.event}`);
+      break;
+    case 'reasoning':
+      addReasoningMsg(data.content);
+      break;
+    case 'done':
+      if (data.response) {
+        // Final message - mark last AI message as complete
+        const msgs = document.getElementById('messages');
+        const lastAi = msgs.querySelector('.ai:last-child');
+        if (lastAi) lastAi.dataset.complete = 'true';
+        if (!data.tool_calls?.length && data.response !== document.getElementById('messages').lastElementChild?.textContent) {
+          addMsg('ai', data.response);
+        }
+      }
+      addSystemMsg('Done');
+      break;
+    case 'error':
+      addMsg('error', data.message);
+      break;
+    case 'pong':
+      break;
+    default:
+      addSystemMsg(`Unknown: ${JSON.stringify(data).substring(0, 100)}`);
+  }
+}
+
+// ─── Message Display ───
+
+function addMsg(role, content) {
+  const el = document.createElement('div');
+  el.className = `msg ${role}`;
+  el.textContent = content;
+  document.getElementById('messages').appendChild(el);
+  scrollBottom();
+}
+
+function addSystemMsg(text) {
+  const el = document.createElement('div');
+  el.className = 'msg system';
+  el.textContent = text;
+  document.getElementById('messages').appendChild(el);
+  scrollBottom();
+}
+
+function addToolMsg(tool, stage, detail) {
+  const el = document.createElement('div');
+  el.className = 'msg tool';
+  el.innerHTML = `<span class="tool-name">${tool}</span> ${stage}: <code>${typeof detail === 'object' ? JSON.stringify(detail) : (detail || '').substring(0, 200)}</code>`;
+  document.getElementById('messages').appendChild(el);
+  scrollBottom();
+}
+
+function addReasoningMsg(content) {
+  const el = document.createElement('div');
+  el.className = 'msg reasoning';
+  el.textContent = content;
+  document.getElementById('messages').appendChild(el);
+  scrollBottom();
+}
+
+function scrollBottom() {
+  const msgs = document.getElementById('messages');
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+// ─── REST API Tabs ───
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+  document.querySelectorAll('.tab-content > div').forEach(d => d.style.display = 'none');
+  document.getElementById(`tab-${name}`).style.display = 'block';
+  loadTab(name);
+}
+
+function getUserId() { return document.getElementById('userId').value || 'test_user'; }
+
+async function api(method, path, params = {}, body = null) {
+  const url = new URL(`${API_BASE}${path}`);
+  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(url, opts);
+  return res.json();
+}
+
+function formatResult(data) {
+  return JSON.stringify(data, null, 2);
+}
+
+function setResult(id, data) {
+  document.getElementById(id).textContent = typeof data === 'string' ? data : formatResult(data);
+}
+
+async function loadTab(name) {
+  const uid = getUserId();
+  switch (name) {
+    case 'memories': {
+      const data = await api('GET', '/memories', { user_id: uid, limit: 20 });
+      document.getElementById('tab-memories').innerHTML = `
+        <h3 style="color:#58a6ff;margin-bottom:8px">Memories</h3>
+        <div class="form-row"><input id="memSearch" placeholder="Search memories..."><button onclick="searchMemories()">Search</button></div>
+        <div class="result-box">${formatResult(data)}</div>`;
+      break;
+    }
+    case 'contacts': {
+      const data = await api('GET', '/contacts', { user_id: uid });
+      document.getElementById('tab-contacts').innerHTML = `
+        <h3 style="color:#58a6ff;margin-bottom:8px">Contacts</h3>
+        <div class="form-row"><input id="ctSearch" placeholder="Search contacts..."><button onclick="searchContacts()">Search</button></div>
+        <div class="result-box">${formatResult(data)}</div>`;
+      break;
+    }
+    case 'todos': {
+      const data = await api('GET', '/todos', { user_id: uid });
+      document.getElementById('tab-todos').innerHTML = `
+        <h3 style="color:#58a6ff;margin-bottom:8px">Todos</h3>
+        <div class="form-row"><input id="todoContent" placeholder="Add todo..."><button onclick="addTodo()">Add</button></div>
+        <div class="result-box">${formatResult(data)}</div>`;
+      break;
+    }
+    case 'files': {
+      const data = await api('GET', '/workspace', { user_id: uid });
+      document.getElementById('tab-files').innerHTML = `
+        <h3 style="color:#58a6ff;margin-bottom:8px">Workspace</h3>
+        <div class="result-box">${formatResult(data)}</div>`;
+      break;
+    }
+    case 'skills': {
+      const data = await api('GET', '/skills', { user_id: uid });
+      document.getElementById('tab-skills').innerHTML = `
+        <h3 style="color:#58a6ff;margin-bottom:8px">Skills</h3>
+        <div class="result-box">${formatResult(data)}</div>`;
+      break;
+    }
+    case 'email': {
+      const data = await api('GET', '/email/accounts', { user_id: uid });
+      document.getElementById('tab-email').innerHTML = `
+        <h3 style="color:#58a6ff;margin-bottom:8px">Email Accounts</h3>
+        <div class="result-box">${formatResult(data)}</div>`;
+      break;
+    }
+  }
+}
+
+async function searchMemories() {
+  const q = document.getElementById('memSearch').value;
+  const uid = getUserId();
+  const data = await api('POST', '/memories/search', { user_id: uid }, { query: q, method: 'hybrid', limit: 10, user_id: uid });
+  setResult('tab-memories', data);
+}
+
+async function searchContacts() {
+  const q = document.getElementById('ctSearch').value;
+  const uid = getUserId();
+  const data = await api('GET', '/contacts/search', { query: q, user_id: uid });
+  setResult('tab-contacts', data);
+}
+
+async function addTodo() {
+  const content = document.getElementById('todoContent').value;
+  const uid = getUserId();
+  await api('POST', '/todos', { content, user_id: uid });
+  loadTab('todos');
+}
+
+// Auto-load memories tab on start
+window.addEventListener('load', () => loadTab('memories'));
+</script>
+</body>
+</html>
