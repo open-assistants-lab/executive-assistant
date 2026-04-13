@@ -148,7 +148,7 @@ def files_write(path: str, content: str, user_id: str = "default") -> str:
             old_content = target.read_text(encoding="utf-8")
             if old_content != content:
                 try:
-                    from src.tools.versioning import capture_version as _capture_version
+                    from src.tools.filesystem.versioning import capture_version as _capture_version
 
                     _capture_version(user_id, path, content)
                 except Exception as e:
@@ -197,7 +197,7 @@ def files_edit(path: str, old: str, new: str, user_id: str = "default") -> str:
 
         new_content = content.replace(old, new)
 
-        from src.tools.versioning import capture_version
+        from src.tools.filesystem.versioning import capture_version
 
         capture_version(user_id, path, new_content)
 

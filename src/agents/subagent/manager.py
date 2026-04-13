@@ -164,7 +164,7 @@ You have access to tools and skills as configured. Always use the planning-with-
         Returns:
             Result dict with output and metadata
         """
-        from src.tools.filesystem import _current_user_id
+        from src.tools.filesystem.tools import _current_user_id
 
         subagent = self._get(name)
         if not subagent:
@@ -298,7 +298,7 @@ You have access to tools and skills as configured. Always use the planning-with-
         """
         import concurrent.futures
 
-        from src.tools.filesystem import _current_user_id
+        from src.tools.filesystem.tools import _current_user_id
 
         # Capture the current user_id ContextVar value to propagate to worker threads
         parent_user_id = _current_user_id.get()

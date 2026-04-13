@@ -8,9 +8,9 @@ from langchain.agents.middleware import HumanInTheLoopMiddleware
 from langchain_core.language_models import BaseChatModel
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
-from src.agents.middleware.summarization import SummarizationMiddleware
 from src.app_logging import get_logger
 from src.config import get_settings
+from src.middleware.summarization import SummarizationMiddleware
 
 logger = get_logger()
 
@@ -155,7 +155,7 @@ class AgentFactory:
             )
 
         # Add memory middleware
-        from src.storage.middleware import MemoryMiddleware
+        from src.middleware import MemoryMiddleware
 
         middleware.append(MemoryMiddleware(user_id=self.user_id))
         logger.info(
@@ -176,7 +176,7 @@ class AgentFactory:
                     existing_tool_names.add(t.name)
 
         # Add memory tools (avoid duplicates with get_default_tools)
-        from src.tools.memory_profile import (
+        from src.tools.memory.profile import (
             memory_list,
             memory_remove,
             memory_search,

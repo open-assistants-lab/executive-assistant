@@ -9,7 +9,7 @@ class TestSkillMiddleware:
 
     def test_skill_middleware_init(self):
         """Test SkillMiddleware initialization."""
-        from src.skills.middleware import SkillMiddleware
+        from src.middleware.skill import SkillMiddleware
 
         middleware = SkillMiddleware(system_dir="src/skills", user_id="test")
         assert middleware is not None
@@ -17,7 +17,7 @@ class TestSkillMiddleware:
 
     def test_skill_middleware_build_skills_prompt_empty(self):
         """Test building skills prompt with no skills."""
-        from src.skills.middleware import SkillMiddleware
+        from src.middleware.skill import SkillMiddleware
 
         with tempfile.TemporaryDirectory() as tmpdir:
             middleware = SkillMiddleware(system_dir=tmpdir, user_id="test")

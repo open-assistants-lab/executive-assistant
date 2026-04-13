@@ -12,8 +12,8 @@ router = APIRouter(tags=["workspace"])
 @router.get("/workspace/read/{path:path}")
 async def read_workspace_file(path: str, user_id: str = "default"):
     """Read file - auto-mark as downloaded."""
-    from src.tools.file_cache import get_file_cache
-    from src.tools.filesystem import files_read
+    from src.tools.filesystem.cache import get_file_cache
+    from src.tools.filesystem.tools import files_read
 
     result = files_read.invoke({"path": path, "user_id": user_id})
 
@@ -29,7 +29,7 @@ async def read_workspace_file(path: str, user_id: str = "default"):
 @router.get("/workspace/{path:path}")
 async def list_workspace_files(path: str = "", user_id: str = "default"):
     """List files in workspace."""
-    from src.tools.filesystem import files_list
+    from src.tools.filesystem.tools import files_list
 
     result = files_list.invoke({"path": path, "user_id": user_id})
     return {"response": str(result)}
@@ -47,7 +47,7 @@ async def write_workspace_file(
 
     content = request.get("content", "")
 
-    from src.tools.filesystem import files_write
+    from src.tools.filesystem.tools import files_write
 
     result = files_write.invoke({"path": path, "content": content, "user_id": user_id})
     return {"response": str(result)}
@@ -56,7 +56,7 @@ async def write_workspace_file(
 @router.delete("/workspace/{path:path}")
 async def delete_workspace_file(path: str, user_id: str = "default"):
     """Delete file from workspace."""
-    from src.tools.filesystem import files_delete
+    from src.tools.filesystem.tools import files_delete
 
     result = files_delete.invoke({"path": path, "user_id": user_id})
     return {"response": str(result)}
@@ -65,7 +65,7 @@ async def delete_workspace_file(path: str, user_id: str = "default"):
 @router.get("/sync/status")
 async def get_sync_status(user_id: str = "default"):
     """Get sync status for all files."""
-    from src.tools.file_cache import get_file_cache
+    from src.tools.filesystem.cache import get_file_cache
 
     cache = get_file_cache(user_id)
     return {"status": cache.get_all()}
@@ -74,7 +74,7 @@ async def get_sync_status(user_id: str = "default"):
 @router.post("/sync/pin/{path:path}")
 async def pin_file(path: str, user_id: str = "default"):
     """Pin a file (keep downloaded)."""
-    from src.tools.file_cache import get_file_cache
+    from src.tools.filesystem.cache import get_file_cache
 
     cache = get_file_cache(user_id)
     cache.mark_pinned(path)
@@ -84,7 +84,7 @@ async def pin_file(path: str, user_id: str = "default"):
 @router.delete("/sync/pin/{path:path}")
 async def unpin_file(path: str, user_id: str = "default"):
     """Unpin a file (remove from keep downloaded)."""
-    from src.tools.file_cache import get_file_cache
+    from src.tools.filesystem.cache import get_file_cache
 
     cache = get_file_cache(user_id)
     cache.mark_cloud_only(path)
@@ -94,7 +94,7 @@ async def unpin_file(path: str, user_id: str = "default"):
 @router.post("/sync/download/{path:path}")
 async def mark_downloaded(path: str, user_id: str = "default"):
     """Mark a file as downloaded."""
-    from src.tools.file_cache import get_file_cache
+    from src.tools.filesystem.cache import get_file_cache
 
     cache = get_file_cache(user_id)
     cache.mark_downloaded(path)

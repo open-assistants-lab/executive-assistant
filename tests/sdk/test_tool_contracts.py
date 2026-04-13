@@ -17,14 +17,14 @@ os.environ.setdefault("CHECKPOINT_ENABLED", "false")
 
 class TestTimeGet:
     def test_returns_current_time(self):
-        from src.tools.time import time_get
+        from src.tools.core.time import time_get
 
         result = time_get.invoke({"user_id": "test"})
         assert isinstance(result, str)
         assert len(result) > 0
 
     def test_includes_date(self):
-        from src.tools.time import time_get
+        from src.tools.core.time import time_get
 
         result = time_get.invoke({"user_id": "test"})
         assert "20" in result
@@ -35,13 +35,13 @@ class TestTimeGet:
 
 class TestShellExecute:
     def test_simple_command(self):
-        from src.tools.shell import shell_execute
+        from src.tools.core.shell import shell_execute
 
         result = shell_execute.invoke({"command": "echo hello", "user_id": "test"})
         assert "hello" in str(result)
 
     def test_rejects_dangerous_command(self):
-        from src.tools.shell import shell_execute
+        from src.tools.core.shell import shell_execute
 
         result = shell_execute.invoke({"command": "rm -rf /", "user_id": "test"})
         lowered = str(result).lower()
@@ -53,13 +53,13 @@ class TestShellExecute:
         )
 
     def test_default_user_id(self):
-        from src.tools.shell import shell_execute
+        from src.tools.core.shell import shell_execute
 
         result = shell_execute.invoke({"command": "echo test"})
         assert "test" in str(result)
 
     def test_command_timeout(self):
-        from src.tools.shell import shell_execute
+        from src.tools.core.shell import shell_execute
 
         result = shell_execute.invoke({"command": "sleep 1 && echo done", "user_id": "test"})
         assert isinstance(str(result), str)
@@ -70,7 +70,7 @@ class TestShellExecute:
 
 class TestFilesystemTools:
     def test_files_write_and_read(self):
-        from src.tools.filesystem import files_write, files_read
+        from src.tools.filesystem.tools import files_write, files_read
 
         files_write.invoke(
             {
@@ -85,13 +85,13 @@ class TestFilesystemTools:
         assert "Hello World" in str(result)
 
     def test_files_list(self):
-        from src.tools.filesystem import files_list
+        from src.tools.filesystem.tools import files_list
 
         result = files_list.invoke({"user_id": "test_contract_fs"})
         assert isinstance(str(result), str)
 
     def test_files_mkdir(self):
-        from src.tools.filesystem import files_mkdir
+        from src.tools.filesystem.tools import files_mkdir
 
         result = files_mkdir.invoke(
             {"path": "test_contract_ws/subdir", "user_id": "test_contract_fs"}
@@ -99,7 +99,7 @@ class TestFilesystemTools:
         assert isinstance(str(result), str)
 
     def test_files_edit(self):
-        from src.tools.filesystem import files_write, files_edit, files_read
+        from src.tools.filesystem.tools import files_write, files_edit, files_read
 
         files_write.invoke(
             {
@@ -119,7 +119,7 @@ class TestFilesystemTools:
         assert isinstance(str(result), str)
 
     def test_files_delete(self):
-        from src.tools.filesystem import files_write, files_delete
+        from src.tools.filesystem.tools import files_write, files_delete
 
         files_write.invoke(
             {
@@ -134,7 +134,7 @@ class TestFilesystemTools:
         assert isinstance(str(result), str)
 
     def test_files_rename(self):
-        from src.tools.filesystem import files_write, files_rename
+        from src.tools.filesystem.tools import files_write, files_rename
 
         files_write.invoke(
             {
@@ -158,13 +158,13 @@ class TestFilesystemTools:
 
 class TestFileSearchTools:
     def test_glob_search(self):
-        from src.tools.file_search import files_glob_search
+        from src.tools.filesystem.search import files_glob_search
 
         result = files_glob_search.invoke({"pattern": "*.py", "user_id": "test_contract_fs"})
         assert isinstance(str(result), str)
 
     def test_grep_search(self):
-        from src.tools.file_search import files_grep_search
+        from src.tools.filesystem.search import files_grep_search
 
         result = files_grep_search.invoke(
             {"pattern": "def time_get", "user_id": "test_contract_fs"}
@@ -177,8 +177,8 @@ class TestFileSearchTools:
 
 class TestVersioningTools:
     def test_capture_version(self):
-        from src.tools.filesystem import files_write
-        from src.tools.versioning import capture_version
+        from src.tools.filesystem.tools import files_write
+        from src.tools.filesystem.versioning import capture_version
 
         files_write.invoke(
             {
@@ -188,12 +188,14 @@ class TestVersioningTools:
             }
         )
         result = capture_version(
-            user_id="test_contract_fs", file_path="test_contract_ws/ver_test.txt", new_content="version 2"
+            user_id="test_contract_fs",
+            file_path="test_contract_ws/ver_test.txt",
+            new_content="version 2",
         )
         assert isinstance(str(result), str) or result is None
 
     def test_files_versions_list(self):
-        from src.tools.versioning import files_versions_list
+        from src.tools.filesystem.versioning import files_versions_list
 
         result = files_versions_list.invoke(
             {"path": "test_contract_ws/ver_test.txt", "user_id": "test_contract_fs"}
@@ -280,31 +282,31 @@ class TestContactsTools:
 
 class TestMemoryTools:
     def test_memory_get_history(self):
-        from src.tools.memory import memory_get_history
+        from src.tools.memory.tools import memory_get_history
 
         result = memory_get_history.invoke({"user_id": "test_contract_mem", "limit": 5})
         assert isinstance(str(result), str)
 
     def test_memory_search(self):
-        from src.tools.memory import memory_search
+        from src.tools.memory.tools import memory_search
 
         result = memory_search.invoke({"query": "test", "user_id": "test_contract_mem"})
         assert isinstance(str(result), str)
 
     def test_memory_list(self):
-        from src.tools.memory_profile import memory_list
+        from src.tools.memory.profile import memory_list
 
         result = memory_list.invoke({"user_id": "test_contract_mem"})
         assert isinstance(str(result), str)
 
     def test_memory_stats(self):
-        from src.tools.memory_profile import memory_stats
+        from src.tools.memory.profile import memory_stats
 
         result = memory_stats.invoke({"user_id": "test_contract_mem"})
         assert isinstance(str(result), str)
 
     def test_memory_remove(self):
-        from src.tools.memory_profile import memory_remove
+        from src.tools.memory.profile import memory_remove
 
         result = memory_remove.invoke({"memory_id": "nonexistent", "user_id": "test_contract_mem"})
         assert isinstance(str(result), str)

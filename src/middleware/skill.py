@@ -9,8 +9,6 @@ from langchain.agents.middleware import AgentMiddleware, AgentState, hook_config
 from langchain_core.messages import SystemMessage
 from langgraph.runtime import Runtime
 
-from src.skills.registry import SkillRegistry
-
 
 class SkillState(AgentState):
     """Custom state for tracking loaded skills."""
@@ -35,6 +33,8 @@ class SkillMiddleware(AgentMiddleware[SkillState]):
             system_dir: Path to system skills directory
             user_id: Optional user ID for user-specific skills
         """
+        from src.skills.registry import SkillRegistry
+
         self.registry = SkillRegistry(system_dir=system_dir, user_id=user_id)
         self.user_id = user_id
 

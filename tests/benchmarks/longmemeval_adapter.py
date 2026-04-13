@@ -5,13 +5,13 @@ against the LongMemEval benchmark.
 
 Usage:
     # Quick test on oracle (3 sessions per question):
-    uv run python tests/benchmark/longmemeval_adapter.py --mode retrieval --data data/longmemeval_oracle.json --max-instances 20
+    uv run python tests/benchmarks/longmemeval_adapter.py --mode retrieval --data data/longmemeval_oracle.json --max-instances 20
 
     # Full oracle:
-    uv run python tests/benchmark/longmemeval_adapter.py --mode retrieval --data data/longmemeval_oracle.json
+    uv run python tests/benchmarks/longmemeval_adapter.py --mode retrieval --data data/longmemeval_oracle.json
 
     # Full S set (requires more time/memory):
-    uv run python tests/benchmark/longmemeval_adapter.py --mode retrieval --data data/longmemeval_s_cleaned.json --max-instances 100
+    uv run python tests/benchmarks/longmemeval_adapter.py --mode retrieval --data data/longmemeval_s_cleaned.json --max-instances 100
 """
 
 import argparse

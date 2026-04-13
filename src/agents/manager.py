@@ -263,6 +263,16 @@ def get_default_tools(user_id: str) -> list[Any]:
         contacts_search,
         contacts_update,
     )
+    from src.tools.core.firecrawl import (
+        cancel_crawl,
+        crawl_url,
+        get_crawl_status,
+        map_url,
+        scrape_url,
+        search_web,
+    )
+    from src.tools.core.shell import shell_execute
+    from src.tools.core.time import time_get
     from src.tools.email import (
         email_accounts,
         email_connect,
@@ -273,8 +283,8 @@ def get_default_tools(user_id: str) -> list[Any]:
         email_send,
         email_sync,
     )
-    from src.tools.file_search import files_glob_search, files_grep_search
-    from src.tools.filesystem import (
+    from src.tools.filesystem.search import files_glob_search, files_grep_search
+    from src.tools.filesystem.tools import (
         files_delete,
         files_edit,
         files_list,
@@ -283,30 +293,20 @@ def get_default_tools(user_id: str) -> list[Any]:
         files_rename,
         files_write,
     )
-    from src.tools.firecrawl import (
-        cancel_crawl,
-        crawl_url,
-        get_crawl_status,
-        map_url,
-        scrape_url,
-        search_web,
+    from src.tools.filesystem.versioning import (
+        files_versions_clean,
+        files_versions_delete,
+        files_versions_list,
+        files_versions_restore,
     )
     from src.tools.mcp import mcp_list, mcp_reload, mcp_tools
-    from src.tools.memory import memory_get_history
-    from src.tools.shell import shell_execute
-    from src.tools.time import time_get
+    from src.tools.memory.tools import memory_get_history
     from src.tools.todos import (
         todos_add,
         todos_delete,
         todos_extract,
         todos_list,
         todos_update,
-    )
-    from src.tools.versioning import (
-        files_versions_clean,
-        files_versions_delete,
-        files_versions_list,
-        files_versions_restore,
     )
 
     return [

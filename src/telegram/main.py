@@ -99,7 +99,7 @@ async def telegram_send_file(
         bot = Bot(token=token)
 
         # Resolve path
-        from src.tools.filesystem import _resolve_path
+        from src.tools.filesystem.tools import _resolve_path
 
         resolved_path = _resolve_path(file_path, user_id)
 
@@ -144,7 +144,7 @@ async def handle_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             return
 
         if tool_name == "files_delete":
-            from src.tools.filesystem import files_delete
+            from src.tools.filesystem.tools import files_delete
 
             result = files_delete.invoke(tool_args)
             await update.message.reply_text(f"✅ {result}")

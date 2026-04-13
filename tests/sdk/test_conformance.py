@@ -210,6 +210,6 @@ class TestAgentPoolContract:
             model = MagicMock()
             middleware = factory._get_middleware(model)
             assert len(middleware) == 1
-            from src.agents.middleware.summarization import SummarizationMiddleware
+            from src.middleware.summarization import SummarizationMiddleware
 
             assert isinstance(middleware[0], SummarizationMiddleware)

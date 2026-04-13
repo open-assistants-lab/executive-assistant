@@ -18,7 +18,7 @@ class TestMemoryMiddlewareConformance:
 
     def test_memory_middleware_init(self):
         """MemoryMiddleware must accept user_id."""
-        from src.storage.middleware.memory import MemoryMiddleware
+        from src.middleware.memory import MemoryMiddleware
 
         mw = MemoryMiddleware(user_id="test_user")
         assert mw is not None
@@ -26,14 +26,14 @@ class TestMemoryMiddlewareConformance:
 
     def test_memory_middleware_has_before_agent(self):
         """MemoryMiddleware must implement before_agent hook."""
-        from src.storage.middleware.memory import MemoryMiddleware
+        from src.middleware.memory import MemoryMiddleware
 
         mw = MemoryMiddleware(user_id="test_user")
         assert hasattr(mw, "before_agent")
 
     def test_memory_middleware_has_after_agent(self):
         """MemoryMiddleware must implement after_agent hook."""
-        from src.storage.middleware.memory import MemoryMiddleware
+        from src.middleware.memory import MemoryMiddleware
 
         mw = MemoryMiddleware(user_id="test_user")
         assert hasattr(mw, "after_agent")
@@ -56,7 +56,7 @@ class TestMemoryMiddlewareConformance:
 
     def test_correction_keywords_are_defined(self):
         """MemoryMiddleware must have correction keywords defined."""
-        from src.storage.middleware.memory import CORRECTION_KEYWORDS
+        from src.middleware.memory import CORRECTION_KEYWORDS
 
         assert isinstance(CORRECTION_KEYWORDS, (list, tuple, set))
         assert len(CORRECTION_KEYWORDS) > 0
@@ -64,7 +64,7 @@ class TestMemoryMiddlewareConformance:
 
     def test_extraction_turn_interval(self):
         """Memory extraction happens every N turns."""
-        from src.storage.middleware.memory import EXTRACTION_TURN_INTERVAL
+        from src.middleware.memory import EXTRACTION_TURN_INTERVAL
 
         assert EXTRACTION_TURN_INTERVAL >= 1
 
@@ -74,7 +74,7 @@ class TestSkillMiddlewareConformance:
 
     def test_skill_middleware_init(self):
         """SkillMiddleware must accept system_dir and user_id."""
-        from src.skills.middleware import SkillMiddleware
+        from src.middleware.skill import SkillMiddleware
 
         with tempfile.TemporaryDirectory() as tmpdir:
             mw = SkillMiddleware(system_dir=tmpdir, user_id="test_user")
@@ -82,7 +82,7 @@ class TestSkillMiddlewareConformance:
 
     def test_skill_middleware_builds_prompt(self):
         """SkillMiddleware must build a skills prompt when skills exist."""
-        from src.skills.middleware import SkillMiddleware
+        from src.middleware.skill import SkillMiddleware
 
         with tempfile.TemporaryDirectory() as tmpdir:
             mw = SkillMiddleware(system_dir=tmpdir, user_id="test_user")
@@ -91,7 +91,7 @@ class TestSkillMiddlewareConformance:
 
     def test_skill_middleware_empty_prompt_when_no_skills(self):
         """Skills prompt must be empty when no skills are loaded."""
-        from src.skills.middleware import SkillMiddleware
+        from src.middleware.skill import SkillMiddleware
 
         with tempfile.TemporaryDirectory() as tmpdir:
             mw = SkillMiddleware(system_dir=tmpdir, user_id="test_user")
@@ -104,7 +104,7 @@ class TestSummarizationMiddlewareConformance:
 
     def test_summarization_middleware_init(self):
         """SummarizationMiddleware must accept model and threshold params."""
-        from src.agents.middleware.summarization import SummarizationMiddleware
+        from src.middleware.summarization import SummarizationMiddleware
         from unittest.mock import MagicMock
 
         model = MagicMock()
@@ -117,7 +117,7 @@ class TestSummarizationMiddlewareConformance:
 
     def test_summarization_trigger_threshold(self):
         """Summarization must trigger at the configured token threshold."""
-        from src.agents.middleware.summarization import SummarizationMiddleware
+        from src.middleware.summarization import SummarizationMiddleware
         from unittest.mock import MagicMock
 
         model = MagicMock()
@@ -148,7 +148,7 @@ class TestMiddlewareOrderConformance:
             model = MagicMock()
             middleware = factory._get_middleware(model)
             assert len(middleware) >= 1
-            from src.agents.middleware.summarization import SummarizationMiddleware
+            from src.middleware.summarization import SummarizationMiddleware
 
             assert isinstance(middleware[0], SummarizationMiddleware)
 

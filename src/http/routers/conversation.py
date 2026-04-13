@@ -59,7 +59,7 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
 
             # Execute the tool directly
             if tool_name == "files_delete":
-                from src.tools.filesystem import files_delete
+                from src.tools.filesystem.tools import files_delete
 
                 result = files_delete.invoke(tool_args)
                 return MessageResponse(response=f"✅ {result}")

@@ -6,7 +6,7 @@ Based on:
 - https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview
 """
 
-from src.skills.middleware import SkillMiddleware, SkillState
+from src.middleware.skill import SkillMiddleware, SkillState
 from src.skills.models import Skill, SkillMetadata, parse_skill_file, skill_to_system_prompt_entry
 from src.skills.registry import SkillRegistry
 from src.skills.storage import SkillStorage, SystemSkillStorage, UserSkillStorage
