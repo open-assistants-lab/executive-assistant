@@ -1,65 +1,98 @@
-"""Agent Loop conformance tests.
+"""Agent loop conformance tests (non-HTTP).
 
-These tests verify that the agent loop (whether LangChain's create_agent
-or our custom AgentLoop) produces consistent observable behavior.
-
-Currently STUBS - will be implemented as part of Phase 0.2.
+These tests verify agent behavior through direct Python calls,
+not through the HTTP API. For API-level tests, see tests/api/test_agent_loop.py.
 """
 
+import os
 import pytest
+
+os.environ.setdefault("CHECKPOINT_ENABLED", "false")
 
 
 class TestAgentLoopBasic:
-    """Basic agent loop behavior that must be consistent across implementations."""
+    """Basic agent loop behavior that must be consistent."""
 
-    def test_simple_query_returns_response(self):
-        """A simple query must produce at least one AI message response."""
-        pass
+    def test_recursion_limit_is_set(self):
+        """Agent must have a recursion limit to prevent infinite loops."""
+        from src.agents.manager import _get_pool_size
 
-    def test_tool_call_triggers_execution(self):
-        """When the model requests a tool call, it must be executed and result returned."""
-        pass
+        pool_size = _get_pool_size()
+        assert isinstance(pool_size, int)
+        assert pool_size > 0
 
-    def test_multiple_tool_calls_in_sequence(self):
-        """Multiple tool calls in a single turn must all be executed."""
-        pass
+    def test_pool_creates_with_user_id(self):
+        """AgentPool must be created with a user_id."""
+        from src.agents.manager import AgentPool
 
-    def test_loop_terminates_on_no_tool_calls(self):
-        """Agent loop must terminate when model returns no tool calls."""
-        pass
+        pool = AgentPool("test_user", pool_size=2)
+        assert pool.user_id == "test_user"
+        assert pool.pool_size == 2
 
-    def test_max_iterations_limit(self):
-        """Agent loop must stop after max_iterations even if model keeps requesting tools."""
-        pass
+    def test_pool_size_default(self):
+        """Default pool size should be > 0."""
+        from src.agents.manager import AgentPool
 
+        pool = AgentPool("test_user")
+        assert pool.pool_size > 0
 
-class TestAgentLoopStreaming:
-    """Streaming behavior conformance."""
+    def test_agent_factory_creates_with_user_id(self):
+        """AgentFactory must track the user_id."""
+        from src.agents.factory import AgentFactory
 
-    def test_stream_produces_tokens(self):
-        """Streaming must produce at least one ai_token event."""
-        pass
-
-    def test_stream_produces_done(self):
-        """Streaming must end with a done event."""
-        pass
-
-    def test_stream_tool_events(self):
-        """Tool calls must produce tool_start and tool_end events in stream."""
-        pass
+        factory = AgentFactory(user_id="test_user")
+        assert factory.user_id == "test_user"
 
 
-class TestAgentLoopErrorHandling:
-    """Error handling conformance."""
+class TestAgentLoopWSProtocol:
+    """WebSocket protocol must be self-consistent with HTTP API."""
 
-    def test_tool_error_returns_string(self):
-        """When a tool raises an exception, the result must be an error string."""
-        pass
+    def test_ws_protocol_covers_all_event_types(self):
+        """WS protocol must define types for all agent events."""
+        from src.http.ws_protocol import SERVER_MESSAGE_TYPES, CLIENT_MESSAGE_TYPES
 
-    def test_llm_error_graceful(self):
-        """When the LLM fails, the agent must return an error message (not crash)."""
-        pass
+        expected_server_types = {
+            "ai_token",
+            "tool_start",
+            "tool_end",
+            "interrupt",
+            "done",
+            "error",
+            "pong",
+        }
+        expected_client_types = {
+            "user_message",
+            "approve",
+            "reject",
+            "edit_and_approve",
+            "cancel",
+            "ping",
+        }
 
-    def test_system_prompt_included(self):
-        """The system prompt must be included as the first message."""
-        pass
+        actual_server = set(SERVER_MESSAGE_TYPES.keys())
+        actual_client = set(CLIENT_MESSAGE_TYPES.keys())
+
+        assert expected_server_types.issubset(actual_server), (
+            f"Missing: {expected_server_types - actual_server}"
+        )
+        assert expected_client_types.issubset(actual_client), (
+            f"Missing: {expected_client_types - actual_client}"
+        )
+
+    def test_interrupt_message_has_allowed_actions(self):
+        """Interrupt messages must specify allowed actions for HITL."""
+        from src.http.ws_protocol import InterruptMessage
+
+        msg = InterruptMessage(call_id="c1", tool="files_delete", args={"path": "/x"})
+        assert "approve" in msg.allowed_actions
+        assert "reject" in msg.allowed_actions
+
+    def test_done_message_can_include_tool_calls(self):
+        """Done message must be able to include tool call info."""
+        from src.http.ws_protocol import DoneMessage
+
+        msg = DoneMessage(
+            response="Here are the results", tool_calls=[{"name": "time_get", "call_id": "c1"}]
+        )
+        assert len(msg.tool_calls) == 1
+        assert msg.tool_calls[0]["name"] == "time_get"

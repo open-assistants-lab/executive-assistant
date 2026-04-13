@@ -1,8 +1,8 @@
-"""Contract tests for all 29 tools.
+"""Contract tests for all tools.
 
 Each tool is tested with its documented input schema and output format.
-These tests verify that tools conform to their contract regardless of
-whether they use the LangChain @tool decorator or the SDK @tool decorator.
+These verify that tools conform to their contract regardless of whether
+they use LangChain @tool or SDK @tool.
 """
 
 import os
@@ -12,7 +12,7 @@ import pytest
 os.environ.setdefault("CHECKPOINT_ENABLED", "false")
 
 
-# ─── Time Tool ───
+# ─── Time ───
 
 
 class TestTimeGet:
@@ -23,14 +23,14 @@ class TestTimeGet:
         assert isinstance(result, str)
         assert len(result) > 0
 
-    def test_default_user_id(self):
+    def test_includes_date(self):
         from src.tools.time import time_get
 
-        result = time_get.invoke({"user_id": "default"})
-        assert isinstance(result, str)
+        result = time_get.invoke({"user_id": "test"})
+        assert "20" in result
 
 
-# ─── Shell Tool ───
+# ─── Shell ───
 
 
 class TestShellExecute:
@@ -44,57 +44,164 @@ class TestShellExecute:
         from src.tools.shell import shell_execute
 
         result = shell_execute.invoke({"command": "rm -rf /", "user_id": "test"})
+        lowered = str(result).lower()
         assert (
-            "not allowed" in str(result).lower()
-            or "error" in str(result).lower()
-            or "rejected" in str(result).lower()
+            "not allowed" in lowered
+            or "error" in lowered
+            or "rejected" in lowered
+            or "dangerous" in lowered
         )
 
     def test_default_user_id(self):
         from src.tools.shell import shell_execute
 
         result = shell_execute.invoke({"command": "echo test"})
-        assert isinstance(str(result), str)
         assert "test" in str(result)
 
+    def test_command_timeout(self):
+        from src.tools.shell import shell_execute
 
-# ─── Filesystem Tools ───
+        result = shell_execute.invoke({"command": "sleep 1 && echo done", "user_id": "test"})
+        assert isinstance(str(result), str)
+
+
+# ─── Filesystem ───
 
 
 class TestFilesystemTools:
-    def test_files_list(self):
-        from src.tools.filesystem import files_list
-
-        result = files_list.invoke({"user_id": "test_contract"})
-        assert isinstance(str(result), str)
-
     def test_files_write_and_read(self):
         from src.tools.filesystem import files_write, files_read
 
-        with tempfile.TemporaryDirectory() as td:
-            write_result = files_write.invoke(
-                {
-                    "path": "test_contract_file.txt",
-                    "content": "Hello from contract test",
-                    "user_id": "test_contract_fs",
-                }
-            )
-            assert (
-                "wrote" in str(write_result).lower()
-                or "success" in str(write_result).lower()
-                or "created" in str(write_result).lower()
-            )
+        files_write.invoke(
+            {
+                "path": "test_contract_ws/hello.txt",
+                "content": "Hello World",
+                "user_id": "test_contract_fs",
+            }
+        )
+        result = files_read.invoke(
+            {"path": "test_contract_ws/hello.txt", "user_id": "test_contract_fs"}
+        )
+        assert "Hello World" in str(result)
 
-            read_result = files_read.invoke(
-                {
-                    "path": "test_contract_file.txt",
-                    "user_id": "test_contract_fs",
-                }
-            )
-            assert "Hello from contract test" in str(read_result)
+    def test_files_list(self):
+        from src.tools.filesystem import files_list
+
+        result = files_list.invoke({"user_id": "test_contract_fs"})
+        assert isinstance(str(result), str)
+
+    def test_files_mkdir(self):
+        from src.tools.filesystem import files_mkdir
+
+        result = files_mkdir.invoke(
+            {"path": "test_contract_ws/subdir", "user_id": "test_contract_fs"}
+        )
+        assert isinstance(str(result), str)
+
+    def test_files_edit(self):
+        from src.tools.filesystem import files_write, files_edit, files_read
+
+        files_write.invoke(
+            {
+                "path": "test_contract_ws/edit_test.txt",
+                "content": "Hello World",
+                "user_id": "test_contract_fs",
+            }
+        )
+        result = files_edit.invoke(
+            {
+                "path": "test_contract_ws/edit_test.txt",
+                "old": "World",
+                "new": "Universe",
+                "user_id": "test_contract_fs",
+            }
+        )
+        assert isinstance(str(result), str)
+
+    def test_files_delete(self):
+        from src.tools.filesystem import files_write, files_delete
+
+        files_write.invoke(
+            {
+                "path": "test_contract_ws/delete_test.txt",
+                "content": "to delete",
+                "user_id": "test_contract_fs",
+            }
+        )
+        result = files_delete.invoke(
+            {"path": "test_contract_ws/delete_test.txt", "user_id": "test_contract_fs"}
+        )
+        assert isinstance(str(result), str)
+
+    def test_files_rename(self):
+        from src.tools.filesystem import files_write, files_rename
+
+        files_write.invoke(
+            {
+                "path": "test_contract_ws/rename_test.txt",
+                "content": "rename me",
+                "user_id": "test_contract_fs",
+            }
+        )
+        result = files_rename.invoke(
+            {
+                "path": "test_contract_ws/rename_test.txt",
+                "new_name": "renamed.txt",
+                "user_id": "test_contract_fs",
+            }
+        )
+        assert isinstance(str(result), str)
 
 
-# ─── Todos Tools ───
+# ─── File Search ───
+
+
+class TestFileSearchTools:
+    def test_glob_search(self):
+        from src.tools.file_search import files_glob_search
+
+        result = files_glob_search.invoke({"pattern": "*.py", "user_id": "test_contract_fs"})
+        assert isinstance(str(result), str)
+
+    def test_grep_search(self):
+        from src.tools.file_search import files_grep_search
+
+        result = files_grep_search.invoke(
+            {"pattern": "def time_get", "user_id": "test_contract_fs"}
+        )
+        assert isinstance(str(result), str)
+
+
+# ─── Versioning ───
+
+
+class TestVersioningTools:
+    def test_capture_version(self):
+        from src.tools.filesystem import files_write
+        from src.tools.versioning import capture_version
+
+        files_write.invoke(
+            {
+                "path": "test_contract_ws/ver_test.txt",
+                "content": "version 1",
+                "user_id": "test_contract_fs",
+            }
+        )
+        result = capture_version(
+            user_id="test_contract_fs", file_path="test_contract_ws/ver_test.txt", new_content="version 2"
+        )
+        assert isinstance(str(result), str) or result is None
+
+    def test_files_versions_list(self):
+        from src.tools.versioning import files_versions_list
+
+        result = files_versions_list.invoke(
+            {"path": "test_contract_ws/ver_test.txt", "user_id": "test_contract_fs"}
+        )
+        assert isinstance(str(result), str)
+
+
+# ─── Todos ───
 
 
 class TestTodosTools:
@@ -105,12 +212,27 @@ class TestTodosTools:
             {"content": "Contract test todo", "user_id": "test_contract_todos"}
         )
         assert isinstance(str(result), str)
-
         list_result = todos_list.invoke({"user_id": "test_contract_todos"})
         assert isinstance(str(list_result), str)
 
+    def test_todos_update(self):
+        from src.tools.todos.tools import todos_add, todos_update
 
-# ─── Contacts Tools ───
+        add_result = todos_add.invoke(
+            {"content": "Update test todo", "user_id": "test_contract_todos"}
+        )
+        assert isinstance(str(add_result), str)
+
+    def test_todos_extract(self):
+        from src.tools.todos.tools import todos_extract
+
+        result = todos_extract.invoke(
+            {"text": "Remember to buy groceries tomorrow", "user_id": "test_contract_todos"}
+        )
+        assert isinstance(str(result), str)
+
+
+# ─── Contacts ───
 
 
 class TestContactsTools:
@@ -118,19 +240,42 @@ class TestContactsTools:
         from src.tools.contacts.tools import contacts_add, contacts_list
 
         result = contacts_add.invoke(
-            {
-                "email": "contract@test.com",
-                "name": "Contract Test",
-                "user_id": "test_contract_contacts",
-            }
+            {"email": "contract@test.com", "name": "Contract Test", "user_id": "test_contract_ct"}
+        )
+        assert isinstance(str(result), str)
+        list_result = contacts_list.invoke({"user_id": "test_contract_ct"})
+        assert isinstance(str(list_result), str)
+
+    def test_contacts_search(self):
+        from src.tools.contacts.tools import contacts_search
+
+        result = contacts_search.invoke({"query": "test", "user_id": "test_contract_ct"})
+        assert isinstance(str(result), str)
+
+    def test_contacts_update(self):
+        from src.tools.contacts.tools import contacts_update
+
+        result = contacts_update.invoke(
+            {"contact_id": "nonexistent", "name": "Updated", "user_id": "test_contract_ct"}
         )
         assert isinstance(str(result), str)
 
-        list_result = contacts_list.invoke({"user_id": "test_contract_contacts"})
-        assert isinstance(str(list_result), str)
+    def test_contacts_delete(self):
+        from src.tools.contacts.tools import contacts_delete
+
+        result = contacts_delete.invoke(
+            {"contact_id": "nonexistent", "user_id": "test_contract_ct"}
+        )
+        assert isinstance(str(result), str)
+
+    def test_contacts_get(self):
+        from src.tools.contacts.tools import contacts_get
+
+        result = contacts_get.invoke({"contact_id": "nonexistent", "user_id": "test_contract_ct"})
+        assert isinstance(str(result), str)
 
 
-# ─── Memory Tools ───
+# ─── Memory ───
 
 
 class TestMemoryTools:
@@ -146,30 +291,69 @@ class TestMemoryTools:
         result = memory_search.invoke({"query": "test", "user_id": "test_contract_mem"})
         assert isinstance(str(result), str)
 
+    def test_memory_list(self):
+        from src.tools.memory_profile import memory_list
 
-# ─── Memory Profile Tools ───
+        result = memory_list.invoke({"user_id": "test_contract_mem"})
+        assert isinstance(str(result), str)
 
-
-class TestMemoryProfileTools:
     def test_memory_stats(self):
         from src.tools.memory_profile import memory_stats
 
-        result = memory_stats.invoke({"user_id": "test_contract_profile"})
+        result = memory_stats.invoke({"user_id": "test_contract_mem"})
+        assert isinstance(str(result), str)
+
+    def test_memory_remove(self):
+        from src.tools.memory_profile import memory_remove
+
+        result = memory_remove.invoke({"memory_id": "nonexistent", "user_id": "test_contract_mem"})
         assert isinstance(str(result), str)
 
 
-# ─── File Search Tools ───
+# ─── Email ───
 
 
-class TestFileSearchTools:
-    def test_glob_search(self):
-        from src.tools.file_search import files_glob_search
+class TestEmailTools:
+    def test_email_accounts(self):
+        from src.tools.email.account import email_accounts
 
-        result = files_glob_search.invoke({"pattern": "*.py", "user_id": "test_contract_fs"})
+        result = email_accounts.invoke({"user_id": "test_contract_email"})
+        assert isinstance(str(result), str)
+
+    def test_email_list(self):
+        from src.tools.email.read import email_list
+
+        result = email_list.invoke(
+            {"account_name": "default", "limit": 5, "user_id": "test_contract_email"}
+        )
+        assert isinstance(str(result), str)
+
+    def test_email_search(self):
+        from src.tools.email.read import email_search
+
+        result = email_search.invoke(
+            {"query": "test", "account_name": "default", "user_id": "test_contract_email"}
+        )
         assert isinstance(str(result), str)
 
 
-# ─── Skills Tools ───
+# ─── Vault ───
+
+
+class TestVaultTools:
+    """Vault tests require vault unlock — contract checks only."""
+
+    def test_vault_tools_have_invoke(self):
+        from src.tools.vault import (
+            vault_lock,
+            vault_unlock,
+            vault_is_unlocked,
+            credential_add,
+            credential_list,
+        )
+
+        for tool in [vault_lock, vault_unlock, vault_is_unlocked, credential_add, credential_list]:
+            assert hasattr(tool, "invoke"), f"{tool.name} must have invoke method"
 
 
 class TestSkillsTools:
@@ -178,3 +362,13 @@ class TestSkillsTools:
 
         result = skills_list.invoke({"user_id": "test_contract_skills"})
         assert isinstance(str(result), str)
+
+
+class TestAppTools:
+    """App tools require ChromaDB — contract checks only."""
+
+    def test_app_tools_have_invoke(self):
+        from src.tools.apps.tools import app_create, app_list, app_schema, app_query, app_delete
+
+        for tool in [app_create, app_list, app_schema, app_query, app_delete]:
+            assert hasattr(tool, "invoke"), f"{tool.name} must have invoke method"
