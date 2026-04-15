@@ -50,24 +50,6 @@ from src.sdk.tools_core.browser import (
     browser_type,
     browser_wait_text,
 )
-from src.sdk.tools_core.contacts import (
-    contacts_add,
-    contacts_delete,
-    contacts_get,
-    contacts_list,
-    contacts_search,
-    contacts_update,
-)
-from src.sdk.tools_core.email import (
-    email_accounts,
-    email_connect,
-    email_disconnect,
-    email_get,
-    email_list,
-    email_search,
-    email_send,
-    email_sync,
-)
 from src.sdk.tools_core.file_search import (
     files_glob_search,
     files_grep_search,
@@ -129,13 +111,6 @@ from src.sdk.tools_core.subagent import (
     subagent_validate,
 )
 from src.sdk.tools_core.time import time_get
-from src.sdk.tools_core.todos import (
-    todos_add,
-    todos_delete,
-    todos_extract,
-    todos_list,
-    todos_update,
-)
 
 _registry = ToolRegistry()
 
@@ -159,19 +134,6 @@ def _register_all() -> None:
     registry.register(files_versions_restore)
     registry.register(files_versions_delete)
     registry.register(files_versions_clean)
-
-    registry.register(todos_list)
-    registry.register(todos_add)
-    registry.register(todos_update)
-    registry.register(todos_delete)
-    registry.register(todos_extract)
-
-    registry.register(contacts_list)
-    registry.register(contacts_get)
-    registry.register(contacts_add)
-    registry.register(contacts_update)
-    registry.register(contacts_delete)
-    registry.register(contacts_search)
 
     registry.register(memory_get_history)
     registry.register(memory_search)
@@ -210,15 +172,6 @@ def _register_all() -> None:
     registry.register(browser_sessions)
     registry.register(browser_close_all)
     registry.register(browser_status)
-
-    registry.register(email_connect)
-    registry.register(email_disconnect)
-    registry.register(email_accounts)
-    registry.register(email_list)
-    registry.register(email_get)
-    registry.register(email_search)
-    registry.register(email_send)
-    registry.register(email_sync)
 
     registry.register(app_create)
     registry.register(app_list)

@@ -7,14 +7,15 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 
 from src.http.routers import (
-    contacts_router,
+    # DISABLED: contacts, email, todos — pending redesign
+    # contacts_router,
     conversation_router,
-    email_router,
+    # email_router,
     health_router,
     memories_router,
     skills_router,
     subagents_router,
-    todos_router,
+    # todos_router,
     workspace_router,
 )
 from src.http.routers.ws import router as ws_router
@@ -25,12 +26,12 @@ load_dotenv()
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan context manager — SDK runtime (no LangChain agent pool needed)."""
-    try:
-        from src.sdk.tools_core.email_sync import start_interval_sync, stop_interval_sync
-
-        await start_interval_sync()
-    except Exception:
-        pass
+    # DISABLED: email sync — pending redesign
+    # try:
+    #     from src.sdk.tools_core.email_sync import start_interval_sync, stop_interval_sync
+    #     await start_interval_sync()
+    # except Exception:
+    #     pass
 
     try:
         from src.subagent.scheduler import get_scheduler
@@ -42,12 +43,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     print("HTTP server ready (SDK runtime)")
     yield
 
-    try:
-        from src.sdk.tools_core.email_sync import stop_interval_sync
-
-        await stop_interval_sync()
-    except Exception:
-        pass
+    # DISABLED: email sync — pending redesign
+    # try:
+    #     from src.sdk.tools_core.email_sync import stop_interval_sync
+    #     await stop_interval_sync()
+    # except Exception:
+    #     pass
 
 
 app = FastAPI(
@@ -60,9 +61,10 @@ app = FastAPI(
 app.include_router(health_router)
 app.include_router(conversation_router)
 app.include_router(memories_router)
-app.include_router(contacts_router)
-app.include_router(todos_router)
-app.include_router(email_router)
+# DISABLED: contacts, todos, email — pending redesign
+# app.include_router(contacts_router)
+# app.include_router(todos_router)
+# app.include_router(email_router)
 app.include_router(workspace_router)
 app.include_router(skills_router)
 app.include_router(subagents_router)
