@@ -10,7 +10,7 @@ class TestMemoryGetHistory:
 
     def test_memory_get_history_empty(self):
         """Test memory_get_history with empty result."""
-        from src.tools.memory.tools import memory_get_history
+        from src.sdk.tools_core.memory import memory_get_history
 
         with patch("src.tools.memory.tools.get_messages", return_value=[]):
             result = memory_get_history.invoke({"user_id": TEST_USER_ID})
@@ -18,7 +18,7 @@ class TestMemoryGetHistory:
 
     def test_memory_get_history_with_messages(self):
         """Test memory_get_history returns messages."""
-        from src.tools.memory.tools import memory_get_history
+        from src.sdk.tools_core.memory import memory_get_history
 
         mock_messages = [
             {"role": "user", "content": "Hello"},
@@ -34,14 +34,14 @@ class TestMemorySearch:
 
     def test_memory_search_requires_query(self):
         """Test memory_search requires query parameter."""
-        from src.tools.memory.tools import memory_search
+        from src.sdk.tools_core.memory import memory_search
 
         result = memory_search.invoke({})
         assert "Error" in result or "required" in result.lower()
 
     def test_memory_search_empty_results(self):
         """Test memory_search with no results."""
-        from src.tools.memory.tools import memory_search
+        from src.sdk.tools_core.memory import memory_search
 
         with patch("src.tools.memory.tools.search_memories", return_value=[]):
             result = memory_search.invoke({"query": "nonexistent", "user_id": TEST_USER_ID})
@@ -49,7 +49,7 @@ class TestMemorySearch:
 
     def test_memory_search_with_results(self):
         """Test memory_search returns results."""
-        from src.tools.memory.tools import memory_search
+        from src.sdk.tools_core.memory import memory_search
 
         mock_results = [{"content": "User prefers Python", "relevance": 0.9}]
         with patch("src.tools.memory.tools.search_memories", return_value=mock_results):
@@ -62,7 +62,7 @@ class TestTimeGet:
 
     def test_time_get_returns_time(self):
         """Test time_get returns current time."""
-        from src.tools.core.time import time_get
+        from src.sdk.tools_core.time import time_get
 
         result = time_get.invoke({})
         assert len(result) > 0
@@ -70,7 +70,7 @@ class TestTimeGet:
 
     def test_time_get_with_timezone(self):
         """Test time_get with timezone parameter."""
-        from src.tools.core.time import time_get
+        from src.sdk.tools_core.time import time_get
 
         result = time_get.invoke({"timezone": "America/New_York"})
         assert len(result) > 0
@@ -81,21 +81,21 @@ class TestShellExecute:
 
     def test_shell_execute_allowed_command(self):
         """Test shell_execute with allowed command."""
-        from src.tools.core.shell import shell_execute
+        from src.sdk.tools_core.shell import shell_execute
 
         result = shell_execute.invoke({"command": "echo hello", "user_id": TEST_USER_ID})
         assert "hello" in result.lower()
 
     def test_shell_execute_disallowed_command(self):
         """Test shell_execute rejects disallowed command."""
-        from src.tools.core.shell import shell_execute
+        from src.sdk.tools_core.shell import shell_execute
 
         result = shell_execute.invoke({"command": "rm -rf /", "user_id": TEST_USER_ID})
         assert "not allowed" in result.lower() or "error" in result.lower()
 
     def test_shell_execute_python(self):
         """Test shell_execute runs Python."""
-        from src.tools.core.shell import shell_execute
+        from src.sdk.tools_core.shell import shell_execute
 
         result = shell_execute.invoke(
             {"command": "python3 -c 'print(1+1)'", "user_id": TEST_USER_ID}

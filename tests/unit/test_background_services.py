@@ -11,10 +11,10 @@ class TestEmailSync:
     @pytest.mark.asyncio
     async def test_sync_all_accounts_empty(self):
         """Test syncing with no accounts."""
-        from src.tools.email.sync import _sync_all_accounts
+        from src.sdk.tools_core.email_sync import _sync_all_accounts
 
-        with patch("src.tools.email.sync._load_accounts") as mock_load:
-            with patch("src.tools.email.sync._sync_emails") as mock_sync:
+        with patch("src.sdk.tools_core.email_sync._load_accounts") as mock_load:
+            with patch("src.sdk.tools_core.email_sync._sync_emails") as mock_sync:
                 mock_load.return_value = {}
 
                 await _sync_all_accounts()
@@ -38,6 +38,6 @@ class TestEmailSyncRateLimiting:
 
     def test_rate_limit_cooldown_init(self):
         """Test rate limit cooldown dict is initialized."""
-        from src.tools.email.sync import RATE_LIMIT_COOLDOWN
+        from src.sdk.tools_core.email_sync import RATE_LIMIT_COOLDOWN
 
         assert isinstance(RATE_LIMIT_COOLDOWN, dict)

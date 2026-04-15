@@ -7,27 +7,29 @@ that supports:
 - Human-in-the-loop interrupts
 - Cancel/approve/reject
 - Middleware events (verbose mode)
+
+Uses the SDK AgentLoop for all agent execution.
 """
 
 import json
 import uuid
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from langchain_core.messages import AIMessage, HumanMessage
 
-from src.agents.manager import run_agent_stream
 from src.app_logging import get_logger
 from src.http.ws_protocol import (
-    AiTokenMessage,
+    ApproveMessage,
     CancelMessage,
     DoneMessage,
     ErrorMessage,
-    MiddlewareMessage,
+    PingMessage,
     PongMessage,
-    ReasoningMessage,
-    ToolEndMessage,
-    ToolStartMessage,
     parse_client_message,
+)
+from src.sdk.messages import Message
+from src.sdk.runner import (
+    _messages_from_conversation,
+    run_sdk_agent_stream,
 )
 from src.storage.messages import get_conversation_store
 
@@ -100,22 +102,11 @@ async def ws_conversation(websocket: WebSocket):
             if isinstance(msg, CancelMessage):
                 break
 
-            if isinstance(msg, PongMessage):
+            if isinstance(msg, PingMessage):
                 await websocket.send_json(PongMessage().model_dump())
                 continue
 
-            if isinstance(msg, CancelMessage):
-                await websocket.send_json(DoneMessage(response="Cancelled").model_dump())
-                break
-
-            if isinstance(msg, type) and msg.__name__ == "ApproveMessage":
-                pass
-
-            if not isinstance(msg, type(None)):
-                user_id = getattr(msg, "user_id", user_id) or user_id
-                verbose = getattr(msg, "verbose", verbose)
-
-            if hasattr(msg, "type") and msg.type == "approve":
+            if isinstance(msg, ApproveMessage):
                 if pending_interrupt:
                     await websocket.send_json(
                         DoneMessage(
@@ -125,25 +116,12 @@ async def ws_conversation(websocket: WebSocket):
                     pending_interrupt = None
                 continue
 
-            if hasattr(msg, "type") and msg.type == "reject":
-                if pending_interrupt:
-                    await websocket.send_json(
-                        DoneMessage(
-                            response=f"Rejected: {pending_interrupt.get('tool', 'unknown')}"
-                        ).model_dump()
-                    )
-                    pending_interrupt = None
-                continue
+            if isinstance(msg, CancelMessage):
+                await websocket.send_json(DoneMessage(response="Cancelled").model_dump())
+                break
 
-            if hasattr(msg, "type") and msg.type == "edit_and_approve":
-                if pending_interrupt:
-                    await websocket.send_json(
-                        DoneMessage(
-                            response=f"Edited & approved: {pending_interrupt.get('tool', 'unknown')}"
-                        ).model_dump()
-                    )
-                    pending_interrupt = None
-                continue
+            user_id = getattr(msg, "user_id", user_id) or user_id
+            verbose = getattr(msg, "verbose", verbose)
 
             if not hasattr(msg, "content"):
                 continue
@@ -154,176 +132,160 @@ async def ws_conversation(websocket: WebSocket):
             conversation.add_message("user", content)
 
             recent_messages = conversation.get_messages_with_summary(50)
-
-            langgraph_messages = []
-            for m in recent_messages:
-                if m.role == "user":
-                    langgraph_messages.append(HumanMessage(content=m.content))
-                elif m.role == "summary":
-                    langgraph_messages.append(
-                        HumanMessage(content=f"[SUMMARY OF PREVIOUS CONVERSATION]\n{m.content}")
-                    )
-                else:
-                    langgraph_messages.append(AIMessage(content=m.content))
-
-            langgraph_messages.append(HumanMessage(content=content))
+            sdk_messages = _messages_from_conversation(recent_messages)
+            sdk_messages.append(Message.user(content))
 
             ai_content_parts: list[str] = []
-            tool_results: list[str] = []
             tool_metadata_list: list[dict] = []
-            in_summarization = False
 
             try:
-                async for chunk in run_agent_stream(
+                async for chunk in run_sdk_agent_stream(
                     user_id=user_id,
-                    messages=langgraph_messages,
-                    message=content,
-                    verbose=verbose,
+                    messages=sdk_messages,
                 ):
-                    if isinstance(chunk, dict) and "event" in chunk:
-                        event_type = chunk.get("event", "")
-                        name = chunk.get("name", "")
-                        chunk_data = chunk.get("data", {})
+                    chunk_type = chunk.type
+                    canonical = chunk.canonical_type
 
-                        if "Middleware" in name:
-                            if "start" in event_type:
-                                if "Summarization" in name:
-                                    in_summarization = True
-                                await websocket.send_json(
-                                    MiddlewareMessage(name=name, event="start").model_dump()
-                                )
-                            elif "end" in event_type:
-                                if "Summarization" in name:
-                                    in_summarization = False
-                                await websocket.send_json(
-                                    MiddlewareMessage(name=name, event="end").model_dump()
-                                )
+                    if chunk_type == "ai_token" and chunk.content:
+                        ai_content_parts.append(chunk.content)
+                        from src.http.ws_protocol import AiTokenMessage
 
-                        elif "chat_model_stream" in event_type:
-                            text_content = ""
+                        await websocket.send_json(
+                            AiTokenMessage(
+                                content=chunk.content, session_id=session_id
+                            ).model_dump()
+                        )
 
-                            if isinstance(chunk_data, dict) and "chunk" in chunk_data:
-                                chunk_obj = chunk_data["chunk"]
-                                if hasattr(chunk_obj, "content_blocks"):
-                                    blocks = chunk_obj.content_blocks
-                                    text_parts = [
-                                        b.get("text", "") for b in blocks if b.get("type") == "text"
-                                    ]
-                                    reasoning_parts = [
-                                        b.get("reasoning", "")
-                                        for b in blocks
-                                        if b.get("type") == "reasoning"
-                                    ]
-                                    text_content = "".join(text_parts)
-                                    reasoning = "".join(reasoning_parts)
-                                    if reasoning:
-                                        await websocket.send_json(
-                                            ReasoningMessage(
-                                                content=reasoning, session_id=session_id
-                                            ).model_dump()
-                                        )
-                                elif hasattr(chunk_obj, "content"):
-                                    text_content = chunk_obj.content
-                                else:
-                                    text_content = str(chunk_obj)
-                            elif isinstance(chunk_data, dict) and "content" in chunk_data:
-                                text_content = str(chunk_data.get("content", ""))
-                            elif hasattr(chunk_data, "content"):
-                                text_content = chunk_data.content
+                    elif chunk_type == "tool_start":
+                        tool_name = chunk.tool or "unknown"
+                        call_id = chunk.call_id or str(uuid.uuid4())[:8]
+                        tool_args = chunk.args or {}
+                        tool_metadata_list.append({"tool_name": tool_name, "tool_call_id": call_id})
+                        from src.http.ws_protocol import ToolStartMessage
 
-                            if text_content and not in_summarization:
-                                ai_content_parts.append(text_content)
-                                await websocket.send_json(
-                                    AiTokenMessage(
-                                        content=text_content, session_id=session_id
-                                    ).model_dump()
-                                )
+                        await websocket.send_json(
+                            ToolStartMessage(
+                                tool=tool_name,
+                                call_id=call_id,
+                                args=tool_args,
+                            ).model_dump()
+                        )
 
-                        elif "tool" in event_type:
-                            if "start" in event_type:
-                                tool_name = (
-                                    chunk_data.get("name", name)
-                                    if isinstance(chunk_data, dict)
-                                    else name
-                                )
-                                call_id = str(uuid.uuid4())[:8]
-                                tool_args = (
-                                    chunk_data.get("input", {})
-                                    if isinstance(chunk_data, dict)
-                                    else {}
-                                )
-                                tool_metadata_list.append(
-                                    {"tool_name": tool_name, "tool_call_id": call_id}
-                                )
-                                await websocket.send_json(
-                                    ToolStartMessage(
-                                        tool=tool_name,
-                                        call_id=call_id,
-                                        args=tool_args if isinstance(tool_args, dict) else {},
-                                    ).model_dump()
-                                )
-                            elif "end" in event_type:
-                                if isinstance(chunk_data, dict) and "output" in chunk_data:
-                                    output = str(chunk_data.get("output", ""))[:500]
-                                    tool_results.append(output)
-                                    tool_name = (
-                                        chunk_data.get("name", name)
-                                        if isinstance(chunk_data, dict)
-                                        else name
-                                    )
-                                    await websocket.send_json(
-                                        ToolEndMessage(
-                                            tool=tool_name,
-                                            call_id=tool_metadata_list[-1]["tool_call_id"]
-                                            if tool_metadata_list
-                                            else "unknown",
-                                            result_preview=output,
-                                        ).model_dump()
-                                    )
+                    elif canonical == "text_delta" and chunk_type != "ai_token":
+                        ai_content_parts.append(chunk.content)
+                        await websocket.send_json(chunk.to_ws_message())
 
-                    elif isinstance(chunk, dict):
-                        chunk_type = getattr(chunk, "type", None) or chunk.get("type")
-                        if chunk_type == "tool":
-                            content = getattr(chunk, "content", None) or chunk.get("content")
-                            if content:
-                                tool_results.append(str(content))
-                                await websocket.send_json(
-                                    ToolEndMessage(
-                                        tool="unknown",
-                                        call_id="unknown",
-                                        result_preview=str(content)[:500],
-                                    ).model_dump()
-                                )
-                        elif chunk_type == "ai":
-                            content = getattr(chunk, "content", None) or chunk.get("content", "")
-                            if content and not in_summarization:
-                                ai_content_parts.append(str(content))
-                                await websocket.send_json(
-                                    AiTokenMessage(
-                                        content=str(content), session_id=session_id
-                                    ).model_dump()
-                                )
+                    elif canonical == "text_start":
+                        await websocket.send_json(chunk.to_ws_message())
+
+                    elif canonical == "text_end":
+                        await websocket.send_json(chunk.to_ws_message())
+
+                    elif canonical == "tool_input_start" and chunk_type != "tool_start":
+                        tool_name = chunk.tool or "unknown"
+                        call_id = chunk.call_id or str(uuid.uuid4())[:8]
+                        tool_metadata_list.append({"tool_name": tool_name, "tool_call_id": call_id})
+                        await websocket.send_json(chunk.to_ws_message())
+
+                    elif canonical == "tool_input_delta":
+                        await websocket.send_json(chunk.to_ws_message())
+
+                    elif canonical == "tool_input_end":
+                        await websocket.send_json(chunk.to_ws_message())
+
+                    elif canonical == "reasoning_start":
+                        await websocket.send_json(chunk.to_ws_message())
+
+                    elif canonical == "reasoning_delta" and chunk_type == "reasoning":
+                        from src.http.ws_protocol import ReasoningMessage
+
+                        await websocket.send_json(
+                            ReasoningMessage(
+                                content=chunk.content, session_id=session_id
+                            ).model_dump()
+                        )
+
+                    elif canonical == "reasoning_delta" and chunk_type != "reasoning":
+                        await websocket.send_json(chunk.to_ws_message())
+
+                    elif canonical == "reasoning_end":
+                        await websocket.send_json(chunk.to_ws_message())
+
+                    elif chunk_type == "tool_end":
+                        tool_name = chunk.tool or "unknown"
+                        call_id = chunk.call_id or "unknown"
+                        result_preview = chunk.result_preview or ""
+                        from src.http.ws_protocol import ToolEndMessage
+
+                        await websocket.send_json(
+                            ToolEndMessage(
+                                tool=tool_name,
+                                call_id=call_id,
+                                result_preview=result_preview[:500],
+                            ).model_dump()
+                        )
+
+                    elif chunk_type == "tool_result":
+                        tool_name = chunk.tool or "unknown"
+                        call_id = chunk.call_id or "unknown"
+                        result_preview = chunk.result_preview or ""
+                        from src.http.ws_protocol import ToolResultMessage
+
+                        await websocket.send_json(
+                            ToolResultMessage(
+                                tool=tool_name,
+                                call_id=call_id,
+                                result_preview=result_preview[:500],
+                            ).model_dump()
+                        )
+
+                    elif chunk_type == "interrupt":
+                        interrupt_data = {
+                            "tool": chunk.tool,
+                            "call_id": chunk.call_id,
+                            "args": chunk.args,
+                            "allowed_actions": ["approve", "reject", "edit"],
+                        }
+                        pending_interrupt = interrupt_data
+                        from src.http.ws_protocol import InterruptMessage
+
+                        await websocket.send_json(
+                            InterruptMessage(
+                                call_id=chunk.call_id or "",
+                                tool=chunk.tool or "",
+                                args=chunk.args or {},
+                            ).model_dump()
+                        )
+
+                    elif chunk_type == "done":
+                        pass
+
+                    elif chunk_type == "error":
+                        await websocket.send_json(
+                            ErrorMessage(message=chunk.content, code="AGENT_ERROR").model_dump()
+                        )
 
             except Exception as e:
-                logger.error("ws.agent_error", {"error": str(e)}, user_id=user_id, channel="ws")
+                logger.error(
+                    "ws.sdk_agent_error",
+                    {"error": str(e), "error_type": type(e).__name__},
+                    user_id=user_id,
+                    channel="ws",
+                )
                 await websocket.send_json(
                     ErrorMessage(message=str(e), code="AGENT_ERROR").model_dump()
                 )
                 continue
 
-            response = "".join(ai_content_parts) if ai_content_parts else ""
-            if tool_results and not response:
-                response = "\n".join(tool_results)
-            if not response:
-                response = "Task completed."
+            response = "".join(ai_content_parts) if ai_content_parts else "Task completed."
 
-            for i, tool_content in enumerate(tool_results):
-                tool_meta = (
-                    tool_metadata_list[i]
-                    if i < len(tool_metadata_list)
-                    else {"tool_name": "unknown", "tool_call_id": ""}
+            for i, tm in enumerate(tool_metadata_list):
+                tool_content = ""
+                conversation.add_message(
+                    "tool",
+                    tool_content,
+                    metadata=tm,
                 )
-                conversation.add_message("tool", str(tool_content), metadata=tool_meta)
 
             conversation.add_message(
                 "assistant", response, metadata={"stream": True, "session_id": session_id}

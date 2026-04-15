@@ -8,28 +8,28 @@ class TestEmailConnect:
 
     def test_email_connect_requires_user_id(self):
         """Test email_connect requires user_id."""
-        from src.tools.email.account import email_connect
+        from src.sdk.tools_core.email import email_connect
 
         result = email_connect.invoke({"email": "test@gmail.com", "password": "pass"})
         assert "Error: user_id is required" in result
 
     def test_email_connect_requires_email(self):
         """Test email_connect requires email."""
-        from src.tools.email.account import email_connect
+        from src.sdk.tools_core.email import email_connect
 
         result = email_connect.invoke({"password": "pass", "user_id": "test_user"})
         assert "Error: email address is required" in result
 
     def test_email_connect_requires_password(self):
         """Test email_connect requires password."""
-        from src.tools.email.account import email_connect
+        from src.sdk.tools_core.email import email_connect
 
         result = email_connect.invoke({"email": "test@gmail.com", "user_id": "test_user"})
         assert "Error: password is required" in result
 
     def test_email_connect_invalid_provider(self):
         """Test email_connect handles invalid provider."""
-        from src.tools.email.account import email_connect
+        from src.sdk.tools_core.email import email_connect
 
         result = email_connect.invoke(
             {"email": "invalid@unknown.com", "password": "pass", "user_id": "test_user"}
@@ -42,14 +42,14 @@ class TestEmailDisconnect:
 
     def test_email_disconnect_requires_user_id(self):
         """Test email_disconnect requires user_id."""
-        from src.tools.email.account import email_disconnect
+        from src.sdk.tools_core.email import email_disconnect
 
         result = email_disconnect.invoke({"account_name": "test"})
         assert "Error" in result
 
     def test_email_disconnect_account_not_found(self):
         """Test email_disconnect handles non-existent account."""
-        from src.tools.email.account import email_disconnect
+        from src.sdk.tools_core.email import email_disconnect
 
         with patch("src.tools.email.account.load_accounts", return_value={}):
             result = email_disconnect.invoke(
@@ -63,14 +63,14 @@ class TestEmailAccounts:
 
     def test_email_accounts_requires_user_id(self):
         """Test email_accounts requires user_id."""
-        from src.tools.email.account import email_accounts
+        from src.sdk.tools_core.email import email_accounts
 
         result = email_accounts.invoke({})
         assert "Error" in result or "required" in result.lower()
 
     def test_email_accounts_empty(self):
         """Test email_accounts with no accounts."""
-        from src.tools.email.account import email_accounts
+        from src.sdk.tools_core.email import email_accounts
 
         with patch("src.tools.email.account.load_accounts", return_value={}):
             result = email_accounts.invoke({"user_id": "test_user"})
@@ -78,7 +78,7 @@ class TestEmailAccounts:
 
     def test_email_accounts_list(self):
         """Test email_accounts lists connected accounts."""
-        from src.tools.email.account import email_accounts
+        from src.sdk.tools_core.email import email_accounts
 
         mock_accounts = {
             "acc1": {
@@ -100,14 +100,14 @@ class TestEmailList:
 
     def test_email_list_requires_user_id(self):
         """Test email_list requires user_id."""
-        from src.tools.email.read import email_list
+        from src.sdk.tools_core.email import email_list
 
         result = email_list.invoke({"account_name": "test"})
         assert "Error: user_id is required" in result
 
     def test_email_list_account_not_found(self):
         """Test email_list handles non-existent account."""
-        from src.tools.email.read import email_list
+        from src.sdk.tools_core.email import email_list
 
         with patch("src.tools.email.read.get_account_id_by_name", return_value=None):
             result = email_list.invoke({"account_name": "nonexistent", "user_id": "test_user"})
@@ -119,14 +119,14 @@ class TestEmailGet:
 
     def test_email_get_requires_user_id(self):
         """Test email_get requires user_id."""
-        from src.tools.email.read import email_get
+        from src.sdk.tools_core.email import email_get
 
         result = email_get.invoke({"email_id": "123", "account_name": "test"})
         assert "Error: user_id is required" in result
 
     def test_email_get_account_not_found(self):
         """Test email_get handles non-existent account."""
-        from src.tools.email.read import email_get
+        from src.sdk.tools_core.email import email_get
 
         with patch("src.tools.email.read.get_account_id_by_name", return_value=None):
             result = email_get.invoke(
@@ -140,21 +140,21 @@ class TestEmailSearch:
 
     def test_email_search_requires_user_id(self):
         """Test email_search requires user_id."""
-        from src.tools.email.read import email_search
+        from src.sdk.tools_core.email import email_search
 
         result = email_search.invoke({"query": "test", "account_name": "test"})
         assert "Error: user_id is required" in result
 
     def test_email_search_requires_query(self):
         """Test email_search requires query."""
-        from src.tools.email.read import email_search
+        from src.sdk.tools_core.email import email_search
 
         result = email_search.invoke({"account_name": "test", "user_id": "test_user"})
         assert "Error: query is required" in result
 
     def test_email_search_account_not_found(self):
         """Test email_search handles non-existent account."""
-        from src.tools.email.read import email_search
+        from src.sdk.tools_core.email import email_search
 
         with patch("src.tools.email.read.get_account_id_by_name", return_value=None):
             result = email_search.invoke(
@@ -168,7 +168,7 @@ class TestEmailSend:
 
     def test_email_send_requires_user_id(self):
         """Test email_send requires user_id."""
-        from src.tools.email.send import email_send
+        from src.sdk.tools_core.email import email_send
 
         result = email_send.invoke(
             {"account_name": "test", "to": "test@example.com", "subject": "Hi", "body": "Hello"}
@@ -177,7 +177,7 @@ class TestEmailSend:
 
     def test_email_send_reply_to_not_found(self):
         """Test email_send handles reply to non-existent email."""
-        from src.tools.email.send import email_send
+        from src.sdk.tools_core.email import email_send
 
         with patch("src.tools.email.send.get_account_id_by_name", return_value=None):
             result = email_send.invoke(

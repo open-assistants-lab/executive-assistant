@@ -71,14 +71,13 @@ class Logger:
         if public_key and secret_key:
             try:
                 from langfuse import Langfuse
-                from langfuse.langchain import CallbackHandler
 
                 self.langfuse = Langfuse(
                     public_key=public_key,
                     secret_key=secret_key,
                     host=host if host and host != "https://cloud.langfuse.com" else None,
                 )
-                self.langfuse_handler = CallbackHandler()
+                self.langfuse_handler = None
                 self.info(
                     "logger",
                     {

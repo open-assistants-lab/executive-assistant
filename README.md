@@ -427,6 +427,23 @@ uv run mypy src/
 
 - **Agent**: LangChain `create_agent()` with tool calling
 - **Concurrency**: Per-user `AgentPool` reusing agent instances and thread IDs
-- **Middleware**: SkillMiddleware, SummarizationMiddleware (with failure detection), HumanInTheLoopMiddleware
+- **Middleware**: SkillMiddleware, SummarizationMiddleware (with failure detection), HumanInTheLifeMiddleware
 - **Storage**: SQLite (messages), ChromaDB (vectors), LangGraph (checkpoints)
 - **LLM Providers**: Ollama/Ollama Cloud, OpenAI, Anthropic
+
+## Acknowledgments
+
+This project builds on ideas and research from several projects in the AI agent memory and search space:
+
+| Project | Contribution |
+|---------|-------------|
+| [LangChain](https://github.com/langchain-ai/langchain) & [LangGraph](https://github.com/langchain-ai/langgraph) | Original agent framework. Executive Assistant started on LangChain/LangGraph before migrating to a custom SDK. LangGraph's checkpointing and graph-based agent orchestration informed the architecture. |
+| [claude-mem](https://github.com/thedotmack/claude-mem) | Progressive disclosure pattern for memory retrieval (3-layer workflow: list → load → full). Our skill system and memory context injection follow this token-efficient approach. [claude-mem.ai](https://claude-mem.ai/) |
+| [Claude Code](https://code.claude.com) | Auto-memory and insights system. Claude Code's approach to accumulating build commands, debugging insights, architecture notes, and code preferences across sessions directly inspired our MemoryStore's confidence-boosted recall and consolidation system. See [Claude Code Memory docs](https://code.claude.com/docs/en/memory). |
+| [ASMR](https://github.com/supermemoryai/supermemory) | Agentic Search and Memory Retrieval from the Supermemory team. Demonstrated that replacing simple vector search with agentic retrieval achieves ~99% on LongMemEval, validating the hybrid (keyword + vector + field) search approach used in our MemoryStore. [Blog post](https://supermemory.ai/blog/we-broke-the-frontier-in-agent-memory-introducing-99-sota-memory-system/) |
+| [LongMemEval](https://github.com/xiaowu0162/longmemeval) | Comprehensive benchmark for evaluating long-term interactive memory in chat assistants. Tests information extraction, multi-session reasoning, temporal reasoning, knowledge updates, and abstention. Informs our persona evaluation suite. [Paper](https://arxiv.org/abs/2410.10813) |
+| [SQLite](https://sqlite.org/) | Foundation of our entire storage layer — per-user databases, FTS5 full-text search with BM25 scoring, WAL mode for concurrent access, and content-external FTS5 tables with triggers. The most deployed database in the world, and for good reason. |
+| [ChromaDB](https://github.com/chroma-core/chroma) | Vector search engine with HNSW indexing. Powers semantic and hybrid search across memories, conversations, and user-created apps. Our benchmark (see `docs/benchmarks/`) confirmed ChromaDB's HNSW is 78x faster than brute-force at 100k rows, making it essential for interactive applications. [trychroma.com](https://www.trychroma.com/) |
+| [Firecrawl](https://github.com/mendableai/firecrawl) | Web scraping and search API. Powers our `scrape_url`, `search_web`, `map_url`, `crawl_url`, and `firecrawl_agent` tools. We use the Firecrawl CLI via our CLIToolAdapter pattern, supporting both cloud and self-hosted deployments. [firecrawl.dev](https://firecrawl.dev/) |
+| [Agent-Browser](https://agent-browser.dev) | Pure Rust CLI for browser automation by Vercel Labs. Powers our 20+ browser tools (`browser_open`, `browser_click`, `browser_snapshot`, etc.) using ref-based element selection (@e1, @e2) for deterministic AI interaction with ~50ms command latency. |
+| [Agent Skills](https://agentskills.io) | Open format for giving agents new capabilities and expertise via folders of instructions, scripts, and resources. Originally developed by Anthropic. Our skill system (`skills_list`, `skills_load`, SkillMiddleware) follows the Agent Skills specification for on-demand capability loading with progressive disclosure. [GitHub](https://github.com/agentskills/agentskills) |

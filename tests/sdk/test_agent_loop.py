@@ -13,35 +13,30 @@ os.environ.setdefault("CHECKPOINT_ENABLED", "false")
 class TestAgentLoopBasic:
     """Basic agent loop behavior that must be consistent."""
 
-    def test_recursion_limit_is_set(self):
-        """Agent must have a recursion limit to prevent infinite loops."""
-        from src.agents.manager import _get_pool_size
+    def test_run_config_defaults(self):
+        """AgentLoop RunConfig must have sensible defaults."""
+        from src.sdk.loop import RunConfig
 
-        pool_size = _get_pool_size()
-        assert isinstance(pool_size, int)
-        assert pool_size > 0
+        config = RunConfig()
+        assert config.max_llm_calls > 0
+        assert config.max_iterations > 0
 
-    def test_pool_creates_with_user_id(self):
-        """AgentPool must be created with a user_id."""
-        from src.agents.manager import AgentPool
+    def test_run_config_custom(self):
+        """RunConfig must accept custom limits."""
+        from src.sdk.loop import RunConfig
 
-        pool = AgentPool("test_user", pool_size=2)
-        assert pool.user_id == "test_user"
-        assert pool.pool_size == 2
+        config = RunConfig(max_llm_calls=10, max_iterations=5)
+        assert config.max_llm_calls == 10
+        assert config.max_iterations == 5
 
-    def test_pool_size_default(self):
-        """Default pool size should be > 0."""
-        from src.agents.manager import AgentPool
+    def test_agent_loop_constructor(self):
+        """AgentLoop must be constructable with provider and tools."""
+        from src.sdk.loop import AgentLoop
+        from unittest.mock import MagicMock
 
-        pool = AgentPool("test_user")
-        assert pool.pool_size > 0
-
-    def test_agent_factory_creates_with_user_id(self):
-        """AgentFactory must track the user_id."""
-        from src.agents.factory import AgentFactory
-
-        factory = AgentFactory(user_id="test_user")
-        assert factory.user_id == "test_user"
+        provider = MagicMock()
+        loop = AgentLoop(provider=provider, tools=[], system_prompt="test")
+        assert loop is not None
 
 
 class TestAgentLoopWSProtocol:

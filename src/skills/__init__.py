@@ -1,12 +1,6 @@
-"""Skills system for progressive disclosure.
+"""Skills system for progressive disclosure."""
 
-Based on:
-- https://docs.langchain.com/oss/python/langchain/multi-agent/skills-sql-assistant
-- https://agentskills.io/specification
-- https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview
-"""
-
-from src.middleware.skill import SkillMiddleware, SkillState
+from src.sdk.middleware_skill import SkillMiddleware
 from src.skills.models import Skill, SkillMetadata, parse_skill_file, skill_to_system_prompt_entry
 from src.skills.registry import SkillRegistry
 from src.skills.storage import SkillStorage, SystemSkillStorage, UserSkillStorage
@@ -19,21 +13,15 @@ from src.skills.tools import (
 )
 
 __all__ = [
-    # Models
     "Skill",
     "SkillMetadata",
     "parse_skill_file",
     "skill_to_system_prompt_entry",
-    # Storage
     "SkillStorage",
     "SystemSkillStorage",
     "UserSkillStorage",
-    # Registry
     "SkillRegistry",
-    # Middleware
     "SkillMiddleware",
-    "SkillState",
-    # Tools
     "skills_load",
     "skills_list",
     "list_available_skills",

@@ -11,7 +11,7 @@ class TestMCPConfig:
 
     def test_load_config_missing_file(self):
         """Test loading config when file doesn't exist."""
-        from src.tools.mcp.config import load_mcp_config
+        from src.sdk.tools_core.mcp_config import load_mcp_config
 
         result = load_mcp_config("nonexistent_user")
         assert result is None
@@ -24,9 +24,9 @@ class TestMCPConfig:
             config_file = user_dir / ".mcp.json"
             config_file.write_text("invalid json{")
 
-            with patch("src.tools.mcp.config.Path") as mock_path:
+            with patch("src.sdk.tools_core.mcp_config.Path") as mock_path:
                 mock_path.return_value = config_file
-                from src.tools.mcp.config import load_mcp_config
+                from src.sdk.tools_core.mcp_config import load_mcp_config
 
                 result = load_mcp_config("test_user")
                 assert result is None
@@ -50,9 +50,9 @@ class TestMCPConfig:
                 )
             )
 
-            with patch("src.tools.mcp.config.Path") as mock_path:
+            with patch("src.sdk.tools_core.mcp_config.Path") as mock_path:
                 mock_path.return_value = config_file
-                from src.tools.mcp.config import load_mcp_config
+                from src.sdk.tools_core.mcp_config import load_mcp_config
 
                 result = load_mcp_config("test_user")
                 assert result is not None
@@ -60,14 +60,14 @@ class TestMCPConfig:
 
     def test_config_path(self):
         """Test config path generation."""
-        from src.tools.mcp.config import get_config_path
+        from src.sdk.tools_core.mcp_config import get_config_path
 
         path = get_config_path("test_user")
         assert str(path) == "data/users/test_user/.mcp.json"
 
     def test_config_mtime_missing(self):
         """Test mtime when config doesn't exist."""
-        from src.tools.mcp.config import get_config_mtime
+        from src.sdk.tools_core.mcp_config import get_config_mtime
 
         result = get_config_mtime("nonexistent_user")
         assert result == 0.0
@@ -78,21 +78,21 @@ class TestMCPTools:
 
     def test_mcp_list_requires_user_id(self):
         """Test mcp_list requires user_id."""
-        from src.tools.mcp.tools import mcp_list
+        from src.sdk.tools_core.mcp import mcp_list
 
         result = mcp_list.invoke({})
         assert "Error: user_id is required" in result
 
     def test_mcp_reload_requires_user_id(self):
         """Test mcp_reload requires user_id."""
-        from src.tools.mcp.tools import mcp_reload
+        from src.sdk.tools_core.mcp import mcp_reload
 
         result = mcp_reload.invoke({})
         assert "Error: user_id is required" in result
 
     def test_mcp_tools_requires_user_id(self):
         """Test mcp_tools requires user_id."""
-        from src.tools.mcp.tools import mcp_tools
+        from src.sdk.tools_core.mcp import mcp_tools
 
         result = mcp_tools.invoke({})
         assert "Error: user_id is required" in result
@@ -105,7 +105,7 @@ class TestMCPTools:
         mock_manager.list_servers = AsyncMock(return_value={})
         mock_get_manager.return_value = mock_manager
 
-        from src.tools.mcp.tools import mcp_list
+        from src.sdk.tools_core.mcp import mcp_list
 
         result = mcp_list.invoke({"user_id": "test_user"})
         assert "No MCP servers configured" in result
@@ -128,7 +128,7 @@ class TestMCPTools:
         )
         mock_get_manager.return_value = mock_manager
 
-        from src.tools.mcp.tools import mcp_list
+        from src.sdk.tools_core.mcp import mcp_list
 
         result = mcp_list.invoke({"user_id": "test_user"})
         assert "math" in result
@@ -140,11 +140,11 @@ class TestMCPManager:
 
     def test_compute_config_hash(self):
         """Test config hash computation."""
-        from src.tools.mcp.config import MCPConfig, MCPServerConfig
+        from src.sdk.tools_core.mcp_config import MCPConfig, MCPServerConfig
 
         config = MCPConfig(mcpServers={"math": MCPServerConfig(command="python", args=["test.py"])})
 
-        from src.tools.mcp.manager import MCPManager
+        from src.sdk.tools_core.mcp_manager import MCPManager
 
         manager = MCPManager("test_user")
         hash1 = manager._compute_config_hash(config)
@@ -155,10 +155,10 @@ class TestMCPManager:
 
     def test_config_changed_no_config(self):
         """Test config changed when no config exists."""
-        with patch("src.tools.mcp.manager.load_mcp_config") as mock_load:
+        with patch("src.sdk.tools_core.mcp_manager.load_mcp_config") as mock_load:
             mock_load.return_value = None
 
-            from src.tools.mcp.manager import MCPManager
+            from src.sdk.tools_core.mcp_manager import MCPManager
 
             manager = MCPManager("test_user")
             assert not manager._config_changed()

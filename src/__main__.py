@@ -20,9 +20,6 @@ def main():
     # HTTP command
     subparsers.add_parser("http", help="Start HTTP server")
 
-    # Telegram command
-    subparsers.add_parser("telegram", help="Start Telegram bot")
-
     args = parser.parse_args()
 
     if args.command == "cli" or args.command is None:
@@ -33,12 +30,6 @@ def main():
         from src.http.main import run as http_run
 
         http_run()
-    elif args.command == "telegram":
-        import asyncio
-
-        from src.telegram.main import main as telegram_main
-
-        asyncio.run(telegram_main())
     else:
         parser.print_help()
         sys.exit(1)

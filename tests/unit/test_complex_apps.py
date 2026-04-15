@@ -11,7 +11,7 @@ TEST_USER_ID = "test_complex_user"
 @pytest.fixture(autouse=True)
 def cleanup_test_db():
     """Clean up test database before and after each test."""
-    db_path = Path(f"data/users/{TEST_USER_ID}/apps")
+    db_path = Path("data/private/apps")
     if db_path.exists():
         shutil.rmtree(db_path)
     yield
@@ -22,7 +22,7 @@ def cleanup_test_db():
 @pytest.fixture
 def storage():
     """Get app storage for testing."""
-    from src.tools.apps.storage import AppStorage
+    from src.sdk.tools_core.apps_storage import AppStorage
 
     return AppStorage(TEST_USER_ID)
 

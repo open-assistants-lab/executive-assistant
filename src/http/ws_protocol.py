@@ -8,6 +8,16 @@ The protocol is designed to be:
 - Simple: JSON messages, typed, no binary frames
 - Bidirectional: client sends messages, server streams responses
 - Extensible: unknown types are ignored (forward compatibility)
+
+Phase 5 adds block-structured streaming messages:
+- TextStartMessage, TextDeltaMessage, TextEndMessage
+- ToolInputStartMessage, ToolInputDeltaMessage, ToolInputEndMessage
+- ReasoningStartMessage, ReasoningDeltaMessage, ReasoningEndMessage
+- ToolResultMessage (replaces ToolEndMessage for actual results)
+- ToolCallMessage (complete tool call with parsed args)
+
+Backward-compatible messages are preserved:
+- AiTokenMessage, ToolStartMessage, ToolEndMessage, ReasoningMessage
 """
 
 from pydantic import BaseModel, Field
@@ -59,11 +69,101 @@ class PingMessage(BaseModel):
     type: str = "ping"
 
 
-# ─── Server → Client Messages ───
+# ─── Server → Client Messages (Block-Structured Streaming) ───
+
+
+class TextStartMessage(BaseModel):
+    """Text content block begins."""
+
+    type: str = "text_start"
+    session_id: str = ""
+
+
+class TextDeltaMessage(BaseModel):
+    """Streaming text delta within a text block."""
+
+    type: str = "text_delta"
+    content: str
+    session_id: str = ""
+
+
+class TextEndMessage(BaseModel):
+    """Text content block ends."""
+
+    type: str = "text_end"
+    session_id: str = ""
+
+
+class ToolInputStartMessage(BaseModel):
+    """Tool input block begins — the model is generating tool call arguments."""
+
+    type: str = "tool_input_start"
+    tool: str
+    call_id: str
+    args: dict = Field(default_factory=dict)
+
+
+class ToolInputDeltaMessage(BaseModel):
+    """Streaming argument delta for a tool call."""
+
+    type: str = "tool_input_delta"
+    call_id: str
+    content: str = ""
+
+
+class ToolInputEndMessage(BaseModel):
+    """Tool input block ends — all arguments have been streamed."""
+
+    type: str = "tool_input_end"
+    call_id: str
+    tool: str = ""
+
+
+class ToolCallMessage(BaseModel):
+    """Complete tool call with fully parsed arguments."""
+
+    type: str = "tool_call"
+    tool: str
+    call_id: str
+    args: dict = Field(default_factory=dict)
+
+
+class ToolResultMessage(BaseModel):
+    """Tool execution result (emitted by AgentLoop after tool execution)."""
+
+    type: str = "tool_result"
+    tool: str
+    call_id: str
+    result_preview: str = ""
+
+
+class ReasoningStartMessage(BaseModel):
+    """Reasoning/thinking block begins."""
+
+    type: str = "reasoning_start"
+    session_id: str = ""
+
+
+class ReasoningDeltaMessage(BaseModel):
+    """Streaming reasoning/thinking delta."""
+
+    type: str = "reasoning_delta"
+    content: str
+    session_id: str = ""
+
+
+class ReasoningEndMessage(BaseModel):
+    """Reasoning/thinking block ends."""
+
+    type: str = "reasoning_end"
+    session_id: str = ""
+
+
+# ─── Server → Client Messages (Backward-Compatible) ───
 
 
 class AiTokenMessage(BaseModel):
-    """Streaming AI text token."""
+    """Streaming AI text token (backward compat alias for TextDeltaMessage)."""
 
     type: str = "ai_token"
     content: str
@@ -71,7 +171,7 @@ class AiTokenMessage(BaseModel):
 
 
 class ToolStartMessage(BaseModel):
-    """Tool call started."""
+    """Tool call started (backward compat alias for ToolInputStartMessage)."""
 
     type: str = "tool_start"
     tool: str
@@ -80,7 +180,7 @@ class ToolStartMessage(BaseModel):
 
 
 class ToolEndMessage(BaseModel):
-    """Tool call completed."""
+    """Tool call completed (backward compat)."""
 
     type: str = "tool_end"
     tool: str
@@ -108,7 +208,7 @@ class MiddlewareMessage(BaseModel):
 
 
 class ReasoningMessage(BaseModel):
-    """Reasoning/thinking token (for reasoning models)."""
+    """Reasoning/thinking token (backward compat alias for ReasoningDeltaMessage)."""
 
     type: str = "reasoning"
     content: str
@@ -149,12 +249,26 @@ CLIENT_MESSAGE_TYPES = {
 }
 
 SERVER_MESSAGE_TYPES = {
+    # Block-structured
+    "text_start": TextStartMessage,
+    "text_delta": TextDeltaMessage,
+    "text_end": TextEndMessage,
+    "tool_input_start": ToolInputStartMessage,
+    "tool_input_delta": ToolInputDeltaMessage,
+    "tool_input_end": ToolInputEndMessage,
+    "tool_call": ToolCallMessage,
+    "tool_result": ToolResultMessage,
+    "reasoning_start": ReasoningStartMessage,
+    "reasoning_delta": ReasoningDeltaMessage,
+    "reasoning_end": ReasoningEndMessage,
+    # Backward-compatible
     "ai_token": AiTokenMessage,
     "tool_start": ToolStartMessage,
     "tool_end": ToolEndMessage,
+    "reasoning": ReasoningMessage,
+    # Common
     "interrupt": InterruptMessage,
     "middleware": MiddlewareMessage,
-    "reasoning": ReasoningMessage,
     "done": DoneMessage,
     "error": ErrorMessage,
     "pong": PongMessage,
@@ -183,20 +297,33 @@ def parse_client_message(
         return None
 
 
-def parse_server_message(
-    data: dict,
-) -> (
-    AiTokenMessage
+_ServerMessage = (
+    TextStartMessage
+    | TextDeltaMessage
+    | TextEndMessage
+    | ToolInputStartMessage
+    | ToolInputDeltaMessage
+    | ToolInputEndMessage
+    | ToolCallMessage
+    | ToolResultMessage
+    | ReasoningStartMessage
+    | ReasoningDeltaMessage
+    | ReasoningEndMessage
+    | AiTokenMessage
     | ToolStartMessage
     | ToolEndMessage
+    | ReasoningMessage
     | InterruptMessage
     | MiddlewareMessage
-    | ReasoningMessage
     | DoneMessage
     | ErrorMessage
     | PongMessage
-    | None
-):
+)
+
+
+def parse_server_message(
+    data: dict,
+) -> _ServerMessage | None:
     """Parse a server message from raw dict. Returns None for unknown types."""
     msg_type = data.get("type", "")
     msg_cls = SERVER_MESSAGE_TYPES.get(msg_type)

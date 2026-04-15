@@ -10,7 +10,7 @@ class TestTodosList:
 
     def test_todos_list_empty(self):
         """Test todos_list with no todos."""
-        from src.tools.todos.tools import todos_list
+        from src.sdk.tools_core.todos import todos_list
 
         with patch("src.tools.todos.tools.todos_storage") as mock_storage:
             mock_storage.get_todos.return_value = []
@@ -25,7 +25,7 @@ class TestTodosList:
 
     def test_todos_list_with_todos(self):
         """Test todos_list returns todos grouped by status."""
-        from src.tools.todos.tools import todos_list
+        from src.sdk.tools_core.todos import todos_list
 
         mock_todos = [
             {"id": "1", "content": "Task 1", "status": "pending"},
@@ -50,14 +50,14 @@ class TestTodosAdd:
 
     def test_todos_add_requires_content(self):
         """Test todos_add requires content."""
-        from src.tools.todos.tools import todos_add
+        from src.sdk.tools_core.todos import todos_add
 
         result = todos_add.invoke({"user_id": TEST_USER_ID})
         assert "Error" in result
 
     def test_todos_add_success(self):
         """Test todos_add successfully adds todo."""
-        from src.tools.todos.tools import todos_add
+        from src.sdk.tools_core.todos import todos_add
 
         with patch("src.tools.todos.tools.todos_storage") as mock_storage:
             mock_storage.add_todo.return_value = {
@@ -70,7 +70,7 @@ class TestTodosAdd:
 
     def test_todos_add_with_priority(self):
         """Test todos_add with priority."""
-        from src.tools.todos.tools import todos_add
+        from src.sdk.tools_core.todos import todos_add
 
         with patch("src.tools.todos.tools.todos_storage") as mock_storage:
             mock_storage.add_todo.return_value = {
@@ -89,14 +89,14 @@ class TestTodosUpdate:
 
     def test_todos_update_requires_todo_id(self):
         """Test todos_update requires todo_id."""
-        from src.tools.todos.tools import todos_update
+        from src.sdk.tools_core.todos import todos_update
 
         result = todos_update.invoke({"user_id": TEST_USER_ID})
         assert "Error" in result or "todo_id" in result.lower()
 
     def test_todos_update_success(self):
         """Test todos_update successfully updates todo."""
-        from src.tools.todos.tools import todos_update
+        from src.sdk.tools_core.todos import todos_update
 
         with patch("src.tools.todos.tools.todos_storage") as mock_storage:
             mock_storage.update_todo.return_value = {"success": True}
@@ -112,7 +112,7 @@ class TestTodosUpdate:
 
     def test_todos_update_not_found(self):
         """Test todos_update handles not found."""
-        from src.tools.todos.tools import todos_update
+        from src.sdk.tools_core.todos import todos_update
 
         with patch("src.tools.todos.tools.todos_storage") as mock_storage:
             mock_storage.update_todo.return_value = {"success": False, "error": "Not found"}
@@ -125,14 +125,14 @@ class TestTodosDelete:
 
     def test_todos_delete_requires_todo_id(self):
         """Test todos_delete requires todo_id."""
-        from src.tools.todos.tools import todos_delete
+        from src.sdk.tools_core.todos import todos_delete
 
         result = todos_delete.invoke({"user_id": TEST_USER_ID})
         assert "Error" in result or "todo_id" in result.lower()
 
     def test_todos_delete_success(self):
         """Test todos_delete successfully deletes todo."""
-        from src.tools.todos.tools import todos_delete
+        from src.sdk.tools_core.todos import todos_delete
 
         with patch("src.tools.todos.tools.todos_storage") as mock_storage:
             mock_storage.delete_todo.return_value = {"success": True}
@@ -141,7 +141,7 @@ class TestTodosDelete:
 
     def test_todos_delete_not_found(self):
         """Test todos_delete handles not found."""
-        from src.tools.todos.tools import todos_delete
+        from src.sdk.tools_core.todos import todos_delete
 
         with patch("src.tools.todos.tools.todos_storage") as mock_storage:
             mock_storage.delete_todo.return_value = {"success": False, "error": "Not found"}
@@ -154,7 +154,7 @@ class TestTodosExtract:
 
     def test_todos_extract_requires_user_id(self):
         """Test todos_extract requires user_id."""
-        from src.tools.todos.tools import todos_extract
+        from src.sdk.tools_core.todos import todos_extract
 
         result = todos_extract.invoke({})
         assert "Error" in result or "user_id" in result.lower()
@@ -165,7 +165,7 @@ class TestTodosStorageFunctions:
 
     def test_get_db_path(self):
         """Test getting database path."""
-        from src.tools.todos.storage import get_db_path
+        from src.sdk.tools_core.todos_storage import get_db_path
 
         path = get_db_path("test_user")
         assert "test_user" in path

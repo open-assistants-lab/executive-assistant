@@ -17,16 +17,16 @@ os.environ.setdefault("CHECKPOINT_ENABLED", "false")
 
 class TestTimeGet:
     def test_returns_current_time(self):
-        from src.tools.core.time import time_get
+        from src.sdk.tools_core.time import time_get
 
-        result = time_get.invoke({"user_id": "test"})
+        result = time_get.invoke()
         assert isinstance(result, str)
         assert len(result) > 0
 
     def test_includes_date(self):
-        from src.tools.core.time import time_get
+        from src.sdk.tools_core.time import time_get
 
-        result = time_get.invoke({"user_id": "test"})
+        result = time_get.invoke()
         assert "20" in result
 
 
@@ -35,13 +35,13 @@ class TestTimeGet:
 
 class TestShellExecute:
     def test_simple_command(self):
-        from src.tools.core.shell import shell_execute
+        from src.sdk.tools_core.shell import shell_execute
 
         result = shell_execute.invoke({"command": "echo hello", "user_id": "test"})
         assert "hello" in str(result)
 
     def test_rejects_dangerous_command(self):
-        from src.tools.core.shell import shell_execute
+        from src.sdk.tools_core.shell import shell_execute
 
         result = shell_execute.invoke({"command": "rm -rf /", "user_id": "test"})
         lowered = str(result).lower()
@@ -53,13 +53,13 @@ class TestShellExecute:
         )
 
     def test_default_user_id(self):
-        from src.tools.core.shell import shell_execute
+        from src.sdk.tools_core.shell import shell_execute
 
         result = shell_execute.invoke({"command": "echo test"})
         assert "test" in str(result)
 
     def test_command_timeout(self):
-        from src.tools.core.shell import shell_execute
+        from src.sdk.tools_core.shell import shell_execute
 
         result = shell_execute.invoke({"command": "sleep 1 && echo done", "user_id": "test"})
         assert isinstance(str(result), str)
@@ -70,7 +70,7 @@ class TestShellExecute:
 
 class TestFilesystemTools:
     def test_files_write_and_read(self):
-        from src.tools.filesystem.tools import files_write, files_read
+        from src.sdk.tools_core.filesystem import files_write, files_read
 
         files_write.invoke(
             {
@@ -85,13 +85,13 @@ class TestFilesystemTools:
         assert "Hello World" in str(result)
 
     def test_files_list(self):
-        from src.tools.filesystem.tools import files_list
+        from src.sdk.tools_core.filesystem import files_list
 
         result = files_list.invoke({"user_id": "test_contract_fs"})
         assert isinstance(str(result), str)
 
     def test_files_mkdir(self):
-        from src.tools.filesystem.tools import files_mkdir
+        from src.sdk.tools_core.filesystem import files_mkdir
 
         result = files_mkdir.invoke(
             {"path": "test_contract_ws/subdir", "user_id": "test_contract_fs"}
@@ -99,7 +99,7 @@ class TestFilesystemTools:
         assert isinstance(str(result), str)
 
     def test_files_edit(self):
-        from src.tools.filesystem.tools import files_write, files_edit, files_read
+        from src.sdk.tools_core.filesystem import files_write, files_edit, files_read
 
         files_write.invoke(
             {
@@ -119,7 +119,7 @@ class TestFilesystemTools:
         assert isinstance(str(result), str)
 
     def test_files_delete(self):
-        from src.tools.filesystem.tools import files_write, files_delete
+        from src.sdk.tools_core.filesystem import files_write, files_delete
 
         files_write.invoke(
             {
@@ -134,7 +134,7 @@ class TestFilesystemTools:
         assert isinstance(str(result), str)
 
     def test_files_rename(self):
-        from src.tools.filesystem.tools import files_write, files_rename
+        from src.sdk.tools_core.filesystem import files_write, files_rename
 
         files_write.invoke(
             {
@@ -158,13 +158,13 @@ class TestFilesystemTools:
 
 class TestFileSearchTools:
     def test_glob_search(self):
-        from src.tools.filesystem.search import files_glob_search
+        from src.sdk.tools_core.file_search import files_glob_search
 
         result = files_glob_search.invoke({"pattern": "*.py", "user_id": "test_contract_fs"})
         assert isinstance(str(result), str)
 
     def test_grep_search(self):
-        from src.tools.filesystem.search import files_grep_search
+        from src.sdk.tools_core.file_search import files_grep_search
 
         result = files_grep_search.invoke(
             {"pattern": "def time_get", "user_id": "test_contract_fs"}
@@ -177,8 +177,8 @@ class TestFileSearchTools:
 
 class TestVersioningTools:
     def test_capture_version(self):
-        from src.tools.filesystem.tools import files_write
-        from src.tools.filesystem.versioning import capture_version
+        from src.sdk.tools_core.filesystem import files_write
+        from src.sdk.tools_core.file_versioning import capture_version
 
         files_write.invoke(
             {
@@ -195,7 +195,7 @@ class TestVersioningTools:
         assert isinstance(str(result), str) or result is None
 
     def test_files_versions_list(self):
-        from src.tools.filesystem.versioning import files_versions_list
+        from src.sdk.tools_core.file_versioning import files_versions_list
 
         result = files_versions_list.invoke(
             {"path": "test_contract_ws/ver_test.txt", "user_id": "test_contract_fs"}
@@ -208,7 +208,7 @@ class TestVersioningTools:
 
 class TestTodosTools:
     def test_todos_add_and_list(self):
-        from src.tools.todos.tools import todos_add, todos_list
+        from src.sdk.tools_core.todos import todos_add, todos_list
 
         result = todos_add.invoke(
             {"content": "Contract test todo", "user_id": "test_contract_todos"}
@@ -218,7 +218,7 @@ class TestTodosTools:
         assert isinstance(str(list_result), str)
 
     def test_todos_update(self):
-        from src.tools.todos.tools import todos_add, todos_update
+        from src.sdk.tools_core.todos import todos_add, todos_update
 
         add_result = todos_add.invoke(
             {"content": "Update test todo", "user_id": "test_contract_todos"}
@@ -226,11 +226,9 @@ class TestTodosTools:
         assert isinstance(str(add_result), str)
 
     def test_todos_extract(self):
-        from src.tools.todos.tools import todos_extract
+        from src.sdk.tools_core.todos import todos_extract
 
-        result = todos_extract.invoke(
-            {"text": "Remember to buy groceries tomorrow", "user_id": "test_contract_todos"}
-        )
+        result = todos_extract.invoke({"user_id": "test_contract_todos", "limit": 1})
         assert isinstance(str(result), str)
 
 
@@ -239,7 +237,7 @@ class TestTodosTools:
 
 class TestContactsTools:
     def test_contacts_add_and_list(self):
-        from src.tools.contacts.tools import contacts_add, contacts_list
+        from src.sdk.tools_core.contacts import contacts_add, contacts_list
 
         result = contacts_add.invoke(
             {"email": "contract@test.com", "name": "Contract Test", "user_id": "test_contract_ct"}
@@ -249,13 +247,13 @@ class TestContactsTools:
         assert isinstance(str(list_result), str)
 
     def test_contacts_search(self):
-        from src.tools.contacts.tools import contacts_search
+        from src.sdk.tools_core.contacts import contacts_search
 
         result = contacts_search.invoke({"query": "test", "user_id": "test_contract_ct"})
         assert isinstance(str(result), str)
 
     def test_contacts_update(self):
-        from src.tools.contacts.tools import contacts_update
+        from src.sdk.tools_core.contacts import contacts_update
 
         result = contacts_update.invoke(
             {"contact_id": "nonexistent", "name": "Updated", "user_id": "test_contract_ct"}
@@ -263,7 +261,7 @@ class TestContactsTools:
         assert isinstance(str(result), str)
 
     def test_contacts_delete(self):
-        from src.tools.contacts.tools import contacts_delete
+        from src.sdk.tools_core.contacts import contacts_delete
 
         result = contacts_delete.invoke(
             {"contact_id": "nonexistent", "user_id": "test_contract_ct"}
@@ -271,7 +269,7 @@ class TestContactsTools:
         assert isinstance(str(result), str)
 
     def test_contacts_get(self):
-        from src.tools.contacts.tools import contacts_get
+        from src.sdk.tools_core.contacts import contacts_get
 
         result = contacts_get.invoke({"contact_id": "nonexistent", "user_id": "test_contract_ct"})
         assert isinstance(str(result), str)
@@ -282,33 +280,15 @@ class TestContactsTools:
 
 class TestMemoryTools:
     def test_memory_get_history(self):
-        from src.tools.memory.tools import memory_get_history
+        from src.sdk.tools_core.memory import memory_get_history
 
-        result = memory_get_history.invoke({"user_id": "test_contract_mem", "limit": 5})
+        result = memory_get_history.invoke({"user_id": "test_contract_mem", "days": 1})
         assert isinstance(str(result), str)
 
     def test_memory_search(self):
-        from src.tools.memory.tools import memory_search
+        from src.sdk.tools_core.memory import memory_search
 
         result = memory_search.invoke({"query": "test", "user_id": "test_contract_mem"})
-        assert isinstance(str(result), str)
-
-    def test_memory_list(self):
-        from src.tools.memory.profile import memory_list
-
-        result = memory_list.invoke({"user_id": "test_contract_mem"})
-        assert isinstance(str(result), str)
-
-    def test_memory_stats(self):
-        from src.tools.memory.profile import memory_stats
-
-        result = memory_stats.invoke({"user_id": "test_contract_mem"})
-        assert isinstance(str(result), str)
-
-    def test_memory_remove(self):
-        from src.tools.memory.profile import memory_remove
-
-        result = memory_remove.invoke({"memory_id": "nonexistent", "user_id": "test_contract_mem"})
         assert isinstance(str(result), str)
 
 
@@ -317,13 +297,13 @@ class TestMemoryTools:
 
 class TestEmailTools:
     def test_email_accounts(self):
-        from src.tools.email.account import email_accounts
+        from src.sdk.tools_core.email import email_accounts
 
         result = email_accounts.invoke({"user_id": "test_contract_email"})
         assert isinstance(str(result), str)
 
     def test_email_list(self):
-        from src.tools.email.read import email_list
+        from src.sdk.tools_core.email import email_list
 
         result = email_list.invoke(
             {"account_name": "default", "limit": 5, "user_id": "test_contract_email"}
@@ -331,31 +311,12 @@ class TestEmailTools:
         assert isinstance(str(result), str)
 
     def test_email_search(self):
-        from src.tools.email.read import email_search
+        from src.sdk.tools_core.email import email_search
 
         result = email_search.invoke(
             {"query": "test", "account_name": "default", "user_id": "test_contract_email"}
         )
         assert isinstance(str(result), str)
-
-
-# ─── Vault ───
-
-
-class TestVaultTools:
-    """Vault tests require vault unlock — contract checks only."""
-
-    def test_vault_tools_have_invoke(self):
-        from src.tools.vault import (
-            vault_lock,
-            vault_unlock,
-            vault_is_unlocked,
-            credential_add,
-            credential_list,
-        )
-
-        for tool in [vault_lock, vault_unlock, vault_is_unlocked, credential_add, credential_list]:
-            assert hasattr(tool, "invoke"), f"{tool.name} must have invoke method"
 
 
 class TestSkillsTools:
@@ -370,7 +331,7 @@ class TestAppTools:
     """App tools require ChromaDB — contract checks only."""
 
     def test_app_tools_have_invoke(self):
-        from src.tools.apps.tools import app_create, app_list, app_schema, app_query, app_delete
+        from src.sdk.tools_core.apps import app_create, app_list, app_schema, app_query, app_delete
 
         for tool in [app_create, app_list, app_schema, app_query, app_delete]:
             assert hasattr(tool, "invoke"), f"{tool.name} must have invoke method"

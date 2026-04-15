@@ -6,7 +6,7 @@ router = APIRouter(prefix="/todos", tags=["todos"])
 @router.get("")
 async def list_todos(user_id: str = "default"):
     """List all todos."""
-    from src.tools.todos.tools import todos_list
+    from src.sdk.tools_core.todos import todos_list
 
     result = todos_list.invoke({"user_id": user_id})
     return {"todos": result}
@@ -19,7 +19,7 @@ async def add_todo(
     user_id: str = "default",
 ):
     """Add a new todo."""
-    from src.tools.todos.tools import todos_add
+    from src.sdk.tools_core.todos import todos_add
 
     args = {"user_id": user_id, "content": content}
     if priority is not None:
@@ -37,7 +37,7 @@ async def update_todo(
     user_id: str = "default",
 ):
     """Update a todo."""
-    from src.tools.todos.tools import todos_update
+    from src.sdk.tools_core.todos import todos_update
 
     args = {"user_id": user_id, "todo_id": todo_id}
     if content is not None:
@@ -53,7 +53,7 @@ async def update_todo(
 @router.delete("/{todo_id}")
 async def delete_todo(todo_id: str, user_id: str = "default"):
     """Delete a todo."""
-    from src.tools.todos.tools import todos_delete
+    from src.sdk.tools_core.todos import todos_delete
 
     result = todos_delete.invoke({"user_id": user_id, "todo_id": todo_id})
     return {"result": str(result)}

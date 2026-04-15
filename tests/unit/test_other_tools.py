@@ -6,7 +6,7 @@ class TestShellTool:
 
     def test_shell_execute_with_command(self):
         """Test shell_execute works."""
-        from src.tools.core.shell import shell_execute
+        from src.sdk.tools_core.shell import shell_execute
 
         result = shell_execute.invoke({"command": "echo hello", "user_id": "test"})
         assert "hello" in result
@@ -17,7 +17,7 @@ class TestTimeTool:
 
     def test_time_get(self):
         """Test time_get returns current time."""
-        from src.tools.core.time import time_get
+        from src.sdk.tools_core.time import time_get
 
         result = time_get.invoke({"user_id": "test"})
         assert isinstance(result, str)

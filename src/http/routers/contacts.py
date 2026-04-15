@@ -6,7 +6,7 @@ router = APIRouter(prefix="/contacts", tags=["contacts"])
 @router.get("")
 async def list_contacts(user_id: str = "default"):
     """List all contacts."""
-    from src.tools.contacts.tools import contacts_list
+    from src.sdk.tools_core.contacts import contacts_list
 
     result = contacts_list.invoke({"user_id": user_id})
     return {"contacts": result}
@@ -15,7 +15,7 @@ async def list_contacts(user_id: str = "default"):
 @router.get("/search")
 async def search_contacts(query: str, user_id: str = "default"):
     """Search contacts."""
-    from src.tools.contacts.tools import contacts_search
+    from src.sdk.tools_core.contacts import contacts_search
 
     result = contacts_search.invoke({"user_id": user_id, "query": query})
     return {"results": result}
@@ -30,16 +30,11 @@ async def add_contact(
     user_id: str = "default",
 ):
     """Add a new contact."""
-    from src.tools.contacts.tools import contacts_add
+    from src.sdk.tools_core.contacts import contacts_add
 
-    args = {"user_id": user_id, "email": email}
-    if name is not None:
-        args["name"] = name
-    if phone is not None:
-        args["phone"] = phone
-    if company is not None:
-        args["company"] = company
-    result = contacts_add.invoke(args)
+    result = contacts_add.invoke(
+        {"user_id": user_id, "email": email, "name": name, "phone": phone, "company": company}
+    )
     return {"result": str(result)}
 
 
@@ -53,25 +48,25 @@ async def update_contact(
     user_id: str = "default",
 ):
     """Update a contact."""
-    from src.tools.contacts.tools import contacts_update
+    from src.sdk.tools_core.contacts import contacts_update
 
-    args = {"user_id": user_id, "contact_id": contact_id}
-    if email is not None:
-        args["email"] = email
-    if name is not None:
-        args["name"] = name
-    if phone is not None:
-        args["phone"] = phone
-    if company is not None:
-        args["company"] = company
-    result = contacts_update.invoke(args)
+    result = contacts_update.invoke(
+        {
+            "user_id": user_id,
+            "contact_id": contact_id,
+            "email": email,
+            "name": name,
+            "phone": phone,
+            "company": company,
+        }
+    )
     return {"result": str(result)}
 
 
 @router.delete("/{contact_id}")
 async def delete_contact(contact_id: str, user_id: str = "default"):
     """Delete a contact."""
-    from src.tools.contacts.tools import contacts_delete
+    from src.sdk.tools_core.contacts import contacts_delete
 
     result = contacts_delete.invoke({"user_id": user_id, "contact_id": contact_id})
     return {"result": str(result)}

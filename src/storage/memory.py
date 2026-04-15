@@ -1,43 +1,28 @@
-"""Memory storage using SQLite + FTS5 + ChromaDB.
+"""Memory storage using HybridDB.
 
 Two-layer memory architecture:
 - Working Memory: recent, high-confidence memories → always injected into context
 - Long-term Memory: all memories, retrievable on demand
 
-Memory types:
-- preference: user wants/prefers X
-- fact: factual information about user (name, location, etc)
-- workflow: user's working patterns
-- correction: user corrections (no, do A not B)
-
-Improvements over v1:
-- Per-field vector indexing (trigger, action, structured_data separately)
-- Connections graph with relationship semantics
-- Smart forgetting (access tracking, confidence boost on retrieval, auto-prune)
-- Granular memory shapes per type (structured_data JSON column)
-- Project-scoped memories (scope + project_id)
-- Insight semantic search via ChromaDB
-- WAL mode + batch operations
-- Context manager for connections
-- Progressive disclosure support (compact/summary/full detail levels)
+Domain wrapper over HybridDB that adds:
+- Confidence boost on access / confidence decay
+- Supersession logic
+- Connections graph (linked_to)
+- Working/long-term memory tiers
+- Progressive disclosure (compact/summary/full)
+- Session tracking
 """
 
 import hashlib
 import json
-import sqlite3
-import threading
-from collections.abc import Generator
-from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-import chromadb
-from chromadb.config import Settings
-
 from src.app_logging import get_logger
-from src.tools.apps.storage import get_embedding
+from src.sdk.hybrid_db import HybridDB, SearchMode
+from src.storage.paths import get_paths
 
 logger = get_logger()
 
@@ -81,8 +66,6 @@ MEMORY_DETAIL_FULL = "full"
 
 @dataclass
 class Connection:
-    """A connection between two memories with a relationship label."""
-
     target_id: str
     relationship: str = "relates_to"
     strength: float = 1.0
@@ -90,8 +73,6 @@ class Connection:
 
 @dataclass
 class Memory:
-    """A learned memory about the user."""
-
     id: str
     trigger: str
     action: str
@@ -117,8 +98,6 @@ class Memory:
 
 @dataclass
 class Insight:
-    """A synthesized insight from grouped memories."""
-
     id: str
     summary: str
     domain: str
@@ -131,12 +110,12 @@ class Insight:
 
 
 class MemoryStore:
-    """Manages memory storage.
+    """Manages memory storage via HybridDB.
 
     Structure:
-        /data/users/{user_id}/memory/
-        ├── memory.db    # SQLite + FTS5
-        └── vectors/     # ChromaDB (memories + insights collections)
+        data/private/memory/
+        ├── app.db    # SQLite + FTS5 + journal (HybridDB)
+        └── vectors/ # ChromaDB (memories + insights collections)
     """
 
     def __init__(self, user_id: str, base_dir: Path | str | None = None):
@@ -144,209 +123,63 @@ class MemoryStore:
         if base_dir is not None:
             base_path = Path(base_dir)
         else:
-            base_path = Path(f"data/users/{user_id}/memory")
+            base_path = get_paths(user_id).memory_dir()
         base_path.mkdir(parents=True, exist_ok=True)
 
-        self.db_path = str((base_path / "memory.db").resolve())
-        self.vector_path = str((base_path / "vectors").resolve())
-        self._db_lock = threading.Lock()
+        self.db = HybridDB(str(base_path))
+        self._init_tables()
 
-        self._init_db()
-        self._init_vector_store()
-
-    @contextmanager
-    def _connect(self) -> Generator[sqlite3.Cursor, None, None]:
-        """Context manager for SQLite connections with WAL mode and thread-safe access."""
-        with self._db_lock:
-            conn = sqlite3.connect(self.db_path, timeout=30.0)
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("PRAGMA busy_timeout = 30000")
-            conn.row_factory = sqlite3.Row
-            try:
-                cursor = conn.cursor()
-                yield cursor
-                conn.commit()
-            except Exception:
-                conn.rollback()
-                raise
-            finally:
-                conn.close()
-
-    def _init_db(self) -> None:
-        """Initialize SQLite with FTS5, new columns, indexes."""
-        with self._connect() as cur:
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS memories (
-                    id TEXT PRIMARY KEY,
-                    trigger TEXT NOT NULL,
-                    action TEXT NOT NULL,
-                    confidence REAL DEFAULT 0.2,
-                    domain TEXT DEFAULT 'preference',
-                    source TEXT DEFAULT 'learned',
-                    memory_type TEXT DEFAULT 'preference',
-                    importance REAL DEFAULT 5.0,
-                    consolidated INTEGER DEFAULT 0,
-                    linked_to TEXT DEFAULT '[]',
-                    superseded_by TEXT,
-                    is_superseded INTEGER DEFAULT 0,
-                    observations INTEGER DEFAULT 1,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    structured_data TEXT DEFAULT '{}',
-                    scope TEXT DEFAULT 'global',
-                    project_id TEXT,
-                    access_count INTEGER DEFAULT 0,
-                    last_accessed_at TEXT
-                )
-            """)
-
-            cur.execute("""
-                CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
-                    trigger,
-                    action,
-                    content='memories',
-                    content_rowid='rowid'
-                )
-            """)
-
-            cur.execute("""
-                CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
-                    INSERT INTO memories_fts(rowid, trigger, action)
-                    VALUES (new.rowid, new.trigger, new.action);
-                END
-            """)
-
-            cur.execute("""
-                CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
-                    INSERT INTO memories_fts(memories_fts, rowid, trigger, action)
-                    VALUES ('delete', old.rowid, old.trigger, old.action);
-                END
-            """)
-
-            cur.execute("""
-                CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE ON memories BEGIN
-                    INSERT INTO memories_fts(memories_fts, rowid, trigger, action)
-                    VALUES ('delete', old.rowid, old.trigger, old.action);
-                    INSERT INTO memories_fts(rowid, trigger, action)
-                    VALUES (new.rowid, new.trigger, new.action);
-                END
-            """)
-
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS insights (
-                    id TEXT PRIMARY KEY,
-                    summary TEXT NOT NULL,
-                    domain TEXT DEFAULT 'general',
-                    linked_memories TEXT DEFAULT '[]',
-                    confidence REAL DEFAULT 0.5,
-                    is_superseded INTEGER DEFAULT 0,
-                    superseded_by TEXT,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
-                )
-            """)
-
-            cur.execute("""
-                CREATE VIRTUAL TABLE IF NOT EXISTS insights_fts USING fts5(
-                    summary,
-                    content='insights',
-                    content_rowid='rowid'
-                )
-            """)
-
-            cur.execute("""
-                CREATE TRIGGER IF NOT EXISTS insights_ai AFTER INSERT ON insights BEGIN
-                    INSERT INTO insights_fts(rowid, summary)
-                    VALUES (new.rowid, new.summary);
-                END
-            """)
-
-            cur.execute("""
-                CREATE TRIGGER IF NOT EXISTS insights_ad AFTER DELETE ON insights BEGIN
-                    INSERT INTO insights_fts(insights_fts, rowid, summary)
-                    VALUES ('delete', old.rowid, old.summary);
-                END
-            """)
-
-            cur.execute("""
-                CREATE TRIGGER IF NOT EXISTS insights_au AFTER UPDATE ON insights BEGIN
-                    INSERT INTO insights_fts(insights_fts, rowid, summary)
-                    VALUES ('delete', old.rowid, old.summary);
-                    INSERT INTO insights_fts(rowid, summary)
-                    VALUES (new.rowid, new.summary);
-                END
-            """)
-
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS sessions (
-                    id TEXT PRIMARY KEY,
-                    started_at TEXT NOT NULL,
-                    ended_at TEXT,
-                    message_count INTEGER DEFAULT 0,
-                    summary TEXT
-                )
-            """)
-
-            for col_name, col_type, col_default in [
-                ("structured_data", "TEXT", "'{}'"),
-                ("scope", "TEXT", "'global'"),
-                ("project_id", "TEXT", None),
-                ("access_count", "INTEGER", "0"),
-                ("last_accessed_at", "TEXT", None),
-            ]:
-                try:
-                    cur.execute(
-                        f"ALTER TABLE memories ADD COLUMN {col_name} {col_type} DEFAULT {col_default}"
-                        if col_default
-                        else f"ALTER TABLE memories ADD COLUMN {col_name} {col_type}"
-                    )
-                except sqlite3.OperationalError:
-                    pass
-
-            for col_name, col_type, col_default in [
-                ("domain", "TEXT", "'general'"),
-                ("is_superseded", "INTEGER", "0"),
-                ("superseded_by", "TEXT", None),
-                ("updated_at", "TEXT", None),
-            ]:
-                try:
-                    cur.execute(
-                        f"ALTER TABLE insights ADD COLUMN {col_name} {col_type} DEFAULT {col_default}"
-                        if col_default
-                        else f"ALTER TABLE insights ADD COLUMN {col_name} {col_type}"
-                    )
-                except sqlite3.OperationalError:
-                    pass
-
-            cur.execute(
-                "CREATE INDEX IF NOT EXISTS idx_memories_scope ON memories(scope, project_id)"
-            )
-            cur.execute(
-                "CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(memory_type, is_superseded)"
-            )
-            cur.execute(
-                "CREATE INDEX IF NOT EXISTS idx_memories_domain ON memories(domain, is_superseded)"
-            )
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_sessions_started ON sessions(started_at)")
-
-    def _init_vector_store(self) -> None:
-        """Initialize ChromaDB with separate collections for memories and insights."""
-        self.chroma = chromadb.PersistentClient(
-            path=self.vector_path,
-            settings=Settings(anonymized_telemetry=False),
-        )
-        self.collection = self.chroma.get_or_create_collection(
-            name="memories",
-            metadata={"user_id": self.user_id},
-        )
-        self.insights_collection = self.chroma.get_or_create_collection(
-            name="insights",
-            metadata={"user_id": self.user_id},
+    def _init_tables(self) -> None:
+        self.db.create_table(
+            "memories",
+            {
+                "id": "TEXT PRIMARY KEY",
+                "trigger": "LONGTEXT",
+                "action": "LONGTEXT",
+                "confidence": "REAL",
+                "domain": "TEXT",
+                "source": "TEXT",
+                "memory_type": "TEXT",
+                "importance": "REAL",
+                "consolidated": "BOOLEAN",
+                "linked_to": "JSON",
+                "superseded_by": "TEXT",
+                "is_superseded": "BOOLEAN",
+                "observations": "INTEGER",
+                "created_at": "TEXT NOT NULL",
+                "updated_at": "TEXT NOT NULL",
+                "structured_data": "LONGTEXT",
+                "scope": "TEXT",
+                "project_id": "TEXT",
+                "access_count": "INTEGER",
+                "last_accessed_at": "TEXT",
+            },
         )
 
-        self._memories_field_collection = self.chroma.get_or_create_collection(
-            name="memories_fields",
-            metadata={"user_id": self.user_id, "type": "per_field"},
+        self.db.create_table(
+            "insights",
+            {
+                "id": "TEXT PRIMARY KEY",
+                "summary": "LONGTEXT",
+                "domain": "TEXT",
+                "linked_memories": "JSON",
+                "confidence": "REAL",
+                "is_superseded": "BOOLEAN",
+                "superseded_by": "TEXT",
+                "created_at": "TEXT NOT NULL",
+                "updated_at": "TEXT NOT NULL",
+            },
+        )
+
+        self.db.create_table(
+            "sessions",
+            {
+                "id": "TEXT PRIMARY KEY",
+                "started_at": "TEXT NOT NULL",
+                "ended_at": "TEXT",
+                "message_count": "INTEGER",
+                "summary": "LONGTEXT",
+            },
         )
 
     def _generate_id(self, trigger: str, action: str) -> str:
@@ -365,14 +198,9 @@ class MemoryStore:
 
     @staticmethod
     def _parse_connections(linked_to_json: str) -> list[Connection]:
-        """Parse linked_to JSON into Connection objects.
-
-        Supports both legacy format (list of strings) and new format
-        (list of dicts with target_id, relationship, strength).
-        """
         if not linked_to_json or linked_to_json == "[]":
             return []
-        raw = json.loads(linked_to_json)
+        raw = json.loads(linked_to_json) if isinstance(linked_to_json, str) else linked_to_json
         connections = []
         for item in raw:
             if isinstance(item, str):
@@ -389,7 +217,6 @@ class MemoryStore:
 
     @staticmethod
     def _serialize_connections(connections: list[Connection]) -> str:
-        """Serialize Connection objects to JSON for storage."""
         return json.dumps(
             [
                 {"target_id": c.target_id, "relationship": c.relationship, "strength": c.strength}
@@ -397,12 +224,9 @@ class MemoryStore:
             ]
         )
 
-    def _row_to_memory(self, row: sqlite3.Row) -> Memory:
-        """Convert a database row to a Memory object."""
-        linked_to_raw = row["linked_to"] if "linked_to" in row.keys() else "[]"
-        connections = self._parse_connections(linked_to_raw)
-
-        structured_raw = row["structured_data"] if "structured_data" in row.keys() else "{}"
+    def _row_to_memory(self, row: dict) -> Memory:
+        connections = self._parse_connections(row.get("linked_to", "[]"))
+        structured_raw = row.get("structured_data", "{}")
         if isinstance(structured_raw, str):
             try:
                 structured_data = json.loads(structured_raw)
@@ -413,13 +237,12 @@ class MemoryStore:
         else:
             structured_data = {}
 
-        scope = row["scope"] if "scope" in row.keys() else SCOPE_GLOBAL
-        project_id = row["project_id"] if "project_id" in row.keys() else None
-        access_count = row["access_count"] if "access_count" in row.keys() else 0
-        last_accessed_at_raw = row["last_accessed_at"] if "last_accessed_at" in row.keys() else None
-        last_accessed_at = (
-            datetime.fromisoformat(last_accessed_at_raw) if last_accessed_at_raw else None
-        )
+        last_accessed_at = None
+        if row.get("last_accessed_at"):
+            try:
+                last_accessed_at = datetime.fromisoformat(row["last_accessed_at"])
+            except (ValueError, TypeError):
+                pass
 
         return Memory(
             id=row["id"],
@@ -430,75 +253,77 @@ class MemoryStore:
             source=row["source"],
             memory_type=row["memory_type"],
             importance=row["importance"],
-            consolidated=bool(row["consolidated"]),
+            consolidated=bool(row.get("consolidated", 0)),
             linked_to=[c.target_id for c in connections],
             connections=connections,
             observations=row["observations"],
             created_at=datetime.fromisoformat(row["created_at"]),
             updated_at=datetime.fromisoformat(row["updated_at"]),
-            superseded_by=row["superseded_by"],
-            is_superseded=bool(row["is_superseded"]),
+            superseded_by=row.get("superseded_by"),
+            is_superseded=bool(row.get("is_superseded", 0)),
             structured_data=structured_data,
-            scope=scope,
-            project_id=project_id,
-            access_count=access_count,
+            scope=row.get("scope", SCOPE_GLOBAL),
+            project_id=row.get("project_id"),
+            access_count=row.get("access_count", 0),
             last_accessed_at=last_accessed_at,
         )
 
+    def _row_to_insight(self, row: dict) -> Insight:
+        return Insight(
+            id=row["id"],
+            summary=row["summary"],
+            domain=row["domain"],
+            linked_memories=json.loads(row.get("linked_memories", "[]")),
+            confidence=row["confidence"],
+            is_superseded=bool(row.get("is_superseded", 0)),
+            superseded_by=row.get("superseded_by"),
+            created_at=datetime.fromisoformat(row["created_at"]),
+            updated_at=datetime.fromisoformat(row["updated_at"]),
+        )
+
+    # ── Domain logic ───────────────────────────────────────
+
     def maybe_decay_confidence(self) -> None:
-        """Decrease confidence for memories not observed recently. Prune very low confidence."""
-        with self._connect() as cur:
-            now = datetime.now(UTC).isoformat()
-            thirty_days_ago = (datetime.now(UTC) - timedelta(days=30)).isoformat()
+        now = datetime.now(UTC).isoformat()
+        thirty_days_ago = (datetime.now(UTC) - timedelta(days=30)).isoformat()
 
-            cur.execute(
-                "UPDATE memories SET confidence = MAX(0.2, confidence - 0.1), updated_at = ? "
-                "WHERE updated_at < ? AND source = 'learned' AND is_superseded = 0",
-                (now, thirty_days_ago),
-            )
+        rows = self.db.query(
+            "memories",
+            where="updated_at < ? AND source = 'learned' AND is_superseded = 0",
+            params=(thirty_days_ago,),
+            limit=10000,
+        )
+        for row in rows:
+            new_conf = max(0.2, row["confidence"] - 0.1)
+            self.db.update("memories", row["id"], {"confidence": new_conf, "updated_at": now})
 
-            cur.execute(
-                "DELETE FROM memories WHERE confidence < ? AND is_superseded = 0 AND source = 'learned'",
-                (MIN_CONFIDENCE_DELETE,),
-            )
-
-            deleted_ids = [
-                row[0]
-                for row in cur.execute(
-                    "SELECT id FROM memories WHERE confidence < ? AND is_superseded = 0 AND source = 'learned'",
-                    (MIN_CONFIDENCE_DELETE,),
-                ).fetchall()
-            ]
-
-        for mid in deleted_ids:
-            try:
-                self.collection.delete(ids=[mid])
-                self._memories_field_collection.delete(
-                    where={"memory_id": mid}
-                    if self._memories_field_collection.count() > 0
-                    else None
-                )
-            except Exception:
-                pass
+        delete_rows = self.db.query(
+            "memories",
+            where="confidence < ? AND is_superseded = 0 AND source = 'learned'",
+            params=(MIN_CONFIDENCE_DELETE,),
+            limit=10000,
+        )
+        for row in delete_rows:
+            self.db.delete("memories", row["id"])
 
     def _boost_access(self, memory_id: str) -> None:
-        """Boost confidence and update access tracking on retrieval."""
-        with self._connect() as cur:
-            cur.execute(
-                "UPDATE memories SET "
-                "access_count = access_count + 1, "
-                "confidence = MIN(confidence + ?, ?), "
-                "last_accessed_at = ?, "
-                "updated_at = ? "
-                "WHERE id = ? AND is_superseded = 0",
-                (
-                    CONFIDENCE_BOOST_ON_ACCESS,
+        row = self.db.get("memories", memory_id)
+        if not row:
+            return
+        now = datetime.now(UTC).isoformat()
+        self.db.update(
+            "memories",
+            memory_id,
+            {
+                "access_count": (row.get("access_count", 0) or 0) + 1,
+                "confidence": min(
+                    row["confidence"] + CONFIDENCE_BOOST_ON_ACCESS,
                     MAX_CONFIDENCE + MAX_CONFIDENCE_BOOST_FROM_ACCESS,
-                    datetime.now(UTC).isoformat(),
-                    datetime.now(UTC).isoformat(),
-                    memory_id,
                 ),
-            )
+                "last_accessed_at": now,
+                "updated_at": now,
+            },
+        )
 
     def add_memory(
         self,
@@ -515,9 +340,7 @@ class MemoryStore:
         project_id: str | None = None,
         connections: list[Connection] | None = None,
     ) -> Memory:
-        """Add or update a memory."""
         self.maybe_decay_confidence()
-
         domain = self._normalize_domain(domain)
         now = datetime.now(UTC).isoformat()
         memory_id = self._generate_id(trigger, action)
@@ -525,122 +348,106 @@ class MemoryStore:
         conn_json = self._serialize_connections(connections or [])
         effective_id = memory_id
 
-        with self._connect() as cur:
-            cur.execute("SELECT id, observations FROM memories WHERE id = ?", (memory_id,))
-            existing = cur.fetchone()
+        base = {
+            "trigger": trigger,
+            "action": action,
+            "domain": domain,
+            "source": source,
+            "memory_type": memory_type,
+            "importance": importance,
+            "observations": 1,
+            "created_at": now,
+            "updated_at": now,
+            "structured_data": sd_json,
+            "scope": scope,
+            "project_id": project_id,
+            "linked_to": conn_json,
+            "is_superseded": False,
+            "superseded_by": None,
+            "consolidated": False,
+            "access_count": 0,
+            "last_accessed_at": None,
+        }
 
-            if existing and is_update:
+        existing = self.db.get("memories", memory_id)
+
+        if existing:
+            if is_update:
                 cap = MAX_CONFIDENCE if source == SOURCE_LEARNED else 1.0
-                cur.execute(
-                    "UPDATE memories SET action = ?, confidence = MIN(?, confidence + 0.1), "
-                    "observations = observations + 1, updated_at = ?, is_superseded = 0, "
-                    "superseded_by = NULL, structured_data = ?, scope = ?, project_id = ? "
-                    "WHERE id = ?",
-                    (action, cap, now, sd_json, scope, project_id, memory_id),
+                self.db.update(
+                    "memories",
+                    memory_id,
+                    {
+                        "action": action,
+                        "confidence": min(cap, existing["confidence"] + 0.1),
+                        "observations": (existing["observations"] or 0) + 1,
+                        "updated_at": now,
+                        "is_superseded": False,
+                        "superseded_by": None,
+                        "structured_data": sd_json,
+                        "scope": scope,
+                        "project_id": project_id,
+                    },
                 )
                 effective_id = memory_id
-            elif existing:
+            else:
                 cap = MAX_CONFIDENCE if source == SOURCE_LEARNED else 1.0
-                cur.execute(
-                    "UPDATE memories SET confidence = MIN(?, confidence + 0.05), "
-                    "observations = observations + 1, updated_at = ?, structured_data = ? "
-                    "WHERE id = ?",
-                    (cap, now, sd_json, memory_id),
+                self.db.update(
+                    "memories",
+                    memory_id,
+                    {
+                        "confidence": min(cap, existing["confidence"] + 0.05),
+                        "observations": (existing["observations"] or 0) + 1,
+                        "updated_at": now,
+                        "structured_data": sd_json,
+                    },
                 )
                 effective_id = memory_id
-            elif is_update:
-                cur.execute(
-                    "SELECT id, action FROM memories WHERE trigger = ? AND domain = ? AND is_superseded = 0 LIMIT 1",
-                    (trigger, domain),
+        elif is_update:
+            similar_rows = self.db.query(
+                "memories",
+                where="trigger = ? AND domain = ? AND is_superseded = 0",
+                params=(trigger, domain),
+                limit=1,
+            )
+            if similar_rows:
+                old_id = similar_rows[0]["id"]
+                new_id = self._generate_id(trigger, action + now.split(".")[-1])
+                self.db.update(
+                    "memories",
+                    old_id,
+                    {
+                        "is_superseded": True,
+                        "superseded_by": new_id,
+                        "updated_at": now,
+                    },
                 )
-                similar = cur.fetchone()
-
-                if similar:
-                    old_id = similar["id"]
-                    new_id = self._generate_id(trigger, action + now.split(".")[-1])
-                    cur.execute(
-                        "UPDATE memories SET is_superseded = 1, superseded_by = ?, updated_at = ? WHERE id = ?",
-                        (new_id, now, old_id),
-                    )
-                    initial_confidence = min(
-                        confidence, MAX_CONFIDENCE if source == SOURCE_LEARNED else 1.0
-                    )
-                    cur.execute(
-                        "INSERT INTO memories (id, trigger, action, confidence, domain, source, memory_type, "
-                        "importance, observations, created_at, updated_at, structured_data, scope, project_id, "
-                        "linked_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)",
-                        (
-                            new_id,
-                            trigger,
-                            action,
-                            initial_confidence,
-                            domain,
-                            source,
-                            memory_type,
-                            importance,
-                            now,
-                            now,
-                            sd_json,
-                            scope,
-                            project_id,
-                            conn_json,
-                        ),
-                    )
-                    effective_id = new_id
-                else:
-                    initial_confidence = min(
-                        confidence, MAX_CONFIDENCE if source == SOURCE_LEARNED else 1.0
-                    )
-                    cur.execute(
-                        "INSERT INTO memories (id, trigger, action, confidence, domain, source, memory_type, "
-                        "importance, observations, created_at, updated_at, structured_data, scope, project_id, "
-                        "linked_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)",
-                        (
-                            memory_id,
-                            trigger,
-                            action,
-                            initial_confidence,
-                            domain,
-                            source,
-                            memory_type,
-                            importance,
-                            now,
-                            now,
-                            sd_json,
-                            scope,
-                            project_id,
-                            conn_json,
-                        ),
-                    )
-                    effective_id = memory_id
+                initial_confidence = min(
+                    confidence, MAX_CONFIDENCE if source == SOURCE_LEARNED else 1.0
+                )
+                self.db.insert(
+                    "memories",
+                    {**base, "id": new_id, "confidence": initial_confidence},
+                )
+                effective_id = new_id
             else:
                 initial_confidence = min(
                     confidence, MAX_CONFIDENCE if source == SOURCE_LEARNED else 1.0
                 )
-                cur.execute(
-                    "INSERT INTO memories (id, trigger, action, confidence, domain, source, memory_type, "
-                    "importance, observations, created_at, updated_at, structured_data, scope, project_id, "
-                    "linked_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)",
-                    (
-                        memory_id,
-                        trigger,
-                        action,
-                        initial_confidence,
-                        domain,
-                        source,
-                        memory_type,
-                        importance,
-                        now,
-                        now,
-                        sd_json,
-                        scope,
-                        project_id,
-                        conn_json,
-                    ),
+                self.db.insert(
+                    "memories",
+                    {**base, "id": memory_id, "confidence": initial_confidence},
                 )
                 effective_id = memory_id
-
-        self._update_vector(effective_id, trigger, action)
+        else:
+            initial_confidence = min(
+                confidence, MAX_CONFIDENCE if source == SOURCE_LEARNED else 1.0
+            )
+            self.db.insert(
+                "memories",
+                {**base, "id": memory_id, "confidence": initial_confidence},
+            )
+            effective_id = memory_id
 
         result = self.get_memory(effective_id)
         if result is None:
@@ -648,108 +455,76 @@ class MemoryStore:
         return result
 
     def reconcile_vectors(self, limit: int = 100) -> int:
-        """Reconcile ChromaDB vectors with SQLite data.
-
-        Finds memories in SQLite that are missing from ChromaDB and adds them.
-        Call this periodically or after search anomalies to recover from
-        failed ChromaDB writes.
-
-        Returns the number of reconciled memories.
-        """
         reconciled = 0
-        with self._connect() as cur:
-            cur.execute(
-                "SELECT id, trigger, action FROM memories WHERE is_superseded = 0 LIMIT ?",
-                (limit,),
-            )
-            rows = cur.fetchall()
-
+        rows = self.db.query("memories", where="is_superseded = 0", limit=limit)
         for row in rows:
-            mid = row["id"]
-            try:
-                existing = self.collection.get(ids=[mid])
-                if not existing["ids"] or mid not in existing["ids"]:
-                    self._update_vector(mid, row["trigger"], row["action"])
-                    reconciled += 1
-            except Exception:
-                try:
-                    self._update_vector(mid, row["trigger"], row["action"])
-                    reconciled += 1
-                except Exception:
-                    pass
-
+            r = self.db.reconcile("memories")
+            reconciled += r.get("missing_added", 0)
+            break
         if reconciled > 0:
-            logger.info(
-                "memory.reconciled",
-                {"reconciled": reconciled},
-                user_id=self.user_id,
-            )
+            logger.info("memory.reconciled", {"reconciled": reconciled}, user_id=self.user_id)
         return reconciled
 
     def add_memories_batch(self, memories: list[dict[str, Any]]) -> list[Memory]:
-        """Add multiple memories in a single transaction."""
         results = []
-        with self._connect() as cur:
-            for mem_data in memories:
-                trigger = mem_data.get("trigger", "")
-                action = mem_data.get("action", "")
-                if not trigger or not action:
-                    continue
-                domain = self._normalize_domain(mem_data.get("domain", "preference"))
-                memory_id = self._generate_id(trigger, action)
-                confidence = min(
-                    mem_data.get("confidence", DEFAULT_CONFIDENCE),
-                    MAX_CONFIDENCE
-                    if mem_data.get("source", SOURCE_LEARNED) == SOURCE_LEARNED
-                    else 1.0,
+        for mem_data in memories:
+            trigger = mem_data.get("trigger", "")
+            action = mem_data.get("action", "")
+            if not trigger or not action:
+                continue
+            domain = self._normalize_domain(mem_data.get("domain", "preference"))
+            memory_id = self._generate_id(trigger, action)
+            confidence = min(
+                mem_data.get("confidence", DEFAULT_CONFIDENCE),
+                MAX_CONFIDENCE if mem_data.get("source", SOURCE_LEARNED) == SOURCE_LEARNED else 1.0,
+            )
+            source = mem_data.get("source", SOURCE_LEARNED)
+            memory_type = mem_data.get("memory_type", MEMORY_TYPE_PREFERENCE)
+            importance = mem_data.get("importance", 5.0)
+            structured_data = json.dumps(mem_data.get("structured_data", {}))
+            scope = mem_data.get("scope", SCOPE_GLOBAL)
+            project_id = mem_data.get("project_id")
+            now = datetime.now(UTC).isoformat()
+
+            existing = self.db.get("memories", memory_id)
+            if existing:
+                self.db.update(
+                    "memories",
+                    memory_id,
+                    {
+                        "confidence": min(confidence, existing["confidence"] + 0.05),
+                        "observations": (existing["observations"] or 0) + 1,
+                        "updated_at": now,
+                    },
                 )
-                source = mem_data.get("source", SOURCE_LEARNED)
-                memory_type = mem_data.get("memory_type", MEMORY_TYPE_PREFERENCE)
-                importance = mem_data.get("importance", 5.0)
-                structured_data = json.dumps(mem_data.get("structured_data", {}))
-                scope = mem_data.get("scope", SCOPE_GLOBAL)
-                project_id = mem_data.get("project_id")
-                now = datetime.now(UTC).isoformat()
+            else:
+                self.db.insert(
+                    "memories",
+                    {
+                        "id": memory_id,
+                        "trigger": trigger,
+                        "action": action,
+                        "confidence": confidence,
+                        "domain": domain,
+                        "source": source,
+                        "memory_type": memory_type,
+                        "importance": importance,
+                        "observations": 1,
+                        "created_at": now,
+                        "updated_at": now,
+                        "structured_data": structured_data,
+                        "scope": scope,
+                        "project_id": project_id,
+                        "is_superseded": False,
+                        "superseded_by": None,
+                        "consolidated": False,
+                        "access_count": 0,
+                        "last_accessed_at": None,
+                    },
+                )
+            results.append(memory_id)
 
-                cur.execute("SELECT id FROM memories WHERE id = ?", (memory_id,))
-                existing = cur.fetchone()
-
-                if existing:
-                    cur.execute(
-                        "UPDATE memories SET confidence = MIN(?, confidence + 0.05), "
-                        "observations = observations + 1, updated_at = ? WHERE id = ?",
-                        (confidence, now, memory_id),
-                    )
-                else:
-                    cur.execute(
-                        "INSERT INTO memories (id, trigger, action, confidence, domain, source, memory_type, "
-                        "importance, observations, created_at, updated_at, structured_data, scope, project_id) "
-                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)",
-                        (
-                            memory_id,
-                            trigger,
-                            action,
-                            confidence,
-                            domain,
-                            source,
-                            memory_type,
-                            importance,
-                            now,
-                            now,
-                            structured_data,
-                            scope,
-                            project_id,
-                        ),
-                    )
-                results.append(memory_id)
-
-        for mid in results:
-            self._update_vector(mid, "", "")
-        loaded: list[Memory] = []
-        for mid in results:
-            m = self.get_memory(mid)
-            if m is not None:
-                loaded.append(m)
+        loaded = [m for m in (self.get_memory(mid) for mid in results) if m is not None]
         return loaded
 
     def find_and_update(
@@ -780,108 +555,39 @@ class MemoryStore:
         new_domain: str | None = None,
         new_structured_data: dict[str, Any] | None = None,
     ) -> Memory | None:
-        """Update an existing memory."""
-        with self._connect() as cur:
-            cur.execute("SELECT * FROM memories WHERE id = ?", (memory_id,))
-            row = cur.fetchone()
-            if not row:
-                return None
+        row = self.db.get("memories", memory_id)
+        if not row:
+            return None
 
-            updates = ["updated_at = ?", "observations = observations + 1"]
-            params: list[Any] = [datetime.now(UTC).isoformat()]
+        updates: dict[str, Any] = {
+            "updated_at": datetime.now(UTC).isoformat(),
+            "observations": (row.get("observations", 0) or 0) + 1,
+        }
+        if new_trigger:
+            updates["trigger"] = new_trigger
+        if new_action:
+            updates["action"] = new_action
+        if new_domain:
+            updates["domain"] = self._normalize_domain(new_domain)
+        if new_structured_data is not None:
+            updates["structured_data"] = json.dumps(new_structured_data)
 
-            if new_trigger:
-                updates.append("trigger = ?")
-                params.append(new_trigger)
-            if new_action:
-                updates.append("action = ?")
-                params.append(new_action)
-            if new_domain:
-                updates.append("domain = ?")
-                params.append(self._normalize_domain(new_domain))
-            if new_structured_data is not None:
-                updates.append("structured_data = ?")
-                params.append(json.dumps(new_structured_data))
-
-            params.append(memory_id)
-            cur.execute(f"UPDATE memories SET {', '.join(updates)} WHERE id = ?", params)
-
-        if new_trigger or new_action:
-            mem = self.get_memory(memory_id)
-            if mem:
-                self._update_vector(memory_id, mem.trigger, mem.action)
-
+        self.db.update("memories", memory_id, updates)
         return self.get_memory(memory_id)
 
     def supersede_memory(self, old_id: str, new_id: str) -> None:
-        """Mark old memory as superseded by new memory."""
-        with self._connect() as cur:
-            cur.execute(
-                "UPDATE memories SET is_superseded = 1, superseded_by = ?, updated_at = ? WHERE id = ?",
-                (new_id, datetime.now(UTC).isoformat(), old_id),
-            )
-
-    def _update_vector(self, memory_id: str, trigger: str, action: str) -> None:
-        """Update ChromaDB with per-field documents for better recall.
-
-        If ChromaDB write fails, the memory still exists in SQLite and can be
-        recovered via reconcile_vectors(). Errors are logged but not raised.
-        """
-        try:
-            mem = self.get_memory(memory_id)
-            if mem:
-                trigger = trigger or mem.trigger
-                action = action or mem.action
-                doc_text = f"{trigger}: {action}"
-                embedding = get_embedding(doc_text)
-                self.collection.upsert(
-                    ids=[memory_id],
-                    embeddings=[embedding],  # type: ignore[arg-type]
-                    documents=[doc_text],
-                    metadatas=[{"domain": mem.domain, "type": mem.memory_type, "scope": mem.scope}],
-                )
-
-                self._memories_field_collection.upsert(
-                    ids=[f"{memory_id}_trigger"],
-                    embeddings=[get_embedding(trigger)],  # type: ignore[arg-type]
-                    documents=[trigger],
-                    metadatas=[{"memory_id": memory_id, "field": "trigger", "domain": mem.domain}],
-                )
-                self._memories_field_collection.upsert(
-                    ids=[f"{memory_id}_action"],
-                    embeddings=[get_embedding(action)],  # type: ignore[arg-type]
-                    documents=[action],
-                    metadatas=[{"memory_id": memory_id, "field": "action", "domain": mem.domain}],
-                )
-
-                if mem.structured_data:
-                    sd_text = " ".join(str(v) for v in mem.structured_data.values() if v)
-                    if sd_text.strip():
-                        self._memories_field_collection.upsert(
-                            ids=[f"{memory_id}_data"],
-                            embeddings=[get_embedding(sd_text)],  # type: ignore[arg-type]
-                            documents=[sd_text],
-                            metadatas=[
-                                {
-                                    "memory_id": memory_id,
-                                    "field": "structured_data",
-                                    "domain": mem.domain,
-                                }
-                            ],
-                        )
-        except Exception as e:
-            logger.warning(
-                "memory.vector_update_failed",
-                {"memory_id": memory_id, "error": str(e)},
-                user_id=self.user_id,
-            )
+        self.db.update(
+            "memories",
+            old_id,
+            {
+                "is_superseded": True,
+                "superseded_by": new_id,
+                "updated_at": datetime.now(UTC).isoformat(),
+            },
+        )
 
     def get_memory(self, memory_id: str) -> Memory | None:
-        """Get a memory by ID."""
-        with self._connect() as cur:
-            cur.execute("SELECT * FROM memories WHERE id = ?", (memory_id,))
-            row = cur.fetchone()
-
+        row = self.db.get("memories", memory_id)
         if not row:
             return None
         return self._row_to_memory(row)
@@ -897,177 +603,98 @@ class MemoryStore:
         scope: str | None = None,
         project_id: str | None = None,
     ) -> list[Memory]:
-        """List memories with optional filtering."""
-        with self._connect() as cur:
-            query = "SELECT * FROM memories WHERE confidence >= ?"
-            params: list[Any] = [min_confidence]
+        conditions = ["confidence >= ?"]
+        params: list[Any] = [min_confidence]
 
-            if not include_superseded:
-                query += " AND is_superseded = 0"
-            if domain:
-                query += " AND domain = ?"
-                params.append(domain)
-            if memory_type:
-                query += " AND memory_type = ?"
-                params.append(memory_type)
-            if source:
-                query += " AND source = ?"
-                params.append(source)
-            if scope:
-                query += " AND scope = ?"
-                params.append(scope)
-            if project_id:
-                query += " AND (project_id = ? OR scope = 'global')"
-                params.append(project_id)
+        if not include_superseded:
+            conditions.append("is_superseded = 0")
+        if domain:
+            conditions.append("domain = ?")
+            params.append(domain)
+        if memory_type:
+            conditions.append("memory_type = ?")
+            params.append(memory_type)
+        if source:
+            conditions.append("source = ?")
+            params.append(source)
+        if scope:
+            conditions.append("scope = ?")
+            params.append(scope)
+        if project_id:
+            conditions.append("(project_id = ? OR scope = 'global')")
+            params.append(project_id)
 
-            query += " ORDER BY confidence DESC, updated_at DESC LIMIT ?"
-            params.append(limit)
-
-            cur.execute(query, params)
-            rows = cur.fetchall()
-
-        return [self._row_to_memory(row) for row in rows]
+        where = " AND ".join(conditions)
+        rows = self.db.query(
+            "memories",
+            where=where,
+            params=tuple(params),
+            order_by="confidence DESC, updated_at DESC",
+            limit=limit,
+        )
+        return [self._row_to_memory(r) for r in rows]
 
     def list_working_memories(self, min_confidence: float = 0.3, limit: int = 20) -> list[Memory]:
-        """List working memories - high confidence, recently updated."""
         return self.list_memories(min_confidence=min_confidence, limit=limit)
 
     def list_longterm_memories(self, min_confidence: float = 0.0, limit: int = 100) -> list[Memory]:
-        """List all long-term memories - can be retrieved on demand."""
         return self.list_memories(min_confidence=min_confidence, limit=limit)
 
     def remove_memory(self, memory_id: str) -> bool:
-        """Remove a memory."""
-        with self._connect() as cur:
-            cur.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
-            deleted = cur.rowcount > 0
-
-        if deleted:
-            try:
-                self.collection.delete(ids=[memory_id])
-            except Exception:
-                pass
-            try:
-                self._memories_field_collection.delete(
-                    ids=[f"{memory_id}_trigger", f"{memory_id}_action", f"{memory_id}_data"]
-                )
-            except Exception:
-                pass
-
-        return deleted
+        return self.db.delete("memories", memory_id)
 
     def search_fts(self, query: str, limit: int = 10) -> list[Memory]:
-        """Search memories using FTS5. Excludes superseded memories."""
-        import re
-
-        fts_query = re.sub(r"[^\w\s]", " ", query.strip())
-        fts_query = " ".join(fts_query.split())
-        if not fts_query:
+        if not query.strip():
             return []
-        fts_query_or = " OR ".join(fts_query.split())
-
-        with self._connect() as cur:
-            try:
-                cur.execute(
-                    "SELECT m.* FROM memories m "
-                    "JOIN memories_fts fts ON m.rowid = fts.rowid "
-                    "WHERE memories_fts MATCH ? AND m.is_superseded = 0 "
-                    "ORDER BY rank LIMIT ?",
-                    (fts_query_or, limit),
-                )
-                rows = cur.fetchall()
-            except Exception:
-                cur.execute(
-                    "SELECT * FROM memories WHERE content LIKE ? AND is_superseded = 0 "
-                    "ORDER BY updated_at DESC LIMIT ?",
-                    (f"%{fts_query}%", limit),
-                )
-                rows = cur.fetchall()
-
-        memories = [self._row_to_memory(row) for row in rows]
+        results = self.db.search("memories", "trigger", query, mode=SearchMode.KEYWORD, limit=limit)
+        results += self.db.search("memories", "action", query, mode=SearchMode.KEYWORD, limit=limit)
+        seen = set()
+        unique = []
+        for r in results:
+            mid = r.get("id")
+            if mid and mid not in seen:
+                seen.add(mid)
+                unique.append(r)
+        memories = [self._row_to_memory(r) for r in unique if not r.get("is_superseded")]
         for m in memories:
             self._boost_access(m.id)
         return memories
 
     def search_semantic(self, query: str, limit: int = 10) -> list[Memory]:
-        """Search memories using semantic vectors. Excludes superseded memories.
-
-        If semantic search returns no results, triggers vector reconciliation
-        to recover from possible failed ChromaDB writes.
-        """
-        try:
-            embedding = get_embedding(query)
-            results = self.collection.query(
-                query_embeddings=[embedding],  # type: ignore[arg-type]
-                n_results=limit * 2,
-            )
-
-            if not results["ids"] or not results["ids"][0]:
-                return []
-
-            memory_ids = results["ids"][0]
-            memories = [
-                m
-                for m in (self.get_memory(i) for i in memory_ids)
-                if m is not None and not m.is_superseded
-            ]
-
-            for m in memories:
-                self._boost_access(m.id)
-
-            # If fewer results than expected for a non-trivial query, reconcile
-            if len(memories) < limit and len(memory_ids) < limit:
-                self.reconcile_vectors(limit=50)
-
-            return memories[:limit]
-        except Exception:
-            return []
+        results = self.db.search_all("memories", query, limit=limit)
+        memories = []
+        for r in results:
+            mem = self.get_memory(r["id"]) if isinstance(r.get("id"), str) else None
+            if mem and not mem.is_superseded:
+                memories.append(mem)
+        for m in memories:
+            self._boost_access(m.id)
+        if len(memories) < limit:
+            self.reconcile_vectors(limit=50)
+        return memories[:limit]
 
     def search_field_semantic(
         self, query: str, field: str | None = None, limit: int = 10
     ) -> list[Memory]:
-        """Search using per-field vector index for better recall.
+        if field:
+            results = self.db.search(
+                "memories", field, query, mode=SearchMode.SEMANTIC, limit=limit
+            )
+        else:
+            results = self.db.search_all("memories", query, limit=limit)
 
-        Args:
-            query: Search query
-            field: Optional field filter ('trigger', 'action', 'structured_data')
-            limit: Max results
-        """
-        try:
-            embedding = get_embedding(query)
-            where_filter = {"field": field} if field else None
-            kwargs: dict[str, Any] = {"query_embeddings": [embedding], "n_results": limit * 2}
-            if where_filter:
-                kwargs["where"] = where_filter
-
-            results = self._memories_field_collection.query(**kwargs)
-
-            if not results["ids"] or not results["ids"][0]:
-                return []
-
-            result_metas_raw = results.get("metadatas")
-            result_metas = result_metas_raw[0] if result_metas_raw and result_metas_raw[0] else []
-
-            seen_ids = set()
-            unique_memory_ids = []
-            for doc_id, meta in zip(results["ids"][0], result_metas):
-                mid = str(meta.get("memory_id", ""))
-                if mid and mid not in seen_ids:
-                    seen_ids.add(mid)
-                    unique_memory_ids.append(mid)
-
-            memories = [
-                m
-                for m in (self.get_memory(i) for i in unique_memory_ids)
-                if m is not None and not m.is_superseded
-            ]
-
-            for m in memories:
-                self._boost_access(m.id)
-
-            return memories[:limit]
-        except Exception:
-            return []
+        seen = set()
+        memories = []
+        for r in results:
+            mid = r.get("id")
+            if mid and mid not in seen:
+                seen.add(mid)
+                mem = self.get_memory(mid)
+                if mem and not mem.is_superseded:
+                    memories.append(mem)
+        for m in memories:
+            self._boost_access(m.id)
+        return memories[:limit]
 
     def search_hybrid(
         self,
@@ -1075,31 +702,16 @@ class MemoryStore:
         limit: int = 10,
         fts_weight: float = 0.5,
     ) -> list[Memory]:
-        """Search memories using hybrid (keyword + semantic + field semantic)."""
-        fts_results = self.search_fts(query, limit=limit * 2)
-        fts_scores: dict[str, float] = {m.id: 1.0 / (idx + 1) for idx, m in enumerate(fts_results)}
-
-        semantic_results = self.search_semantic(query, limit=limit * 2)
-        semantic_scores: dict[str, float] = {
-            m.id: 1.0 / (idx + 1) for idx, m in enumerate(semantic_results)
-        }
-
-        field_results = self.search_field_semantic(query, limit=limit)
-        field_scores: dict[str, float] = {
-            m.id: 0.7 / (idx + 1) for idx, m in enumerate(field_results)
-        }
-
-        all_ids = set(fts_scores.keys()) | set(semantic_scores.keys()) | set(field_scores.keys())
+        results = self.db.search_all("memories", query, fts_weight=fts_weight, limit=limit * 2)
+        seen = set()
         combined = []
-        for mid in all_ids:
-            fts_s = fts_scores.get(mid, 0)
-            sem_s = semantic_scores.get(mid, 0)
-            field_s = field_scores.get(mid, 0)
-            score = fts_weight * fts_s + (1 - fts_weight) * 0.7 * sem_s + 0.3 * field_s
-
-            memory = self.get_memory(mid)
-            if memory:
-                combined.append((score, memory))
+        for r in results:
+            mid = r.get("id")
+            if mid and mid not in seen:
+                seen.add(mid)
+                mem = self.get_memory(mid)
+                if mem:
+                    combined.append((r.get("_score", 0), mem))
 
         combined.sort(key=lambda x: x[0], reverse=True)
         return [m for _, m in combined[:limit]]
@@ -1119,87 +731,66 @@ class MemoryStore:
         relationship: str = "relates_to",
         strength: float = 1.0,
     ) -> None:
-        """Add a connection between two memories with relationship semantics."""
-        with self._connect() as cur:
-            cur.execute("SELECT linked_to FROM memories WHERE id = ?", (memory_id,))
-            row = cur.fetchone()
-            if not row:
-                return
-
-            connections = self._parse_connections(row["linked_to"])
-            existing_targets = {c.target_id for c in connections}
-            if target_id not in existing_targets:
-                connections.append(
-                    Connection(target_id=target_id, relationship=relationship, strength=strength)
-                )
-                cur.execute(
-                    "UPDATE memories SET linked_to = ?, updated_at = ? WHERE id = ?",
-                    (
-                        self._serialize_connections(connections),
-                        datetime.now(UTC).isoformat(),
-                        memory_id,
-                    ),
-                )
-
-    def remove_connection(self, memory_id: str, target_id: str) -> None:
-        """Remove a connection from a memory."""
-        with self._connect() as cur:
-            cur.execute("SELECT linked_to FROM memories WHERE id = ?", (memory_id,))
-            row = cur.fetchone()
-            if not row:
-                return
-
-            connections = self._parse_connections(row["linked_to"])
-            connections = [c for c in connections if c.target_id != target_id]
-            cur.execute(
-                "UPDATE memories SET linked_to = ?, updated_at = ? WHERE id = ?",
-                (
-                    self._serialize_connections(connections),
-                    datetime.now(UTC).isoformat(),
-                    memory_id,
-                ),
+        row = self.db.get("memories", memory_id)
+        if not row:
+            return
+        connections = self._parse_connections(row.get("linked_to", "[]"))
+        existing_targets = {c.target_id for c in connections}
+        if target_id not in existing_targets:
+            connections.append(
+                Connection(target_id=target_id, relationship=relationship, strength=strength)
+            )
+            self.db.update(
+                "memories",
+                memory_id,
+                {
+                    "linked_to": self._serialize_connections(connections),
+                    "updated_at": datetime.now(UTC).isoformat(),
+                },
             )
 
+    def remove_connection(self, memory_id: str, target_id: str) -> None:
+        row = self.db.get("memories", memory_id)
+        if not row:
+            return
+        connections = self._parse_connections(row.get("linked_to", "[]"))
+        connections = [c for c in connections if c.target_id != target_id]
+        self.db.update(
+            "memories",
+            memory_id,
+            {
+                "linked_to": self._serialize_connections(connections),
+                "updated_at": datetime.now(UTC).isoformat(),
+            },
+        )
+
     def get_connections(self, memory_id: str) -> list[Connection]:
-        """Get all connections for a memory."""
-        with self._connect() as cur:
-            cur.execute("SELECT linked_to FROM memories WHERE id = ?", (memory_id,))
-            row = cur.fetchone()
-            if not row:
-                return []
-            return self._parse_connections(row["linked_to"])
+        row = self.db.get("memories", memory_id)
+        if not row:
+            return []
+        return self._parse_connections(row.get("linked_to", "[]"))
 
     def mark_consolidated(self, memory_ids: list[str]) -> None:
         if not memory_ids:
             return
-        with self._connect() as cur:
-            placeholders = ",".join("?" * len(memory_ids))
-            cur.execute(
-                f"UPDATE memories SET consolidated = 1, updated_at = ? WHERE id IN ({placeholders})",
-                [datetime.now(UTC).isoformat()] + memory_ids,
+        for mid in memory_ids:
+            self.db.update(
+                "memories",
+                mid,
+                {
+                    "consolidated": True,
+                    "updated_at": datetime.now(UTC).isoformat(),
+                },
             )
 
     def get_insights(
         self, insight_id: str | None = None, limit: int = 10
     ) -> Insight | None | list[Insight]:
-        """Get a single insight by ID, or list insights."""
         if insight_id:
-            with self._connect() as cur:
-                cur.execute("SELECT * FROM insights WHERE id = ?", (insight_id,))
-                row = cur.fetchone()
-                if not row:
-                    return None
-                return Insight(
-                    id=row["id"],
-                    summary=row["summary"],
-                    domain=row["domain"],
-                    linked_memories=json.loads(row["linked_memories"]),
-                    confidence=row["confidence"],
-                    is_superseded=bool(row["is_superseded"]),
-                    superseded_by=row["superseded_by"],
-                    created_at=datetime.fromisoformat(row["created_at"]),
-                    updated_at=datetime.fromisoformat(row["updated_at"]),
-                )
+            row = self.db.get("insights", insight_id)
+            if not row:
+                return None
+            return self._row_to_insight(row)
         return self.list_insights(limit=limit)
 
     def add_insight(
@@ -1209,50 +800,47 @@ class MemoryStore:
         confidence: float = 0.5,
         domain: str = "general",
     ) -> Insight:
-        """Add a synthesized insight with deduplication."""
         now = datetime.now(UTC).isoformat()
         insight_id = hashlib.sha256(summary.encode()).hexdigest()[:16]
 
-        with self._connect() as cur:
-            cur.execute(
-                "SELECT id, summary, linked_memories FROM insights WHERE domain = ? AND is_superseded = 0",
-                (domain,),
-            )
-            existing = cur.fetchone()
+        existing_rows = self.db.query(
+            "insights",
+            where="domain = ? AND is_superseded = 0",
+            params=(domain,),
+            limit=1,
+        )
+        if existing_rows:
+            existing = existing_rows[0]
+            existing_words = set(existing["summary"].lower().split())
+            new_words = set(summary.lower().split())
+            overlap = len(existing_words & new_words) / max(len(existing_words), len(new_words))
+            if overlap > 0.6:
+                self.db.update(
+                    "insights",
+                    existing["id"],
+                    {
+                        "is_superseded": True,
+                        "superseded_by": insight_id,
+                        "updated_at": now,
+                    },
+                )
+                existing_linked = json.loads(existing.get("linked_memories", "[]"))
+                linked_memories = list(set(existing_linked + linked_memories))
 
-            if existing:
-                existing_id = existing["id"]
-                existing_summary = existing["summary"]
-                existing_linked = existing["linked_memories"]
-                existing_words = set(existing_summary.lower().split())
-                new_words = set(summary.lower().split())
-                overlap = len(existing_words & new_words) / max(len(existing_words), len(new_words))
-
-                if overlap > 0.6:
-                    cur.execute(
-                        "UPDATE insights SET is_superseded = 1, superseded_by = ?, updated_at = ? WHERE id = ?",
-                        (insight_id, now, existing_id),
-                    )
-                    existing_linked_list = json.loads(existing_linked)
-                    linked_memories = list(set(existing_linked_list + linked_memories))
-
-            cur.execute(
-                "INSERT OR REPLACE INTO insights "
-                "(id, summary, domain, linked_memories, confidence, is_superseded, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, 0, ?, ?)",
-                (insight_id, summary, domain, json.dumps(linked_memories), confidence, now, now),
-            )
-
-        try:
-            embedding = get_embedding(summary)
-            self.insights_collection.upsert(
-                ids=[insight_id],
-                embeddings=[embedding],  # type: ignore[arg-type]
-                documents=[summary],
-                metadatas=[{"domain": domain, "confidence": confidence}],
-            )
-        except Exception:
-            pass
+        self.db.insert(
+            "insights",
+            {
+                "id": insight_id,
+                "summary": summary,
+                "domain": domain,
+                "linked_memories": json.dumps(linked_memories),
+                "confidence": confidence,
+                "is_superseded": False,
+                "superseded_by": None,
+                "created_at": now,
+                "updated_at": now,
+            },
+        )
 
         return Insight(
             id=insight_id,
@@ -1267,133 +855,44 @@ class MemoryStore:
         )
 
     def search_insights(self, query: str, limit: int = 5) -> list[Insight]:
-        """Search insights using FTS5."""
-        import re
-
-        fts_query = re.sub(r"[^\w\s]", " ", query.strip())
-        fts_query = " ".join(fts_query.split())
-        if not fts_query:
+        if not query.strip():
             return []
-        fts_query_or = " OR ".join(fts_query.split())
-
-        with self._connect() as cur:
-            try:
-                cur.execute(
-                    "SELECT i.* FROM insights i "
-                    "JOIN insights_fts fts ON i.rowid = fts.rowid "
-                    "WHERE insights_fts MATCH ? AND i.is_superseded = 0 "
-                    "ORDER BY rank LIMIT ?",
-                    (fts_query_or, limit),
-                )
-                rows = cur.fetchall()
-            except Exception:
-                rows = []
-
-        return [
-            Insight(
-                id=row["id"],
-                summary=row["summary"],
-                domain=row["domain"],
-                linked_memories=json.loads(row["linked_memories"]),
-                confidence=row["confidence"],
-                is_superseded=bool(row["is_superseded"]),
-                superseded_by=row["superseded_by"],
-                created_at=datetime.fromisoformat(row["created_at"]),
-                updated_at=datetime.fromisoformat(row["updated_at"]),
-            )
-            for row in rows
-        ]
+        results = self.db.search("insights", "summary", query, mode=SearchMode.KEYWORD, limit=limit)
+        return [self._row_to_insight(r) for r in results if not r.get("is_superseded")]
 
     def search_insights_semantic(self, query: str, limit: int = 5) -> list[Insight]:
-        """Search insights using semantic vectors."""
-        try:
-            embedding = get_embedding(query)
-            results = self.insights_collection.query(
-                query_embeddings=[embedding],  # type: ignore[arg-type]
-                n_results=limit * 2,
-            )
-
-            if not results["ids"] or not results["ids"][0]:
-                return []
-
-            insight_ids = results["ids"][0]
-            insights = []
-            with self._connect() as cur:
-                placeholders = ",".join("?" * len(insight_ids))
-                cur.execute(
-                    f"SELECT * FROM insights WHERE id IN ({placeholders}) AND is_superseded = 0",
-                    insight_ids,
-                )
-                rows = cur.fetchall()
-
-            for row in rows:
-                insights.append(
-                    Insight(
-                        id=row["id"],
-                        summary=row["summary"],
-                        domain=row["domain"],
-                        linked_memories=json.loads(row["linked_memories"]),
-                        confidence=row["confidence"],
-                        is_superseded=bool(row["is_superseded"]),
-                        superseded_by=row["superseded_by"],
-                        created_at=datetime.fromisoformat(row["created_at"]),
-                        updated_at=datetime.fromisoformat(row["updated_at"]),
-                    )
-                )
-            return insights[:limit]
-        except Exception:
-            return []
+        results = self.db.search(
+            "insights", "summary", query, mode=SearchMode.SEMANTIC, limit=limit
+        )
+        insights = []
+        for r in results:
+            row = self.db.get("insights", r["id"])
+            if row and not row.get("is_superseded"):
+                insights.append(self._row_to_insight(row))
+        return insights[:limit]
 
     def list_insights(
         self, domain: str | None = None, include_superseded: bool = False, limit: int = 20
     ) -> list[Insight]:
-        """List insights with optional filtering."""
-        with self._connect() as cur:
-            query = "SELECT * FROM insights"
-            params: list[str] = []
-
-            conditions = []
-            if not include_superseded:
-                conditions.append("is_superseded = 0")
-            if domain:
-                conditions.append("domain = ?")
-                params.append(domain)
-
-            if conditions:
-                query += " WHERE " + " AND ".join(conditions)
-
-            query += " ORDER BY confidence DESC, created_at DESC LIMIT ?"
-            params.append(str(limit))
-
-            cur.execute(query, params)
-            rows = cur.fetchall()
-
-        return [
-            Insight(
-                id=row["id"],
-                summary=row["summary"],
-                domain=row["domain"],
-                linked_memories=json.loads(row["linked_memories"]),
-                confidence=row["confidence"],
-                is_superseded=bool(row["is_superseded"]),
-                superseded_by=row["superseded_by"],
-                created_at=datetime.fromisoformat(row["created_at"]),
-                updated_at=datetime.fromisoformat(row["updated_at"]),
-            )
-            for row in rows
-        ]
+        conditions = []
+        params: list[str] = []
+        if not include_superseded:
+            conditions.append("is_superseded = 0")
+        if domain:
+            conditions.append("domain = ?")
+            params.append(domain)
+        where = " AND ".join(conditions) if conditions else ""
+        rows = self.db.query(
+            "insights",
+            where=where,
+            params=tuple(params),
+            order_by="confidence DESC, created_at DESC",
+            limit=limit,
+        )
+        return [self._row_to_insight(r) for r in rows]
 
     def remove_insight(self, insight_id: str) -> bool:
-        """Remove an insight."""
-        with self._connect() as cur:
-            cur.execute("DELETE FROM insights WHERE id = ?", (insight_id,))
-            deleted = cur.rowcount > 0
-        if deleted:
-            try:
-                self.insights_collection.delete(ids=[insight_id])
-            except Exception:
-                pass
-        return deleted
+        return self.db.delete("insights", insight_id)
 
     def search_all(
         self,
@@ -1403,15 +902,12 @@ class MemoryStore:
         insights_limit: int = 3,
         user_id: str | None = None,
     ) -> dict[str, list[Any]]:
-        """Unified search across memories, messages, and insights."""
         results: dict[str, list[Any]] = {
             "memories": [],
             "messages": [],
             "insights": [],
         }
-
-        memory_results = self.search_hybrid(query, limit=memories_limit)
-        results["memories"] = memory_results
+        results["memories"] = self.search_hybrid(query, limit=memories_limit)
 
         insight_results = self.search_insights(query, limit=insights_limit)
         if not insight_results:
@@ -1423,8 +919,7 @@ class MemoryStore:
                 from src.storage.messages import get_conversation_store
 
                 conv_store = get_conversation_store(user_id)
-                embedding = get_embedding(query)
-                message_results = conv_store.search_hybrid(query, embedding, limit=messages_limit)
+                message_results = conv_store.search_hybrid(query, limit=messages_limit)
                 results["messages"] = [
                     {"id": m.id, "content": m.content, "role": m.role, "score": m.score}
                     for m in message_results
@@ -1435,61 +930,39 @@ class MemoryStore:
         return results
 
     def get_compact_context(self, max_memories: int = 5) -> str:
-        """Build compact memory context for minimal token usage (Layer 1 of progressive disclosure).
-
-        Returns a short summary: domain counts + top triggers only.
-        """
         memories = self.list_working_memories(min_confidence=0.3, limit=max_memories * 2)
         if not memories:
             return ""
-
         by_domain: dict[str, int] = {}
         top_memories: list[str] = []
         for m in sorted(memories, key=lambda x: (-x.confidence, -x.observations))[:max_memories]:
-            domain = m.domain
-            by_domain[domain] = by_domain.get(domain, 0) + 1
+            by_domain[m.domain] = by_domain.get(m.domain, 0) + 1
             source_marker = "★" if m.source == SOURCE_EXPLICIT else ""
             top_memories.append(f"{m.trigger}: {m.action}{source_marker}")
-
         domain_summary = ", ".join(f"{d}:{c}" for d, c in sorted(by_domain.items()))
         return f"## User Profile ({domain_summary})\n" + "\n".join(f"- {m}" for m in top_memories)
 
     def get_memory_context(self, detail_level: str = MEMORY_DETAIL_SUMMARY) -> str:
-        """Build memory context with progressive disclosure levels.
-
-        Args:
-            detail_level: 'compact' (domain summary only), 'summary' (working memories),
-                          'full' (all working memories with details)
-        """
         if detail_level == MEMORY_DETAIL_COMPACT:
             return self.get_compact_context()
         elif detail_level == MEMORY_DETAIL_FULL:
             return self._get_full_context()
-        else:
-            return self._get_summary_context()
+        return self._get_summary_context()
 
     def _get_summary_context(self) -> str:
-        """Build summary memory context (working memories grouped by domain)."""
         memories = self.list_working_memories(min_confidence=0.3, limit=20)
         if not memories:
             return ""
-
         now = datetime.now(UTC)
-
         by_domain: dict[str, list[str]] = {}
         for memory in memories:
             domain = memory.domain
             if domain not in by_domain:
                 by_domain[domain] = []
-
             days_old = (now - memory.updated_at).days
-            if days_old < 7:
-                recency = ""
-            elif days_old > 90:
-                recency = " (outdated)"
-            else:
-                recency = f" ({days_old}d ago)"
-
+            recency = (
+                "" if days_old < 7 else f" ({days_old}d ago)" if days_old <= 90 else " (outdated)"
+            )
             source_marker = "★" if memory.source == SOURCE_EXPLICIT else ""
             by_domain[domain].append(
                 f"  - {memory.trigger}: {memory.action}{recency}{source_marker}"
@@ -1511,28 +984,22 @@ class MemoryStore:
             "lesson",
             "dislikes",
         ]
-
         parts = ["## User Profile & Preferences"]
         for domain in domain_order:
             if domain in by_domain:
                 parts.append(f"\n### {domain.capitalize()}")
                 parts.extend(by_domain[domain])
-
-        remaining_domains = [d for d in sorted(by_domain.keys()) if d not in domain_order]
-        for domain in remaining_domains:
+        remaining = [d for d in sorted(by_domain.keys()) if d not in domain_order]
+        for domain in remaining:
             parts.append(f"\n### {domain.capitalize()}")
             parts.extend(by_domain[domain])
-
         return "\n".join(parts)
 
     def _get_full_context(self) -> str:
-        """Build full detail context (all fields including connections and structured data)."""
         memories = self.list_working_memories(min_confidence=0.3, limit=50)
         if not memories:
             return ""
-
         parts = ["## User Profile & Preferences (Full)"]
-
         for memory in sorted(memories, key=lambda m: (-m.confidence, m.domain)):
             source_marker = "★" if memory.source == SOURCE_EXPLICIT else ""
             parts.append(
@@ -1541,143 +1008,118 @@ class MemoryStore:
             parts.append(
                 f"  - Type: {memory.memory_type} | Confidence: {min(memory.confidence, 1.0):.0%} | Observed: {memory.observations}x"
             )
-
             if memory.structured_data:
                 for key, value in memory.structured_data.items():
                     parts.append(f"  - {key}: {value}")
-
             if memory.connections:
                 parts.append(
                     f"  - Connections: {', '.join(f'{c.target_id[:8]}({c.relationship})' for c in memory.connections)}"
                 )
-
             if memory.scope == SCOPE_PROJECT and memory.project_id:
                 parts.append(f"  - Scope: {memory.scope} ({memory.project_id})")
-
         return "\n".join(parts)
 
     def create_session(self, session_id: str | None = None) -> str:
-        """Create a new conversation session for tracking."""
         import uuid
 
         sid = session_id or str(uuid.uuid4())
-        with self._connect() as cur:
-            cur.execute(
-                "INSERT OR IGNORE INTO sessions (id, started_at, message_count) VALUES (?, ?, 0)",
-                (sid, datetime.now(UTC).isoformat()),
-            )
+        self.db.insert(
+            "sessions",
+            {
+                "id": sid,
+                "started_at": datetime.now(UTC).isoformat(),
+                "message_count": 0,
+            },
+        )
         return sid
 
     def update_session(
         self, session_id: str, message_count: int | None = None, summary: str | None = None
     ) -> None:
-        """Update a session's message count and/or summary."""
-        with self._connect() as cur:
-            updates = []
-            params: list[Any] = []
-
-            if message_count is not None:
-                updates.append("message_count = ?")
-                params.append(message_count)
-            if summary is not None:
-                updates.append("summary = ?")
-                params.append(summary)
-
-            if updates:
-                updates.append("ended_at = ?")
-                params.append(datetime.now(UTC).isoformat())
-                params.append(session_id)
-                cur.execute(f"UPDATE sessions SET {', '.join(updates)} WHERE id = ?", params)
+        updates: dict[str, Any] = {"ended_at": datetime.now(UTC).isoformat()}
+        if message_count is not None:
+            updates["message_count"] = message_count
+        if summary is not None:
+            updates["summary"] = summary
+        self.db.update("sessions", session_id, updates)
 
     def get_session(self, session_id: str) -> dict[str, Any] | None:
-        """Get session details."""
-        with self._connect() as cur:
-            cur.execute("SELECT * FROM sessions WHERE id = ?", (session_id,))
-            row = cur.fetchone()
-
-        if not row:
-            return None
-        return dict(row)
+        return self.db.get("sessions", session_id)
 
     def list_sessions(self, limit: int = 20) -> list[dict[str, Any]]:
-        """List sessions ordered by start time."""
-        with self._connect() as cur:
-            cur.execute("SELECT * FROM sessions ORDER BY started_at DESC LIMIT ?", (limit,))
-            return [dict(row) for row in cur.fetchall()]
+        return self.db.query("sessions", order_by="started_at DESC", limit=limit)
 
     def promote_project_memory(self, memory_id: str) -> Memory | None:
-        """Promote a project-scoped memory to global scope.
-
-        Used when a memory is observed across multiple projects.
-        """
         mem = self.get_memory(memory_id)
         if not mem or mem.scope == SCOPE_GLOBAL:
             return mem
-
-        with self._connect() as cur:
-            cur.execute(
-                "UPDATE memories SET scope = ?, project_id = NULL, updated_at = ? WHERE id = ?",
-                (SCOPE_GLOBAL, datetime.now(UTC).isoformat(), memory_id),
-            )
-
+        self.db.update(
+            "memories",
+            memory_id,
+            {
+                "scope": SCOPE_GLOBAL,
+                "project_id": None,
+                "updated_at": datetime.now(UTC).isoformat(),
+            },
+        )
         return self.get_memory(memory_id)
 
     def get_stats(self) -> dict[str, Any]:
-        """Get memory statistics."""
-        with self._connect() as cur:
-            total = cur.execute("SELECT COUNT(*) FROM memories").fetchone()[0]
-            by_domain = cur.execute(
-                "SELECT domain, COUNT(*) as c FROM memories GROUP BY domain ORDER BY c DESC"
-            ).fetchall()
-            by_type = cur.execute(
-                "SELECT memory_type, COUNT(*) as c FROM memories GROUP BY memory_type"
-            ).fetchall()
-            by_source = cur.execute(
-                "SELECT source, COUNT(*) as c FROM memories GROUP BY source"
-            ).fetchall()
-            by_scope = cur.execute(
-                "SELECT scope, COUNT(*) as c FROM memories GROUP BY scope"
-            ).fetchall()
-            consolidated = cur.execute(
-                "SELECT COUNT(*) FROM memories WHERE consolidated = 1"
-            ).fetchone()[0]
-            insights = cur.execute("SELECT COUNT(*) FROM insights").fetchone()[0]
-            avg_confidence = cur.execute(
-                "SELECT AVG(confidence) FROM memories WHERE is_superseded = 0"
-            ).fetchone()[0]
+        total = self.db.count("memories")
+        rows_by_domain = self.db.query("memories", limit=10000)
+        by_domain: dict[str, int] = {}
+        by_type: dict[str, int] = {}
+        by_source: dict[str, int] = {}
+        by_scope: dict[str, int] = {}
+        consolidated = 0
+        confidences = []
+        for r in rows_by_domain:
+            d = r.get("domain", "unknown")
+            by_domain[d] = by_domain.get(d, 0) + 1
+            t = r.get("memory_type", "unknown")
+            by_type[t] = by_type.get(t, 0) + 1
+            s = r.get("source", "unknown")
+            by_source[s] = by_source.get(s, 0) + 1
+            sc = r.get("scope", "global")
+            by_scope[sc] = by_scope.get(sc, 0) + 1
+            if r.get("consolidated"):
+                consolidated += 1
+            if not r.get("is_superseded"):
+                confidences.append(r.get("confidence", 0))
+
+        insights_count = self.db.count("insights")
+        avg_conf = sum(confidences) / len(confidences) if confidences else 0
 
         return {
             "total": total,
-            "by_domain": dict(by_domain),
-            "by_type": dict(by_type),
-            "by_source": dict(by_source),
-            "by_scope": dict(by_scope),
+            "by_domain": by_domain,
+            "by_type": by_type,
+            "by_source": by_source,
+            "by_scope": by_scope,
             "consolidated": consolidated,
-            "insights": insights,
-            "avg_confidence": round(avg_confidence, 3) if avg_confidence else 0,
+            "insights": insights_count,
+            "avg_confidence": round(avg_conf, 3),
         }
 
     def migrate_normalize_domains(self) -> int:
-        """Migrate and normalize domain names."""
-        with self._connect() as cur:
-            cur.execute(
-                "UPDATE memories SET domain = 'preference' WHERE domain IN ('preferences', 'preference')"
-            )
-            pref_count = cur.rowcount
-
-            cur.execute(
-                "UPDATE memories SET domain = 'dislikes' WHERE domain IN ('dislike', 'dislikes')"
-            )
-            dislike_count = cur.rowcount
-
-        return pref_count + dislike_count
+        count = 0
+        rows = self.db.query(
+            "memories", where="domain IN ('preferences', 'preference')", limit=10000
+        )
+        for r in rows:
+            self.db.update("memories", r["id"], {"domain": "preference"})
+            count += 1
+        rows = self.db.query("memories", where="domain IN ('dislike', 'dislikes')", limit=10000)
+        for r in rows:
+            self.db.update("memories", r["id"], {"domain": "dislikes"})
+            count += 1
+        return count
 
 
 _memory_store_cache: dict[str, MemoryStore] = {}
 
 
 def get_memory_store(user_id: str) -> MemoryStore:
-    """Get or create memory store."""
     if user_id not in _memory_store_cache:
         _memory_store_cache[user_id] = MemoryStore(user_id)
     return _memory_store_cache[user_id]

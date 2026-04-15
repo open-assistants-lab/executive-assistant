@@ -19,7 +19,7 @@ from scripts.utils import parse_skill_md
 
 def get_model(model_name: str = None):
     """Get LLM model using our config."""
-    from src.llm import create_model_from_config
+    from src.sdk.providers.factory import create_model_from_config
 
     if model_name:
         return create_model_from_config(model_name)
@@ -122,9 +122,17 @@ I'd encourage you to be creative and mix up the style in different iterations si
 Please respond with only the new description text in <new_description> tags, nothing else."""
 
     model = get_model(model_name)
-    response = model.invoke(prompt)
 
-    text = response.content if hasattr(response, "content") else str(response)
+    from src.sdk.messages import Message
+
+    messages = [Message.user(prompt)]
+    response = model.chat(messages)
+    text = response.content if response.content else ""
+    if isinstance(text, list):
+        text_parts = [
+            b.get("text", "") for b in text if isinstance(b, dict) and b.get("type") == "text"
+        ]
+        text = "".join(text_parts)
 
     match = re.search(r"<new_description>(.*?)</new_description>", text, re.DOTALL)
     description = match.group(1).strip().strip('"') if match else text.strip().strip('"')
@@ -141,12 +149,16 @@ Please respond with only the new description text in <new_description> tags, not
     if len(description) > 1024:
         shorten_prompt = f"Your description is {len(description)} characters, which exceeds the 1024 character limit. Please rewrite it to be under 1024 characters while preserving the most important trigger words and intent coverage. Respond with only the new description in <new_description> tags."
 
-        shorten_response = model.invoke(prompt + "\n\n" + shorten_prompt)
-        shorten_text = (
-            shorten_response.content
-            if hasattr(shorten_response, "content")
-            else str(shorten_response)
-        )
+        shorten_messages = [Message.user(prompt + "\n\n" + shorten_prompt)]
+        shorten_response = model.chat(shorten_messages)
+        shorten_text = shorten_response.content if shorten_response.content else ""
+        if isinstance(shorten_text, list):
+            shorten_parts = [
+                b.get("text", "")
+                for b in shorten_text
+                if isinstance(b, dict) and b.get("type") == "text"
+            ]
+            shorten_text = "".join(shorten_parts)
 
         match = re.search(r"<new_description>(.*?)</new_description>", shorten_text, re.DOTALL)
         shortened = match.group(1).strip().strip('"') if match else shorten_text.strip().strip('"')

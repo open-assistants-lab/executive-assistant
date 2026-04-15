@@ -1,26 +1,30 @@
-"""Executive Assistant CLI - A terminal agent similar to Deep Agents CLI."""
+"""Executive Assistant CLI - A terminal agent using the SDK runtime."""
 
 import asyncio
 import sys
 
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv()  # noqa: E402
 
-from langchain_core.messages import AIMessage, HumanMessage
-from langfuse import propagate_attributes
-from rich.console import Console
-from rich.markdown import Markdown
-from rich.panel import Panel
+from rich.console import Console  # noqa: E402
+from rich.markdown import Markdown  # noqa: E402
+from rich.panel import Panel  # noqa: E402
 
-from src.agents.manager import run_agent_stream
-from src.storage.messages import get_conversation_store
+from src.app_logging import get_logger  # noqa: E402
+from src.sdk.messages import Message  # noqa: E402
+from src.sdk.runner import (  # noqa: E402
+    _messages_from_conversation,
+    run_sdk_agent_stream,
+)
+from src.storage.messages import get_conversation_store  # noqa: E402
 
 console = Console()
+logger = get_logger()
 
 
 class ExecutiveAssistantCLI:
-    """CLI for Executive Assistant - similar to Deep Agents CLI."""
+    """CLI for Executive Assistant - SDK-powered."""
 
     SLASH_COMMANDS = {
         "/help": "Show available commands",
@@ -32,11 +36,9 @@ class ExecutiveAssistantCLI:
 
     def __init__(self, user_id: str = "cli"):
         self.user_id = user_id
-        self.messages = []
         self.conversation = get_conversation_store(user_id)
 
     def show_help(self):
-        """Show help message."""
         console.print(
             Panel(
                 "[bold]Executive Assistant CLI[/bold]\n\n"
@@ -49,7 +51,6 @@ class ExecutiveAssistantCLI:
         )
 
     async def handle_slash_command(self, command: str) -> bool:
-        """Handle slash commands."""
         cmd = command.strip().split()[0].lower()
 
         if cmd == "/help":
@@ -59,14 +60,7 @@ class ExecutiveAssistantCLI:
             console.print("[yellow]Model switching not supported in shared agent mode[/yellow]")
             return True
         elif cmd == "/clear":
-            self.messages = []
-            try:
-                from src.storage.messages import get_conversation_store
-
-                conversation = get_conversation_store(self.user_id)
-                conversation.clear()
-            except Exception:
-                pass
+            self.conversation.clear()
             console.print("[yellow]Conversation cleared[/yellow]")
             return True
         elif cmd in ("/quit", "/exit"):
@@ -75,10 +69,6 @@ class ExecutiveAssistantCLI:
         return False
 
     def _read_input(self) -> str:
-        """Read input with multi-line support.
-
-        End a line with \\ to continue to the next line.
-        """
         try:
             line = input("> ")
             if line.rstrip().endswith("\\"):
@@ -100,9 +90,6 @@ class ExecutiveAssistantCLI:
             sys.exit(0)
 
     async def run(self):
-        """Run the CLI."""
-        from src.app_logging import get_logger
-
         console.print(
             Panel(
                 "[bold cyan]Executive Assistant[/bold cyan]\n"
@@ -126,74 +113,31 @@ class ExecutiveAssistantCLI:
 
                 self.conversation.add_message("user", user_input)
                 recent_messages = self.conversation.get_messages_with_summary(50)
-
-                langgraph_messages = [
-                    HumanMessage(content=m.content)
-                    if m.role == "user"
-                    else AIMessage(content=m.content)
-                    for m in recent_messages
-                ]
+                sdk_messages = _messages_from_conversation(recent_messages)
+                sdk_messages.append(Message.user(user_input))
 
                 console.print("[dim]Thinking...[/dim]")
 
-                logger = get_logger()
-                all_messages = []
+                response_parts: list[str] = []
 
-                with propagate_attributes(user_id=self.user_id):
-                    async for chunk in run_agent_stream(
-                        user_id=self.user_id,
-                        messages=langgraph_messages,
-                        message=user_input,
-                    ):
-                        chunk_type = getattr(chunk, "type", None)
-
-                        if chunk_type == "tool":
-                            content = getattr(chunk, "content", None)
-                            if content:
-                                console.print(f"[dim]Tool: {content[:100]}...[/dim]")
-
-                        elif chunk_type == "ai":
-                            content = getattr(chunk, "content", "")
-                            if content:
-                                console.print(content, end="")
-
-                        all_messages.append(chunk)
+                async for chunk in run_sdk_agent_stream(
+                    user_id=self.user_id,
+                    messages=sdk_messages,
+                ):
+                    if chunk.canonical_type == "text_delta" and chunk.content:
+                        response_parts.append(chunk.content)
+                        console.print(chunk.content, end="")
 
                 console.print()
 
-                response = None
-                tool_results = []
-
-                for msg in all_messages:
-                    msg_type = getattr(msg, "type", None)
-                    if msg_type == "tool":
-                        content = getattr(msg, "content", None)
-                        if content:
-                            tool_results.append(content)
-
-                for msg in reversed(all_messages):
-                    msg_type = getattr(msg, "type", None)
-                    content = getattr(msg, "content", None)
-                    if msg_type == "ai":
-                        tool_calls = getattr(msg, "tool_calls", None)
-                        if tool_calls and tool_results:
-                            response = "\n".join(tool_results)
-                            break
-                        if tool_calls:
-                            tool_names = [tc.get("name", "unknown") for tc in tool_calls]
-                            response = f"Tool(s) executed: {', '.join(tool_names)}"
-                            break
-                        if content and content.strip():
-                            response = content
-                            break
-
-                if not response:
-                    response = "Task completed."
-
+                response = "".join(response_parts) if response_parts else "Task completed."
                 self.conversation.add_message("assistant", response)
 
                 logger.info(
-                    "agent.response", {"response": response}, user_id=self.user_id, channel="cli"
+                    "agent.response",
+                    {"response": response[:80]},
+                    user_id=self.user_id,
+                    channel="cli",
                 )
 
                 console.print()
@@ -213,13 +157,11 @@ class ExecutiveAssistantCLI:
 
 
 async def run():
-    """Run the CLI."""
     cli = ExecutiveAssistantCLI()
     await cli.run()
 
 
 def main():
-    """Entry point for CLI."""
     asyncio.run(run())
 
 

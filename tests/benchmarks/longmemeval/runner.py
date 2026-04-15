@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from src.agents.manager import run_agent
+from src.sdk.runner import run_sdk_agent
 
 from .adapter import LongMemEvalAdapter
 from .dataset import LongMemEvalInstance
@@ -153,10 +153,9 @@ class LongMemEvalRunner:
 
         messages = [{"role": "user", "content": instance.question}]
 
-        result = await run_agent(
+        result = await run_sdk_agent(
             user_id=self.agent_user_id,
             messages=messages,
-            message=instance.question,
         )
 
         agent_answer = self._extract_answer(result)
@@ -201,10 +200,9 @@ Provide a direct answer to the question based only on the conversation history a
 
         messages = [{"role": "user", "content": prompt}]
 
-        result = await run_agent(
+        result = await run_sdk_agent(
             user_id=self.agent_user_id,
             messages=messages,
-            message=prompt,
         )
 
         agent_answer = self._extract_answer(result)

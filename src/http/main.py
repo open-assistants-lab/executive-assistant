@@ -24,22 +24,30 @@ load_dotenv()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Lifespan context manager."""
-    from src.agents.manager import get_agent_pool, get_model
-    from src.agents.subagent.scheduler import get_scheduler
-    from src.tools.email.sync import start_interval_sync, stop_interval_sync
+    """Lifespan context manager — SDK runtime (no LangChain agent pool needed)."""
+    try:
+        from src.sdk.tools_core.email_sync import start_interval_sync, stop_interval_sync
 
-    get_model()
-    await get_agent_pool("default")
+        await start_interval_sync()
+    except Exception:
+        pass
 
-    await start_interval_sync()
+    try:
+        from src.subagent.scheduler import get_scheduler
 
-    get_scheduler()
+        get_scheduler()
+    except Exception:
+        pass
 
-    print("HTTP server ready")
+    print("HTTP server ready (SDK runtime)")
     yield
 
-    await stop_interval_sync()
+    try:
+        from src.sdk.tools_core.email_sync import stop_interval_sync
+
+        await stop_interval_sync()
+    except Exception:
+        pass
 
 
 app = FastAPI(

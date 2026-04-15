@@ -24,27 +24,3 @@ class TestConfigValidation:
         config = AgentConfig()
         assert config.name == "Executive Assistant"
         assert config.model == "ollama:minimax-m2.5"
-
-
-class TestDatabaseConfig:
-    """Test database configuration."""
-
-    def test_database_config(self):
-        """Test database configuration."""
-        from src.config.settings import DatabaseConfig
-
-        config = DatabaseConfig(
-            host="localhost", port=5432, name="test_db", user="test_user", password="test_pass"
-        )
-        assert config.host == "localhost"
-        assert config.port == 5432
-        assert config.name == "test_db"
-
-    def test_database_config_default_port(self):
-        """Test database default port."""
-        from src.config.settings import DatabaseConfig
-
-        config = DatabaseConfig(
-            host="localhost", name="test_db", user="test_user", password="test_pass"
-        )
-        assert config.port == 5432

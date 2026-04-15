@@ -13,60 +13,34 @@ class _BaseSettings(BaseSettings):
     model_config = ConfigDict(extra="ignore")
 
 
+class DeploymentConfig(_BaseSettings):
+    """Deployment configuration.
+
+    solo: Single user on desktop (.dmg/.exe)
+    multi-user: Docker container per user, org gets many containers
+    """
+
+    mode: str = Field(default="solo")
+    data_path: str = Field(default="data")
+
+    model_config = ConfigDict(env_prefix="DEPLOYMENT_")
+
+
 class AgentConfig(_BaseSettings):
     """Agent configuration."""
 
     name: str = Field(default="Executive Assistant")
     model: str = Field(default="ollama:minimax-m2.5")
     system_prompt: str = Field(default="You are a helpful executive assistant.")
+    pool_size: int = Field(default=3)
 
     model_config = ConfigDict(env_prefix="AGENT_")
-
-
-class DatabaseConfig(_BaseSettings):
-    """Database configuration."""
-
-    host: str = Field(default="localhost")
-    port: int = Field(default=5432)
-    name: str = Field(default="executive_assistant")
-    user: str = Field(default="postgres")
-    password: str = Field(default="")
-    pool_size: int = Field(default=10)
-
-    model_config = ConfigDict(env_prefix="DB_")
-
-    @property
-    def connection_string(self) -> str:
-        """Generate asyncpg connection string."""
-        return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
-
-    @property
-    def sync_connection_string(self) -> str:
-        """Generate psycopg2 connection string."""
-        return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
-
-
-class CheckpointerConfig(_BaseSettings):
-    """Checkpointer configuration.
-
-    retention_days:
-        0 = disabled (no checkpoints)
-        -1 = keep forever
-        N = keep for N days
-    """
-
-    enabled: bool = Field(default=False)
-    path: str = Field(default="")
-    retention_days: int = Field(default=7)
-
-    model_config = ConfigDict(env_prefix="CHECKPOINT_")
 
 
 class MessagesConfig(_BaseSettings):
     """Messages (long-term) configuration using SQLite + FTS5 + ChromaDB."""
 
     enabled: bool = True
-    user_directory: str = "data/users/{user_id}/messages"
 
     model_config = ConfigDict(env_prefix="MESSAGES_")
 
@@ -93,7 +67,6 @@ class SummarizationConfig(_BaseSettings):
 class MemoryConfig(_BaseSettings):
     """Memory configuration."""
 
-    checkpointer: CheckpointerConfig = Field(default_factory=CheckpointerConfig)
     messages: MessagesConfig = Field(default_factory=MessagesConfig)
     store: StoreConfig = Field(default_factory=StoreConfig)
     summarization: SummarizationConfig = Field(default_factory=SummarizationConfig)
@@ -115,7 +88,7 @@ class LoggingConfig(_BaseSettings):
 
     enabled: bool = True
     level: str = "info"  # debug, info, warning, error
-    json_dir: str = "data/logs"
+    json_dir: str = ""
 
     model_config = ConfigDict(env_prefix="LOGGING_")
 
@@ -156,20 +129,13 @@ class ToolsConfig(_BaseSettings):
 class SkillsConfig(_BaseSettings):
     """Skills configuration."""
 
-    user_directory: str = "data/users/{user_id}/skills"
-
     model_config = ConfigDict(env_prefix="SKILLS_")
-
-    def get_user_directory(self, user_id: str) -> str:
-        """Get user-specific skills directory."""
-        return self.user_directory.format(user_id=user_id)
 
 
 class FilesystemConfig(_BaseSettings):
     """Filesystem tools configuration."""
 
     enabled: bool = True
-    user_root: str = "data/users/{user_id}/workspace"
     max_file_size_mb: int = 10
 
     model_config = ConfigDict(env_prefix="FILESYSTEM_")
@@ -212,7 +178,7 @@ class AppConfig(_BaseSettings):
     """Main application configuration."""
 
     agent: AgentConfig = Field(default_factory=AgentConfig)
-    database: DatabaseConfig = Field(default_factory=DatabaseConfig)
+    deployment: DeploymentConfig = Field(default_factory=DeploymentConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
     api: ApiConfig = Field(default_factory=ApiConfig)
@@ -225,6 +191,14 @@ class AppConfig(_BaseSettings):
     mcp: MCPConfig = Field(default_factory=MCPConfig)
 
     model_config = ConfigDict(env_file=".env", env_nested_delimiter="__")
+
+    @property
+    def deployment_mode(self) -> str:
+        return self.deployment.mode
+
+    @property
+    def data_path(self) -> str:
+        return self.deployment.data_path
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "AppConfig":

@@ -8,7 +8,7 @@ router = APIRouter(prefix="/email", tags=["email"])
 @router.get("/accounts")
 async def list_email_accounts(user_id: str = "default"):
     """List connected email accounts."""
-    from src.tools.email.account import email_accounts
+    from src.sdk.tools_core.email import email_accounts
 
     result = email_accounts.invoke({"user_id": user_id})
     return {"accounts": result}
@@ -17,7 +17,7 @@ async def list_email_accounts(user_id: str = "default"):
 @router.post("/accounts")
 async def connect_email(req: EmailConnectRequest):
     """Connect an email account."""
-    from src.tools.email.account import email_connect
+    from src.sdk.tools_core.email import email_connect
 
     args = {"user_id": req.user_id, "email": req.email, "password": req.password}
     if req.provider is not None:
@@ -29,7 +29,7 @@ async def connect_email(req: EmailConnectRequest):
 @router.delete("/accounts/{account_name}")
 async def disconnect_email(account_name: str, user_id: str = "default"):
     """Disconnect an email account."""
-    from src.tools.email.account import email_disconnect
+    from src.sdk.tools_core.email import email_disconnect
 
     result = email_disconnect.invoke({"user_id": user_id, "account_name": account_name})
     return {"result": str(result)}
@@ -43,7 +43,7 @@ async def list_emails(
     user_id: str = "default",
 ):
     """List emails from an account."""
-    from src.tools.email.read import email_list
+    from src.sdk.tools_core.email import email_list
 
     result = email_list.invoke(
         {"user_id": user_id, "account_name": account_name, "limit": limit, "folder": folder}
@@ -58,7 +58,7 @@ async def get_email(
     user_id: str = "default",
 ):
     """Get a specific email."""
-    from src.tools.email.read import email_get
+    from src.sdk.tools_core.email import email_get
 
     result = email_get.invoke(
         {"user_id": user_id, "account_name": account_name, "email_id": email_id}
@@ -73,7 +73,7 @@ async def search_emails(
     user_id: str = "default",
 ):
     """Search emails."""
-    from src.tools.email.read import email_search
+    from src.sdk.tools_core.email import email_search
 
     result = email_search.invoke({"user_id": user_id, "account_name": account_name, "query": query})
     return {"results": result}
@@ -88,7 +88,7 @@ async def send_email(
     user_id: str = "default",
 ):
     """Send an email."""
-    from src.tools.email.send import email_send
+    from src.sdk.tools_core.email import email_send
 
     result = email_send.invoke(
         {

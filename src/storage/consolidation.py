@@ -92,14 +92,18 @@ async def _consolidate_domain(
 ) -> dict[str, Any]:
     """Consolidate memories within a single domain using LLM."""
     try:
-        from langchain_core.messages import HumanMessage
+        from src.config import get_settings
+        from src.sdk.messages import Message
+        from src.sdk.providers.factory import create_provider
 
-        from src.agents.manager import get_model
-    except ImportError:
-        return {"contradictions": 0, "merges": 0, "insights": 0}
-
-    model = get_model()
-    if model is None:
+        settings = get_settings()
+        model_str = settings.agent.model
+        if ":" in model_str:
+            provider_type, model_name = model_str.split(":", 1)
+        else:
+            provider_type, model_name = "ollama", model_str
+        provider = create_provider(provider_type, model=model_name)
+    except Exception:
         return {"contradictions": 0, "merges": 0, "insights": 0}
 
     memory_summary = "\n".join(
@@ -132,10 +136,16 @@ Respond in JSON format:
 If no contradictions or merge candidates, return empty arrays. Use the short IDs (first 8 chars) for cross-referencing."""
 
     try:
-        response = model.invoke([HumanMessage(content=prompt)])
-        content = response.content if hasattr(response, "content") else str(response)
-
-        content_str: str = str(content)
+        messages = [Message.user(prompt)]
+        response = await provider.chat(messages)
+        content_str: str = response.content if response.content else ""
+        if isinstance(content_str, list):
+            text_parts = [
+                b.get("text", "")
+                for b in content_str
+                if isinstance(b, dict) and b.get("type") == "text"
+            ]
+            content_str = "".join(text_parts)
         result = _extract_json(content_str)
 
         if not result:

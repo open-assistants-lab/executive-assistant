@@ -42,19 +42,19 @@ uv run mypy src/
 # Run all tests
 uv run pytest
 
+# Run SDK tests only
+uv run pytest tests/sdk/ -v
+
 # Run a single test file
-uv run pytest tests/unit/test_config.py
+uv run pytest tests/sdk/test_tools.py
 
 # Run a single test function
-uv run pytest tests/unit/test_config.py::test_agent_config_valid
+uv run pytest tests/sdk/test_tools.py::TestToolDecorator::test_basic_decoration
 
 # Run tests with coverage
 uv run pytest --cov=src --cov-report=html
 
-# Run tests in watch mode
-uv run pytest --watch
-
-# Run persona evaluation (100 interactions per persona)
+# Run persona evaluation (25 personas)
 uv run python tests/evaluation/evaluate.py
 ```
 
@@ -87,13 +87,12 @@ from pathlib import Path
 from typing import Any, Optional
 
 # Third-party libraries
-from dotenv import load_dotenv
 from pydantic import Field
 from fastapi import FastAPI
 
 # Local imports (absolute)
 from src.config import get_settings
-from src.llm import create_model_from_config
+from src.sdk.messages import Message, StreamChunk
 
 # Sort imports with: uv run ruff check src/ --fix
 ```
@@ -174,7 +173,148 @@ except Exception as e:
 
 ---
 
-## 3. Logging Best Practices
+## 3. Current Architecture & Discoveries
+
+### SDK Architecture (Custom, Replacing LangChain/LangGraph)
+
+The codebase has a **custom agent SDK** (`src/sdk/`) that replaces LangChain/LangGraph. The old LangChain code still exists in `src/agents/`, `src/llm/`, `src/middleware/`, and `src/tools/` but is bridged via `src/sdk/langchain_adapter.py` (TEMPORARY — to be removed in Phase 8).
+
+**SDK Core (~5,500 lines, 24 files, 432 tests):**
+
+| Module | Lines | Purpose |
+|--------|-------|---------|
+| `messages.py` | 438 | `Message`, `ToolCall`, `StreamChunk` — unified message types with block-structured streaming |
+| `tools.py` | 280 | `@tool`, `ToolDefinition`, `ToolAnnotations`, `ToolResult`, `ToolRegistry` |
+| `loop.py` | 707 | `AgentLoop` (ReAct), `RunConfig`, `CostTracker`, `Interrupt`, guardrails, handoffs, tracing |
+| `providers/` | ~1,500 | `OllamaLocal`, `OllamaCloud`, `OpenAIProvider`, `AnthropicProvider`, `GeminiProvider` |
+| `registry.py` | 354 | models.dev integration — 4172+ models, 110+ providers, auto-updated |
+| `validation.py` | 158 | `normalize_tool_schema()`, `repair_tool_call()` |
+| `guardrails.py` | 60 | `InputGuardrail`, `OutputGuardrail`, `ToolGuardrail`, `GuardrailTripwire` |
+| `handoffs.py` | 92 | `Handoff`, `HandoffInput` — model-driven agent transfer |
+| `tracing.py` | 172 | `TraceProvider`, `Span`, `SpanContext`, `ConsoleTraceProcessor`, `JsonTraceProcessor` |
+| `native_tools.py` | 102 | SDK-native `time_get` (first migrated tool) |
+| `langchain_adapter.py` | 137 | **TEMPORARY** — wraps LangChain tools as SDK ToolDefinitions |
+
+**Key Design Decisions:**
+1. **models.dev integration**: Registry fetches from `https://models.dev/api.json`, caches locally at `data/cache/models.json` with 5-min TTL, falls back to built-in subset. 4172+ models vs. old 20 hardcoded.
+2. **Block-structured streaming**: `text_start/delta/end`, `tool_input_start/delta/end`, `reasoning_start/delta/end`, `tool_result`, `interrupt`, `done`, `error`. Backward-compat aliases: `ai_token→text_delta`, `tool_start→tool_input_start`, `reasoning→reasoning_delta`.
+3. **ToolAnnotations** (MCP-style): `readOnly`, `destructive`, `idempotent`, `openWorld`, `title`. Auto-approves read-only tools, interrupts on destructive ones.
+4. **ToolResult** dual format: `content` (human-readable) + `structured_content` (machine-parseable) + `audience` (user/assistant).
+5. **Provider escape hatches**: `provider_options` on inputs (keyed by provider name), `provider_metadata` on outputs. Enables Anthropic `thinking`, Gemini `thinkingConfig`, OpenAI `logprobs` etc.
+6. **Reasoning as first-class content**: `Message.reasoning` field persists thinking tokens across turns. Anthropic `thinking` blocks handled in `to_anthropic()`/`from_anthropic_block()`.
+7. **Sequential tool execution**: AgentLoop executes tools one at a time (parallel deferred).
+8. **No checkpoints**: LangGraph checkpoint system was permanently disabled. Conversation history is managed by `MemoryMiddleware` + `SummarizationMiddleware`.
+
+**Known Provider Behaviors:**
+- OpenAI/Anthropic no longer emit duplicate `tool_end` — fixed by Phase 5 block-structured refactor
+- Gemini streaming accumulates tool calls across chunks properly
+- `provider_options` are plumbed through but reasoning opt-in (Anthropic thinking, Gemini thinkingConfig) must be set per-request — not auto-enabled
+
+### HTTP Layer
+
+Three endpoints, all SDK-powered:
+- **REST**: `POST /message` — returns `MessageResponse`
+- **SSE**: `POST /message/stream` — Server-Sent Events
+- **WebSocket**: `/ws/conversation` — bidirectional with HITL interrupt/approve/reject
+
+Both SSE and WS routers now handle block-structured events (`text_start/delta/end`, `tool_input_start/delta/end`, `reasoning_start/delta/end`, `tool_result`) alongside backward-compat types (`ai_token`, `tool_start`, `tool_end`, `reasoning`).
+
+### Database/Storage
+
+All user data isolated per-user under `data/users/{user_id}/`:
+```
+data/users/{user_id}/
+├── email/
+│   └── emails.db
+├── contacts/
+│   └── contacts.db
+├── todos/
+│   └── todos.db
+└── conversation/
+    └── messages.db
+```
+
+Decision: **SQLite + ChromaDB per-user even for team/enterprise** (not shared DB).
+
+---
+
+## 4. Coding Concerns & Pitfalls to Avoid
+
+### CRITICAL: LangChain imports are temporary
+Only 3 files still import LangChain:
+- `src/sdk/messages.py` — `.to_langchain()` / `.from_langchain()` (dual-running bridge)
+- `src/sdk/middleware_memory.py` — imports `langchain_core.messages.HumanMessage`
+- `src/sdk/middleware_summarization.py` — imports `langchain_core.messages.HumanMessage, SystemMessage`
+
+**Do NOT add new LangChain imports.** All new code should use SDK types (`Message`, `StreamChunk`, `ToolDefinition`). Phase 8 will remove all LangChain dependencies.
+
+### CRITICAL: StreamChunk event types
+The `StreamChunk.type` field is a `Literal` with **16 values**. When adding new event handling, always use `chunk.canonical_type` for comparison, not `chunk.type` directly, because backward-compat aliases map:
+- `ai_token` → canonical `text_delta`
+- `tool_start` → canonical `tool_input_start`
+- `reasoning` → canonical `reasoning_delta`
+
+### CRITICAL: user_id must be passed as separate parameter
+```python
+# CORRECT
+logger.info("event_name", {"key": "value"}, user_id=user_id)
+
+# WRONG — user_id inside data dict shows "default" in logs
+logger.info("event_name", {"key": "value", "user_id": user_id})
+```
+
+### CRITICAL: Provider options are keyed by provider_id
+When passing provider-specific options:
+```python
+# CORRECT — only Anthropic sees its options
+provider_options={"anthropic": {"thinking": {"type": "enabled", "budget_tokens": 10000}}}
+
+# WRONG — all providers see this
+kwargs={"thinking": {"type": "enabled"}}  # leaks to OpenAI/Gemini
+```
+
+### CRITICAL: models.dev registry uses lazy loading
+The registry (`src/sdk/registry.py`) fetches from `https://models.dev/api.json` on first access, caches to `data/cache/models.json`. If the API is unreachable, it falls back to a built-in subset. **Never hardcode model info — always use `get_model_info()` or `list_models()`.**
+
+### CRITICAL: No parallel tool execution (by design)
+The AgentLoop executes tools sequentially. This was a deliberate decision. If you need parallel execution, it requires a separate `ToolExecutor` class with async concurrency — do NOT just add `asyncio.gather()` in the loop.
+
+### Watch out: ToolAnnotations.auto_approval only works for non-destructive tools
+The `_should_interrupt()` method checks: if `destructive=True AND read_only=False` → interrupt. A tool that is both `destructive` AND `read_only` won't interrupt (read-only wins). This is intentional — a read-only destructive tool is a contradiction that defaults to safe.
+
+### Watch out: TraceProvider spans are async context managers
+```python
+# CORRECT — async context manager
+async with provider.start_span(SpanType.LLM_CALL, "call_0") as span:
+    span.set_meta("tokens", 100)
+
+# For sync-only tests, use start_span_sync/end_span
+span = provider.start_span_sync(SpanType.AGENT, "test_run")
+span.finish()
+provider.end_span(span)
+```
+
+### Watch out: Ollama has two provider classes
+- `OllamaLocal` — OpenAI-compatible at `/v1/chat/completions` (localhost or custom)
+- `OllamaCloud` — Native `/api/chat` with Bearer auth (ollama.com)
+
+Auto-detection happens in `create_model_from_config()`: if `OLLAMA_BASE_URL` points to ollama.com or `OLLAMA_API_KEY` is set, it uses `OllamaCloud`.
+
+### Watch out: AgentLoop constructor changed
+The `AgentLoop` now takes `run_config: RunConfig | None = None` instead of just `max_iterations`. If creating loops manually, use:
+```python
+loop = AgentLoop(
+    provider=provider,
+    tools=[...],
+    system_prompt="...",
+    middlewares=[...],
+    run_config=RunConfig(max_llm_calls=50, cost_limit_usd=10.0),
+)
+```
+
+---
+
+## 5. Logging Best Practices
 
 ### Always Use the Logger
 ```python
@@ -186,235 +326,127 @@ logger = get_logger()
 with timer("operation_name", {"key": "value"}, user_id=user_id, channel="cli") as t:
     result = await do_work()
     
-# Log at appropriate levels - CRITICAL: pass user_id as parameter, not in data dict
+# Log at appropriate levels
 logger.debug("detailed_info", {"data": "..."}, user_id=user_id)
 logger.info("action_completed", {"result": "..."}, user_id=user_id)
 logger.warning("potential_issue", {"warning": "..."}, user_id=user_id)
 logger.error("operation_failed", {"error": "..."}, user_id=user_id)
-
-# For system-wide events without specific user
 logger.info("system_event", {"info": "..."}, user_id="system")
 ```
 
 ### Log Format
-Follow the standard format in `data/logs/YYYY-MM-DD.jsonl`:
+`data/logs/YYYY-MM-DD.jsonl`:
 ```json
-{
-  "timestamp": "2026-02-20T03:00:00.000000Z",
-  "user_id": "alice_test",
-  "event": "agent.response",
-  "level": "info",
-  "channel": "cli",
-  "data": {"response": "Hello!"}
-}
+{"timestamp": "2026-02-20T03:00:00Z", "user_id": "alice_test", "event": "agent.response", "level": "info", "channel": "cli", "data": {"response": "Hello!"}}
 ```
-
-### CRITICAL: user_id Must Be Passed as Parameter
-```python
-# CORRECT - user_id as separate parameter
-logger.info("event_name", {"key": "value"}, user_id=user_id)
-
-# WRONG - user_id inside data dict (this will show "default" in logs)
-logger.info("event_name", {"key": "value", "user_id": user_id})
-```
-
-### Log Levels
-- **debug**: Verbose debugging info (development only)
-- **info**: Normal operation events
-- **warning**: Potential issues that don't break functionality
-- **error**: Errors that need attention
 
 ### Sensitive Data
 The logger automatically redacts fields containing: `api_key`, `password`, `secret`, `token`, `key`
 
 ---
 
-## 4. Per-User Database Isolation
-
-### Database Structure
-All user data is isolated per-user under `data/users/{user_id}/`:
-```
-data/users/{user_id}/
-├── email/
-│   └── emails.db         # User's emails
-├── contacts/
-│   └── contacts.db       # User's contacts
-├── todos/
-│   └── todos.db          # User's todos
-└── conversation/
-    └── messages.db       # User's conversation history
-```
-
-### Database Access Pattern
-```python
-from src.tools.email.db import get_engine
-from src.tools.contacts.storage import get_db_path
-from src.tools.todos.storage import TodosStorage
-
-# Email - uses SQLAlchemy
-engine = get_engine(user_id)
-
-# Contacts - direct SQLite path
-db_path = get_db_path(user_id)
-
-# Todos - storage class
-storage = TodosStorage(user_id, base_dir)
-```
-
----
-
-## 5. Streaming Support
-
-### CLI Streaming
-The CLI supports real-time streaming responses:
-```python
-from src.agents.manager import run_agent_stream
-
-# In CLI handler
-async for chunk in run_agent_stream(user_id, messages, message):
-    chunk_type = getattr(chunk, "type", None)
-    if chunk_type == "tool":
-        print(f"Tool: {chunk.content}")
-    elif chunk_type == "ai":
-        print(chunk.content, end="")
-```
-
-### HTTP Streaming (SSE)
-The HTTP endpoint `/message/stream` returns Server-Sent Events:
-```python
-# Response format
-data: {"type": "tool", "content": "..."}
-data: {"type": "ai", "content": "..."}
-data: {"type": "done", "content": "final response"}
-```
-
----
-
-## 6. Test Driven Development (TDD)
-
-### Test Structure
-```python
-# tests/unit/test_module.py
-import pytest
-
-class TestModuleName:
-    """Tests for module_name."""
-
-    def test_basic_functionality(self):
-        """Test basic functionality."""
-        result = basic_function()
-        assert result == expected
-
-    @pytest.mark.asyncio
-    async def test_async_function(self):
-        """Test async function."""
-        result = await async_function()
-        assert result is not None
-```
-
-### Test Naming
-- `test_<function_name>_<scenario>`
-- `test_<class_name>_<method_name>_<scenario>`
-
-### Test Fixtures
-```python
-@pytest.fixture
-def sample_config():
-    """Sample config for testing."""
-    return {"key": "value"}
-```
-
-### Async Testing
-```python
-@pytest.mark.asyncio
-async def test_agent_response():
-    """Test agent response."""
-    from src.app_logging import get_logger
-    logger = get_logger()
-    
-    with logger.timer("test_agent", user_id="test") as t:
-        result = await agent.ainvoke(...)
-    
-    assert result is not None
-```
-
-### Testing Required Fields
-Always test that tools validate required parameters:
-```python
-def test_tool_requires_user_id(self):
-    """Test tool requires user_id."""
-    from src.tools.module import tool_function
-
-    result = tool_function.invoke({"param": "value"})
-    assert "Error: user_id is required" in result
-```
-
----
-
-## 7. Project Structure
+## 6. Project Structure
 
 ```
 executive-assistant/
 ├── src/
-│   ├── __init__.py              # Package entry
+│   ├── __init__.py
 │   ├── __main__.py              # CLI entry point
-│   ├── app_logging.py           # Logging module
-│   ├── cli/main.py              # CLI interface (with streaming)
-│   ├── http/main.py             # HTTP API (with SSE streaming)
+│   ├── app_logging.py           # Logging with timer
+│   ├── cli/main.py              # CLI interface
+│   ├── http/
+│   │   ├── main.py              # FastAPI app
+│   │   ├── models.py             # Request/response models
+│   │   ├── ws_protocol.py        # WS message types (16+ types)
+│   │   └── routers/
+│   │       ├── conversation.py   # REST + SSE endpoints
+│   │       ├── ws.py             # WebSocket endpoint
+│   │       └── ...               # Other routers
 │   ├── telegram/main.py         # Telegram bot
 │   ├── agents/
-│   │   ├── factory.py           # Agent factory with middleware
-│   │   └── manager.py           # Agent pool, run_agent, run_agent_stream
+│   │   ├── factory.py           # LangChain agent factory (DEPRECATED)
+│   │   ├── manager.py           # LangChain agent pool (DEPRECATED)
+│   │   └── subagent/           # Subagent system (LANGCHAIN)
 │   ├── config/settings.py       # Configuration
-│   ├── llm/providers.py         # LLM providers
-│   ├── storage/                 # Storage utilities
-│   │   ├── conversation.py     # Message storage
-│   │   ├── checkpoint.py        # LangGraph checkpointing
-│   │   └── user.py             # User management
-│   ├── tools/
-│   │   ├── email/              # Email tools (IMAP sync, send, read)
-│   │   │   ├── account.py      # email_connect, disconnect, accounts
-│   │   │   ├── db.py           # Per-user email database
-│   │   │   ├── read.py         # email_list, get, search
-│   │   │   ├── send.py         # email_send (new, reply, reply_all)
-│   │   │   └── sync.py         # email_sync, interval sync, rate limiting
-│   │   ├── contacts/           # Contacts tools
-│   │   │   ├── storage.py      # Per-user contacts database
-│   │   │   └── tools.py        # contacts CRUD
-│   │   ├── todos/              # Todos tools
-│   │   │   ├── storage.py      # Per-user todos database
-│   │   │   └── tools.py        # todos CRUD + LLM extraction
-│   │   ├── filesystem.py       # files_list, read, write, edit, delete
-│   │   ├── file_search.py      # files_glob_search, files_grep_search
-│   │   ├── shell.py            # shell_execute
-│   │   ├── memory.py           # memory_get_history, memory_search
-│   │   ├── time.py             # time_get
-│   │   ├── firecrawl.py        # scrape_url, search_web, crawl_url, etc.
-│   │   └── vault/              # Credential storage
-│   └── skills/                 # Skills system
-│       ├── middleware.py       # SkillMiddleware
-│       ├── registry.py         # SkillRegistry
-│       └── tools.py            # skills_list, skills_load
+│   ├── llm/providers.py         # LangChain LLM providers (DEPRECATED)
+│   ├── storage/
+│   │   ├── conversation.py      # Message storage
+│   │   ├── user.py             # User management
+│   │   └── ...                  # (checkpoint.py removed)
+│   ├── sdk/                     # ★ Custom Agent SDK (THE CORE)
+│   │   ├── __init__.py          # Public API exports
+│   │   ├── messages.py          # Message, ToolCall, StreamChunk
+│   │   ├── tools.py             # @tool, ToolDefinition, ToolAnnotations, ToolResult, ToolRegistry
+│   │   ├── state.py             # AgentState
+│   │   ├── loop.py              # AgentLoop, Interrupt, RunConfig, CostTracker
+│   │   ├── middleware.py         # Middleware ABC
+│   │   ├── middleware_memory.py  # MemoryMiddleware (SDK-native)
+│   │   ├── middleware_skill.py   # SkillMiddleware (SDK-native)
+│   │   ├── middleware_summarization.py  # SummarizationMiddleware
+│   │   ├── native_tools.py      # ToolRegistry with get_native_tools() / get_native_tool_names()
+│   │   ├── langchain_adapter.py  # LangChain bridge (TEMPORARY)
+│   │   ├── runner.py             # create_sdk_loop, run_sdk_agent (HTTP wiring)
+│   │   ├── registry.py          # models.dev integration (4172+ models)
+│   │   ├── registry_update.py    # CLI: update models from GitHub
+│   │   ├── validation.py        # normalize_tool_schema, repair_tool_call
+│   │   ├── guardrails.py        # InputGuardrail, OutputGuardrail, ToolGuardrail
+│   │   ├── handoffs.py          # Handoff, HandoffInput
+│   │   ├── tracing.py           # TraceProvider, Span, ConsoleTraceProcessor
+│   │   ├── tools_core/          # ★ SDK-native tool implementations
+│   │   │   ├── cli_adapter.py   # CLIToolAdapter base class (firecrawl, browser-use)
+│   │   │   ├── time.py         # time_get
+│   │   │   ├── shell.py        # shell_execute
+│   │   │   ├── filesystem.py   # 7 file tools
+│   │   │   ├── file_search.py  # files_glob_search, files_grep_search
+│   │   │   ├── file_versioning.py  # 4 version tools
+│   │   │   ├── todos.py        # 5 todo tools
+│   │   │   ├── contacts.py     # 6 contact tools
+│   │   │   ├── memory.py       # 5 memory tools
+│   │   │   ├── email.py        # 8 email tools
+│   │   │   ├── firecrawl.py    # 8 firecrawl CLI tools
+│   │   │   └── browser_use.py  # 20 browser-use CLI tools
+│   │   └── providers/
+│   │       ├── base.py           # LLMProvider ABC, ModelInfo, ModelCost
+│   │       ├── ollama.py         # OllamaLocal + OllamaCloud
+│   │       ├── openai.py         # OpenAIProvider
+│   │       ├── anthropic.py      # AnthropicProvider (with thinking blocks)
+│   │       ├── gemini.py         # GeminiProvider (with thinkingConfig)
+│   │       ├── factory.py        # create_provider, create_model_from_config
+│   │       └── __init__.py
+│   ├── tools/                   # LangChain @tool functions (93 tools, MIGRATING)
+│   │   ├── email/               # email_connect, list, get, search, send, sync
+│   │   ├── contacts/             # contacts CRUD
+│   │   ├── todos/                # todos CRUD + LLM extraction
+│   │   ├── filesystem.py         # files_list, read, write, edit, delete
+│   │   ├── file_search.py        # files_glob_search, files_grep_search
+│   │   ├── shell.py              # shell_execute
+│   │   ├── memory.py             # memory_get_history, memory_search
+│   │   ├── time.py               # time_get (LANGCHAIN version)
+│   │   ├── firecrawl.py          # scrape_url, search_web, etc.
+│   │   └── vault/               # Credential storage
+│   └── skills/                  # Skills system
+│       ├── middleware.py         # SkillMiddleware
+│       ├── registry.py           # SkillRegistry
+│       └── tools.py             # skills_list, skills_load
 ├── tests/
-│   ├── unit/                   # Unit tests
-│   │   ├── test_email_tools.py
-│   │   ├── test_contacts_tools.py
-│   │   ├── test_todos_tools.py
-│   │   ├── test_filesystem_tools.py
-│   │   ├── test_other_tools.py
-│   │   ├── test_middleware.py
-│   │   └── test_background_services.py
-│   └── evaluation/             # Persona evaluation
-│       ├── personas.py         # 10 persona definitions
-│       └── evaluate.py         # Evaluation runner
-├── docker/                     # Docker files
-├── config.yaml                # Main configuration
-└── pyproject.toml             # Project config
+│   ├── sdk/                     # ★ SDK unit tests (432 tests)
+│   │   ├── test_messages.py
+│   │   ├── test_tools.py
+│   │   ├── test_phase5_6.py     # Guardrails, handoffs, tracing, annotations
+│   │   ├── test_registry.py      # models.dev registry
+│   │   ├── test_providers.py     # Provider contracts
+│   │   ├── test_sdk_loop.py      # AgentLoop tests
+│   │   └── ...
+│   ├── api/                      # HTTP endpoint tests (~100)
+│   ├── unit/                     # LangChain-era unit tests
+│   └── evaluation/               # Persona evaluation
+├── config.yaml
+└── pyproject.toml
 ```
 
 ---
 
-## 8. Configuration
+## 7. Configuration
 
 ### Environment Variables
 - Use `.env` for local development
@@ -429,105 +461,82 @@ executive-assistant/
 
 ---
 
-## 9. Persona Evaluation
+## 8. Phase Progress
 
-### Running Evaluation
-```bash
-# Run full evaluation (25 personas × 200 interactions = 5000 total)
-uv run python tests/evaluation/evaluate.py
+| Phase | Status | Tests | Description |
+|-------|--------|-------|-------------|
+| **0** | ✅ Done | 194 | Test harness & baseline |
+| **0.5** | ✅ Done | 100 API + 32 WS | API contracts + WS protocol |
+| **1** | ✅ Done | 204 | Core SDK (Messages, Tools, State) |
+| **2** | ✅ Done | 51 | LLM Provider abstraction |
+| **3** | ✅ Done | 48 | Agent Loop |
+| **4** | ✅ Done | 347 total | Middleware + SDK HTTP wiring |
+| **5** | ✅ Done | +63 new | Structured Streaming + Tool Annotations |
+| **6** | ✅ Done | (in 5) | Guardrails, Handoffs, Tracing, RunConfig, CostTracker |
+| **models.dev** | ✅ Done | +22 | Dynamic model registry (4172+ models) |
+| **7** | 🔄 In Progress | — | Tool Migration (LangChain → SDK-native) |
+| **8** | 🔲 Future | — | Cleanup & LangChain removal |
+| **9** | 🔲 Future | — | Extract & Open Source SDK |
 
-# Run with verbose output
-uv run python tests/evaluation/evaluate.py --verbose
+### Remaining Work for Phase 5+6 Exit Criteria
 
-# Run specific personas
-uv run python tests/evaluation/evaluate.py --personas p1,p2,p3 --interactions 50
+- [x] All StreamChunk events use block-structured format
+- [x] Backward-compat aliases pass existing tests
+- [x] Reasoning persists in Message and conversation history
+- [x] `provider_options` flow through to provider calls
+- [x] Tool annotations on native tools (`time_get`) + langchain adapter defaults
+- [x] Auto-approval based on `ToolAnnotations.destructive`
+- [x] `repair_tool_call()` handles malformed JSON
+- [x] No duplicate `tool_end` events
+- [ ] Integration test: reasoning model returns thinking content (need live API)
+- [x] 432+ SDK tests passing
 
-# Save all responses to JSON for analysis
-uv run python tests/evaluation/evaluate.py --save-responses
+### Phase 7: Tool Migration Status
 
-# Results saved to data/evaluations/
-```
+**65 tools migrated to `src/sdk/tools_core/`:**
 
-### Available Personas (25)
-| ID | Name | Style | Purpose |
-|----|------|-------|---------|
-| p1 | Direct Dave | terse | Short commands |
-| p2 | Polite Pam | formal | Polite requests |
-| p3 | Casual Chris | casual | Informal |
-| p4 | Questioning Quinn | inquisitive | Clarification |
-| p5 | Storytelling Sam | narrative | Context-rich |
-| p6 | Commanding Chris | authoritative | Commands |
-| p7 | Emoji Eva | expressive | Emojis |
-| p8 | Minimalist Mike | minimal | Ultra-brief |
-| p9 | Technical Terry | technical | Technical |
-| p10 | Confused Clara | uncertain | Help-seeking |
-| p11 | Analytical Alex | analytical | Metrics |
-| p12 | Efficient Eddie | efficient | Speed |
-| p13 | Verbose Victor | verbose | Detailed |
-| p14 | Curious Casey | curious | Follow-ups |
-| p15 | Busy Brian | busy | Multi-tasking |
-| p16 | Organized Olivia | organized | Structure |
-| p17 | Flexible Fran | flexible | Adaptable |
-| p18 | Goal-Oriented Gary | goal_oriented | Milestones |
-| p19 | Collaborative Carol | collaborative | Team |
-| p20 | Privacy-First Paul | privacy | Security |
-| p21 | Quick Quinn | quick | Performance |
-| p22 | Deep Diver | deep | Complex |
-| p23 | Error-Prone Eddie | error | Edge cases |
-| p24 | Context Carter | context | Memory |
-| p25 | Mixed Mike | mixed | Mixed style |
+| Module | Tools | Count |
+|--------|-------|-------|
+| `time.py` | `time_get` | 1 |
+| `shell.py` | `shell_execute` | 1 |
+| `filesystem.py` | `files_list`, `files_read`, `files_write`, `files_edit`, `files_delete`, `files_mkdir`, `files_rename` | 7 |
+| `file_search.py` | `files_glob_search`, `files_grep_search` | 2 |
+| `file_versioning.py` | `files_versions_list`, `files_versions_restore`, `files_versions_delete`, `files_versions_clean` | 4 |
+| `todos.py` | `todos_list`, `todos_add`, `todos_update`, `todos_delete`, `todos_extract` | 5 |
+| `contacts.py` | `contacts_list`, `contacts_get`, `contacts_add`, `contacts_update`, `contacts_delete`, `contacts_search` | 6 |
+| `memory.py` | `memory_get_history`, `memory_search`, `memory_search_all`, `memory_search_insights`, `memory_connect` | 5 |
+| `email.py` | `email_connect`, `email_disconnect`, `email_accounts`, `email_list`, `email_get`, `email_search`, `email_send`, `email_sync` | 8 |
+| `firecrawl.py` | `scrape_url`, `search_web`, `map_url`, `crawl_url`, `get_crawl_status`, `cancel_crawl`, `firecrawl_status`, `firecrawl_agent` | 8 |
+| `browser_use.py` | `browser_open`, `browser_state`, `browser_click`, `browser_input`, `browser_type`, `browser_keys`, `browser_scroll`, `browser_screenshot`, `browser_eval`, `browser_get_title`, `browser_get_text`, `browser_get_html`, `browser_get_url`, `browser_tab_new`, `browser_tab_switch`, `browser_tab_close`, `browser_wait_text`, `browser_sessions`, `browser_close_all`, `browser_status` | 20 |
 
-### Test Coverage (25 queries per persona)
-Each persona runs 25 test cases covering ALL tools:
-1. Email (connect, list, search, read, send, reply)
-2. Email + Contacts + Todos
-3. Contacts CRUD
-4. Todos CRUD
-5. Files (list, read, write, edit, delete)
-6. File search (glob, grep)
-7. Shell + Files
-8. Memory + Todos
-9. Time operations
-10. **Skills - List, Load, Create** (EVAL & BENCHMARK)
-11. **Skills - Trigger detection, Gated tools** (EVAL & BENCHMARK)
-12. Subagent create + invoke
-13. Subagent batch + schedule
-14. Web scraping
-15. Email sync + extract
-16. App Builder create + insert
-17. App Builder search (FTS, semantic, hybrid)
-18. Memory history + search
-19. MCP operations
-20. Profile/Instincts
-21. Subagent validate + delete
-22. Telegram messaging
-23. Email accounts + disconnect
-24. App Builder update + delete
-25. Edge cases - Error handling
+**NOT YET MIGRATED:**
+- Apps (14 tools) — `src/tools/apps/tools.py`
+- MCP (3 tools) — `src/tools/mcp/tools.py`
+- Skills (3 tools) — `src/skills/tools.py`
+- Subagent (10 tools) — `src/agents/subagent/tools.py`
 
-### Evaluation Metrics
-- **Accuracy**: Successful responses / Total interactions
-- **Tool Calls**: Number of tools invoked
-- **Tool Errors**: Failed tool executions
-- **Context Maintained**: Agent stays on topic
-- **Hallucinations**: Fabricated information
+**SKIPPED (will not migrate — Telegram bot uses LangChain agent directly):**
+- `telegram_send_message_tool` — `src/telegram/main.py`
+- `telegram_send_file_tool` — `src/telegram/main.py`
+  Reason: Telegram bot is a standalone LangChain-based bot. It will be rewritten entirely to use the SDK in a future phase, not adapted tool-by-tool.
 
 ---
 
-## 10. Dependencies
+## 9. Dependencies
 
 ### Adding Dependencies
 ```bash
-# Add runtime dependency
-uv add package_name
-
-# Add development dependency
-uv add --dev package_name
-
-# Add to specific group
-uv add --group cli package_name
+uv add package_name          # Runtime dependency
+uv add --dev package_name    # Development dependency
+uv add --group cli package_name  # CLI group
 ```
 
 ### Version Pinning
 - Use minimum versions in `pyproject.toml` (e.g., `>=1.0.0`)
 - Lock versions in `uv.lock` (committed to repo)
+
+### LangChain Dependencies (TO BE REMOVED in Phase 8)
+Still present but temporary:
+- `langchain`, `langchain-core`, `langchain-ollama`, `langchain-anthropic`, `langchain-openai`
+- `langgraph`, `langgraph-checkpoint-sqlite`, `langgraph-sdk`, `langgraph-prebuilt`, `langsmith`
+- KEEP: `langchain-mcp-adapters` (MCP integration, small and isolated)

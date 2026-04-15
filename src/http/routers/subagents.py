@@ -9,7 +9,7 @@ router = APIRouter(prefix="/subagents", tags=["subagents"])
 @router.get("")
 async def list_subagents(user_id: str = "default"):
     """List all subagents."""
-    from src.agents.subagent.manager import get_subagent_manager
+    from src.subagent.manager import get_subagent_manager
 
     manager = get_subagent_manager(user_id)
     subagents = manager.list_all()
@@ -37,7 +37,7 @@ async def create_subagent(
     user_id: str = "default",
 ):
     """Create a new subagent."""
-    from src.agents.subagent.manager import get_subagent_manager
+    from src.subagent.manager import get_subagent_manager
 
     manager = get_subagent_manager(user_id)
     subagent, result = manager.create(
@@ -58,7 +58,7 @@ async def create_subagent(
 @router.delete("/{subagent_name}")
 async def delete_subagent(subagent_name: str, user_id: str = "default"):
     """Delete a subagent."""
-    from src.agents.subagent.manager import get_subagent_manager
+    from src.subagent.manager import get_subagent_manager
 
     manager = get_subagent_manager(user_id)
     subagent_path = manager.base_path / subagent_name
@@ -71,7 +71,7 @@ async def delete_subagent(subagent_name: str, user_id: str = "default"):
 @router.get("/jobs")
 async def list_subagent_jobs(user_id: str = "default"):
     """List all subagent jobs (scheduled, running, completed, failed)."""
-    from src.agents.subagent.scheduler import list_jobs
+    from src.subagent.scheduler import list_jobs
 
     jobs = list_jobs(user_id)
     return {"jobs": jobs}
@@ -80,7 +80,7 @@ async def list_subagent_jobs(user_id: str = "default"):
 @router.get("/jobs/{job_id}")
 async def get_subagent_job(job_id: str):
     """Get status of a specific subagent job."""
-    from src.agents.subagent.scheduler import get_job_status
+    from src.subagent.scheduler import get_job_status
 
     status = get_job_status(job_id)
     if status is None:
@@ -95,7 +95,7 @@ async def invoke_subagent(
     user_id: str = "default",
 ):
     """Invoke a subagent to execute a task (async)."""
-    from src.agents.subagent.tools import subagent_invoke
+    from src.subagent.tools import subagent_invoke
 
     result = subagent_invoke.invoke({"user_id": user_id, "name": name, "task": task})
     return {"result": str(result)}
@@ -107,7 +107,7 @@ async def batch_invoke_subagents(
     user_id: str = "default",
 ):
     """Batch invoke multiple subagents."""
-    from src.agents.subagent.tools import subagent_batch
+    from src.subagent.tools import subagent_batch
 
     result = subagent_batch.invoke({"user_id": user_id, "tasks": json.dumps(tasks)})
     return {"result": str(result)}
@@ -122,7 +122,7 @@ async def schedule_subagent(
     user_id: str = "default",
 ):
     """Schedule a subagent task (one-time or recurring)."""
-    from src.agents.subagent.tools import subagent_schedule
+    from src.subagent.tools import subagent_schedule
 
     args = {"user_id": user_id, "name": name, "task": task}
     if run_at is not None:
@@ -136,7 +136,7 @@ async def schedule_subagent(
 @router.delete("/jobs/{job_id}")
 async def cancel_subagent_job(job_id: str, user_id: str = "default"):
     """Cancel a scheduled subagent job."""
-    from src.agents.subagent.tools import subagent_schedule_cancel
+    from src.subagent.tools import subagent_schedule_cancel
 
     result = subagent_schedule_cancel.invoke({"user_id": user_id, "job_id": job_id})
     return {"result": str(result)}

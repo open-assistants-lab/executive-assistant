@@ -306,7 +306,7 @@ CHAPTER_TEMPLATES = [
 @pytest.fixture(autouse=True)
 def cleanup_test_db():
     """Clean up test database before and after each test."""
-    db_path = Path(f"data/users/{TEST_USER_ID}/apps")
+    db_path = Path("data/private/apps")
     if db_path.exists():
         shutil.rmtree(db_path)
     yield
@@ -317,7 +317,7 @@ def cleanup_test_db():
 @pytest.fixture
 def storage():
     """Get app storage for testing."""
-    from src.tools.apps.storage import AppStorage
+    from src.sdk.tools_core.apps_storage import AppStorage
 
     return AppStorage(TEST_USER_ID)
 
@@ -627,6 +627,6 @@ class TestHybridSearchPerformance:
             f"200 book insert:  {total_insert_time * 1000:.2f}ms ({total_insert_time / 200 * 1000:.2f}ms/book)"
         )
         print(f"Total time:       {(create_time + total_insert_time) * 1000:.2f}ms")
-        print(f"\nDatabase: data/users/{TEST_USER_ID}/apps/library.db")
+        print(f"\nDatabase: data/private/apps/library/app.db")
 
         assert len(join_results) == 10, "JOIN query should return 10 results"

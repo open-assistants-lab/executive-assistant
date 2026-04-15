@@ -30,7 +30,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from src.storage.messages import ConversationStore
-from src.tools.apps.storage import get_embedding as _get_embedding_func
+from src.sdk.tools_core.apps_storage import get_embedding as _get_embedding_func
 
 _embedding_cache: dict[str, list[float]] = {}
 
@@ -141,9 +141,9 @@ def evaluate_instance(
                 if method == "keyword":
                     search_results = store.search_keyword(question, limit=max(ks))
                 elif method == "semantic":
-                    search_results = store.search_vector(question_emb, limit=max(ks))
+                    search_results = store.search_vector(question, limit=max(ks))
                 elif method == "hybrid":
-                    search_results = store.search_hybrid(question, question_emb, limit=max(ks))
+                    search_results = store.search_hybrid(question, limit=max(ks))
                 else:
                     continue
             except Exception as e:

@@ -1,0 +1,95 @@
+"""Time tool — SDK-native implementation."""
+
+from datetime import UTC, datetime
+
+from src.app_logging import get_logger
+from src.sdk.tools import ToolAnnotations, tool
+
+logger = get_logger()
+
+TIMEZONE_MAP = {
+    "new york": "America/New_York",
+    "nyc": "America/New_York",
+    "los angeles": "America/Los_Angeles",
+    "la": "America/Los_Angeles",
+    "chicago": "America/Chicago",
+    "london": "Europe/London",
+    "paris": "Europe/Paris",
+    "berlin": "Europe/Berlin",
+    "tokyo": "Asia/Tokyo",
+    "sydney": "Australia/Sydney",
+    "shanghai": "Asia/Shanghai",
+    "singapore": "Asia/Singapore",
+    "hong kong": "Asia/Hong_Kong",
+    "dubai": "Asia/Dubai",
+    "mumbai": "Asia/Kolkata",
+    "delhi": "Asia/Kolkata",
+    "toronto": "America/Toronto",
+    "vancouver": "America/Vancouver",
+    "seattle": "America/Los_Angeles",
+    "san francisco": "America/Los_Angeles",
+    "sf": "America/Los_Angeles",
+    "us": "America/New_York",
+    "us east": "America/New_York",
+    "us west": "America/Los_Angeles",
+    "uk": "Europe/London",
+    "europe": "Europe/Paris",
+    "asia": "Asia/Shanghai",
+    "australia": "Australia/Sydney",
+    "pst": "America/Los_Angeles",
+    "est": "America/New_York",
+    "cet": "Europe/Paris",
+    "jst": "Asia/Tokyo",
+    "aest": "Australia/Sydney",
+    "utc": "UTC",
+    "gmt": "UTC",
+}
+
+
+@tool
+def time_get(timezone: str | None = None) -> str:
+    """Get current time.
+
+    If no timezone is provided, defaults to UTC.
+    You can ask the user for their timezone if it's not specified.
+
+    Args:
+        timezone: Timezone name (e.g., 'America/New_York', 'Asia/Shanghai', 'London')
+                 or common city names (e.g., 'New York', 'Shanghai', 'London')
+
+    Returns:
+        Formatted current time with timezone
+    """
+    tz = "UTC"
+
+    if timezone:
+        tz_lower = timezone.lower().strip()
+        tz = TIMEZONE_MAP.get(tz_lower, timezone)
+
+    try:
+        if tz == "UTC":
+            now = datetime.now(UTC)
+            tz_name = "UTC"
+        else:
+            from zoneinfo import ZoneInfo
+
+            now = datetime.now(ZoneInfo(tz))
+            tz_name = tz
+
+        date_str = now.strftime("%Y-%m-%d")
+        time_str = now.strftime("%H:%M:%S")
+        day_str = now.strftime("%A")
+
+        return f"Current time: {date_str} {time_str} {tz_name} ({day_str})"
+
+    except Exception as e:
+        logger.warning("time.tool.error", {"timezone": tz, "error": str(e)}, channel="agent")
+        now = datetime.now(UTC)
+        return f"Could not parse timezone '{timezone}', showing UTC: {now.strftime('%Y-%m-%d %H:%M:%S')} UTC"
+
+
+time_get.annotations = ToolAnnotations(
+    title="Get Current Time",
+    read_only=True,
+    idempotent=True,
+)

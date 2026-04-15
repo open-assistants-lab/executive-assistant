@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+from src.storage.paths import get_paths
+
 
 class UserStorage:
     """Manages user-specific storage directories."""
@@ -13,7 +15,7 @@ class UserStorage:
             user_id: Unique user identifier (also used as thread_id)
         """
         self.user_id = user_id
-        self.base_dir = Path("data/users") / user_id
+        self.base_dir = get_paths(user_id).private
         self._ensure_directories()
 
     def _ensure_directories(self) -> None:
