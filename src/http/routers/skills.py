@@ -6,9 +6,9 @@ router = APIRouter(prefix="/skills", tags=["skills"])
 @router.get("")
 async def list_skills(user_id: str = "default"):
     """List all available skills."""
-    from src.skills.registry import SkillRegistry
+    from src.skills.registry import get_skill_registry
 
-    registry = SkillRegistry(system_dir="src/skills", user_id=user_id)
+    registry = get_skill_registry(user_id=user_id)
     all_skills = registry.get_all_skills()
     system_skills = registry.get_system_skills()
     system_names = {s["name"] for s in system_skills}

@@ -9,12 +9,11 @@ This document provides guidelines for agents working on this codebase.
 ### Installation
 ```bash
 # Install with all dependencies
-uv pip install -e ".[cli,http,telegram,dev]"
+uv pip install -e ".[cli,http,dev]"
 
 # Install specific extras
 uv pip install -e ".[cli]"      # CLI only
 uv pip install -e ".[http]"      # HTTP API only
-uv pip install -e ".[telegram]"  # Telegram bot only
 uv pip install -e ".[dev]"      # Development tools
 ```
 
@@ -22,7 +21,6 @@ uv pip install -e ".[dev]"      # Development tools
 ```bash
 uv run ea cli        # Start CLI (with streaming support)
 uv run ea http      # Start HTTP server (with SSE streaming)
-uv run ea telegram  # Start Telegram bot
 ```
 
 ### Linting and Type Checking
@@ -177,9 +175,9 @@ except Exception as e:
 
 ### SDK Architecture (Custom, Replacing LangChain/LangGraph)
 
-The codebase has a **custom agent SDK** (`src/sdk/`) that replaces LangChain/LangGraph. The old LangChain code still exists in `src/agents/`, `src/llm/`, `src/middleware/`, and `src/tools/` but is bridged via `src/sdk/langchain_adapter.py` (TEMPORARY — to be removed in Phase 8).
+The codebase has a **custom agent SDK** (`src/sdk/`) that replaces LangChain/LangGraph. All LangChain code and dependencies have been removed.
 
-**SDK Core (~5,500 lines, 24 files, 432 tests):**
+**SDK Core (~6,500 lines, 30 files, 470+ tests):**
 
 | Module | Lines | Purpose |
 |--------|-------|---------|
@@ -194,6 +192,11 @@ The codebase has a **custom agent SDK** (`src/sdk/`) that replaces LangChain/Lan
 | `tracing.py` | 172 | `TraceProvider`, `Span`, `SpanContext`, `ConsoleTraceProcessor`, `JsonTraceProcessor` |
 | `native_tools.py` | 102 | SDK-native `time_get` (first migrated tool) |
 | `langchain_adapter.py` | 137 | **TEMPORARY** — wraps LangChain tools as SDK ToolDefinitions |
+| `subagent_models.py` | 98 | `AgentDef`, `SubagentResult`, `TaskStatus`, `TaskCancelledError` |
+| `work_queue.py` | 254 | `WorkQueueDB` — aiosqlite per-user SQLite work queue |
+| `coordinator.py` | 327 | `SubagentCoordinator` — create/invoke/cancel/instruct/delete |
+| `middleware_progress.py` | 85 | `ProgressMiddleware` — progress updates, doom loop detection |
+| `middleware_instruction.py` | 58 | `InstructionMiddleware` — cancel signal, course-correction injection |
 
 **Key Design Decisions:**
 1. **models.dev integration**: Registry fetches from `https://models.dev/api.json`, caches locally at `data/cache/models.json` with 5-min TTL, falls back to built-in subset. 4172+ models vs. old 20 hardcoded.
@@ -204,11 +207,16 @@ The codebase has a **custom agent SDK** (`src/sdk/`) that replaces LangChain/Lan
 6. **Reasoning as first-class content**: `Message.reasoning` field persists thinking tokens across turns. Anthropic `thinking` blocks handled in `to_anthropic()`/`from_anthropic_block()`.
 7. **Sequential tool execution**: AgentLoop executes tools one at a time (parallel deferred).
 8. **No checkpoints**: LangGraph checkpoint system was permanently disabled. Conversation history is managed by `MemoryMiddleware` + `SummarizationMiddleware`.
+9. **Parallel tool execution**: `_classify_tool_calls()` splits into `parallel_safe` (read-only or non-destructive), `sequential` (destructive but not needing HITL), and `interrupts` (destructive + not read-only). Concurrent batch via `asyncio.gather()`.
+10. **Usage tracking**: `Message.usage` (type `Usage`) carries token counts from provider responses. Providers populate `Usage` with `input_tokens`, `output_tokens`, `reasoning_tokens`, `cache_read_tokens`, `cache_creation_tokens`. `AgentLoop` extracts usage and passes to `CostTracker.add_usage()`. Streaming uses `StreamChunk.usage_event(Usage)` before `done` event.
+11. **provider_options on RunConfig**: `RunConfig.provider_options` (dict keyed by provider_id) is now wired through `AgentLoop.run()`, `run_stream()`, and `run_single()` to all provider calls. Previously hardcoded `None`.
+12. **MCP Tool Bridge**: `MCPToolBridge` converts MCP `mcp` SDK tool objects → SDK `ToolDefinition` with namespaced names `mcp__{server}__{tool}`. Tool invocations route through `session.call_tool()`. Supports degraded-mode (partial server failures). `mcp_reload` dynamically registers/unregisters tools in the active `AgentLoop` via `register_tool()`/`unregister_tool()`.
+13. **Subagent V1 work_queue coordination**: `WorkQueueDB` (aiosqlite) per-user at `data/private/subagents/work_queue.db`. 11 columns, 2 indexes. Config frozen at invocation into `work_queue.config`. `ProgressMiddleware` updates progress + detects doom loops (3x same tool+args). `InstructionMiddleware` checks cancel/instructions before each LLM call. `SubagentCoordinator.invoke()` wraps `AgentLoop.run()` in `asyncio.wait_for(timeout)`. All failure modes (cancel, timeout, cost exceeded, provider error) result in terminal work_queue status.
 
 **Known Provider Behaviors:**
 - OpenAI/Anthropic no longer emit duplicate `tool_end` — fixed by Phase 5 block-structured refactor
 - Gemini streaming accumulates tool calls across chunks properly
-- `provider_options` are plumbed through but reasoning opt-in (Anthropic thinking, Gemini thinkingConfig) must be set per-request — not auto-enabled
+- `provider_options` are now wired through `RunConfig.provider_options` to all provider calls (previously hardcoded `None`)
 
 ### HTTP Layer
 
@@ -240,19 +248,12 @@ Decision: **SQLite + ChromaDB per-user even for team/enterprise** (not shared DB
 
 ## 4. Coding Concerns & Pitfalls to Avoid
 
-### CRITICAL: LangChain imports are temporary
-Only 3 files still import LangChain:
-- `src/sdk/messages.py` — `.to_langchain()` / `.from_langchain()` (dual-running bridge)
-- `src/sdk/middleware_memory.py` — imports `langchain_core.messages.HumanMessage`
-- `src/sdk/middleware_summarization.py` — imports `langchain_core.messages.HumanMessage, SystemMessage`
-
-**Do NOT add new LangChain imports.** All new code should use SDK types (`Message`, `StreamChunk`, `ToolDefinition`). Phase 8 will remove all LangChain dependencies.
-
 ### CRITICAL: StreamChunk event types
-The `StreamChunk.type` field is a `Literal` with **16 values**. When adding new event handling, always use `chunk.canonical_type` for comparison, not `chunk.type` directly, because backward-compat aliases map:
+The `StreamChunk.type` field is a `Literal` with **17 values**. When adding new event handling, always use `chunk.canonical_type` for comparison, not `chunk.type` directly, because backward-compat aliases map:
 - `ai_token` → canonical `text_delta`
 - `tool_start` → canonical `tool_input_start`
 - `reasoning` → canonical `reasoning_delta`
+- `usage` → canonical `usage`
 
 ### CRITICAL: user_id must be passed as separate parameter
 ```python
@@ -362,7 +363,6 @@ executive-assistant/
 │   │       ├── conversation.py   # REST + SSE endpoints
 │   │       ├── ws.py             # WebSocket endpoint
 │   │       └── ...               # Other routers
-│   ├── telegram/main.py         # Telegram bot
 │   ├── agents/
 │   │   ├── factory.py           # LangChain agent factory (DEPRECATED)
 │   │   ├── manager.py           # LangChain agent pool (DEPRECATED)
@@ -383,6 +383,8 @@ executive-assistant/
 │   │   ├── middleware_memory.py  # MemoryMiddleware (SDK-native)
 │   │   ├── middleware_skill.py   # SkillMiddleware (SDK-native)
 │   │   ├── middleware_summarization.py  # SummarizationMiddleware
+│   │   ├── middleware_progress.py  # ProgressMiddleware (subagent progress + doom loop)
+│   │   ├── middleware_instruction.py  # InstructionMiddleware (subagent cancel/instructions)
 │   │   ├── native_tools.py      # ToolRegistry with get_native_tools() / get_native_tool_names()
 │   │   ├── langchain_adapter.py  # LangChain bridge (TEMPORARY)
 │   │   ├── runner.py             # create_sdk_loop, run_sdk_agent (HTTP wiring)
@@ -392,6 +394,9 @@ executive-assistant/
 │   │   ├── guardrails.py        # InputGuardrail, OutputGuardrail, ToolGuardrail
 │   │   ├── handoffs.py          # Handoff, HandoffInput
 │   │   ├── tracing.py           # TraceProvider, Span, ConsoleTraceProcessor
+│   │   ├── subagent_models.py   # AgentDef, SubagentResult, TaskCancelledError, TaskStatus
+│   │   ├── work_queue.py        # WorkQueueDB (aiosqlite, per-user SQLite)
+│   │   ├── coordinator.py       # SubagentCoordinator (create/invoke/cancel/instruct/delete)
 │   │   ├── tools_core/          # ★ SDK-native tool implementations
 │   │   │   ├── cli_adapter.py   # CLIToolAdapter base class (firecrawl, browser-use)
 │   │   │   ├── time.py         # time_get
@@ -474,9 +479,44 @@ executive-assistant/
 | **5** | ✅ Done | +63 new | Structured Streaming + Tool Annotations |
 | **6** | ✅ Done | (in 5) | Guardrails, Handoffs, Tracing, RunConfig, CostTracker |
 | **models.dev** | ✅ Done | +22 | Dynamic model registry (4172+ models) |
-| **7** | 🔄 In Progress | — | Tool Migration (LangChain → SDK-native) |
-| **8** | 🔲 Future | — | Cleanup & LangChain removal |
+| **7** | ✅ Done | — | Tool Migration (all 81 tools SDK-native) |
+| **10.1** | ✅ Done | — | Bug fixes |
+| **10.3** | ✅ Done | — | Discovery-based skills |
+| **10.4** | ✅ Done | +8 | Parallel tool execution |
+| **10.5** | ✅ Done | +26 | ToolResult, shell hooks, usage tracking, provider_options |
+| **8** | ✅ Done | — | Cleanup & LangChain removal |
 | **9** | 🔲 Future | — | Extract & Open Source SDK |
+| **10.2** | ✅ Done | +20 | MCP Tool Bridge |
+| **11** | ✅ Done | +38 | Subagent V1 (work_queue, coordinator, middlewares, 8 tools) |
+
+### Subagent V1 Architecture
+
+SQLite work_queue-backed coordination with supervisor pattern. Full design in `docs/SUBAGENT_RESEARCH.md`.
+
+**New files:**
+- `src/sdk/subagent_models.py` — `AgentDef`, `SubagentResult`, `TaskStatus`, `TaskCancelledError`
+- `src/sdk/work_queue.py` — `WorkQueueDB` (aiosqlite, per-user at `data/private/subagents/work_queue.db`)
+- `src/sdk/middleware_progress.py` — `ProgressMiddleware` (progress updates, doom loop detection)
+- `src/sdk/middleware_instruction.py` — `InstructionMiddleware` (cancel signal, course-correction injection)
+- `src/sdk/coordinator.py` — `SubagentCoordinator` (create, update, invoke, cancel, instruct, delete)
+- `tests/sdk/test_subagent_v1.py` — 38 tests
+
+**8 V1 tools** (in `src/sdk/tools_core/subagent.py`):
+- `subagent_create` — create AgentDef, persist to disk
+- `subagent_update` — amend existing AgentDef (partial update)
+- `subagent_invoke` — insert task into work_queue + run AgentLoop with middlewares
+- `subagent_list` — list AgentDefs + active tasks
+- `subagent_progress` — check task status/progress
+- `subagent_instruct` — inject course-correction into running subagent
+- `subagent_cancel` — set cancel_requested flag
+- `subagent_delete` — remove AgentDef + cancel running tasks
+
+**Key design decisions:**
+- Config frozen at invocation into `work_queue.config` (amendments don't affect running tasks)
+- `disallowed_tools` defaults include all `subagent_*` tools (prevents recursion)
+- `SubagentCoordinator.invoke()` uses `AgentLoop.run()` (not `run_stream()`), wrapped in `asyncio.wait_for(timeout)`
+- Progress via `ProgressMiddleware.abefore_model` + polling; InstructionMiddleware checks cancel/instructions before each LLM call
+- Doom loop: same tool+args called 3x → `progress.stuck = true` + auto-instruction
 
 ### Remaining Work for Phase 5+6 Exit Criteria
 
@@ -488,12 +528,16 @@ executive-assistant/
 - [x] Auto-approval based on `ToolAnnotations.destructive`
 - [x] `repair_tool_call()` handles malformed JSON
 - [x] No duplicate `tool_end` events
+- [x] `Message.usage` populated by all providers (OpenAI, Anthropic, Gemini, Ollama)
+- [x] `StreamChunk.usage_event()` carries usage data in streaming
+- [x] `CostTracker.add_usage()` receives actual token counts from `Message.usage`
+- [x] `RunConfig.provider_options` wired through `AgentLoop` to all provider calls
 - [ ] Integration test: reasoning model returns thinking content (need live API)
-- [x] 432+ SDK tests passing
+- [x] 470+ SDK tests passing
 
 ### Phase 7: Tool Migration Status
 
-**65 tools migrated to `src/sdk/tools_core/`:**
+**73 tools migrated to `src/sdk/tools_core/`:**
 
 | Module | Tools | Count |
 |--------|-------|-------|
@@ -508,17 +552,19 @@ executive-assistant/
 | `email.py` | `email_connect`, `email_disconnect`, `email_accounts`, `email_list`, `email_get`, `email_search`, `email_send`, `email_sync` | 8 |
 | `firecrawl.py` | `scrape_url`, `search_web`, `map_url`, `crawl_url`, `get_crawl_status`, `cancel_crawl`, `firecrawl_status`, `firecrawl_agent` | 8 |
 | `browser_use.py` | `browser_open`, `browser_state`, `browser_click`, `browser_input`, `browser_type`, `browser_keys`, `browser_scroll`, `browser_screenshot`, `browser_eval`, `browser_get_title`, `browser_get_text`, `browser_get_html`, `browser_get_url`, `browser_tab_new`, `browser_tab_switch`, `browser_tab_close`, `browser_wait_text`, `browser_sessions`, `browser_close_all`, `browser_status` | 20 |
+| `subagent.py` | `subagent_create`, `subagent_update`, `subagent_invoke`, `subagent_list`, `subagent_progress`, `subagent_instruct`, `subagent_cancel`, `subagent_delete` | 8 |
 
 **NOT YET MIGRATED:**
 - Apps (14 tools) — `src/tools/apps/tools.py`
-- MCP (3 tools) — `src/tools/mcp/tools.py`
-- Skills (3 tools) — `src/skills/tools.py`
-- Subagent (10 tools) — `src/agents/subagent/tools.py`
+- Skills (3 tools) — `src/skills/tools.py` (skills_list/skill_create/sql_write_query use get_skill_registry factory)
 
-**SKIPPED (will not migrate — Telegram bot uses LangChain agent directly):**
-- `telegram_send_message_tool` — `src/telegram/main.py`
-- `telegram_send_file_tool` — `src/telegram/main.py`
-  Reason: Telegram bot is a standalone LangChain-based bot. It will be rewritten entirely to use the SDK in a future phase, not adapted tool-by-tool.
+**NOW AVAILABLE VIA MCP BRIDGE:**
+- MCP tools are dynamically discovered and registered as `mcp__{server}__{tool}` via `MCPToolBridge`
+- Meta-tools (`mcp_list`, `mcp_reload`, `mcp_tools`) are now native async `ToolDefinition` instances (no `_run_async` hack)
+
+**SKIPPED (MCP tools are now native async ToolDefinitions):**
+- `mcp_list`, `mcp_reload`, `mcp_tools` — now in `src/sdk/tools_core/mcp.py` as async `ToolDefinition` instances
+- `MCPToolBridge` dynamically creates `ToolDefinition` for discovered MCP server tools as `mcp__{server}__{tool}`
 
 ---
 
@@ -535,8 +581,10 @@ uv add --group cli package_name  # CLI group
 - Use minimum versions in `pyproject.toml` (e.g., `>=1.0.0`)
 - Lock versions in `uv.lock` (committed to repo)
 
-### LangChain Dependencies (TO BE REMOVED in Phase 8)
-Still present but temporary:
-- `langchain`, `langchain-core`, `langchain-ollama`, `langchain-anthropic`, `langchain-openai`
-- `langgraph`, `langgraph-checkpoint-sqlite`, `langgraph-sdk`, `langgraph-prebuilt`, `langsmith`
-- KEEP: `langchain-mcp-adapters` (MCP integration, small and isolated)
+### LangChain Dependencies — REMOVED in Phase 8
+All LangChain and LangGraph dependencies have been removed:
+- `langchain`, `langchain-core`, `langchain-ollama`, `langchain-anthropic`, `langchain-openai` — deleted
+- `langgraph`, `langgraph-checkpoint-sqlite`, `langgraph-sdk`, `langgraph-prebuilt`, `langsmith` — deleted
+- `langchain-mcp-adapters` — deleted (replaced by native `mcp` SDK via `MCPManager` + `MCPToolBridge`)
+- `src/tools/`, `src/agents/`, `src/llm/`, `src/middleware/` directories — deleted
+- `src/sdk/langchain_adapter.py` — deleted

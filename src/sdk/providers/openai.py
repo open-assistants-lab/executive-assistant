@@ -15,7 +15,7 @@ from uuid import uuid4
 
 from openai import AsyncOpenAI
 
-from src.sdk.messages import Message, StreamChunk, ToolCall
+from src.sdk.messages import Message, StreamChunk, ToolCall, Usage
 from src.sdk.providers.base import LLMProvider, ModelInfo
 from src.sdk.tools import ToolDefinition
 
@@ -122,7 +122,22 @@ class OpenAIProvider(LLMProvider):
                     except json.JSONDecodeError:
                         pass
                 tool_calls.append(ToolCall(id=tc.id, name=tc.function.name, arguments=args))
-        return Message.assistant(content=content, tool_calls=tool_calls)
+
+        usage = None
+        if hasattr(response, "usage") and response.usage:
+            u = response.usage
+            usage = Usage(
+                input_tokens=getattr(u, "prompt_tokens", 0) or 0,
+                output_tokens=getattr(u, "completion_tokens", 0) or 0,
+                reasoning_tokens=getattr(u, "completion_tokens_details", None)
+                and getattr(u.completion_tokens_details, "reasoning_tokens", 0)
+                or 0,
+                cache_read_tokens=getattr(u, "prompt_tokens_details", None)
+                and getattr(u.prompt_tokens_details, "cached_tokens", 0)
+                or 0,
+            )
+
+        return Message.assistant(content=content, tool_calls=tool_calls, usage=usage)
 
     def _parse_stream_chunk(
         self, chunk: Any, current_tool_calls: dict[int, dict]
@@ -130,6 +145,22 @@ class OpenAIProvider(LLMProvider):
         events: list[StreamChunk] = []
 
         if not chunk.choices:
+            if hasattr(chunk, "usage") and chunk.usage:
+                u = chunk.usage
+                events.append(
+                    StreamChunk.usage_event(
+                        Usage(
+                            input_tokens=getattr(u, "prompt_tokens", 0) or 0,
+                            output_tokens=getattr(u, "completion_tokens", 0) or 0,
+                            reasoning_tokens=getattr(u, "completion_tokens_details", None)
+                            and getattr(u.completion_tokens_details, "reasoning_tokens", 0)
+                            or 0,
+                            cache_read_tokens=getattr(u, "prompt_tokens_details", None)
+                            and getattr(u.prompt_tokens_details, "cached_tokens", 0)
+                            or 0,
+                        )
+                    )
+                )
             return events
 
         choice = chunk.choices[0]
@@ -184,6 +215,22 @@ class OpenAIProvider(LLMProvider):
                     )
                 )
             current_tool_calls.clear()
+            if hasattr(chunk, "usage") and chunk.usage:
+                u = chunk.usage
+                events.append(
+                    StreamChunk.usage_event(
+                        Usage(
+                            input_tokens=getattr(u, "prompt_tokens", 0) or 0,
+                            output_tokens=getattr(u, "completion_tokens", 0) or 0,
+                            reasoning_tokens=getattr(u, "completion_tokens_details", None)
+                            and getattr(u.completion_tokens_details, "reasoning_tokens", 0)
+                            or 0,
+                            cache_read_tokens=getattr(u, "prompt_tokens_details", None)
+                            and getattr(u.prompt_tokens_details, "cached_tokens", 0)
+                            or 0,
+                        )
+                    )
+                )
             events.append(StreamChunk.done())
 
         return events

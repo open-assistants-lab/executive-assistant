@@ -46,7 +46,7 @@ def _default_embedding_fn(text: str) -> list[float]:
     if not text:
         return [0.0] * EMBEDDING_DIM
     try:
-        from src.sdk.tools_core.apps_storage import get_embedding
+        from src.sdk.tools_core.apps import get_embedding
 
         return get_embedding(text)
     except Exception:
@@ -92,7 +92,7 @@ def _get_stored_model_name() -> str:
     if _EMBEDDING_MODEL_NAME is not None:
         return _EMBEDDING_MODEL_NAME
     try:
-        from src.sdk.tools_core.apps_storage import EMBEDDING_MODEL
+        from src.sdk.tools_core.apps import EMBEDDING_MODEL
 
         _EMBEDDING_MODEL_NAME = EMBEDDING_MODEL
     except ImportError:

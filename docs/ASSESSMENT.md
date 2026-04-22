@@ -13,7 +13,7 @@ The Executive Assistant is a well-architected, production-ready AI agent framewo
 #### Core Agent Capabilities
 | Feature | Status | Description |
 |---------|--------|-------------|
-| **Multi-channel** | ✅ Complete | HTTP API, CLI, Telegram bot |
+| **Multi-channel** | ✅ Complete | HTTP API, CLI |
 | **Per-user Agent Pool** | ✅ Complete | Concurrent request handling with thread-safe pool |
 | **LangGraph Checkpoints** | ✅ Complete | Conversation state persistence |
 | **LLM Provider Support** | ✅ Complete | 23+ providers (Ollama, OpenAI, Anthropic, etc.) |

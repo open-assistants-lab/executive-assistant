@@ -423,7 +423,7 @@ def generate_test_queries(persona: dict, count: int = 10) -> list[str]:
 
     # 100 queries covering ALL features, tools, and middleware
     # Each query may trigger multiple tools
-    # Middleware: SkillMiddleware, SummarizationMiddleware, HumanInTheLoopMiddleware, MemoryMiddleware
+    # Middleware: SummarizationMiddleware, MemoryMiddleware
     base_queries = [
         # 1-5: Email operations
         "Connect Gmail account test@gmail.com with password apppassword",
@@ -590,8 +590,8 @@ def generate_test_queries(persona: dict, count: int = 10) -> list[str]:
                 18: "MCP list/reload/tools",
                 19: "profile set",
                 20: "subagent validate/delete",
-                21: "telegram send message/file",
-                22: "email accounts + disconnect",
+                21: "email accounts + disconnect",
+                22: "app row CRUD",
                 23: "app update/delete column",
                 24: "edge cases - error handling",
             }

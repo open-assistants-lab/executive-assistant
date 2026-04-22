@@ -2,13 +2,13 @@
 
 ## Overview
 
-Executive Assistant is a multi-channel AI assistant (CLI, HTTP, Telegram) with long-term memory using **SQLite + FTS5 + ChromaDB** for hybrid search.
+Executive Assistant is a multi-channel AI assistant (CLI, HTTP) with long-term memory using **SQLite + FTS5 + ChromaDB** for hybrid search.
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     Channels (CLI/HTTP/Telegram)          │
+│                     Channels (CLI/HTTP)                     │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -115,10 +115,18 @@ uv run ea cli
 uv run ea http
 ```
 
-### Telegram
+## Usage
+
+### CLI
 
 ```bash
-uv run ea telegram
+uv run ea cli
+```
+
+### HTTP API
+
+```bash
+uv run ea http
 ```
 
 ## Environment Variables
@@ -156,6 +164,5 @@ src/
 ├── tools/
 │   └── progressive_disclosure.py  # Search tools
 ├── cli/main.py            # CLI interface
-├── http/main.py          # HTTP API
-└── telegram/main.py      # Telegram bot
+└── http/main.py          # HTTP API
 ```

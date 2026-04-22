@@ -1,8 +1,6 @@
 """Tests for SDK AgentState."""
 
-import os
 
-os.environ.setdefault("CHECKPOINT_ENABLED", "false")
 
 from src.sdk.messages import Message
 from src.sdk.state import AgentState

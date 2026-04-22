@@ -1,12 +1,9 @@
 """SDK conftest - shared fixtures for SDK tests."""
 
-import os
 import tempfile
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import MagicMock
 
 import pytest
-
-os.environ.setdefault("CHECKPOINT_ENABLED", "false")
 
 
 @pytest.fixture

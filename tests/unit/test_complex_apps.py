@@ -11,20 +11,71 @@ TEST_USER_ID = "test_complex_user"
 @pytest.fixture(autouse=True)
 def cleanup_test_db():
     """Clean up test database before and after each test."""
+    from src.sdk.tools_core.apps import _dbs
+
+    _dbs.clear()
     db_path = Path("data/private/apps")
     if db_path.exists():
         shutil.rmtree(db_path)
     yield
+    _dbs.clear()
     if db_path.exists():
         shutil.rmtree(db_path)
 
 
 @pytest.fixture
 def storage():
-    """Get app storage for testing."""
-    from src.sdk.tools_core.apps_storage import AppStorage
+    """Get app storage helper for testing."""
+    from src.sdk.tools_core.apps import (
+        AppSchema,
+        TableSchema,
+        _get_db,
+    )
 
-    return AppStorage(TEST_USER_ID)
+    class _AppStorageCompat:
+        """Thin compat layer matching old AppStorage interface for tests."""
+
+        def __init__(self, user_id: str):
+            self.user_id = user_id
+
+        def create_app(self, name: str, tables: dict[str, dict[str, str]]) -> AppSchema:
+            db = _get_db(name, self.user_id)
+            table_schemas: dict[str, TableSchema] = {}
+            for table_name, schema in tables.items():
+                db.create_table(table_name, schema)
+                text_columns = [
+                    col for col, ct in schema.items() if ct.upper() in ("TEXT", "LONGTEXT")
+                ]
+                chroma_columns = [col for col, ct in schema.items() if ct.upper() == "LONGTEXT"]
+                table_schemas[table_name] = TableSchema(
+                    name=table_name,
+                    columns=schema,
+                    text_columns=text_columns,
+                    chroma_columns=chroma_columns,
+                )
+            return AppSchema(name=name, tables=table_schemas)
+
+        def insert(self, app_name: str, table: str, data: dict) -> int:
+            db = _get_db(app_name, self.user_id)
+            schema = db.get_schema(table)
+            filtered = {k: v for k, v in data.items() if k in schema}
+            return db.insert(table, filtered)
+
+        def update(self, app_name: str, table: str, row_id: int, data: dict) -> bool:
+            db = _get_db(app_name, self.user_id)
+            schema = db.get_schema(table)
+            filtered = {k: v for k, v in data.items() if k in schema}
+            if not filtered:
+                return False
+            return db.update(table, row_id, filtered)
+
+        def query_sql(self, app_name: str, sql: str, params: list | None = None) -> list[dict]:
+            db = _get_db(app_name, self.user_id)
+            if sql.strip().upper().startswith("SELECT"):
+                return db.raw_query(sql, tuple(params) if params else ())
+            return []
+
+    return _AppStorageCompat(TEST_USER_ID)
 
 
 class TestComplexUseCases:

@@ -1,45 +1,45 @@
-"""Skills tools — SDK-native implementation.
+"""Skills tools -- SDK-native implementation.
 
 Skills are on-demand knowledge modules (SKILL.md files) that agents can
-load when handling specific task types. The SkillMiddleware gates access
-to skill-dependent tools.
+load when handling specific task types.
+
+Progressive disclosure flow:
+  1. Agent calls skills_list() or skills_search() to discover available skills
+  2. Agent calls skills_load(skill_name) to get full instructions
+  3. Agent uses other tools to follow the skill's instructions
+
+No skill descriptions are injected into tool definitions or system prompts.
+The agent must explicitly ask to discover skills.
 """
 
 from __future__ import annotations
 
-import threading
 from pathlib import Path
 
 from src.app_logging import get_logger
 from src.sdk.tools import ToolAnnotations, tool
-from src.skills.registry import SkillRegistry
+from src.skills.registry import SkillRegistry, get_skill_registry
 from src.storage.paths import get_paths
 
 logger = get_logger()
 
-_registries: dict[str, SkillRegistry] = {}
-_lock = threading.Lock()
-
 
 def _get_registry(user_id: str) -> SkillRegistry:
-    uid = user_id or "default"
-    with _lock:
-        if uid not in _registries:
-            _registries[uid] = SkillRegistry(system_dir="src/skills", user_id=user_id)
-        return _registries[uid]
+    return get_skill_registry(user_id=user_id)
 
 
 @tool
 def skills_list(user_id: str = "default") -> str:
-    """List all available skills with their descriptions.
+    """List available skills with one-line descriptions. Use skills_load(name) to get full instructions.
 
-    Use this to see what skills are available before loading one.
+    Call this when you need to discover what skills are available.
+    Then use skills_load(skill_name) to get full instructions for a specific skill.
 
     Args:
         user_id: User identifier
 
     Returns:
-        Formatted list of available skills
+        List of available skills with names, descriptions, and source layers
     """
     registry = _get_registry(user_id)
     skills = registry.get_all_skills()
@@ -47,14 +47,59 @@ def skills_list(user_id: str = "default") -> str:
     if not skills:
         return "No skills available."
 
-    lines = ["### Available Skills\n"]
+    lines = ["Available skills:\n"]
     for skill in skills:
-        lines.append(f"- **{skill['name']}**: {skill['description']}")
+        lines.append(f"  - {skill['name']}: {skill['description']}")
 
+    lines.append("\nUse skills_load(skill_name) to get detailed instructions.")
     return "\n".join(lines)
 
 
 skills_list.annotations = ToolAnnotations(title="List Skills", read_only=True, idempotent=True)
+
+
+@tool
+def skills_search(query: str, user_id: str = "default") -> str:
+    """Search for skills matching a query.
+
+    Use this when you're looking for skills related to a specific task or topic
+    but don't know the exact skill name.
+
+    Args:
+        query: Search terms (e.g., 'research', 'sql', 'browser')
+        user_id: User identifier
+
+    Returns:
+        Matching skills with names and descriptions
+    """
+    registry = _get_registry(user_id)
+    skills = registry.get_all_skills()
+
+    if not skills:
+        return "No skills available."
+
+    query_lower = query.lower()
+    matches = []
+    for skill in skills:
+        name = skill["name"].lower()
+        description = skill.get("description", "").lower()
+        content = skill.get("content", "").lower()
+        if query_lower in name or query_lower in description or query_lower in content:
+            matches.append(skill)
+
+    if not matches:
+        all_names = ", ".join(s["name"] for s in skills)
+        return f"No skills matching '{query}'. Available skills: {all_names}"
+
+    lines = [f"Skills matching '{query}':\n"]
+    for skill in matches:
+        lines.append(f"  - {skill['name']}: {skill['description']}")
+
+    lines.append("\nUse skills_load(skill_name) to get detailed instructions.")
+    return "\n".join(lines)
+
+
+skills_search.annotations = ToolAnnotations(title="Search Skills", read_only=True, idempotent=True)
 
 
 @tool
@@ -66,7 +111,7 @@ def skills_load(skill_name: str, user_id: str = "default") -> str:
     policies, and guidelines for the skill area.
 
     Args:
-        skill_name: The name of the skill to load (e.g., 'pdf-processing', 'sql-analytics')
+        skill_name: The name of the skill to load (e.g., 'deep-research', 'planning-with-files')
         user_id: User identifier
 
     Returns:
@@ -166,7 +211,7 @@ def sql_write_query(query: str, database: str, user_id: str = "default") -> str:
             f"Use skills_load('{database}') to load the database schema."
         )
 
-    return f"SQL Query for {database}:\n\n```sql\n{query}\n```\n\n✓ Query validated against {database} schema"
+    return f"SQL Query for {database}:\n\n```sql\n{query}\n```\n\nQuery validated against {database} schema"
 
 
 sql_write_query.annotations = ToolAnnotations(title="Write SQL Query", open_world=True)

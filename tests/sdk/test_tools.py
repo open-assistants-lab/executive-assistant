@@ -1,10 +1,7 @@
 """Tests for SDK tool system — @tool decorator, ToolDefinition, ToolRegistry."""
 
-import os
 
 import pytest
-
-os.environ.setdefault("CHECKPOINT_ENABLED", "false")
 
 from src.sdk.tools import ToolDefinition, ToolRegistry, tool
 

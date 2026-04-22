@@ -1,8 +1,8 @@
 """SDK-native tools registry.
 
 This module serves as the single source of truth for all SDK-native tools.
-Tools are registered here as they are migrated from LangChain (@tool from
-langchain_core.tools) to the SDK @tool decorator (from src.sdk.tools).
+Tools are registered here as they are migrated to the SDK @tool decorator
+(from src.sdk.tools).
 
 The runner's _build_tool_list() calls get_native_tools() which returns all
 registered ToolDefinitions. Native tools take priority over adapted LangChain
@@ -96,19 +96,18 @@ from src.sdk.tools_core.skills import (
     skill_create,
     skills_list,
     skills_load,
+    skills_search,
     sql_write_query,
 )
 from src.sdk.tools_core.subagent import (
-    subagent_batch,
+    subagent_cancel,
     subagent_create,
     subagent_delete,
+    subagent_instruct,
     subagent_invoke,
     subagent_list,
     subagent_progress,
-    subagent_schedule,
-    subagent_schedule_cancel,
-    subagent_schedule_list,
-    subagent_validate,
+    subagent_update,
 )
 from src.sdk.tools_core.time import time_get
 
@@ -190,20 +189,19 @@ def _register_all() -> None:
 
     registry.register(subagent_create)
     registry.register(subagent_invoke)
-    registry.register(subagent_batch)
     registry.register(subagent_list)
     registry.register(subagent_progress)
-    registry.register(subagent_validate)
-    registry.register(subagent_schedule)
-    registry.register(subagent_schedule_cancel)
-    registry.register(subagent_schedule_list)
+    registry.register(subagent_instruct)
+    registry.register(subagent_cancel)
     registry.register(subagent_delete)
+    registry.register(subagent_update)
 
     registry.register(mcp_list)
     registry.register(mcp_reload)
     registry.register(mcp_tools)
 
     registry.register(skills_list)
+    registry.register(skills_search)
     registry.register(skills_load)
     registry.register(skill_create)
     registry.register(sql_write_query)

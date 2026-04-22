@@ -18,10 +18,7 @@ services:
       # Cloud: set FIRECRAWL_API_KEY (get from firecrawl.dev)
       FIRECRAWL_BASE_URL: ${FIRECRAWL_BASE_URL:-}
       FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
-      
-      # Telegram Bot (get from @BotFather)
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
-      
+
       # Database (we use SQLite per-user)
       DATA_DIR: /app/data
       

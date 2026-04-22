@@ -99,7 +99,7 @@ class LongMemEvalAdapter:
         conn.commit()
         conn.close()
 
-        from src.sdk.tools_core.apps_storage import get_embedding
+        from src.sdk.tools_core.apps import get_embedding
 
         embedding = get_embedding(content)
         self.store.collection.add(

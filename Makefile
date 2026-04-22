@@ -1,4 +1,4 @@
-.PHONY: help db-up db-down db-logs ea cli http telegram test
+.PHONY: help db-up db-down db-logs ea cli http test
 
 help:
 	@echo "Executive Assistant - Make Commands"
@@ -11,7 +11,6 @@ help:
 	@echo "Run Commands:"
 	@echo "  make ea cli      - Start CLI"
 	@echo "  make ea http    - Start HTTP server"
-	@echo "  make ea telegram - Start Telegram bot"
 	@echo ""
 	@echo "Test:"
 	@echo "  make test        - Run tests"
@@ -30,9 +29,6 @@ ea cli:
 
 ea http:
 	uv run ea http
-
-ea telegram:
-	uv run ea telegram
 
 test:
 	uv run pytest

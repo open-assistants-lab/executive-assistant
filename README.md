@@ -1,6 +1,6 @@
 # Executive Assistant
 
-A general purpose executive assistant agent built with LangChain and LangGraph, with multi-channel support (HTTP, CLI, Telegram).
+A general purpose executive assistant agent built with LangChain and LangGraph, with multi-channel support (HTTP, CLI).
 
 ## Features
 
@@ -167,7 +167,6 @@ data/users/{user_id}/apps/
 
 - **HTTP API** - FastAPI server on port 8080 (`/message`, `/message/stream`, `/health`, `/health/ready`)
 - **CLI** - Interactive command-line interface with streaming output
-- **Telegram** - Telegram bot integration (polling and webhook modes)
 
 ## Quick Start
 
@@ -175,7 +174,7 @@ data/users/{user_id}/apps/
 
 ```bash
 # Install with all dependencies
-uv pip install -e ".[cli,http,telegram,dev]"
+uv pip install -e ".[cli,http,dev]"
 ```
 
 ### Running
@@ -186,9 +185,6 @@ uv run ea http
 
 # Start CLI
 uv run ea cli
-
-# Start Telegram bot
-uv run ea telegram
 ```
 
 ### HTTP API
@@ -330,13 +326,6 @@ FIRECRAWL_API_KEY=
 LANGFUSE_PUBLIC_KEY=
 LANGFUSE_SECRET_KEY=
 LANGFUSE_HOST=
-
-# Telegram
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_MODE=polling
-# TELEGRAM_MODE=webhook
-# TELEGRAM_WEBHOOK_URL=https://your-domain.example
-# TELEGRAM_SECRET=your-webhook-secret
 # WEBHOOK_HOST=0.0.0.0
 # WEBHOOK_PORT=8080
 ```

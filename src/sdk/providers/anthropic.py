@@ -16,7 +16,7 @@ from uuid import uuid4
 
 import httpx
 
-from src.sdk.messages import Message, StreamChunk, ToolCall
+from src.sdk.messages import Message, StreamChunk, ToolCall, Usage
 from src.sdk.providers.base import LLMProvider, ModelInfo
 from src.sdk.tools import ToolDefinition
 
@@ -155,7 +155,18 @@ class AnthropicProvider(LLMProvider):
         stop_reason = data.get("stop_reason", "")
         if stop_reason == "tool_use" and not tool_calls:
             pass
-        result = Message.assistant(content=content, tool_calls=tool_calls)
+
+        usage = None
+        raw_usage = data.get("usage")
+        if raw_usage:
+            usage = Usage(
+                input_tokens=raw_usage.get("input_tokens", 0),
+                output_tokens=raw_usage.get("output_tokens", 0),
+                cache_read_tokens=raw_usage.get("cache_read_input_tokens", 0),
+                cache_creation_tokens=raw_usage.get("cache_creation_input_tokens", 0),
+            )
+
+        result = Message.assistant(content=content, tool_calls=tool_calls, usage=usage)
         if reasoning:
             result.reasoning = reasoning
         return result
@@ -256,6 +267,33 @@ class AnthropicProvider(LLMProvider):
             else:
                 events.append(StreamChunk.text_end())
                 events.append(StreamChunk.reasoning_end())
+
+        elif event_type == "message_start":
+            msg_data = data.get("message", {})
+            raw_usage = msg_data.get("usage")
+            if raw_usage:
+                events.append(
+                    StreamChunk.usage_event(
+                        Usage(
+                            input_tokens=raw_usage.get("input_tokens", 0),
+                            output_tokens=raw_usage.get("output_tokens", 0),
+                            cache_read_tokens=raw_usage.get("cache_read_input_tokens", 0),
+                            cache_creation_tokens=raw_usage.get("cache_creation_input_tokens", 0),
+                        )
+                    )
+                )
+
+        elif event_type == "message_delta":
+            delta_usage = data.get("usage", {})
+            if delta_usage:
+                events.append(
+                    StreamChunk.usage_event(
+                        Usage(
+                            input_tokens=0,
+                            output_tokens=delta_usage.get("output_tokens", 0),
+                        )
+                    )
+                )
 
         elif event_type == "message_stop":
             events.append(StreamChunk.done())

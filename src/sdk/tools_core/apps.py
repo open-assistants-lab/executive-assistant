@@ -1,25 +1,142 @@
 """App tools — SDK-native implementation.
 
-Structured data apps using SQLite + FTS5 + ChromaDB for full-text
-and semantic search. Each app has tables with typed columns, and
-TEXT columns automatically get FTS5 + vector search.
+Structured data apps using HybridDB (SQLite + FTS5 + ChromaDB) for
+full-text and semantic search. Each app has tables with typed columns,
+and TEXT columns automatically get FTS5 + vector search.
 """
 
 from __future__ import annotations
 
+import os
 import re
+import shutil
+from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from src.app_logging import get_logger
+from src.sdk.hybrid_db import HybridDB, SearchMode, _hash_embedding
 from src.sdk.tools import ToolAnnotations, tool
-from src.sdk.tools_core.apps_storage import AppStorage
+from src.storage.paths import get_paths
 
 logger = get_logger()
 
+MODEL_CACHE_DIR = Path(os.path.expanduser("~")) / ".cache" / "sentence-transformers"
+EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+EMBEDDING_DIM = 384
 
-def _get_storage(user_id: str) -> AppStorage:
-    return AppStorage(user_id)
+_embedding_model = None
+
+
+def _get_embedding_model():
+    global _embedding_model
+    if _embedding_model is None:
+        try:
+            from sentence_transformers import SentenceTransformer
+
+            _embedding_model = SentenceTransformer(
+                EMBEDDING_MODEL,
+                cache_folder=str(MODEL_CACHE_DIR),
+            )
+        except Exception:
+            _embedding_model = None
+    return _embedding_model
+
+
+def get_embedding(text: str) -> list[float]:
+    if not text:
+        return [0.0] * EMBEDDING_DIM
+    model = _get_embedding_model()
+    if model is not None:
+        try:
+            embedding = model.encode(str(text), show_progress_bar=False)
+            return embedding.tolist()
+        except Exception:
+            pass
+    return _hash_embedding(text)
+
+
+@dataclass
+class TableSchema:
+    name: str
+    columns: dict[str, str]
+    text_columns: list[str] = field(default_factory=list)
+    chroma_columns: list[str] = field(default_factory=list)
+
+
+@dataclass
+class AppSchema:
+    name: str
+    tables: dict[str, TableSchema]
+
+
+_dbs: dict[str, HybridDB] = {}
+
+
+def _get_base_path(user_id: str) -> Path:
+    return get_paths(user_id).apps_dir()
+
+
+def _sanitize_app_name(name: str) -> str:
+    return "".join(c if c.isalnum() or c == "_" else "_" for c in name.lower())
+
+
+def _get_app_path(app_name: str, user_id: str) -> Path:
+    base = _get_base_path(user_id)
+    base.mkdir(parents=True, exist_ok=True)
+    safe_name = _sanitize_app_name(app_name)
+    app_path = base / safe_name
+    app_path.mkdir(parents=True, exist_ok=True)
+    return app_path
+
+
+def _get_db(app_name: str, user_id: str) -> HybridDB:
+    key = f"{user_id}:{app_name}"
+    if key not in _dbs:
+        app_path = _get_app_path(app_name, user_id)
+        _dbs[key] = HybridDB(
+            str(app_path),
+            embedding_model_name=EMBEDDING_MODEL,
+        )
+    return _dbs[key]
+
+
+def _get_schema(app_name: str, user_id: str) -> AppSchema | None:
+    db = _get_db(app_name, user_id)
+    tables = db.list_tables()
+    if not tables:
+        return None
+    table_schemas = {}
+    for tname in tables:
+        cols = db.get_schema(tname)
+        text_cols = [c for c, ct in cols.items() if ct in ("TEXT", "LONGTEXT")]
+        chroma_cols = [c for c, ct in cols.items() if ct == "LONGTEXT"]
+        table_schemas[tname] = TableSchema(
+            name=tname,
+            columns=cols,
+            text_columns=text_cols,
+            chroma_columns=chroma_cols,
+        )
+    return AppSchema(name=app_name, tables=table_schemas)
+
+
+def _list_apps(user_id: str) -> list[str]:
+    base = _get_base_path(user_id)
+    apps = []
+    for db_file in base.glob("*/app.db"):
+        apps.append(db_file.parent.name)
+    return apps
+
+
+def _delete_app(app_name: str, user_id: str) -> bool:
+    app_path = _get_app_path(app_name, user_id)
+    key = f"{user_id}:{app_name}"
+    _dbs.pop(key, None)
+    if app_path.exists():
+        shutil.rmtree(app_path)
+        return True
+    return False
 
 
 @tool
@@ -36,11 +153,22 @@ def app_create(name: str, tables: dict[str, dict[str, str]], user_id: str = "def
         Success message with app details
     """
     try:
-        storage = _get_storage(user_id)
-        app_schema = storage.create_app(name, tables)
+        db = _get_db(name, user_id)
+        table_schemas: dict[str, TableSchema] = {}
+
+        for table_name, schema in tables.items():
+            db.create_table(table_name, schema)
+            text_columns = [col for col, ct in schema.items() if ct.upper() in ("TEXT", "LONGTEXT")]
+            chroma_columns = [col for col, ct in schema.items() if ct.upper() == "LONGTEXT"]
+            table_schemas[table_name] = TableSchema(
+                name=table_name,
+                columns=schema,
+                text_columns=text_columns,
+                chroma_columns=chroma_columns,
+            )
 
         tables_info = []
-        for tname, tschema in app_schema.tables.items():
+        for tname, tschema in table_schemas.items():
             text_cols = ", ".join(tschema.text_columns) if tschema.text_columns else "none"
             tables_info.append(f"  - {tname}: {list(tschema.columns.keys())} (text: {text_cols})")
 
@@ -64,8 +192,7 @@ def app_list(user_id: str = "default") -> str:
         List of app names
     """
     try:
-        storage = _get_storage(user_id)
-        apps = storage.list_apps()
+        apps = _list_apps(user_id)
 
         if not apps:
             return "No apps found. Create one with app_create()."
@@ -91,8 +218,7 @@ def app_schema(name: str, user_id: str = "default") -> str:
         App schema details with all tables
     """
     try:
-        storage = _get_storage(user_id)
-        schema = storage.get_schema(name)
+        schema = _get_schema(name, user_id)
 
         if not schema:
             return f"App '{name}' not found."
@@ -126,8 +252,7 @@ def app_delete(name: str, user_id: str = "default") -> str:
         Success or error message
     """
     try:
-        storage = _get_storage(user_id)
-        if storage.delete_app(name):
+        if _delete_app(name, user_id):
             return f"App '{name}' deleted successfully."
         return f"App '{name}' not found."
     except Exception as e:
@@ -152,8 +277,8 @@ def app_insert(app: str, table: str, data: dict[str, Any], user_id: str = "defau
         Success or error message
     """
     try:
-        storage = _get_storage(user_id)
-        row_id = storage.insert(app, table, data)
+        db = _get_db(app, user_id)
+        row_id = db.insert(table, data)
         return f"Inserted row {row_id} into '{app}.{table}'."
     except Exception as e:
         logger.error(
@@ -182,8 +307,8 @@ def app_update(
         Success or error message
     """
     try:
-        storage = _get_storage(user_id)
-        if storage.update(app, table, id, data):
+        db = _get_db(app, user_id)
+        if db.update(table, id, data):
             return f"Updated row {id} in '{app}.{table}'."
         return f"Row {id} not found in '{app}.{table}'."
     except Exception as e:
@@ -212,8 +337,8 @@ def app_delete_row(app: str, table: str, id: int, user_id: str = "default") -> s
         Success or error message
     """
     try:
-        storage = _get_storage(user_id)
-        if storage.delete(app, table, id):
+        db = _get_db(app, user_id)
+        if db.delete(table, id):
             return f"Deleted row {id} from '{app}.{table}'."
         return f"Row {id} not found in '{app}.{table}'."
     except Exception as e:
@@ -251,13 +376,10 @@ def app_column_add(
         Success or error message
     """
     try:
-        storage = _get_storage(user_id)
-        if storage.column_add(app, table, column, col_type, enable_search):
-            search_info = (
-                " with FTS5 search" if enable_search and col_type.upper() == "TEXT" else ""
-            )
-            return f"Added column '{column}' ({col_type}) to '{app}.{table}'{search_info}."
-        return f"Failed to add column to '{app}.{table}'."
+        db = _get_db(app, user_id)
+        db.add_column(table, column, col_type)
+        search_info = " with FTS5 search" if enable_search and col_type.upper() == "TEXT" else ""
+        return f"Added column '{column}' ({col_type}) to '{app}.{table}'{search_info}."
     except Exception as e:
         logger.error(
             "app_column_add.error",
@@ -284,10 +406,9 @@ def app_column_delete(app: str, table: str, column: str, user_id: str = "default
         Success or error message
     """
     try:
-        storage = _get_storage(user_id)
-        if storage.column_delete(app, table, column):
-            return f"Deleted column '{column}' from '{app}.{table}'."
-        return f"Column '{column}' not found in '{app}.{table}'."
+        db = _get_db(app, user_id)
+        db.drop_column(table, column)
+        return f"Deleted column '{column}' from '{app}.{table}'."
     except Exception as e:
         logger.error(
             "app_column_delete.error",
@@ -317,10 +438,9 @@ def app_column_rename(
         Success or error message
     """
     try:
-        storage = _get_storage(user_id)
-        if storage.column_rename(app, table, old_name, new_name):
-            return f"Renamed column '{old_name}' to '{new_name}' in '{app}.{table}'."
-        return f"Failed to rename column '{old_name}' in '{app}.{table}'."
+        db = _get_db(app, user_id)
+        db.rename_column(table, old_name, new_name)
+        return f"Renamed column '{old_name}' to '{new_name}' in '{app}.{table}'."
     except Exception as e:
         logger.error(
             "app_column_rename.error",
@@ -386,15 +506,18 @@ def app_query(app: str, query: str, user_id: str = "default") -> str:
         Query results
     """
     try:
-        storage = _get_storage(user_id)
-        schema = storage.get_schema(app)
+        schema = _get_schema(app, user_id)
 
         if not schema:
             return f"App '{app}' not found."
 
+        db = _get_db(app, user_id)
         query = _convert_date_in_query(query)
 
-        results = storage.query_sql(app, query)
+        if not query.strip().upper().startswith("SELECT"):
+            return "Only SELECT queries are allowed."
+
+        results = db.raw_query(query)
 
         if not results:
             return "No results found."
@@ -439,8 +562,7 @@ def app_search_fts(
         Matching rows with scores
     """
     try:
-        storage = _get_storage(user_id)
-        schema = storage.get_schema(app)
+        schema = _get_schema(app, user_id)
 
         if not schema:
             return f"App '{app}' not found."
@@ -456,7 +578,8 @@ def app_search_fts(
         if "TEXT" not in col_type:
             return f"Column '{column}' is '{col_type}', not TEXT. FTS5 only works on TEXT columns."
 
-        results = storage.search_fts(app, table, column, query, limit=limit)
+        db = _get_db(app, user_id)
+        results = db.search(table, column, query, mode=SearchMode.KEYWORD, limit=limit)
 
         if not results:
             return f"No results found for '{query}' in {table}.{column}"
@@ -503,8 +626,7 @@ def app_search_semantic(
         Matching rows ranked by semantic similarity
     """
     try:
-        storage = _get_storage(user_id)
-        schema = storage.get_schema(app)
+        schema = _get_schema(app, user_id)
 
         if not schema:
             return f"App '{app}' not found."
@@ -520,7 +642,8 @@ def app_search_semantic(
         if "TEXT" not in col_type:
             return f"Column '{column}' is '{col_type}', not TEXT. Semantic search only works on TEXT columns."
 
-        results = storage.search_semantic(app, table, column, query, limit=limit)
+        db = _get_db(app, user_id)
+        results = db.search(table, column, query, mode=SearchMode.SEMANTIC, limit=limit)
 
         if not results:
             return f"No semantic results found for '{query}' in {table}.{column}"
@@ -575,8 +698,7 @@ def app_search_hybrid(
         Matching rows ranked by combined keyword + semantic similarity
     """
     try:
-        storage = _get_storage(user_id)
-        schema = storage.get_schema(app)
+        schema = _get_schema(app, user_id)
 
         if not schema:
             return f"App '{app}' not found."
@@ -592,8 +714,9 @@ def app_search_hybrid(
         if "TEXT" not in col_type:
             return f"Column '{column}' is '{col_type}', not TEXT. Hybrid search only works on TEXT columns."
 
-        results = storage.search_hybrid(
-            app, table, column, query, limit=limit, fts_weight=fts_weight
+        db = _get_db(app, user_id)
+        results = db.search(
+            table, column, query, mode=SearchMode.HYBRID, limit=limit, fts_weight=fts_weight
         )
 
         if not results:

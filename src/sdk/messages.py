@@ -1,7 +1,6 @@
 """Message types for the agent SDK.
 
-Unified message types: Message, ToolCall, StreamChunk.
-Replaces LangChain's AIMessage, HumanMessage, SystemMessage, ToolMessage.
+Unified message types: Message, ToolCall, StreamChunk, Usage.
 """
 
 from __future__ import annotations
@@ -62,11 +61,18 @@ class ToolCall(BaseModel):
 Role = Literal["system", "user", "assistant", "tool"]
 
 
-class Message(BaseModel):
-    """Unified message type for the agent SDK.
+class Usage(BaseModel):
+    """Token usage from a single LLM call."""
 
-    Replaces AIMessage, HumanMessage, SystemMessage, ToolMessage.
-    """
+    input_tokens: int = 0
+    output_tokens: int = 0
+    reasoning_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_creation_tokens: int = 0
+
+
+class Message(BaseModel):
+    """Unified message type for the agent SDK."""
 
     role: Role
     content: str | list[dict[str, Any]] = ""
@@ -75,6 +81,7 @@ class Message(BaseModel):
     name: str | None = None
     reasoning: str | None = None
     provider_metadata: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    usage: Usage | None = None
 
     model_config = {"extra": "allow"}
 
@@ -93,6 +100,7 @@ class Message(BaseModel):
         tool_calls: list[ToolCall] | None = None,
         reasoning: str | None = None,
         provider_metadata: dict[str, dict[str, Any]] | None = None,
+        usage: Usage | None = None,
     ) -> Message:
         return cls(
             role="assistant",
@@ -100,6 +108,7 @@ class Message(BaseModel):
             tool_calls=tool_calls or [],
             reasoning=reasoning,
             provider_metadata=provider_metadata or {},
+            usage=usage,
         )
 
     @classmethod
@@ -199,12 +208,14 @@ StreamEventType = Literal[
     "tool_end",
     "reasoning",
     "tool_result",
+    "usage",
 ]
 
 _COMPAT_ALIAS_MAP: dict[str, str] = {
     "ai_token": "text_delta",
     "tool_start": "tool_input_start",
     "reasoning": "reasoning_delta",
+    "usage": "usage",
 }
 
 
@@ -231,6 +242,7 @@ class StreamChunk(BaseModel):
     args: dict[str, Any] | None = None
     result_preview: str | None = None
     tool_calls: list[dict] | None = None
+    usage: Usage | None = None
 
     @classmethod
     def text_start(cls) -> StreamChunk:
@@ -299,6 +311,10 @@ class StreamChunk(BaseModel):
     @classmethod
     def error(cls, message: str) -> StreamChunk:
         return cls(type="error", content=message)
+
+    @classmethod
+    def usage_event(cls, usage: Usage) -> StreamChunk:
+        return cls(type="usage", usage=usage)
 
     @property
     def canonical_type(self) -> str:
@@ -380,4 +396,15 @@ class StreamChunk(BaseModel):
             return DoneMessage(response=self.content, tool_calls=self.tool_calls or []).model_dump()
         if self.type == "error":
             return ErrorMessage(message=self.content).model_dump()
+        if self.type == "usage":
+            if self.usage:
+                return {
+                    "type": "usage",
+                    "input_tokens": self.usage.input_tokens,
+                    "output_tokens": self.usage.output_tokens,
+                    "reasoning_tokens": self.usage.reasoning_tokens,
+                    "cache_read_tokens": self.usage.cache_read_tokens,
+                    "cache_creation_tokens": self.usage.cache_creation_tokens,
+                }
+            return {"type": "usage"}
         return {"type": self.type, "content": self.content}

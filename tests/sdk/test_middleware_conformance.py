@@ -3,13 +3,9 @@
 Verify that SDK middleware produces consistent observable effects.
 """
 
-import os
-import tempfile
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, patch
-
-os.environ.setdefault("CHECKPOINT_ENABLED", "false")
-
 
 # ==================== SDK Middleware Tests ====================
 
@@ -41,9 +37,9 @@ class TestSDKMemoryMiddleware:
         assert callable(mw.after_agent)
 
     def test_sdk_memory_before_agent_injects_context(self):
+        from src.sdk.messages import Message
         from src.sdk.middleware_memory import MemoryMiddleware
         from src.sdk.state import AgentState
-        from src.sdk.messages import Message
 
         mw = MemoryMiddleware(user_id="test_sdk_memory_inject")
         mw.memory_store = MagicMock()
@@ -59,9 +55,9 @@ class TestSDKMemoryMiddleware:
         assert "User Profile" in result["messages"][0].content
 
     def test_sdk_memory_before_agent_no_context(self):
+        from src.sdk.messages import Message
         from src.sdk.middleware_memory import MemoryMiddleware
         from src.sdk.state import AgentState
-        from src.sdk.messages import Message
 
         mw = MemoryMiddleware(user_id="test_sdk_memory_noctx")
         mw.memory_store = MagicMock()
@@ -85,8 +81,8 @@ class TestSDKMemoryMiddleware:
         assert EXTRACTION_TURN_INTERVAL >= 1
 
     def test_sdk_memory_should_extract_every_n_turns(self):
-        from src.sdk.middleware_memory import MemoryMiddleware, EXTRACTION_TURN_INTERVAL
         from src.sdk.messages import Message
+        from src.sdk.middleware_memory import EXTRACTION_TURN_INTERVAL, MemoryMiddleware
 
         mw = MemoryMiddleware(user_id="test_sdk_extract")
 
@@ -95,9 +91,9 @@ class TestSDKMemoryMiddleware:
             assert mw._should_extract(msgs) == (turn % EXTRACTION_TURN_INTERVAL == 0)
 
     def test_sdk_memory_after_agent_returns_none_on_no_extract(self):
+        from src.sdk.messages import Message
         from src.sdk.middleware_memory import MemoryMiddleware
         from src.sdk.state import AgentState
-        from src.sdk.messages import Message
 
         mw = MemoryMiddleware(user_id="test_sdk_after")
         mw._should_extract = lambda msgs: False
@@ -105,66 +101,6 @@ class TestSDKMemoryMiddleware:
         state = AgentState(messages=[Message.user("hello")])
         result = mw.after_agent(state)
         assert result is None
-
-
-class TestSDKSkillMiddleware:
-    """SDK SkillMiddleware must produce consistent behavior."""
-
-    def test_sdk_skill_middleware_init(self):
-        from src.sdk.middleware_skill import SkillMiddleware
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            mw = SkillMiddleware(system_dir=tmpdir, user_id="test_user")
-            assert mw is not None
-            assert mw.registry is not None
-
-    def test_sdk_skill_extends_middleware(self):
-        from src.sdk.middleware import Middleware
-        from src.sdk.middleware_skill import SkillMiddleware
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            mw = SkillMiddleware(system_dir=tmpdir, user_id="test_user")
-            assert isinstance(mw, Middleware)
-
-    def test_sdk_skill_empty_prompt_when_no_skills(self):
-        from src.sdk.middleware_skill import SkillMiddleware
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            mw = SkillMiddleware(system_dir=tmpdir, user_id="test_user")
-            prompt = mw._build_skills_prompt()
-            assert prompt == ""
-
-    def test_sdk_skill_before_agent_injects_prompt(self):
-        from src.sdk.middleware_skill import SkillMiddleware
-        from src.sdk.state import AgentState
-        from src.sdk.messages import Message
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            mw = SkillMiddleware(system_dir=tmpdir, user_id="test_user")
-            mw.registry = MagicMock()
-            mw.registry.get_skill_descriptions.return_value = ["- **test_skill**: A test skill"]
-
-            state = AgentState(messages=[Message.system("You are helpful.")])
-            result = mw.before_agent(state)
-
-            assert result is not None
-            assert "messages" in result
-            assert "Available Skills" in result["messages"][0].content
-
-    def test_sdk_skill_before_agent_no_system_message(self):
-        from src.sdk.middleware_skill import SkillMiddleware
-        from src.sdk.state import AgentState
-        from src.sdk.messages import Message
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            mw = SkillMiddleware(system_dir=tmpdir, user_id="test_user")
-            mw.registry = MagicMock()
-            mw.registry.get_skill_descriptions.return_value = ["- **test_skill**: A test skill"]
-
-            state = AgentState(messages=[Message.user("hello")])
-            result = mw.before_agent(state)
-
-            assert result is None
 
 
 class TestSDKSummarizationMiddleware:
@@ -199,9 +135,9 @@ class TestSDKSummarizationMiddleware:
         assert count > 0
 
     def test_sdk_summarization_below_threshold(self):
+        from src.sdk.messages import Message
         from src.sdk.middleware_summarization import SummarizationMiddleware
         from src.sdk.state import AgentState
-        from src.sdk.messages import Message
 
         mw = SummarizationMiddleware(trigger_tokens=50000, keep_tokens=1000)
         state = AgentState(
@@ -215,9 +151,9 @@ class TestSDKSummarizationMiddleware:
 
     @pytest.mark.asyncio
     async def test_sdk_summarization_duplicate_prevention(self):
+        from src.sdk.messages import Message
         from src.sdk.middleware_summarization import SummarizationMiddleware
         from src.sdk.state import AgentState
-        from src.sdk.messages import Message
 
         mw = SummarizationMiddleware(trigger_tokens=50000, keep_tokens=1000)
         mw._last_summary_msg_count = 100
@@ -242,8 +178,8 @@ class TestSDKSummarizationMiddleware:
         assert mw._on_summarize is not None
 
     def test_sdk_summarization_message_token_counting(self):
-        from src.sdk.middleware_summarization import SummarizationMiddleware
         from src.sdk.messages import Message, ToolCall
+        from src.sdk.middleware_summarization import SummarizationMiddleware
 
         mw = SummarizationMiddleware(trigger_tokens=8000, keep_tokens=2000)
 
@@ -265,12 +201,12 @@ class TestWSProtocolConformance:
     def test_client_message_roundtrip(self):
         """All client message types must serialize and parse correctly."""
         from src.http.ws_protocol import (
-            UserMessage,
             ApproveMessage,
-            RejectMessage,
-            EditAndApproveMessage,
             CancelMessage,
+            EditAndApproveMessage,
             PingMessage,
+            RejectMessage,
+            UserMessage,
             parse_client_message,
         )
 
@@ -292,12 +228,12 @@ class TestWSProtocolConformance:
         """All server message types must serialize and parse correctly."""
         from src.http.ws_protocol import (
             AiTokenMessage,
-            ToolStartMessage,
-            ToolEndMessage,
-            InterruptMessage,
             DoneMessage,
             ErrorMessage,
+            InterruptMessage,
             PongMessage,
+            ToolEndMessage,
+            ToolStartMessage,
             parse_server_message,
         )
 

@@ -1,6 +1,5 @@
 """Middleware base class for the agent SDK.
 
-Drop-in replacement for langchain.agents.middleware.AgentMiddleware.
 Simpler: no Runtime parameter, no hook_config decorator, no generic type parameters.
 
 Middleware hooks execute in order during the agent loop:

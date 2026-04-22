@@ -13,7 +13,7 @@ from uuid import uuid4
 
 import httpx
 
-from src.sdk.messages import Message, StreamChunk, ToolCall
+from src.sdk.messages import Message, StreamChunk, ToolCall, Usage
 from src.sdk.providers.base import LLMProvider, ModelInfo
 from src.sdk.tools import ToolDefinition
 
@@ -76,7 +76,16 @@ class OllamaLocal(LLMProvider):
         content = msg.get("content") or ""
         tool_calls_data = msg.get("tool_calls", [])
         parsed_tcs = [ToolCall.from_openai(tc) for tc in tool_calls_data]
-        return Message.assistant(content=content, tool_calls=parsed_tcs)
+
+        usage = None
+        raw_usage = data.get("usage")
+        if raw_usage:
+            usage = Usage(
+                input_tokens=raw_usage.get("prompt_tokens", 0),
+                output_tokens=raw_usage.get("completion_tokens", 0),
+            )
+
+        return Message.assistant(content=content, tool_calls=parsed_tcs, usage=usage)
 
     def _parse_stream_chunk(
         self, data: dict, current_tool_calls: dict[int, dict]
@@ -137,6 +146,17 @@ class OllamaLocal(LLMProvider):
                 )
             chunks.append(StreamChunk.done())
             current_tool_calls.clear()
+
+        raw_usage = data.get("usage")
+        if raw_usage:
+            chunks.append(
+                StreamChunk.usage_event(
+                    Usage(
+                        input_tokens=raw_usage.get("prompt_tokens", 0),
+                        output_tokens=raw_usage.get("completion_tokens", 0),
+                    )
+                )
+            )
 
         return chunks
 
@@ -276,7 +296,21 @@ class OllamaCloud(LLMProvider):
                     arguments=args,
                 )
             )
-        result = Message.assistant(content=content, tool_calls=parsed_tcs)
+
+        usage = None
+        raw_usage = data.get("usage") or data.get("eval_count")
+        if isinstance(raw_usage, dict):
+            usage = Usage(
+                input_tokens=raw_usage.get("prompt_tokens", 0),
+                output_tokens=raw_usage.get("completion_tokens", 0),
+            )
+        elif isinstance(raw_usage, int) and "prompt_eval_count" in data:
+            usage = Usage(
+                input_tokens=data.get("prompt_eval_count", 0),
+                output_tokens=raw_usage,
+            )
+
+        result = Message.assistant(content=content, tool_calls=parsed_tcs, usage=usage)
         if reasoning:
             result.reasoning = reasoning
         return result
@@ -352,6 +386,31 @@ class OllamaCloud(LLMProvider):
                     )
                 )
             current_tool_calls.clear()
+
+            raw_usage = data.get("usage") or {}
+            if raw_usage:
+                chunks.append(
+                    StreamChunk.usage_event(
+                        Usage(
+                            input_tokens=raw_usage.get(
+                                "prompt_tokens", data.get("prompt_eval_count", 0)
+                            ),
+                            output_tokens=raw_usage.get(
+                                "completion_tokens", data.get("eval_count", 0)
+                            ),
+                        )
+                    )
+                )
+            elif "prompt_eval_count" in data or "eval_count" in data:
+                chunks.append(
+                    StreamChunk.usage_event(
+                        Usage(
+                            input_tokens=data.get("prompt_eval_count", 0),
+                            output_tokens=data.get("eval_count", 0),
+                        )
+                    )
+                )
+
             chunks.append(StreamChunk.done(content=content))
         else:
             if thinking:

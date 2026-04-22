@@ -4,10 +4,7 @@ These tests verify agent behavior through direct Python calls,
 not through the HTTP API. For API-level tests, see tests/api/test_agent_loop.py.
 """
 
-import os
-import pytest
 
-os.environ.setdefault("CHECKPOINT_ENABLED", "false")
 
 
 class TestAgentLoopBasic:
@@ -31,8 +28,9 @@ class TestAgentLoopBasic:
 
     def test_agent_loop_constructor(self):
         """AgentLoop must be constructable with provider and tools."""
-        from src.sdk.loop import AgentLoop
         from unittest.mock import MagicMock
+
+        from src.sdk.loop import AgentLoop
 
         provider = MagicMock()
         loop = AgentLoop(provider=provider, tools=[], system_prompt="test")
@@ -44,7 +42,7 @@ class TestAgentLoopWSProtocol:
 
     def test_ws_protocol_covers_all_event_types(self):
         """WS protocol must define types for all agent events."""
-        from src.http.ws_protocol import SERVER_MESSAGE_TYPES, CLIENT_MESSAGE_TYPES
+        from src.http.ws_protocol import CLIENT_MESSAGE_TYPES, SERVER_MESSAGE_TYPES
 
         expected_server_types = {
             "ai_token",

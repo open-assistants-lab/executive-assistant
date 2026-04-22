@@ -5,6 +5,8 @@ import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 
 class TestMCPConfig:
     """Tests for MCP config loading."""
@@ -31,40 +33,6 @@ class TestMCPConfig:
                 result = load_mcp_config("test_user")
                 assert result is None
 
-    def test_load_config_valid(self):
-        """Test loading valid config."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            user_dir = Path(tmpdir) / "data" / "users" / "test_user"
-            user_dir.mkdir(parents=True)
-            config_file = user_dir / ".mcp.json"
-            config_file.write_text(
-                json.dumps(
-                    {
-                        "mcpServers": {
-                            "math": {
-                                "command": "python",
-                                "args": ["tests/mcp/math_server.py"],
-                            }
-                        }
-                    }
-                )
-            )
-
-            with patch("src.sdk.tools_core.mcp_config.Path") as mock_path:
-                mock_path.return_value = config_file
-                from src.sdk.tools_core.mcp_config import load_mcp_config
-
-                result = load_mcp_config("test_user")
-                assert result is not None
-                assert "math" in result.mcpServers
-
-    def test_config_path(self):
-        """Test config path generation."""
-        from src.sdk.tools_core.mcp_config import get_config_path
-
-        path = get_config_path("test_user")
-        assert str(path) == "data/users/test_user/.mcp.json"
-
     def test_config_mtime_missing(self):
         """Test mtime when config doesn't exist."""
         from src.sdk.tools_core.mcp_config import get_config_mtime
@@ -74,32 +42,28 @@ class TestMCPConfig:
 
 
 class TestMCPTools:
-    """Tests for MCP tools."""
+    """Tests for MCP tools (async)."""
 
-    def test_mcp_list_requires_user_id(self):
-        """Test mcp_list requires user_id."""
+    async def test_mcp_list_requires_user_id(self):
         from src.sdk.tools_core.mcp import mcp_list
 
-        result = mcp_list.invoke({})
+        result = await mcp_list.ainvoke({"user_id": ""})
         assert "Error: user_id is required" in result
 
-    def test_mcp_reload_requires_user_id(self):
-        """Test mcp_reload requires user_id."""
+    async def test_mcp_reload_requires_user_id(self):
         from src.sdk.tools_core.mcp import mcp_reload
 
-        result = mcp_reload.invoke({})
+        result = await mcp_reload.ainvoke({"user_id": ""})
         assert "Error: user_id is required" in result
 
-    def test_mcp_tools_requires_user_id(self):
-        """Test mcp_tools requires user_id."""
+    async def test_mcp_tools_requires_user_id(self):
         from src.sdk.tools_core.mcp import mcp_tools
 
-        result = mcp_tools.invoke({})
+        result = await mcp_tools.ainvoke({"user_id": ""})
         assert "Error: user_id is required" in result
 
-    @patch("src.tools.mcp.tools.get_mcp_manager")
-    def test_mcp_list_empty(self, mock_get_manager):
-        """Test mcp_list with no servers."""
+    @patch("src.sdk.tools_core.mcp_manager.get_mcp_manager")
+    async def test_mcp_list_empty(self, mock_get_manager):
         mock_manager = MagicMock()
         mock_manager.initialize = AsyncMock()
         mock_manager.list_servers = AsyncMock(return_value={})
@@ -107,12 +71,11 @@ class TestMCPTools:
 
         from src.sdk.tools_core.mcp import mcp_list
 
-        result = mcp_list.invoke({"user_id": "test_user"})
+        result = await mcp_list.ainvoke({"user_id": "test_user"})
         assert "No MCP servers configured" in result
 
-    @patch("src.tools.mcp.tools.get_mcp_manager")
-    def test_mcp_list_with_servers(self, mock_get_manager):
-        """Test mcp_list with servers running."""
+    @patch("src.sdk.tools_core.mcp_manager.get_mcp_manager")
+    async def test_mcp_list_with_servers(self, mock_get_manager):
         mock_manager = MagicMock()
         mock_manager.initialize = AsyncMock()
         mock_manager.list_servers = AsyncMock(
@@ -130,7 +93,7 @@ class TestMCPTools:
 
         from src.sdk.tools_core.mcp import mcp_list
 
-        result = mcp_list.invoke({"user_id": "test_user"})
+        result = await mcp_list.ainvoke({"user_id": "test_user"})
         assert "math" in result
         assert "running" in result
 

@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.sdk.messages import Message, StreamChunk, ToolCall
+from src.sdk.messages import Message, StreamChunk, ToolCall, Usage
 from src.sdk.providers.base import LLMProvider, ModelInfo
 from src.sdk.providers.factory import (
     create_model_from_config,
@@ -541,3 +541,202 @@ class TestMessageConversion:
         fmt = AnthropicProvider._to_anthropic_tool(tool_defs[0])
         assert fmt["name"] == "time_get"
         assert "input_schema" in fmt
+
+
+class TestOpenAIUsageExtraction:
+    def test_parse_response_extracts_usage(self):
+        p = OpenAIProvider(api_key="test")
+        data = MagicMock()
+        data.choices = [MagicMock()]
+        data.choices[0].message.content = "Hello"
+        data.choices[0].message.tool_calls = None
+        data.usage.prompt_tokens = 100
+        data.usage.completion_tokens = 50
+        data.usage.completion_tokens_details = None
+        data.usage.prompt_tokens_details = None
+        msg = p._parse_response(data)
+        assert msg.usage is not None
+        assert msg.usage.input_tokens == 100
+        assert msg.usage.output_tokens == 50
+
+    def test_parse_response_no_usage(self):
+        p = OpenAIProvider(api_key="test")
+        data = MagicMock()
+        data.choices = [MagicMock()]
+        data.choices[0].message.content = "Hello"
+        data.choices[0].message.tool_calls = None
+        data.usage = None
+        msg = p._parse_response(data)
+        assert msg.usage is None
+
+    def test_stream_chunk_extracts_usage(self):
+        p = OpenAIProvider(api_key="test")
+        chunk = MagicMock()
+        chunk.choices = []
+        chunk.usage.prompt_tokens = 200
+        chunk.usage.completion_tokens = 80
+        chunk.usage.completion_tokens_details = None
+        chunk.usage.prompt_tokens_details = None
+        events = p._parse_stream_chunk(chunk, {})
+        usage_events = [e for e in events if e.type == "usage"]
+        assert len(usage_events) == 1
+        assert usage_events[0].usage.input_tokens == 200
+        assert usage_events[0].usage.output_tokens == 80
+
+
+class TestAnthropicUsageExtraction:
+    def test_parse_response_extracts_usage(self):
+        p = AnthropicProvider(api_key="test")
+        data = {
+            "content": [{"type": "text", "text": "Hello"}],
+            "stop_reason": "end_turn",
+            "usage": {"input_tokens": 150, "output_tokens": 60},
+        }
+        msg = p._parse_response(data)
+        assert msg.content == "Hello"
+        assert msg.usage is not None
+        assert msg.usage.input_tokens == 150
+        assert msg.usage.output_tokens == 60
+
+    def test_parse_response_extracts_cache_usage(self):
+        p = AnthropicProvider(api_key="test")
+        data = {
+            "content": [{"type": "text", "text": "Hello"}],
+            "stop_reason": "end_turn",
+            "usage": {
+                "input_tokens": 150,
+                "output_tokens": 60,
+                "cache_read_input_tokens": 30,
+                "cache_creation_input_tokens": 10,
+            },
+        }
+        msg = p._parse_response(data)
+        assert msg.usage.cache_read_tokens == 30
+        assert msg.usage.cache_creation_tokens == 10
+
+    def test_sse_message_start_extracts_usage(self):
+        p = AnthropicProvider(api_key="test")
+        data = {
+            "type": "message_start",
+            "message": {
+                "usage": {"input_tokens": 500, "output_tokens": 0},
+            },
+        }
+        events = p._parse_sse_event(data, {})
+        usage_events = [e for e in events if e.type == "usage"]
+        assert len(usage_events) == 1
+        assert usage_events[0].usage.input_tokens == 500
+
+    def test_sse_message_delta_extracts_usage(self):
+        p = AnthropicProvider(api_key="test")
+        data = {
+            "type": "message_delta",
+            "usage": {"output_tokens": 120},
+        }
+        events = p._parse_sse_event(data, {})
+        usage_events = [e for e in events if e.type == "usage"]
+        assert len(usage_events) == 1
+        assert usage_events[0].usage.output_tokens == 120
+
+    def test_parse_response_no_usage(self):
+        p = AnthropicProvider(api_key="test")
+        data = {
+            "content": [{"type": "text", "text": "Hello"}],
+            "stop_reason": "end_turn",
+        }
+        msg = p._parse_response(data)
+        assert msg.usage is None
+
+
+class TestGeminiUsageExtraction:
+    def test_parse_response_extracts_usage(self):
+        p = GeminiProvider(api_key="test")
+        data = {
+            "candidates": [{"content": {"parts": [{"text": "Hello"}]}}],
+            "usageMetadata": {
+                "promptTokenCount": 300,
+                "candidatesTokenCount": 70,
+                "thoughtsTokenCount": 20,
+            },
+        }
+        msg = p._parse_response(data)
+        assert msg.usage is not None
+        assert msg.usage.input_tokens == 300
+        assert msg.usage.output_tokens == 70
+        assert msg.usage.reasoning_tokens == 20
+
+    def test_stream_chunk_extracts_usage(self):
+        p = GeminiProvider(api_key="test")
+        data = {
+            "candidates": [{"content": {"parts": [{"text": "Hi"}]}, "finishReason": "STOP"}],
+            "usageMetadata": {
+                "promptTokenCount": 100,
+                "candidatesTokenCount": 40,
+            },
+        }
+        events = p._parse_stream_chunk(data, {})
+        usage_events = [e for e in events if e.type == "usage"]
+        assert len(usage_events) == 1
+        assert usage_events[0].usage.input_tokens == 100
+        assert usage_events[0].usage.output_tokens == 40
+
+
+class TestOllamaLocalUsageExtraction:
+    def test_parse_response_extracts_usage(self):
+        p = OllamaLocal()
+        data = {
+            "choices": [{"message": {"role": "assistant", "content": "Hi"}}],
+            "usage": {"prompt_tokens": 80, "completion_tokens": 30},
+        }
+        msg = p._parse_response(data)
+        assert msg.usage is not None
+        assert msg.usage.input_tokens == 80
+        assert msg.usage.output_tokens == 30
+
+    def test_parse_response_no_usage(self):
+        p = OllamaLocal()
+        data = {"choices": [{"message": {"role": "assistant", "content": "Hi"}}]}
+        msg = p._parse_response(data)
+        assert msg.usage is None
+
+    def test_stream_chunk_extracts_usage(self):
+        p = OllamaLocal()
+        data = {
+            "choices": [{"delta": {"content": "Hi"}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 80, "completion_tokens": 30},
+        }
+        events = p._parse_stream_chunk(data, {})
+        usage_events = [e for e in events if e.type == "usage"]
+        assert len(usage_events) == 1
+        assert usage_events[0].usage.input_tokens == 80
+
+
+class TestOllamaCloudUsageExtraction:
+    def test_parse_response_extracts_usage_dict(self):
+        p = OllamaCloud(api_key="test")
+        data = {
+            "message": {"role": "assistant", "content": "Hi"},
+            "usage": {"prompt_tokens": 90, "completion_tokens": 40},
+        }
+        msg = p._parse_response(data)
+        assert msg.usage is not None
+        assert msg.usage.input_tokens == 90
+        assert msg.usage.output_tokens == 40
+
+    def test_parse_response_extracts_usage_native_fields(self):
+        p = OllamaCloud(api_key="test")
+        data = {
+            "message": {"role": "assistant", "content": "Hi"},
+            "prompt_eval_count": 90,
+            "eval_count": 40,
+        }
+        msg = p._parse_response(data)
+        assert msg.usage is not None
+        assert msg.usage.input_tokens == 90
+        assert msg.usage.output_tokens == 40
+
+    def test_parse_response_no_usage(self):
+        p = OllamaCloud(api_key="test")
+        data = {"message": {"role": "assistant", "content": "Hi"}}
+        msg = p._parse_response(data)
+        assert msg.usage is None

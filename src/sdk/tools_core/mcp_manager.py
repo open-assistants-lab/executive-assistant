@@ -1,6 +1,6 @@
 """MCP Manager - Stateful MCP server management with lazy start and idle timeout.
 
-Uses the native `mcp` Python SDK instead of langchain_mcp_adapters.
+Uses the native `mcp` Python SDK.
 Supports both stdio and streamable HTTP transports.
 """
 

@@ -51,7 +51,7 @@ class TestEmailDisconnect:
         """Test email_disconnect handles non-existent account."""
         from src.sdk.tools_core.email import email_disconnect
 
-        with patch("src.tools.email.account.load_accounts", return_value={}):
+        with patch("src.sdk.tools_core.email_db.load_accounts", return_value={}):
             result = email_disconnect.invoke(
                 {"account_name": "nonexistent", "user_id": "test_user"}
             )
@@ -72,7 +72,7 @@ class TestEmailAccounts:
         """Test email_accounts with no accounts."""
         from src.sdk.tools_core.email import email_accounts
 
-        with patch("src.tools.email.account.load_accounts", return_value={}):
+        with patch("src.sdk.tools_core.email_db.load_accounts", return_value={}):
             result = email_accounts.invoke({"user_id": "test_user"})
             assert "No email accounts" in result or "not found" in result
 
@@ -89,7 +89,7 @@ class TestEmailAccounts:
                 "folders": ["INBOX"],
             }
         }
-        with patch("src.tools.email.account.load_accounts", return_value=mock_accounts):
+        with patch("src.sdk.tools_core.email_db.load_accounts", return_value=mock_accounts):
             result = email_accounts.invoke({"user_id": "test_user"})
             assert "Personal" in result
             assert "test@gmail.com" in result
@@ -109,7 +109,7 @@ class TestEmailList:
         """Test email_list handles non-existent account."""
         from src.sdk.tools_core.email import email_list
 
-        with patch("src.tools.email.read.get_account_id_by_name", return_value=None):
+        with patch("src.sdk.tools_core.email_db.get_account_id_by_name", return_value=None):
             result = email_list.invoke({"account_name": "nonexistent", "user_id": "test_user"})
             assert "not found" in result
 
@@ -128,7 +128,7 @@ class TestEmailGet:
         """Test email_get handles non-existent account."""
         from src.sdk.tools_core.email import email_get
 
-        with patch("src.tools.email.read.get_account_id_by_name", return_value=None):
+        with patch("src.sdk.tools_core.email_db.get_account_id_by_name", return_value=None):
             result = email_get.invoke(
                 {"email_id": "123", "account_name": "nonexistent", "user_id": "test_user"}
             )
@@ -156,7 +156,7 @@ class TestEmailSearch:
         """Test email_search handles non-existent account."""
         from src.sdk.tools_core.email import email_search
 
-        with patch("src.tools.email.read.get_account_id_by_name", return_value=None):
+        with patch("src.sdk.tools_core.email_db.get_account_id_by_name", return_value=None):
             result = email_search.invoke(
                 {"query": "test", "account_name": "nonexistent", "user_id": "test_user"}
             )
@@ -179,7 +179,7 @@ class TestEmailSend:
         """Test email_send handles reply to non-existent email."""
         from src.sdk.tools_core.email import email_send
 
-        with patch("src.tools.email.send.get_account_id_by_name", return_value=None):
+        with patch("src.sdk.tools_core.email_db.get_account_id_by_name", return_value=None):
             result = email_send.invoke(
                 {
                     "account_name": "test",

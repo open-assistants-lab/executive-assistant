@@ -95,9 +95,9 @@ async def invoke_subagent(
     user_id: str = "default",
 ):
     """Invoke a subagent to execute a task (async)."""
-    from src.subagent.tools import subagent_invoke
+    from src.sdk.tools_core.subagent import subagent_invoke
 
-    result = subagent_invoke.invoke({"user_id": user_id, "name": name, "task": task})
+    result = await subagent_invoke.ainvoke({"user_id": user_id, "name": name, "task": task})
     return {"result": str(result)}
 
 
@@ -107,9 +107,9 @@ async def batch_invoke_subagents(
     user_id: str = "default",
 ):
     """Batch invoke multiple subagents."""
-    from src.subagent.tools import subagent_batch
+    from src.sdk.tools_core.subagent import subagent_batch
 
-    result = subagent_batch.invoke({"user_id": user_id, "tasks": json.dumps(tasks)})
+    result = await subagent_batch.ainvoke({"user_id": user_id, "tasks": json.dumps(tasks)})
     return {"result": str(result)}
 
 
@@ -122,21 +122,21 @@ async def schedule_subagent(
     user_id: str = "default",
 ):
     """Schedule a subagent task (one-time or recurring)."""
-    from src.subagent.tools import subagent_schedule
+    from src.sdk.tools_core.subagent import subagent_schedule
 
     args = {"user_id": user_id, "name": name, "task": task}
     if run_at is not None:
         args["run_at"] = run_at
     if cron is not None:
         args["cron"] = cron
-    result = subagent_schedule.invoke(args)
+    result = await subagent_schedule.ainvoke(args)
     return {"result": str(result)}
 
 
 @router.delete("/jobs/{job_id}")
 async def cancel_subagent_job(job_id: str, user_id: str = "default"):
     """Cancel a scheduled subagent job."""
-    from src.subagent.tools import subagent_schedule_cancel
+    from src.sdk.tools_core.subagent import subagent_schedule_cancel
 
-    result = subagent_schedule_cancel.invoke({"user_id": user_id, "job_id": job_id})
+    result = await subagent_schedule_cancel.ainvoke({"user_id": user_id, "job_id": job_id})
     return {"result": str(result)}

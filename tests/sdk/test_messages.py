@@ -1,9 +1,6 @@
 """Tests for SDK message types — Message, ToolCall, StreamChunk."""
 
 import json
-import os
-
-os.environ.setdefault("CHECKPOINT_ENABLED", "false")
 
 from src.sdk.messages import Message, StreamChunk, ToolCall
 

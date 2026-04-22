@@ -100,7 +100,7 @@ Deep investigation of the Executive Assistant codebase. Generated 2025-04-11. Up
 
 ### SUB-03: `asyncio.run()` crashes when called from running event loop ✅ FIXED
 
-`_load_mcp_tools()` calls `asyncio.run(mcp_manager.get_tools())`. When the HTTP or Telegram server is running, there's already an event loop, so this raises `RuntimeError: asyncio.run() cannot be called from a running event loop`. Any subagent creation with MCP tools crashes.
+`_load_mcp_tools()` calls `asyncio.run(mcp_manager.get_tools())`. When the HTTP server is running, there's already an event loop, so this raises `RuntimeError: asyncio.run() cannot be called from a running event loop`. Any subagent creation with MCP tools crashes.
 
 **Fix**: Detect running event loop with `asyncio.get_running_loop()`. When inside a running loop, use `ThreadPoolExecutor` to run `asyncio.run()` in a separate thread. When no loop exists, use `asyncio.run()` directly.
 
@@ -192,7 +192,7 @@ Line 366 mutates `msg.content` on the existing object, and line 367 creates a ne
 
 ### MEM-06: `trigger_consolidation` from daemon thread can't create async tasks ✅ FIXED
 
-`asyncio.create_task()` from a daemon thread has no running event loop. `asyncio.run()` from a thread fails if the main thread has a loop running. Both paths break in HTTP/Telegram servers.
+`asyncio.create_task()` from a daemon thread has no running event loop. `asyncio.run()` from a thread fails if the main thread has a loop running. Both paths break in HTTP servers.
 
 **Fix**: Replaced with `ThreadPoolExecutor` pattern — detects running event loop with `asyncio.get_running_loop()`, spawns `asyncio.run()` in a separate thread when inside a running loop, runs directly otherwise.
 
@@ -652,11 +652,11 @@ If the last message is a `ToolMessage`, `.content` is a tool result, not a final
 
 **File**: `src/agents/subagent/manager.py:202`
 
-### SUB-19: Duplicate telegram tool definitions in two files
+### SUB-19: Duplicate tool definitions in subagent tools (resolved by removal)
 
-Both `subagent/tools.py` and `telegram/main.py` define `telegram_send_message_tool` and `telegram_send_file_tool`.
+~Both `subagent/tools.py` and `telegram/main.py` define `telegram_send_message_tool` and `telegram_send_file_tool`.~ Both files have been removed as part of the Telegram bot and LangChain subagent removal.
 
-**Files**: `src/agents/subagent/tools.py:407-436`; `src/telegram/main.py:60-78`
+**Files**: ~~`src/agents/subagent/tools.py:407-436`; `src/telegram/main.py:60-78`~~ (removed)
 
 ### SUB-20: `SummarizationMiddleware` guard permanently disables summarization
 

@@ -1,9 +1,7 @@
 """Tool definition and registry for the agent SDK.
 
-Drop-in replacement for langchain_core.tools.tool.
-The @tool decorator extracts JSON Schema from type hints + docstring,
-just like LangChain's version. ToolRegistry provides OpenAI/Anthropic
-format output for LLM API calls.
+The @tool decorator extracts JSON Schema from type hints + docstring.
+ToolRegistry provides OpenAI/Anthropic format output for LLM API calls.
 
 Key compatibility:
     - @tool produces objects with .name, .description, .args, .invoke, .ainvoke
@@ -31,12 +29,33 @@ class ToolAnnotations(BaseModel):
 
 
 class ToolResult(BaseModel):
-    """Structured result from a tool execution."""
+    """Structured result from a tool execution.
+
+    Tools can return either a plain string (auto-wrapped as ToolResult) or
+    a ToolResult instance for richer output:
+      - content: human-readable text sent to LLM
+      - structured_content: machine-parseable dict (optional)
+      - is_error: marks the result as an error
+      - audience: who sees this result (default: assistant only)
+    """
 
     content: str
     structured_content: dict[str, Any] | None = None
     is_error: bool = False
     audience: list[str] = Field(default_factory=lambda: ["assistant"])
+
+    @classmethod
+    def from_raw(cls, result: Any) -> "ToolResult":
+        """Wrap a raw tool return value as ToolResult.
+
+        If the tool already returned a ToolResult, pass it through.
+        If it returned a string, wrap it. Otherwise, stringify.
+        """
+        if isinstance(result, ToolResult):
+            return result
+        if isinstance(result, str):
+            return cls(content=result)
+        return cls(content=str(result))
 
 
 class ToolDefinition(BaseModel):

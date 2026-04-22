@@ -664,10 +664,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-cli = [
-    { name = "prompt-toolkit" },
-    { name = "rich" },
-]
 dev = [
     { name = "mypy" },
     { name = "pre-commit" },
@@ -697,7 +693,6 @@ requires-dist = [
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.14.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "prompt-toolkit", specifier = ">=3.0.0" },
-    { name = "prompt-toolkit", marker = "extra == 'cli'", specifier = ">=3.0.0" },
     { name = "pydantic", specifier = ">=2.10.0" },
     { name = "pydantic-settings", specifier = ">=2.7.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
@@ -706,7 +701,6 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rich", specifier = ">=13.0.0" },
-    { name = "rich", marker = "extra == 'cli'", specifier = ">=13.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.11.0" },
     { name = "sentence-transformers", specifier = ">=5.2.3" },
     { name = "sqlite-vec", specifier = ">=0.1.6" },
@@ -716,7 +710,7 @@ requires-dist = [
     { name = "uvicorn", specifier = ">=0.41.0" },
     { name = "uvicorn", marker = "extra == 'http'", specifier = ">=0.41.0" },
 ]
-provides-extras = ["cli", "http", "dev"]
+provides-extras = ["http", "dev"]
 
 [[package]]
 name = "fastapi"

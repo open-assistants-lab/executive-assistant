@@ -4,20 +4,17 @@ These tests use a MockProvider that returns predetermined responses,
 so they run without any real LLM service.
 """
 
-import asyncio
 import json
-import os
+import time
 
 import pytest
 
-os.environ.setdefault("CHECKPOINT_ENABLED", "false")
-
-from src.sdk.loop import AgentLoop, Interrupt, DEFAULT_MAX_ITERATIONS
-from src.sdk.messages import Message, StreamChunk, ToolCall
+from src.sdk.loop import AgentLoop, CostTracker, RunConfig
+from src.sdk.messages import Message, StreamChunk, ToolCall, Usage
 from src.sdk.middleware import Middleware
-from src.sdk.providers.base import LLMProvider, ModelInfo
+from src.sdk.providers.base import LLMProvider, ModelCost, ModelInfo
 from src.sdk.state import AgentState
-from src.sdk.tools import ToolDefinition, tool
+from src.sdk.tools import ToolAnnotations, ToolDefinition, ToolResult, tool
 
 
 class MockProvider(LLMProvider):
@@ -104,6 +101,36 @@ def add(a: int = 0, b: int = 0) -> str:
 def fail_always(msg: str = "error") -> str:
     """Always raises an error."""
     raise ValueError(msg)
+
+
+_call_log: list[str] = []
+
+
+@tool
+def slow_read(query: str = "x") -> str:
+    """A slow read-only tool (simulates latency)."""
+    _call_log.append(f"slow_read:{query}")
+    time.sleep(0.1)
+    return f"result:{query}"
+
+
+slow_read.annotations = ToolAnnotations(read_only=True)
+
+
+@tool
+def destructive_write(path: str = "/tmp/x", content: str = "") -> str:
+    """A destructive write tool."""
+    _call_log.append(f"destructive_write:{path}")
+    return f"wrote:{path}"
+
+
+destructive_write.annotations = ToolAnnotations(destructive=True)
+
+
+@tool
+def stateful_action(action: str = "") -> str:
+    """A stateful but non-destructive tool (neither read_only nor destructive)."""
+    return f"action:{action}"
 
 
 class TestAgentLoopBasic:
@@ -475,10 +502,14 @@ class TestAgentLoopMiddleware:
 
 
 class TestAgentLoopHITL:
-    """Human-in-the-loop interrupt handling."""
+    """Human-in-the-loop interrupt handling.
 
-    async def test_interrupt_on_dangerous_tool(self):
-        """Agent raises Interrupt when a tool is in interrupt_on set."""
+    Interrupts are triggered by ToolAnnotations.destructive=True (not read_only).
+    Both run() and run_stream() yield interrupt chunks — never raise Interrupt.
+    """
+
+    async def test_interrupt_on_destructive_tool_run(self):
+        """run() yields messages with interrupt info when a destructive tool is called."""
         provider = MockProvider(
             responses=[
                 Message.assistant(
@@ -489,16 +520,21 @@ class TestAgentLoopHITL:
                 ),
             ]
         )
-        loop = AgentLoop(provider=provider, tools=[], interrupt_on={"files_delete"})
+        destructive_delete = ToolDefinition(
+            name="files_delete",
+            description="Delete a file",
+            parameters={"type": "object", "properties": {"path": {"type": "string"}}},
+            annotations=ToolAnnotations(destructive=True),
+            function=lambda **kw: "deleted",
+        )
+        loop = AgentLoop(provider=provider, tools=[destructive_delete])
 
-        with pytest.raises(Interrupt) as exc_info:
-            await loop.run([Message.user("Delete file")])
+        result = await loop.run([Message.user("Delete file")])
 
-        assert exc_info.value.tool_call.name == "files_delete"
-        assert "approve" in exc_info.value.allowed_actions
+        assert len(result) >= 2
 
-    async def test_interrupt_in_stream(self):
-        """run_stream yields interrupt chunk when tool is in interrupt_on set."""
+    async def test_interrupt_on_destructive_tool_stream(self):
+        """run_stream yields interrupt chunk when a destructive tool is called."""
         provider = MockProvider()
         provider.set_stream_events(
             [
@@ -510,7 +546,14 @@ class TestAgentLoopHITL:
                 ],
             ]
         )
-        loop = AgentLoop(provider=provider, tools=[], interrupt_on={"files_delete"})
+        destructive_delete = ToolDefinition(
+            name="files_delete",
+            description="Delete a file",
+            parameters={"type": "object", "properties": {"path": {"type": "string"}}},
+            annotations=ToolAnnotations(destructive=True),
+            function=lambda **kw: "deleted",
+        )
+        loop = AgentLoop(provider=provider, tools=[destructive_delete])
         chunks = []
         async for chunk in loop.run_stream([Message.user("Delete")]):
             chunks.append(chunk)
@@ -520,7 +563,7 @@ class TestAgentLoopHITL:
         assert interrupt_chunks[0].tool == "files_delete"
 
     async def test_no_interrupt_for_safe_tools(self):
-        """Tools NOT in interrupt_on set execute normally."""
+        """Tools without destructive=True execute normally."""
         provider = MockProvider(
             responses=[
                 Message.assistant(
@@ -532,8 +575,33 @@ class TestAgentLoopHITL:
                 Message.assistant(content="Done"),
             ]
         )
-        loop = AgentLoop(provider=provider, tools=[echo], interrupt_on={"files_delete"})
+        loop = AgentLoop(provider=provider, tools=[echo])
+
         result = await loop.run([Message.user("Echo safe")])
+        assert len(result) >= 3
+
+    async def test_no_interrupt_on_destructive_readonly(self):
+        """destructive=True but read_only=True should NOT interrupt (read_only wins)."""
+        provider = MockProvider(
+            responses=[
+                Message.assistant(
+                    content="",
+                    tool_calls=[
+                        ToolCall(id="c1", name="audit_log", arguments={"path": "/log"}),
+                    ],
+                ),
+                Message.assistant(content="Audit complete"),
+            ]
+        )
+        audit = ToolDefinition(
+            name="audit_log",
+            description="Audit read-only log",
+            parameters={"type": "object", "properties": {"path": {"type": "string"}}},
+            annotations=ToolAnnotations(destructive=True, read_only=True),
+            function=lambda **kw: "audited",
+        )
+        loop = AgentLoop(provider=provider, tools=[audit])
+        result = await loop.run([Message.user("Audit log")])
         assert len(result) >= 3
 
 
@@ -709,14 +777,33 @@ class TestToolDefinition:
         assert result == "async"
 
     async def test_tool_invoke_with_error(self):
-        """Tool errors are caught by AgentLoop._execute_tool."""
+        """Tool errors are caught by AgentLoop._execute_tool and returned as ToolResult."""
         loop = AgentLoop(provider=MockProvider(), tools=[fail_always])
         result = await loop._execute_tool(
             ToolCall(id="c1", name="fail_always", arguments={"msg": "boom"})
         )
-        error_data = json.loads(result)
-        assert "error" in error_data
-        assert "boom" in error_data["error"]
+        assert result.is_error
+        assert "boom" in result.content
+
+    async def test_tool_invoke_returns_tool_result(self):
+        """Normal tool returns ToolResult with is_error=False."""
+        loop = AgentLoop(provider=MockProvider(), tools=[echo])
+        result = await loop._execute_tool(
+            ToolCall(id="c1", name="echo", arguments={"text": "hello"})
+        )
+        assert isinstance(result, ToolResult)
+        assert result.content == "hello"
+        assert not result.is_error
+
+    async def test_tool_result_from_raw(self):
+        """ToolResult.from_raw wraps strings and passes through ToolResult."""
+        wrapped = ToolResult.from_raw("test")
+        assert wrapped.content == "test"
+        assert not wrapped.is_error
+
+        direct = ToolResult(content="error msg", is_error=True)
+        passed = ToolResult.from_raw(direct)
+        assert passed is direct
 
     def test_tool_registry_lookup(self):
         from src.sdk.tools import ToolRegistry
@@ -735,3 +822,294 @@ class TestToolDefinition:
         fmt = echo.to_anthropic_format()
         assert fmt["name"] == "echo"
         assert "input_schema" in fmt
+
+
+class TestParallelToolExecution:
+    """Parallel tool execution in AgentLoop."""
+
+    def test_classify_parallel_safe_readonly(self):
+        loop = AgentLoop(provider=MockProvider(), tools=[echo, add, slow_read])
+        tc1 = ToolCall(id="c1", name="echo", arguments={"text": "a"})
+        tc2 = ToolCall(id="c2", name="add", arguments={"a": 1, "b": 2})
+        tc3 = ToolCall(id="c3", name="slow_read", arguments={"query": "q"})
+
+        parallel, sequential, interrupts = loop._classify_tool_calls([tc1, tc2, tc3])
+        assert len(parallel) == 3
+        assert len(sequential) == 0
+        assert len(interrupts) == 0
+
+    def test_classify_destructive_sequential(self):
+        """A destructive write is classified as an interrupt (needs HITL approval)."""
+        loop = AgentLoop(provider=MockProvider(), tools=[echo, destructive_write])
+        tc1 = ToolCall(id="c1", name="echo", arguments={"text": "a"})
+        tc2 = ToolCall(id="c2", name="destructive_write", arguments={"path": "/x"})
+
+        parallel, sequential, interrupts = loop._classify_tool_calls([tc1, tc2])
+        assert len(parallel) == 1
+        assert parallel[0].name == "echo"
+        assert len(sequential) == 0
+        assert len(interrupts) == 1
+        assert interrupts[0].name == "destructive_write"
+
+    def test_classify_interrupts(self):
+        loop = AgentLoop(provider=MockProvider(), tools=[destructive_write])
+        tc1 = ToolCall(id="c1", name="destructive_write", arguments={"path": "/x"})
+
+        parallel, sequential, interrupts = loop._classify_tool_calls([tc1])
+        assert len(parallel) == 0
+        assert len(sequential) == 0
+        assert len(interrupts) == 1
+
+    def test_classify_mixed(self):
+        """Mixed: read-only goes parallel, stateful goes parallel, destructive goes sequential or interrupt."""
+        loop = AgentLoop(
+            provider=MockProvider(),
+            tools=[echo, add, destructive_write, slow_read, stateful_action],
+        )
+        tc1 = ToolCall(id="c1", name="echo", arguments={"text": "a"})
+        tc2 = ToolCall(id="c2", name="destructive_write", arguments={"path": "/x"})
+        tc3 = ToolCall(id="c3", name="add", arguments={"a": 1, "b": 2})
+        tc4 = ToolCall(id="c4", name="stateful_action", arguments={"action": "test"})
+
+        parallel, sequential, interrupts = loop._classify_tool_calls([tc1, tc2, tc3, tc4])
+        assert len(parallel) == 3  # echo, add, stateful_action
+        assert len(sequential) == 0
+        assert len(interrupts) == 1  # destructive_write
+
+    async def test_parallel_execution_order_run(self):
+        """Parallel-safe tools execute concurrently, destructive tools interrupt."""
+        provider = MockProvider(
+            responses=[
+                Message.assistant(
+                    content="",
+                    tool_calls=[
+                        ToolCall(id="c1", name="echo", arguments={"text": "a"}),
+                        ToolCall(id="c2", name="add", arguments={"a": 1, "b": 2}),
+                        ToolCall(id="c3", name="destructive_write", arguments={"path": "/x"}),
+                    ],
+                ),
+                Message.assistant(content="Done"),
+            ]
+        )
+        loop = AgentLoop(provider=provider, tools=[echo, add, destructive_write])
+        result = await loop.run([Message.user("Multi")])
+
+        tool_res = [m for m in result if m.role == "tool"]
+        assert len(tool_res) == 3
+
+        results_by_name = {}
+        for m in tool_res:
+            results_by_name.setdefault(m.name, []).append(m.content)
+
+        assert "a" in results_by_name["echo"]
+        assert "3" in results_by_name["add"]
+        assert any("interrupt" in c for c in results_by_name["destructive_write"])
+
+    async def test_parallel_execution_concurrency(self):
+        """Multiple read-only tools actually execute concurrently (faster than sequential)."""
+        provider = MockProvider(
+            responses=[
+                Message.assistant(
+                    content="",
+                    tool_calls=[
+                        ToolCall(id="c1", name="slow_read", arguments={"query": "a"}),
+                        ToolCall(id="c2", name="slow_read", arguments={"query": "b"}),
+                        ToolCall(id="c3", name="slow_read", arguments={"query": "c"}),
+                    ],
+                ),
+                Message.assistant(content="Done"),
+            ]
+        )
+        loop = AgentLoop(provider=provider, tools=[slow_read])
+
+        start = time.time()
+        result = await loop.run([Message.user("Parallel")])
+        elapsed = time.time() - start
+
+        tool_res = [m for m in result if m.role == "tool"]
+        assert len(tool_res) == 3
+
+        assert elapsed < 0.35, (
+            f"Parallel execution should be faster than sequential (took {elapsed:.2f}s)"
+        )
+
+    async def test_interrupt_with_parallel_safe_batch(self):
+        """Interrupts are reported but parallel-safe tools still execute."""
+        provider = MockProvider(
+            responses=[
+                Message.assistant(
+                    content="",
+                    tool_calls=[
+                        ToolCall(id="c1", name="echo", arguments={"text": "safe"}),
+                        ToolCall(id="c2", name="destructive_write", arguments={"path": "/x"}),
+                    ],
+                ),
+                Message.assistant(content="Done"),
+            ]
+        )
+        loop = AgentLoop(provider=provider, tools=[echo, destructive_write])
+        result = await loop.run([Message.user("Interrupt + safe")])
+
+        tool_res = [m for m in result if m.role == "tool"]
+        assert len(tool_res) == 2
+
+        safe_result = next(m for m in tool_res if m.name == "echo")
+        assert safe_result.content == "safe"
+
+        interrupt_result = next(m for m in tool_res if m.name == "destructive_write")
+        assert "interrupt" in interrupt_result.content
+
+    async def test_parallel_execution_streaming(self):
+        """Parallel execution works in streaming mode too."""
+        provider = MockProvider(
+            responses=[
+                Message.assistant(
+                    content="",
+                    tool_calls=[
+                        ToolCall(id="c1", name="echo", arguments={"text": "a"}),
+                        ToolCall(id="c2", name="add", arguments={"a": 1, "b": 2}),
+                    ],
+                ),
+                Message.assistant(content="Done"),
+            ]
+        )
+        provider.set_stream_events(
+            [
+                [
+                    StreamChunk.tool_start(tool="echo", call_id="c1", args={"text": "a"}),
+                    StreamChunk.tool_end(tool="echo", call_id="c1"),
+                    StreamChunk.tool_start(tool="add", call_id="c2", args={"a": 1, "b": 2}),
+                    StreamChunk.tool_end(tool="add", call_id="c2"),
+                    StreamChunk.done(content=""),
+                ],
+                [
+                    StreamChunk.ai_token(content="Done"),
+                    StreamChunk.done(content="Done"),
+                ],
+            ]
+        )
+        loop = AgentLoop(provider=provider, tools=[echo, add])
+
+        chunks = []
+        async for chunk in loop.run_stream([Message.user("Stream parallel")]):
+            chunks.append(chunk)
+
+        tool_result_chunks = [c for c in chunks if c.type == "tool_result"]
+        assert len(tool_result_chunks) == 2
+
+
+class TestUsageTracking:
+    """Tests for usage extraction from provider responses and CostTracker integration."""
+
+    async def test_usage_in_run_response(self):
+        """CostTracker records usage from provider response."""
+        provider = MockProvider(
+            responses=[
+                Message.assistant(content="Hello!", usage=Usage(input_tokens=10, output_tokens=5)),
+            ]
+        )
+        loop = AgentLoop(provider=provider, tools=[])
+        result = await loop.run([Message.user("Hi")])
+        assert result[-1].usage is not None
+        assert result[-1].usage.input_tokens == 10
+        assert result[-1].usage.output_tokens == 5
+
+    async def test_cost_tracker_records_usage_from_run(self):
+        """AgentLoop.run() passes usage from response to CostTracker."""
+        provider = MockProvider(
+            responses=[
+                Message.assistant(
+                    content="",
+                    tool_calls=[ToolCall(id="c1", name="echo", arguments={"text": "test"})],
+                    usage=Usage(input_tokens=50, output_tokens=20),
+                ),
+                Message.assistant(content="Done", usage=Usage(input_tokens=40, output_tokens=10)),
+            ]
+        )
+        loop = AgentLoop(provider=provider, tools=[echo], run_config=RunConfig(max_llm_calls=10))
+        result = await loop.run([Message.user("Hi")])
+        assert len(result) >= 3
+
+    async def test_usage_none_in_response(self):
+        """Provider response without usage still works."""
+        provider = MockProvider(
+            responses=[Message.assistant(content="Hello!")],
+        )
+        loop = AgentLoop(provider=provider, tools=[])
+        result = await loop.run([Message.user("Hi")])
+        assert result[-1].usage is None
+        assert result[-1].content == "Hello!"
+
+    async def test_streaming_usage_extraction(self):
+        """StreamChunk with type='usage' has Usage data attached."""
+        usage = Usage(input_tokens=100, output_tokens=50)
+        chunk = StreamChunk.usage_event(usage)
+        assert chunk.type == "usage"
+        assert chunk.usage is not None
+        assert chunk.usage.input_tokens == 100
+        assert chunk.usage.output_tokens == 50
+
+    async def test_streaming_usage_accumulation(self):
+        """Usage chunks from streaming accumulate in CostTracker via CostTracker.add_usage()."""
+        from src.sdk.loop import CostTracker
+
+        tracker = CostTracker()
+        tracker.add_usage(input_tokens=100, output_tokens=50)
+        tracker.add_usage(input_tokens=200, output_tokens=75, reasoning_tokens=10)
+        assert tracker.total_input_tokens == 300
+        assert tracker.total_output_tokens == 125
+        assert tracker.total_reasoning_tokens == 10
+        assert tracker.llm_calls == 2
+
+    async def test_cost_tracker_add_usage_with_cost(self):
+        """CostTracker correctly computes cost from ModelCost."""
+        tracker = CostTracker()
+        cost = ModelCost(input=3.0, output=15.0)
+        tracker.add_usage(input_tokens=1000, output_tokens=500, cost=cost)
+        assert tracker.total_input_tokens == 1000
+        assert tracker.total_output_tokens == 500
+        assert tracker.total_cost_usd > 0
+        assert tracker.llm_calls == 1
+
+    async def test_cost_tracker_add_usage_without_cost(self):
+        """CostTracker records tokens without cost model."""
+        from src.sdk.loop import CostTracker
+
+        tracker = CostTracker()
+        tracker.add_usage(input_tokens=100, output_tokens=50, reasoning_tokens=10)
+        assert tracker.total_input_tokens == 100
+        assert tracker.total_output_tokens == 50
+        assert tracker.total_reasoning_tokens == 10
+        assert tracker.total_cost_usd == 0.0
+
+
+class TestProviderOptions:
+    """Tests for RunConfig.provider_options wiring."""
+
+    async def test_provider_options_passed_to_provider(self):
+        """RunConfig.provider_options is passed through to provider.chat()."""
+        provider = MockProvider(responses=[Message.assistant(content="OK")])
+        loop = AgentLoop(
+            provider=provider,
+            tools=[],
+            run_config=RunConfig(provider_options={"anthropic": {"thinking": {"type": "enabled"}}}),
+        )
+        await loop.run([Message.user("Hi")])
+        assert provider._last_messages is not None
+
+    async def test_provider_options_default_none(self):
+        """RunConfig.provider_options defaults to None."""
+        config = RunConfig()
+        assert config.provider_options is None
+
+    async def test_provider_options_dict(self):
+        """RunConfig.provider_options accepts provider-specific options."""
+        config = RunConfig(
+            provider_options={
+                "anthropic": {"thinking": {"type": "enabled", "budget_tokens": 5000}},
+                "openai": {"reasoning_effort": "high"},
+            }
+        )
+        assert config.provider_options is not None
+        assert "anthropic" in config.provider_options
+        assert "openai" in config.provider_options

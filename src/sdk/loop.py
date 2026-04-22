@@ -1,4 +1,4 @@
-"""Agent loop — the core ReAct while-loop that replaces LangChain's agent.
+"""Agent loop — the core ReAct while-loop for the SDK.
 
 The loop is:
     1. Call LLM with conversation history + tools
@@ -36,11 +36,12 @@ from src.sdk.guardrails import (
     ToolGuardrail,
 )
 from src.sdk.handoffs import Handoff
-from src.sdk.messages import Message, StreamChunk, ToolCall
+from src.sdk.hooks import HookDecision, HookManager
+from src.sdk.messages import Message, StreamChunk, ToolCall, Usage
 from src.sdk.middleware import Middleware
 from src.sdk.providers.base import LLMProvider, ModelCost
 from src.sdk.state import AgentState
-from src.sdk.tools import ToolDefinition, ToolRegistry
+from src.sdk.tools import ToolDefinition, ToolRegistry, ToolResult
 from src.sdk.tracing import SpanType, TraceProvider
 from src.sdk.validation import repair_tool_call
 
@@ -60,6 +61,7 @@ class RunConfig:
     max_iterations: int = DEFAULT_MAX_ITERATIONS
     max_tokens_total: int = DEFAULT_MAX_TOKENS_TOTAL
     cost_limit_usd: float = DEFAULT_COST_LIMIT_USD
+    provider_options: dict[str, dict[str, Any]] | None = None
 
 
 class CostTracker:
@@ -134,25 +136,25 @@ class AgentLoop:
         system_prompt: str | None = None,
         middlewares: list[Middleware] | None = None,
         max_iterations: int = DEFAULT_MAX_ITERATIONS,
-        interrupt_on: set[str] | None = None,
         input_guardrails: list[InputGuardrail] | None = None,
         output_guardrails: list[OutputGuardrail] | None = None,
         tool_guardrails: list[ToolGuardrail] | None = None,
         handoffs: list[Handoff] | None = None,
         trace_provider: TraceProvider | None = None,
         run_config: RunConfig | None = None,
+        hook_manager: HookManager | None = None,
     ) -> None:
         self.provider = provider
         self.system_prompt = system_prompt
         self.middlewares = middlewares or []
         self.max_iterations = max_iterations
-        self.interrupt_on = interrupt_on or set()
         self.input_guardrails = input_guardrails or []
         self.output_guardrails = output_guardrails or []
         self.tool_guardrails = tool_guardrails or []
         self.handoffs = handoffs or []
         self.trace_provider = trace_provider
         self.run_config = run_config or RunConfig(max_iterations=max_iterations)
+        self.hook_manager = hook_manager
 
         self._registry = ToolRegistry()
         if tools:
@@ -163,22 +165,66 @@ class AgentLoop:
         for h in self.handoffs:
             self._handoff_tool_names.add(h.tool_name)
 
+    def register_tool(self, tool_def: ToolDefinition) -> None:
+        if self._registry.has(tool_def.name):
+            self._registry.remove(tool_def.name)
+        self._registry.register(tool_def)
+
+    def unregister_tool(self, name: str) -> bool:
+        return self._registry.remove(name)
+
     def _apply_updates(self, state: AgentState, updates: dict[str, Any] | None) -> None:
         if updates:
             state.update(updates)
 
     def _should_interrupt(self, tc: ToolCall) -> bool:
-        if tc.name in self.interrupt_on:
-            return True
         tool_def = self._registry.get(tc.name)
         if tool_def and tool_def.annotations.destructive and not tool_def.annotations.read_only:
             return True
         return False
 
-    async def _execute_tool(self, tc: ToolCall) -> str:
+    def _is_parallel_safe(self, tc: ToolCall) -> bool:
+        """Check if a tool call is safe to execute in parallel with others.
+
+        A tool is parallel-safe if it is read-only OR it is non-destructive.
+        Destructive tools must run sequentially after parallel-safe ones.
+        Interrupts are handled separately (never executed, just reported).
+        """
         tool_def = self._registry.get(tc.name)
         if tool_def is None:
-            return json.dumps({"error": f"Unknown tool: {tc.name}"})
+            return True
+        return tool_def.annotations.read_only or not tool_def.annotations.destructive
+
+    def _classify_tool_calls(
+        self, tool_calls: list[ToolCall]
+    ) -> tuple[list[ToolCall], list[ToolCall], list[ToolCall]]:
+        """Classify tool calls into parallel-safe, sequential, and interrupt groups.
+
+        Returns:
+            (parallel_safe, sequential, interrupts) — three lists.
+            parallel_safe: read-only or non-destructive, can run concurrently
+            sequential: destructive, must run one-at-a-time after parallel batch
+            interrupts: need human approval, reported but not executed
+        """
+        parallel_safe: list[ToolCall] = []
+        sequential: list[ToolCall] = []
+        interrupts: list[ToolCall] = []
+
+        for tc in tool_calls:
+            if self._should_interrupt(tc):
+                interrupts.append(tc)
+            elif self._is_parallel_safe(tc):
+                parallel_safe.append(tc)
+            else:
+                sequential.append(tc)
+
+        return parallel_safe, sequential, interrupts
+
+    async def _execute_tool(self, tc: ToolCall) -> ToolResult:
+        """Execute a tool call, returning a ToolResult with structured content."""
+        tool_def = self._registry.get(tc.name)
+        if tool_def is None:
+            return ToolResult(content=f"Unknown tool: {tc.name}", is_error=True)
 
         try:
             if tool_def._coroutine:
@@ -188,10 +234,256 @@ class AgentLoop:
             logger.info(
                 f"sdk.tool_executed tool={tc.name} source={tool_def.function.__module__ if tool_def.function else 'unknown'}"
             )
-            return str(result)
+            return ToolResult.from_raw(result)
         except Exception as e:
             logger.error(f"tool_execution_error tool={tc.name}: {e}")
-            return json.dumps({"error": str(e)})
+            return ToolResult(content=str(e), is_error=True)
+
+    async def _execute_single_tool(self, tc: ToolCall, state: AgentState) -> None:
+        """Execute a single tool call with guardrails, hooks, and middleware, add result to state."""
+        try:
+            await self._check_tool_guardrails(tc, "input", tc.arguments)
+        except GuardrailTripwire as e:
+            state.add_message(
+                Message.tool_result(
+                    tool_call_id=tc.id,
+                    content=json.dumps({"error": f"Tool input blocked: {e.result.message}"}),
+                    name=tc.name,
+                )
+            )
+            return
+
+        # PreToolUse hooks
+        if self.hook_manager:
+            hook_result = await self.hook_manager.run_pre_tool_use(tc.name, tc.arguments)
+            if hook_result.decision == HookDecision.DENY:
+                state.add_message(
+                    Message.tool_result(
+                        tool_call_id=tc.id,
+                        content=json.dumps({"error": f"Tool denied by hook: {hook_result.reason}"}),
+                        name=tc.name,
+                    )
+                )
+                return
+            if (
+                hook_result.decision == HookDecision.MODIFY
+                and hook_result.modified_args is not None
+            ):
+                tc = ToolCall(id=tc.id, name=tc.name, arguments=hook_result.modified_args)
+
+        for mw in self.middlewares:
+            tc.arguments = mw.wrap_tool_call(tc.name, tc.arguments)
+
+        if self.trace_provider:
+            async with self.trace_provider.start_span(SpanType.TOOL_EXECUTION, tc.name) as span:
+                result = await self._execute_tool(tc)
+                span.set_meta("result_length", len(result.content))
+                span.set_meta("is_error", result.is_error)
+        else:
+            result = await self._execute_tool(tc)
+
+        result_content = result.content
+        if result.is_error:
+            result_content = json.dumps({"error": result_content})
+
+        # PostToolUse hooks
+        if self.hook_manager:
+            hook_result = await self.hook_manager.run_post_tool_use(
+                tc.name, tc.arguments, result_content
+            )
+            if hook_result.decision == HookDecision.DENY:
+                result_content = json.dumps(
+                    {"error": f"Tool output blocked by hook: {hook_result.reason}"}
+                )
+
+        try:
+            await self._check_tool_guardrails(tc, "output", result_content)
+        except GuardrailTripwire as e:
+            result_content = json.dumps({"error": f"Tool output blocked: {e.result.message}"})
+
+        state.add_message(
+            Message.tool_result(
+                tool_call_id=tc.id,
+                content=result_content,
+                name=tc.name,
+            )
+        )
+
+    async def _execute_tool_batch(self, tool_calls: list[ToolCall], state: AgentState) -> None:
+        """Execute a batch of parallel-safe tool calls concurrently via asyncio.gather().
+
+        Each tool is guarded and middlewared independently. Errors in one
+        tool don't affect others. Results are added to state after all complete.
+        """
+
+        async def _run_one(tc: ToolCall) -> Message:
+            try:
+                await self._check_tool_guardrails(tc, "input", tc.arguments)
+            except GuardrailTripwire as e:
+                return Message.tool_result(
+                    tool_call_id=tc.id,
+                    content=json.dumps({"error": f"Tool input blocked: {e.result.message}"}),
+                    name=tc.name,
+                )
+
+            tc_args = dict(tc.arguments)
+            for mw in self.middlewares:
+                tc_args = mw.wrap_tool_call(tc.name, tc_args)
+
+            tc_with_args = ToolCall(id=tc.id, name=tc.name, arguments=tc_args)
+
+            if self.trace_provider:
+                async with self.trace_provider.start_span(SpanType.TOOL_EXECUTION, tc.name) as span:
+                    result = await self._execute_tool(tc_with_args)
+                    span.set_meta("result_length", len(result.content))
+                    span.set_meta("is_error", result.is_error)
+            else:
+                result = await self._execute_tool(tc_with_args)
+
+            result_content = result.content
+            if result.is_error:
+                result_content = json.dumps({"error": result_content})
+
+            try:
+                await self._check_tool_guardrails(tc, "output", result_content)
+            except GuardrailTripwire as e:
+                result_content = json.dumps({"error": f"Tool output blocked: {e.result.message}"})
+
+            return Message.tool_result(
+                tool_call_id=tc.id,
+                content=result_content,
+                name=tc.name,
+            )
+
+        results = await asyncio.gather(*[_run_one(tc) for tc in tool_calls], return_exceptions=True)
+
+        for i, result in enumerate(results):
+            tc = tool_calls[i]
+            if isinstance(result, Exception):
+                logger.error(f"parallel_tool_error tool={tc.name}: {result}")
+                state.add_message(
+                    Message.tool_result(
+                        tool_call_id=tc.id,
+                        content=json.dumps({"error": f"Tool execution failed: {result}"}),
+                        name=tc.name,
+                    )
+                )
+            else:
+                state.add_message(result)
+
+    async def _execute_single_tool_streaming(
+        self, tc: ToolCall, state: AgentState
+    ) -> AsyncIterator[StreamChunk]:
+        """Execute a single tool call with streaming events."""
+        try:
+            await self._check_tool_guardrails(tc, "input", tc.arguments)
+        except GuardrailTripwire as e:
+            blocked_result = json.dumps({"error": f"Tool input blocked: {e.result.message}"})
+            state.add_message(
+                Message.tool_result(tool_call_id=tc.id, content=blocked_result, name=tc.name)
+            )
+            yield StreamChunk.tool_result_event(
+                tool=tc.name, call_id=tc.id, result_preview=blocked_result[:500]
+            )
+            yield StreamChunk.tool_end(
+                tool=tc.name, call_id=tc.id, result_preview=blocked_result[:500]
+            )
+            return
+
+        for mw in self.middlewares:
+            tc.arguments = mw.wrap_tool_call(tc.name, tc.arguments)
+
+        if self.trace_provider:
+            async with self.trace_provider.start_span(
+                SpanType.TOOL_EXECUTION, tc.name
+            ) as tool_span:
+                result = await self._execute_tool(tc)
+                tool_span.set_meta("result_length", len(result.content))
+                tool_span.set_meta("is_error", result.is_error)
+        else:
+            result = await self._execute_tool(tc)
+
+        result_content = result.content
+        if result.is_error:
+            result_content = json.dumps({"error": result_content})
+
+        try:
+            await self._check_tool_guardrails(tc, "output", result_content)
+        except GuardrailTripwire as e:
+            result_content = json.dumps({"error": f"Tool output blocked: {e.result.message}"})
+
+        state.add_message(
+            Message.tool_result(
+                tool_call_id=tc.id,
+                content=result_content,
+                name=tc.name,
+            )
+        )
+        preview = result_content[:500] if result_content else ""
+        yield StreamChunk.tool_result_event(tool=tc.name, call_id=tc.id, result_preview=preview)
+        yield StreamChunk.tool_end(tool=tc.name, call_id=tc.id, result_preview=preview)
+
+    async def _execute_tool_batch_streaming(
+        self, tool_calls: list[ToolCall], state: AgentState
+    ) -> AsyncIterator[StreamChunk]:
+        """Execute a batch of parallel-safe tool calls concurrently, yielding events.
+
+        Uses asyncio.gather for concurrent execution. Events are yielded
+        after all tools complete to maintain message ordering in state.
+        """
+
+        async def _run_one(tc: ToolCall) -> tuple[ToolCall, str]:
+            try:
+                await self._check_tool_guardrails(tc, "input", tc.arguments)
+            except GuardrailTripwire as e:
+                return tc, json.dumps({"error": f"Tool input blocked: {e.result.message}"})
+
+            tc_args = dict(tc.arguments)
+            for mw in self.middlewares:
+                tc_args = mw.wrap_tool_call(tc.name, tc_args)
+
+            tc_with_args = ToolCall(id=tc.id, name=tc.name, arguments=tc_args)
+
+            if self.trace_provider:
+                async with self.trace_provider.start_span(SpanType.TOOL_EXECUTION, tc.name) as span:
+                    result = await self._execute_tool(tc_with_args)
+                    span.set_meta("result_length", len(result.content))
+                    span.set_meta("is_error", result.is_error)
+            else:
+                result = await self._execute_tool(tc_with_args)
+
+            result_content = result.content
+            if result.is_error:
+                result_content = json.dumps({"error": result_content})
+
+            try:
+                await self._check_tool_guardrails(tc, "output", result_content)
+            except GuardrailTripwire as e:
+                result_content = json.dumps({"error": f"Tool output blocked: {e.result.message}"})
+
+            return tc, result_content
+
+        results = await asyncio.gather(*[_run_one(tc) for tc in tool_calls], return_exceptions=True)
+
+        for i, result in enumerate(results):
+            tc = tool_calls[i]
+            if isinstance(result, Exception):
+                logger.error(f"parallel_tool_error tool={tc.name}: {result}")
+                result_content = json.dumps({"error": f"Tool execution failed: {result}"})
+            else:
+                tc_r, result_content = result
+                tc = tc_r
+
+            state.add_message(
+                Message.tool_result(
+                    tool_call_id=tc.id,
+                    content=result_content,
+                    name=tc.name,
+                )
+            )
+            preview = result_content[:500] if result_content else ""
+            yield StreamChunk.tool_result_event(tool=tc.name, call_id=tc.id, result_preview=preview)
+            yield StreamChunk.tool_end(tool=tc.name, call_id=tc.id, result_preview=preview)
 
     async def _run_hooks(self, hook_name: str, state: AgentState) -> None:
         for mw in self.middlewares:
@@ -305,15 +597,34 @@ class AgentLoop:
                         SpanType.LLM_CALL, f"llm_call_{iteration}"
                     ) as span:
                         response = await self.provider.chat(
-                            prepared, tools=tools, model=None, provider_options=None
+                            prepared,
+                            tools=tools,
+                            model=None,
+                            provider_options=self.run_config.provider_options,
                         )
                         span.set_meta("has_tool_calls", bool(response.tool_calls))
-                        cost_tracker.add_usage()
+                        if response.usage:
+                            span.set_meta("input_tokens", response.usage.input_tokens)
+                            span.set_meta("output_tokens", response.usage.output_tokens)
+                        cost_tracker.add_usage(
+                            input_tokens=response.usage.input_tokens if response.usage else 0,
+                            output_tokens=response.usage.output_tokens if response.usage else 0,
+                            reasoning_tokens=response.usage.reasoning_tokens
+                            if response.usage
+                            else 0,
+                        )
                 else:
                     response = await self.provider.chat(
-                        prepared, tools=tools, model=None, provider_options=None
+                        prepared,
+                        tools=tools,
+                        model=None,
+                        provider_options=self.run_config.provider_options,
                     )
-                    cost_tracker.add_usage()
+                    cost_tracker.add_usage(
+                        input_tokens=response.usage.input_tokens if response.usage else 0,
+                        output_tokens=response.usage.output_tokens if response.usage else 0,
+                        reasoning_tokens=response.usage.reasoning_tokens if response.usage else 0,
+                    )
             except Exception as e:
                 logger.error(f"llm_error iteration={iteration}: {e}")
                 state.add_message(Message.assistant(content=f"Error: {e}"))
@@ -333,50 +644,34 @@ class AgentLoop:
                     )
                 break
 
-            for tc in response.tool_calls:
-                if self._should_interrupt(tc):
-                    raise Interrupt(tc)
+            # Classify tool calls: parallel-safe, sequential, interrupts
+            parallel_safe, sequential, interrupts = self._classify_tool_calls(response.tool_calls)
 
-                try:
-                    await self._check_tool_guardrails(tc, "input", tc.arguments)
-                except GuardrailTripwire as e:
-                    state.add_message(
-                        Message.tool_result(
-                            tool_call_id=tc.id,
-                            content=json.dumps(
-                                {"error": f"Tool input blocked: {e.result.message}"}
-                            ),
-                            name=tc.name,
-                        )
-                    )
-                    continue
-
-                for mw in self.middlewares:
-                    tc.arguments = mw.wrap_tool_call(tc.name, tc.arguments)
-
-                if self.trace_provider:
-                    async with self.trace_provider.start_span(
-                        SpanType.TOOL_EXECUTION, tc.name
-                    ) as span:
-                        result_content = await self._execute_tool(tc)
-                        span.set_meta("result_length", len(result_content))
-                else:
-                    result_content = await self._execute_tool(tc)
-
-                try:
-                    await self._check_tool_guardrails(tc, "output", result_content)
-                except GuardrailTripwire as e:
-                    result_content = json.dumps(
-                        {"error": f"Tool output blocked: {e.result.message}"}
-                    )
-
+            # Handle interrupts: add interrupt tool_result messages (not executed)
+            for tc in interrupts:
                 state.add_message(
                     Message.tool_result(
                         tool_call_id=tc.id,
-                        content=result_content,
+                        content=json.dumps(
+                            {
+                                "interrupt": True,
+                                "tool": tc.name,
+                                "args": tc.arguments,
+                                "message": f"Tool call '{tc.name}' requires approval",
+                                "allowed_actions": ["approve", "reject", "edit"],
+                            }
+                        ),
                         name=tc.name,
                     )
                 )
+
+            # Execute parallel-safe tools concurrently
+            if parallel_safe:
+                await self._execute_tool_batch(parallel_safe, state)
+
+            # Execute sequential (destructive) tools one-at-a-time
+            for tc in sequential:
+                await self._execute_single_tool(tc, state)
 
         await self._run_hooks("aafter_agent", state)
         return state.messages
@@ -441,6 +736,7 @@ class AgentLoop:
             stream_reasoning_parts: list[str] = []
             in_text_block = False
             in_reasoning_block = False
+            stream_usage = Usage()
 
             if guardrail_task is not None:
                 try:
@@ -456,8 +752,20 @@ class AgentLoop:
                         SpanType.LLM_CALL, f"llm_call_{iteration}"
                     ) as llm_span:
                         async for chunk in self.provider.chat_stream(
-                            prepared, tools=tools, model=None, provider_options=None
+                            prepared,
+                            tools=tools,
+                            model=None,
+                            provider_options=self.run_config.provider_options,
                         ):
+                            if chunk.type == "usage" and chunk.usage:
+                                stream_usage.input_tokens += chunk.usage.input_tokens
+                                stream_usage.output_tokens += chunk.usage.output_tokens
+                                stream_usage.reasoning_tokens += chunk.usage.reasoning_tokens
+                                stream_usage.cache_read_tokens += chunk.usage.cache_read_tokens
+                                stream_usage.cache_creation_tokens += (
+                                    chunk.usage.cache_creation_tokens
+                                )
+                                continue
                             async for event in self._process_stream_chunk(
                                 chunk,
                                 stream_content_parts,
@@ -476,12 +784,28 @@ class AgentLoop:
                                 elif event.type == "reasoning_end":
                                     in_reasoning_block = False
 
-                        cost_tracker.add_usage()
+                        cost_tracker.add_usage(
+                            input_tokens=stream_usage.input_tokens,
+                            output_tokens=stream_usage.output_tokens,
+                            reasoning_tokens=stream_usage.reasoning_tokens,
+                        )
                         llm_span.set_meta("tool_calls_count", len(stream_tool_calls_map))
+                        llm_span.set_meta("input_tokens", stream_usage.input_tokens)
+                        llm_span.set_meta("output_tokens", stream_usage.output_tokens)
                 else:
                     async for chunk in self.provider.chat_stream(
-                        prepared, tools=tools, model=None, provider_options=None
+                        prepared,
+                        tools=tools,
+                        model=None,
+                        provider_options=self.run_config.provider_options,
                     ):
+                        if chunk.type == "usage" and chunk.usage:
+                            stream_usage.input_tokens += chunk.usage.input_tokens
+                            stream_usage.output_tokens += chunk.usage.output_tokens
+                            stream_usage.reasoning_tokens += chunk.usage.reasoning_tokens
+                            stream_usage.cache_read_tokens += chunk.usage.cache_read_tokens
+                            stream_usage.cache_creation_tokens += chunk.usage.cache_creation_tokens
+                            continue
                         async for event in self._process_stream_chunk(
                             chunk,
                             stream_content_parts,
@@ -500,7 +824,11 @@ class AgentLoop:
                             elif event.type == "reasoning_end":
                                 in_reasoning_block = False
 
-                    cost_tracker.add_usage()
+                    cost_tracker.add_usage(
+                        input_tokens=stream_usage.input_tokens,
+                        output_tokens=stream_usage.output_tokens,
+                        reasoning_tokens=stream_usage.reasoning_tokens,
+                    )
 
             except Exception as e:
                 logger.error(f"llm_stream_error iteration={iteration}: {e}")
@@ -546,61 +874,44 @@ class AgentLoop:
 
             all_tool_calls.extend([{"name": tc.name, "call_id": tc.id} for tc in stream_tool_calls])
 
-            for tc in stream_tool_calls:
-                if self._should_interrupt(tc):
-                    yield StreamChunk.interrupt(tool=tc.name, call_id=tc.id, args=tc.arguments)
-                    continue
+            # Classify tool calls: parallel-safe, sequential, interrupts
+            parallel_safe, sequential, interrupts = self._classify_tool_calls(stream_tool_calls)
 
-                try:
-                    await self._check_tool_guardrails(tc, "input", tc.arguments)
-                except GuardrailTripwire as e:
-                    blocked_result = json.dumps(
-                        {"error": f"Tool input blocked: {e.result.message}"}
-                    )
-                    state.add_message(
-                        Message.tool_result(
-                            tool_call_id=tc.id, content=blocked_result, name=tc.name
-                        )
-                    )
-                    yield StreamChunk.tool_result_event(
-                        tool=tc.name, call_id=tc.id, result_preview=blocked_result[:500]
-                    )
-                    yield StreamChunk.tool_end(
-                        tool=tc.name, call_id=tc.id, result_preview=blocked_result[:500]
-                    )
-                    continue
-
-                for mw in self.middlewares:
-                    tc.arguments = mw.wrap_tool_call(tc.name, tc.arguments)
-
-                if self.trace_provider:
-                    async with self.trace_provider.start_span(
-                        SpanType.TOOL_EXECUTION, tc.name
-                    ) as tool_span:
-                        result_content = await self._execute_tool(tc)
-                        tool_span.set_meta("result_length", len(result_content))
-                else:
-                    result_content = await self._execute_tool(tc)
-
-                try:
-                    await self._check_tool_guardrails(tc, "output", result_content)
-                except GuardrailTripwire as e:
-                    result_content = json.dumps(
-                        {"error": f"Tool output blocked: {e.result.message}"}
-                    )
-
+            # Handle interrupts: yield interrupt events, add tool_result messages
+            for tc in interrupts:
+                yield StreamChunk.interrupt(tool=tc.name, call_id=tc.id, args=tc.arguments)
+                interrupt_result = json.dumps(
+                    {
+                        "interrupt": True,
+                        "tool": tc.name,
+                        "args": tc.arguments,
+                        "message": f"Tool call '{tc.name}' requires approval",
+                        "allowed_actions": ["approve", "reject", "edit"],
+                    }
+                )
                 state.add_message(
                     Message.tool_result(
                         tool_call_id=tc.id,
-                        content=result_content,
+                        content=interrupt_result,
                         name=tc.name,
                     )
                 )
-                preview = result_content[:500] if result_content else ""
                 yield StreamChunk.tool_result_event(
-                    tool=tc.name, call_id=tc.id, result_preview=preview
+                    tool=tc.name, call_id=tc.id, result_preview=interrupt_result[:500]
                 )
-                yield StreamChunk.tool_end(tool=tc.name, call_id=tc.id, result_preview=preview)
+                yield StreamChunk.tool_end(
+                    tool=tc.name, call_id=tc.id, result_preview=interrupt_result[:500]
+                )
+
+            # Execute parallel-safe tools concurrently, emit events as they complete
+            if parallel_safe:
+                async for event in self._execute_tool_batch_streaming(parallel_safe, state):
+                    yield event
+
+            # Execute sequential (destructive) tools one-at-a-time
+            for tc in sequential:
+                async for event in self._execute_single_tool_streaming(tc, state):
+                    yield event
 
         await self._run_hooks("aafter_agent", state)
 
@@ -697,7 +1008,9 @@ class AgentLoop:
             if not prepared or prepared[0].role != "system":
                 prepared.insert(0, Message.system(self.system_prompt))
 
-        response = await self.provider.chat(prepared, tools=None, model=None)
+        response = await self.provider.chat(
+            prepared, tools=None, model=None, provider_options=self.run_config.provider_options
+        )
 
         if not isinstance(response.content, str):
             content = str(response.content)

@@ -9,8 +9,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from langchain_core.messages import AIMessage
-
 from tests.evaluation.personas import PERSONAS, generate_test_queries
 
 HTTP_BASE_URL = os.environ.get("EVAL_HTTP_URL", "http://localhost:8080")
@@ -38,7 +36,7 @@ async def call_agent_via_http(user_id: str, message: str, messages: list) -> dic
 
             return {
                 "response": response_text if not error_text else f"ERROR: {error_text}",
-                "messages": [AIMessage(content=response_text)],
+                "messages": [{"role": "assistant", "content": response_text}],
                 "response_time_ms": response_time_ms,
                 "tool_calls": data.get("tool_calls", []),
                 "tokens": data.get("tokens", 0),

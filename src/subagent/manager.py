@@ -14,7 +14,7 @@ from src.app_logging import get_logger
 from src.config import get_settings
 from src.subagent.config import SubagentConfig
 from src.subagent.validation import validate_subagent_config
-from src.skills import SkillRegistry
+from src.skills import get_skill_registry
 from src.storage.paths import get_paths
 
 logger = get_logger()
@@ -323,7 +323,7 @@ You have access to tools and skills as configured. Always use the planning-with-
 
     def _build_system_prompt(self, config: SubagentConfig) -> str:
         """Build system prompt with skills injected."""
-        registry = SkillRegistry(system_dir="src/skills", user_id=self.user_id)
+        registry = get_skill_registry(user_id=self.user_id)
 
         planning_skill = registry.get_skill("planning-with-files")
         planning_content = planning_skill["content"] if planning_skill else ""

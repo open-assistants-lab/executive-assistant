@@ -1,6 +1,6 @@
 """Unit tests for todos tools - full coverage for all CRUD operations."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 TEST_USER_ID = "test_todos_user"
 
@@ -12,7 +12,7 @@ class TestTodosList:
         """Test todos_list with no todos."""
         from src.sdk.tools_core.todos import todos_list
 
-        with patch("src.tools.todos.tools.todos_storage") as mock_storage:
+        with patch("src.sdk.tools_core.todos_storage") as mock_storage:
             mock_storage.get_todos.return_value = []
             mock_storage.todos_count.return_value = {
                 "total": 0,
@@ -32,7 +32,7 @@ class TestTodosList:
             {"id": "2", "content": "Task 2", "status": "in_progress"},
             {"id": "3", "content": "Task 3", "status": "completed"},
         ]
-        with patch("src.tools.todos.tools.todos_storage") as mock_storage:
+        with patch("src.sdk.tools_core.todos_storage") as mock_storage:
             mock_storage.get_todos.return_value = mock_todos
             mock_storage.todos_count.return_value = {
                 "total": 3,
@@ -59,7 +59,7 @@ class TestTodosAdd:
         """Test todos_add successfully adds todo."""
         from src.sdk.tools_core.todos import todos_add
 
-        with patch("src.tools.todos.tools.todos_storage") as mock_storage:
+        with patch("src.sdk.tools_core.todos_storage") as mock_storage:
             mock_storage.add_todo.return_value = {
                 "id": "new123",
                 "content": "New task",
@@ -72,7 +72,7 @@ class TestTodosAdd:
         """Test todos_add with priority."""
         from src.sdk.tools_core.todos import todos_add
 
-        with patch("src.tools.todos.tools.todos_storage") as mock_storage:
+        with patch("src.sdk.tools_core.todos_storage") as mock_storage:
             mock_storage.add_todo.return_value = {
                 "id": "p123",
                 "content": "High priority",
@@ -98,7 +98,7 @@ class TestTodosUpdate:
         """Test todos_update successfully updates todo."""
         from src.sdk.tools_core.todos import todos_update
 
-        with patch("src.tools.todos.tools.todos_storage") as mock_storage:
+        with patch("src.sdk.tools_core.todos_storage") as mock_storage:
             mock_storage.update_todo.return_value = {"success": True}
             result = todos_update.invoke(
                 {
@@ -114,7 +114,7 @@ class TestTodosUpdate:
         """Test todos_update handles not found."""
         from src.sdk.tools_core.todos import todos_update
 
-        with patch("src.tools.todos.tools.todos_storage") as mock_storage:
+        with patch("src.sdk.tools_core.todos_storage") as mock_storage:
             mock_storage.update_todo.return_value = {"success": False, "error": "Not found"}
             result = todos_update.invoke({"user_id": TEST_USER_ID, "todo_id": "nonexistent"})
             assert "Error" in result
@@ -134,7 +134,7 @@ class TestTodosDelete:
         """Test todos_delete successfully deletes todo."""
         from src.sdk.tools_core.todos import todos_delete
 
-        with patch("src.tools.todos.tools.todos_storage") as mock_storage:
+        with patch("src.sdk.tools_core.todos_storage") as mock_storage:
             mock_storage.delete_todo.return_value = {"success": True}
             result = todos_delete.invoke({"user_id": TEST_USER_ID, "todo_id": "123"})
             assert "deleted" in result.lower() or "success" in result.lower()
@@ -143,7 +143,7 @@ class TestTodosDelete:
         """Test todos_delete handles not found."""
         from src.sdk.tools_core.todos import todos_delete
 
-        with patch("src.tools.todos.tools.todos_storage") as mock_storage:
+        with patch("src.sdk.tools_core.todos_storage") as mock_storage:
             mock_storage.delete_todo.return_value = {"success": False, "error": "Not found"}
             result = todos_delete.invoke({"user_id": TEST_USER_ID, "todo_id": "nonexistent"})
             assert "Error" in result

@@ -1,6 +1,6 @@
 """Unit tests for memory tools."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 TEST_USER_ID = "test_memory_user"
 
@@ -12,7 +12,10 @@ class TestMemoryGetHistory:
         """Test memory_get_history with empty result."""
         from src.sdk.tools_core.memory import memory_get_history
 
-        with patch("src.tools.memory.tools.get_messages", return_value=[]):
+        with patch("src.storage.messages.get_conversation_store") as mock_get_store:
+            mock_store = MagicMock()
+            mock_store.get_messages.return_value = []
+            mock_get_store.return_value = mock_store
             result = memory_get_history.invoke({"user_id": TEST_USER_ID})
             assert "no messages" in result.lower() or "empty" in result.lower()
 
@@ -24,7 +27,10 @@ class TestMemoryGetHistory:
             {"role": "user", "content": "Hello"},
             {"role": "assistant", "content": "Hi there"},
         ]
-        with patch("src.tools.memory.tools.get_messages", return_value=mock_messages):
+        with patch("src.storage.messages.get_conversation_store") as mock_get_store:
+            mock_store = MagicMock()
+            mock_store.get_messages.return_value = mock_messages
+            mock_get_store.return_value = mock_store
             result = memory_get_history.invoke({"user_id": TEST_USER_ID})
             assert "Hello" in result or "Hi" in result
 
@@ -43,7 +49,10 @@ class TestMemorySearch:
         """Test memory_search with no results."""
         from src.sdk.tools_core.memory import memory_search
 
-        with patch("src.tools.memory.tools.search_memories", return_value=[]):
+        with patch("src.storage.memory.get_memory_store") as mock_get_store:
+            mock_store = MagicMock()
+            mock_store.search.return_value = []
+            mock_get_store.return_value = mock_store
             result = memory_search.invoke({"query": "nonexistent", "user_id": TEST_USER_ID})
             assert "no memories found" in result.lower() or "not found" in result.lower()
 
@@ -52,7 +61,10 @@ class TestMemorySearch:
         from src.sdk.tools_core.memory import memory_search
 
         mock_results = [{"content": "User prefers Python", "relevance": 0.9}]
-        with patch("src.tools.memory.tools.search_memories", return_value=mock_results):
+        with patch("src.storage.memory.get_memory_store") as mock_get_store:
+            mock_store = MagicMock()
+            mock_store.search.return_value = mock_results
+            mock_get_store.return_value = mock_store
             result = memory_search.invoke({"query": "Python", "user_id": TEST_USER_ID})
             assert "Python" in result
 

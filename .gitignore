@@ -66,3 +66,6 @@ flutter_app/.pub/
 flutter_app/doc/api/
 flutter_app/ios/Pods/
 flutter_app/ios/.symlinks/
+flutter_app/
+data/evaluations/
+.DS_Store

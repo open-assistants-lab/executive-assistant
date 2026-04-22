@@ -30,7 +30,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from src.storage.messages import ConversationStore
-from src.sdk.tools_core.apps_storage import get_embedding as _get_embedding_func
+from src.sdk.tools_core.apps import get_embedding as _get_embedding_func
 
 _embedding_cache: dict[str, list[float]] = {}
 

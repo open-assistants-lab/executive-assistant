@@ -1,9 +1,6 @@
 """Tests for Phase 5+6 features: structured streaming, annotations, guardrails, handoffs, tracing, RunConfig."""
 
 import asyncio
-import json
-from typing import Any
-from unittest.mock import AsyncMock
 
 import pytest
 
@@ -12,15 +9,13 @@ from src.sdk.guardrails import (
     GuardrailTripwire,
     InputGuardrail,
     OutputGuardrail,
-    ToolGuardrail,
 )
 from src.sdk.handoffs import Handoff, HandoffInput
-from src.sdk.loop import AgentLoop, CostTracker, Interrupt, RunConfig
+from src.sdk.loop import AgentLoop, CostTracker, RunConfig
 from src.sdk.messages import Message, StreamChunk, ToolCall
-from src.sdk.middleware import Middleware
 from src.sdk.providers.base import LLMProvider, ModelInfo
 from src.sdk.state import AgentState
-from src.sdk.tools import ToolAnnotations, ToolDefinition, ToolResult, tool
+from src.sdk.tools import ToolAnnotations, ToolResult, tool
 from src.sdk.tracing import (
     ConsoleTraceProcessor,
     JsonTraceProcessor,
@@ -29,7 +24,6 @@ from src.sdk.tracing import (
     TraceProvider,
 )
 from src.sdk.validation import normalize_tool_schema, repair_tool_call
-
 
 # ─── StreamChunk Block Events ───
 
@@ -320,8 +314,11 @@ class TestAutoApproval:
             ]
         )
         loop = AgentLoop(provider=provider, tools=[delete_file], max_iterations=5)
-        with pytest.raises(Interrupt):
-            await loop.run([Message.user("delete /x")])
+        result = await loop.run([Message.user("delete /x")])
+        tool_results = [
+            m for m in result if m.role == "tool" and m.content and "interrupt" in m.content
+        ]
+        assert len(tool_results) >= 1
 
     @pytest.mark.asyncio
     async def test_read_only_tool_no_interrupt(self):

@@ -18,7 +18,7 @@ from uuid import uuid4
 
 import httpx
 
-from src.sdk.messages import Message, StreamChunk, ToolCall
+from src.sdk.messages import Message, StreamChunk, ToolCall, Usage
 from src.sdk.providers.base import LLMProvider, ModelInfo
 from src.sdk.tools import ToolDefinition
 
@@ -167,7 +167,18 @@ class GeminiProvider(LLMProvider):
             elif "thought" in part:
                 reasoning = part["thought"]
         text = "\n".join(text_parts) if text_parts else ""
-        result = Message.assistant(content=text, tool_calls=tool_calls)
+
+        usage = None
+        usage_meta = data.get("usageMetadata")
+        if usage_meta:
+            usage = Usage(
+                input_tokens=usage_meta.get("promptTokenCount", 0),
+                output_tokens=usage_meta.get("candidatesTokenCount", 0),
+                reasoning_tokens=usage_meta.get("thoughtsTokenCount", 0),
+                cache_read_tokens=usage_meta.get("cachedContentTokenCount", 0),
+            )
+
+        result = Message.assistant(content=text, tool_calls=tool_calls, usage=usage)
         if reasoning:
             result.reasoning = reasoning
         return result
@@ -268,6 +279,19 @@ class GeminiProvider(LLMProvider):
         finish_reason = candidates[0].get("finishReason")
         if finish_reason:
             events.append(StreamChunk.done())
+
+        usage_meta = data.get("usageMetadata")
+        if usage_meta:
+            events.append(
+                StreamChunk.usage_event(
+                    Usage(
+                        input_tokens=usage_meta.get("promptTokenCount", 0),
+                        output_tokens=usage_meta.get("candidatesTokenCount", 0),
+                        reasoning_tokens=usage_meta.get("thoughtsTokenCount", 0),
+                        cache_read_tokens=usage_meta.get("cachedContentTokenCount", 0),
+                    )
+                )
+            )
 
         return events
 

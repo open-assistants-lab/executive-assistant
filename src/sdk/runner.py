@@ -4,9 +4,12 @@ This is the bridge between the HTTP layer and the SDK AgentLoop.
 It handles:
   - Creating LLM provider from config
   - Loading SDK-native tools (no more LangChain adapter)
-  - Assembling SDK middlewares (memory, skill, summarization)
+  - Assembling SDK middlewares (memory, summarization)
   - Converting between WS protocol messages and StreamChunks
   - Thread-safe per-user agent instances
+
+Skills are now discovery-based: available skill names are embedded
+in the skills_list tool description dynamically, not in the system prompt.
 """
 
 from __future__ import annotations
@@ -16,10 +19,9 @@ from typing import Any
 
 from src.app_logging import get_logger
 from src.config import get_settings
-from src.sdk.loop import AgentLoop, Interrupt
+from src.sdk.loop import AgentLoop
 from src.sdk.messages import Message, StreamChunk
 from src.sdk.middleware_memory import MemoryMiddleware
-from src.sdk.middleware_skill import SkillMiddleware
 from src.sdk.middleware_summarization import SummarizationMiddleware
 from src.sdk.native_tools import get_native_tools
 from src.sdk.providers.factory import create_model_from_config
@@ -36,18 +38,11 @@ def _get_system_prompt(user_id: str) -> str:
     return base_prompt + f"\n\nuser_id: {user_id}"
 
 
-def _get_interrupt_tools() -> set[str]:
-    settings = get_settings()
-    interrupt_on: set[str] = set()
-    if getattr(settings.filesystem, "enabled", True):
-        interrupt_on.add("files_delete")
-    return interrupt_on
-
-
 async def create_sdk_loop(user_id: str) -> AgentLoop:
     """Create an AgentLoop for a user with all wiring.
 
     All tools are now SDK-native (from src.sdk.native_tools).
+    MCP tools are discovered and injected via MCPToolBridge.
     No more LangChain adapter needed.
     """
     settings = get_settings()
@@ -57,7 +52,22 @@ async def create_sdk_loop(user_id: str) -> AgentLoop:
 
     tools = get_native_tools()
 
-    logger.info("sdk_runner.tools_loaded", {"count": len(tools)}, user_id=user_id)
+    mcp_tools: list = []
+    mcp_bridge = None
+    try:
+        from src.sdk.tools_core.mcp_bridge import MCPToolBridge
+
+        mcp_bridge = MCPToolBridge(user_id=user_id)
+        mcp_count = await mcp_bridge.discover()
+        if mcp_count > 0:
+            mcp_tools = mcp_bridge.get_tool_definitions()
+            logger.info("sdk_runner.mcp_tools", {"count": mcp_count}, user_id=user_id)
+    except Exception as e:
+        logger.warning("sdk_runner.mcp_failed", {"error": str(e)}, user_id=user_id)
+
+    all_tools = tools + mcp_tools
+
+    logger.info("sdk_runner.tools_loaded", {"count": len(all_tools)}, user_id=user_id)
 
     summary_config = settings.memory.summarization
 
@@ -72,16 +82,17 @@ async def create_sdk_loop(user_id: str) -> AgentLoop:
             )
         )
 
-    middlewares.append(SkillMiddleware(system_dir="src/skills", user_id=user_id))
     middlewares.append(MemoryMiddleware(user_id=user_id))
 
     loop = AgentLoop(
         provider=provider,
-        tools=tools,
+        tools=all_tools,
         system_prompt=_get_system_prompt(user_id),
         middlewares=middlewares,
-        interrupt_on=_get_interrupt_tools(),
     )
+
+    if mcp_bridge:
+        loop._mcp_bridge = mcp_bridge
 
     return loop
 
@@ -126,14 +137,8 @@ async def run_sdk_agent(
         Final message list from the agent.
     """
     loop = await get_sdk_loop(user_id)
-    try:
-        result = await loop.run(messages)
-        return result
-    except Interrupt:
-        raise
-    except Exception as e:
-        logger.error("sdk_runner.run_error", {"error": str(e)}, user_id=user_id)
-        raise
+    result = await loop.run(messages)
+    return result
 
 
 async def run_sdk_agent_stream(

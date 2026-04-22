@@ -355,7 +355,7 @@ def trigger_consolidation(user_id: str) -> dict[str, Any]:
         loop = None
 
     if loop and loop.is_running():
-        # Running inside an event loop (HTTP/Telegram server).
+        # Running inside an event loop (HTTP server).
         # Can't call asyncio.run() here — use a thread.
         with concurrent.futures.ThreadPoolExecutor() as pool:
             future = pool.submit(asyncio.run, run_consolidation(user_id))

@@ -4,10 +4,7 @@ These verify agent behavior through the HTTP API, ensuring consistent
 responses regardless of the underlying agent implementation.
 """
 
-import os
-import pytest
 
-os.environ.setdefault("CHECKPOINT_ENABLED", "false")
 
 
 class TestMessageEndpoint:

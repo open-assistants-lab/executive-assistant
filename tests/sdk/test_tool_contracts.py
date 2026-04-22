@@ -5,11 +5,7 @@ These verify that tools conform to their contract regardless of whether
 they use LangChain @tool or SDK @tool.
 """
 
-import os
-import tempfile
-import pytest
 
-os.environ.setdefault("CHECKPOINT_ENABLED", "false")
 
 
 # ─── Time ───
@@ -70,7 +66,7 @@ class TestShellExecute:
 
 class TestFilesystemTools:
     def test_files_write_and_read(self):
-        from src.sdk.tools_core.filesystem import files_write, files_read
+        from src.sdk.tools_core.filesystem import files_read, files_write
 
         files_write.invoke(
             {
@@ -99,7 +95,7 @@ class TestFilesystemTools:
         assert isinstance(str(result), str)
 
     def test_files_edit(self):
-        from src.sdk.tools_core.filesystem import files_write, files_edit, files_read
+        from src.sdk.tools_core.filesystem import files_edit, files_write
 
         files_write.invoke(
             {
@@ -119,7 +115,7 @@ class TestFilesystemTools:
         assert isinstance(str(result), str)
 
     def test_files_delete(self):
-        from src.sdk.tools_core.filesystem import files_write, files_delete
+        from src.sdk.tools_core.filesystem import files_delete, files_write
 
         files_write.invoke(
             {
@@ -134,7 +130,7 @@ class TestFilesystemTools:
         assert isinstance(str(result), str)
 
     def test_files_rename(self):
-        from src.sdk.tools_core.filesystem import files_write, files_rename
+        from src.sdk.tools_core.filesystem import files_rename, files_write
 
         files_write.invoke(
             {
@@ -177,8 +173,8 @@ class TestFileSearchTools:
 
 class TestVersioningTools:
     def test_capture_version(self):
-        from src.sdk.tools_core.filesystem import files_write
         from src.sdk.tools_core.file_versioning import capture_version
+        from src.sdk.tools_core.filesystem import files_write
 
         files_write.invoke(
             {
@@ -218,7 +214,7 @@ class TestTodosTools:
         assert isinstance(str(list_result), str)
 
     def test_todos_update(self):
-        from src.sdk.tools_core.todos import todos_add, todos_update
+        from src.sdk.tools_core.todos import todos_add
 
         add_result = todos_add.invoke(
             {"content": "Update test todo", "user_id": "test_contract_todos"}
@@ -321,17 +317,66 @@ class TestEmailTools:
 
 class TestSkillsTools:
     def test_skills_list(self):
-        from src.skills.tools import skills_list
+        from src.sdk.tools_core.skills import skills_list
 
         result = skills_list.invoke({"user_id": "test_contract_skills"})
         assert isinstance(str(result), str)
+
+    def test_skills_list_includes_skill_names(self):
+        from src.sdk.tools_core.skills import skills_list
+
+        result = skills_list.invoke({"user_id": "test_contract_skills"})
+        assert "deep-research" in result or "skill" in result.lower()
+
+    def test_skills_search_finds_matching_skills(self):
+        from src.sdk.tools_core.skills import skills_search
+
+        result = skills_search.invoke({"query": "research", "user_id": "test_contract_skills"})
+        assert isinstance(str(result), str)
+        assert "deep-research" in result or "research" in result.lower()
+
+    def test_skills_search_no_match(self):
+        from src.sdk.tools_core.skills import skills_search
+
+        result = skills_search.invoke(
+            {"query": "xyz-nonexistent-123", "user_id": "test_contract_skills"}
+        )
+        assert "no skills matching" in result.lower() or "available skills" in result.lower()
+
+    def test_skills_list_tool_description_does_not_inject_skills(self):
+        from src.sdk.tools_core.skills import skills_list
+
+        openai_format = skills_list.to_openai_format()
+        desc = openai_format["function"]["description"]
+        assert "deep-research" not in desc, (
+            f"Tool description should NOT inject skill names (progressive disclosure), got: {desc[:200]}"
+        )
+        assert "skills_load" in desc, (
+            f"Tool description should mention skills_load for discovery, got: {desc[:200]}"
+        )
+
+    def test_skills_load_returns_content(self):
+        from src.sdk.tools_core.skills import skills_load
+
+        result = skills_load.invoke(
+            {"skill_name": "deep-research", "user_id": "test_contract_skills"}
+        )
+        assert "# deep-research" in result or "deep-research" in result
+
+    def test_skills_load_not_found(self):
+        from src.sdk.tools_core.skills import skills_load
+
+        result = skills_load.invoke(
+            {"skill_name": "nonexistent-skill-xyz", "user_id": "test_contract_skills"}
+        )
+        assert "not found" in result.lower()
 
 
 class TestAppTools:
     """App tools require ChromaDB — contract checks only."""
 
     def test_app_tools_have_invoke(self):
-        from src.sdk.tools_core.apps import app_create, app_list, app_schema, app_query, app_delete
+        from src.sdk.tools_core.apps import app_create, app_delete, app_list, app_query, app_schema
 
         for tool in [app_create, app_list, app_schema, app_query, app_delete]:
             assert hasattr(tool, "invoke"), f"{tool.name} must have invoke method"

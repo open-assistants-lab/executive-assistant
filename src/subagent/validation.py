@@ -7,7 +7,7 @@ from typing import Any
 import yaml
 from pydantic import BaseModel
 
-from src.skills import SkillRegistry
+from src.skills import get_skill_registry
 
 
 class SubagentValidationResult(BaseModel):
@@ -63,7 +63,7 @@ def validate_subagent_config(
     if not isinstance(skills, list):
         errors.append("skills must be a list")
     else:
-        registry = SkillRegistry(system_dir="src/skills", user_id=user_id)
+        registry = get_skill_registry(user_id=user_id)
         available_skills = {s["name"] for s in registry.get_all_skills()}
 
         for skill in skills:

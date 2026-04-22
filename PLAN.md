@@ -20,10 +20,16 @@
 | **7** | Tool Migration (LangChain → SDK-native) | ✅ Done |
 | **7.5** | LangChain Removal | ✅ Done |
 | **7.6** | Browser Tool Replacement (Agent-Browser CLI) | ✅ Done |
-| **8** | Data Architecture + App Sharing + Folder Cleanup | 🔄 Current |
+| **10.1** | Critical Bug Fixes | ✅ Done |
+| **10.2** | MCP Tool Bridge | ✅ Done |
+| **10.3** | Discovery-Based Skills | ✅ Done |
+| **10.4** | Parallel Tool Execution | ✅ Done |
+| **10.5** | Architecture Improvements (ToolResult, hooks, usage, provider_options) | ✅ Done |
+| **11** | Subagent V1 (work_queue, coordinator, middlewares, 8 tools) | ✅ Done |
+| **8** | Data Architecture + App Sharing + Folder Cleanup | 🔲 Future |
 | **9** | Extract & Open Source SDK | 🔲 Future |
 
-**377 SDK tests passing. Agent runs end-to-end on all 3 channels (CLI, HTTP, WebSocket).**
+**470+ SDK tests passing. Agent runs end-to-end on CLI and HTTP (REST + SSE + WebSocket). All LangChain removed.**
 
 ---
 
@@ -31,7 +37,7 @@
 
 ### Phase 7: Tool Migration — ✅ DONE
 
-All 98 tools migrated from LangChain `@tool` to SDK `@tool` in `src/sdk/tools_core/`:
+All tools migrated from LangChain `@tool` to SDK `@tool` in `src/sdk/tools_core/`:
 
 | Module | Tools | Count |
 |--------|-------|-------|
@@ -40,18 +46,14 @@ All 98 tools migrated from LangChain `@tool` to SDK `@tool` in `src/sdk/tools_co
 | `filesystem.py` | `files_list`, `files_read`, `files_write`, `files_edit`, `files_delete`, `files_mkdir`, `files_rename` | 7 |
 | `file_search.py` | `files_glob_search`, `files_grep_search` | 2 |
 | `file_versioning.py` | `files_versions_list`, `files_versions_restore`, `files_versions_delete`, `files_versions_clean` | 4 |
-| `todos.py` | `todos_list`, `todos_add`, `todos_update`, `todos_delete`, `todos_extract` | 5 |
-| `contacts.py` | `contacts_list`, `contacts_get`, `contacts_add`, `contacts_update`, `contacts_delete`, `contacts_search` | 6 |
-| `memory.py` | `memory_get_history`, `memory_search`, `memory_search_all`, `memory_search_insights`, `memory_connect` | 5 |
-| `email.py` | `email_connect`, `email_disconnect`, `email_accounts`, `email_list`, `email_get`, `email_search`, `email_send`, `email_sync` | 8 |
+| `memory.py` | `memory_connect`, `memory_get_history`, `memory_search`, `memory_search_all`, `memory_search_insights` | 5 |
 | `firecrawl.py` | `scrape_url`, `search_web`, `map_url`, `crawl_url`, `get_crawl_status`, `cancel_crawl`, `firecrawl_status`, `firecrawl_agent` | 8 |
-| `browser.py` | `browser_open`, `browser_snapshot`, `browser_click`, `browser_fill`, `browser_type`, `browser_press`, `browser_scroll`, `browser_hover`, `browser_screenshot`, `browser_eval`, `browser_get_title`, `browser_get_text`, `browser_get_html`, `browser_get_url`, `browser_tab_new`, `browser_tab_close`, `browser_back`, `browser_forward`, `browser_wait_text`, `browser_sessions`, `browser_close_all`, `browser_status` | 22* |
+| `browser.py` | `browser_open`, `browser_snapshot`, `browser_click`, `browser_fill`, `browser_type`, `browser_press`, `browser_scroll`, `browser_hover`, `browser_screenshot`, `browser_eval`, `browser_get_title`, `browser_get_text`, `browser_get_html`, `browser_get_url`, `browser_tab_new`, `browser_tab_close`, `browser_back`, `browser_forward`, `browser_wait_text`, `browser_sessions`, `browser_close_all`, `browser_status` | 22 |
 | `apps.py` | `app_create`, `app_list`, `app_schema`, `app_delete`, `app_insert`, `app_update`, `app_delete_row`, `app_column_add`, `app_column_delete`, `app_column_rename`, `app_query`, `app_search_fts`, `app_search_semantic`, `app_search_hybrid` | 14 |
-| `subagent.py` | `subagent_create`, `subagent_invoke`, `subagent_batch`, `subagent_list`, `subagent_progress`, `subagent_validate`, `subagent_schedule`, `subagent_schedule_cancel`, `subagent_schedule_list`, `subagent_delete` | 10 |
 | `mcp.py` | `mcp_list`, `mcp_reload`, `mcp_tools` | 3 |
-| `skills.py` | `skills_list`, `skills_load`, `skill_create`, `sql_write_query` | 4 |
+| `skills.py` | `skills_list`, `skills_search`, `skills_load`, `skill_create`, `sql_write_query` | 5 |
 
-*\*browser.py has 22 tools (was 20 in browser_use.py; added `browser_snapshot`, `browser_fill`, `browser_press` replacing `browser_state`, `browser_input`, `browser_keys`; added `browser_hover`, `browser_back`, `browser_forward`; removed `browser_tab_switch`.)*
+**Note:** Email (8), contacts (6), todos (5) tools are disabled pending redesign (see "Disabled Tools" section).
 
 ### Phase 7.5: LangChain Removal — ✅ DONE
 
@@ -62,7 +64,7 @@ All 98 tools migrated from LangChain `@tool` to SDK `@tool` in `src/sdk/tools_co
 - `cli/main.py` — rewritten to use SDK runner
 - `http/main.py` — lifespan no longer depends on LangChain agent pool
 - MCP manager — rewritten to use native `mcp` SDK
-- `pyproject.toml` — 7 LangChain deps removed from core (4 moved to `[telegram]` extra)
+- `pyproject.toml` — 7 LangChain deps removed from core; Telegram extra removed (bot being discontinued)
 - `tests/sdk/test_conformance.py` — deleted (LangChain parity tests)
 - `tests/sdk/test_messages.py` — removed LangChain interop tests
 
@@ -74,7 +76,7 @@ All 98 tools migrated from LangChain `@tool` to SDK `@tool` in `src/sdk/tools_co
 
 ---
 
-## Phase 8: Data Architecture + App Sharing + Folder Cleanup — 🔄 CURRENT
+## Phase 8: Data Architecture + App Sharing + Folder Cleanup — 🔲 FUTURE
 
 See [DATA_ARCHITECTURE.md](./DATA_ARCHITECTURE.md) for the full data architecture design.
 
@@ -165,19 +167,19 @@ Still-active files that need relocation before their parent dirs can be deleted:
 | `src/tools/contacts/storage.py` | `sdk/tools_core/contacts.py` | `src/sdk/tools_core/contacts_storage.py` |
 | `src/tools/email/db.py`, `sync.py` | `sdk/tools_core/email.py`, HTTP routers | `src/sdk/tools_core/email_db.py`, `src/sdk/tools_core/email_sync.py` |
 | `src/tools/filesystem/cache.py` | HTTP workspace router | `src/http/workspace_cache.py` |
-| `src/tools/filesystem/tools.py` | HTTP workspace router, Telegram | `src/http/workspace_tools.py` (Telegram pending SDK rewrite) |
+| `src/tools/filesystem/tools.py` | HTTP workspace router | `src/http/workspace_tools.py` |
 | `src/tools/mcp/manager.py` | `sdk/tools_core/mcp.py` | `src/sdk/tools_core/mcp_manager.py` |
 
 After relocating active files, delete:
 
-| Directory | What's Left After Relocation |
-|-----------|------------------------------|
-| `src/tools/` | Nothing — delete entirely |
-| `src/agents/` | Still active (LangChain-based but in use) — blocked on Telegram SDK rewrite |
-| `src/llm/` | Still active (LangChain imports) — blocked on Telegram SDK rewrite |
-| `src/middleware/` | Still active (LangChain imports) — blocked on Telegram SDK rewrite |
+| Directory | What's Left After Relocation | Action |
+|-----------|------------------------------|--------|
+| `src/tools/` | Nothing — delete entirely | Delete |
+| `src/agents/` | LangChain-based agent pool | Delete after confirming no remaining consumers |
+| `src/llm/` | LangChain LLM providers | Delete after confirming no remaining consumers |
+| `src/middleware/` | LangChain middleware | Delete after confirming no remaining consumers |
 
-**Telegram blocker**: `src/telegram/main.py` still imports from `src/agents/manager.py` and `src/llm/providers.py`. Telegram bot needs a full SDK rewrite before `agents/`, `llm/`, `middleware/` can be deleted. This is a separate future task.
+**Note**: The Telegram bot (`src/telegram/main.py`) was the last consumer of `src/agents/manager.py` and `src/llm/providers.py`. Since the Telegram channel is being removed, these three directories are no longer blocked and can be deleted once we confirm no remaining imports.
 
 ### 8.5 Implementation Order
 
@@ -360,82 +362,280 @@ Zero heavy dependencies by default. Providers lazy-imported.
 
 ---
 
-## Architecture Research Summary
+## Parallel Tool Calls (Multi-Turn + In-Turn Parallel)
 
-Four SDKs/protocols studied; key patterns extracted:
+**Two dimensions must work together:**
 
-### Vercel AI SDK v6 (TypeScript)
-- Structured streaming: `text-start/delta/end`, `tool-input-start/delta/end`, `reasoning-start/delta/end`
-- Provider escape hatches: `providerOptions` keyed by provider name
-- Tool validation: `repairToolCall()` for malformed JSON
+1. **Multi-turn** (already works): The agent loop iterates — LLM calls tools, gets results, decides to call more tools, gets results, until it responds with text only. This is the ReAct loop already in `AgentLoop`.
 
-### OpenAI Agents SDK (Python)
-- Guardrails: Input/output/tool-level with tripwire semantics
-- Handoffs as model-driven tools: `transfer_to_{agent}`
-- First-class tracing: Typed spans with pluggable processors
+2. **In-turn parallel** (missing): When the LLM returns **multiple `tool_calls`** in a single response, they should execute concurrently where safe, then all results are collected and sent back together before the next LLM call. This is the pattern from [Ollama's tool calling docs](https://docs.ollama.com/capabilities/tool-calling) — parallel tool calling + multi-turn agent loop.
 
-### Google ADK (Python)
-- Three-tier state scoping: `app:` / `user:` / session-level with delta-commit
-- Event compaction: Compress old events into summaries
-- Agent-as-tool vs handoff: Different context passing patterns
+**Current state:** The AgentLoop executes tools **sequentially** within a turn (`for tc in response.tool_calls: execute(tc)` at loop.py:336). Multi-turn works — the loop repeats until no tool_calls. But when the LLM returns N tools, they run one at a time.
 
-### MCP Spec (2025-06-18)
-- Tool annotations: `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`
-- Dual-format results: `content` (human) + `structuredContent` (machine)
-- Content annotations: `audience` and `priority` per content block
+**Provider support:** All major providers return multiple tool_calls in a single response, and our SDK providers already parse them correctly (using `dict[int, dict]` index-based accumulation across streaming chunks):
 
----
+| Provider | Multi tool_calls | SDK parsing |
+|----------|:---:|---|
+| **OpenAI** | ✅ `parallel_tool_calls` param (default true) | `openai.py:142` — index-based `current_tool_calls` |
+| **Anthropic** | ✅ Multiple `tool_use` content blocks | `anthropic.py:222` — index-based `current_tool_calls` |
+| **Gemini** | ✅ Multiple `functionCall` in parts array | `gemini.py:228` — index-based `current_tool_calls` |
+| **Ollama Local** | ✅ OpenAI-compatible `/v1/chat/completions` | `ollama.py:296` — index-based `current_tool_calls` |
+| **Ollama Cloud** | ✅ Native `/api/chat` tool_calls array | `ollama.py:88` — index-based `current_tool_calls` |
 
-## What We Keep
+The **only change needed** is in `AgentLoop`: after collecting tool_calls, group by safety and run independent calls via `asyncio.gather()` instead of `for tc in tool_calls: execute(tc)`. No provider code changes.
 
-| Component | Reason |
-|-----------|--------|
-| `config.yaml` structure | Model configuration format already works |
-| Per-user SQLite + ChromaDB | Proven, simple, zero-ops |
-| All tool implementations | Migrated decorator, not logic |
-| HTTP API CRUD endpoints | Router structure stays |
-| WebSocket protocol | Contract locked |
-| FastAPI + uvicorn | No LangChain dependency |
-| `langchain-mcp-adapters` | Small, isolated MCP client (moved to `[telegram]` extra) |
+**Target state:** When the LLM returns multiple tool_calls in one turn:
+1. Classify each call: safe-to-parallel (read-only, non-destructive) vs. must-serialize (destructive, write-side-effects)
+2. Execute all safe-to-parallel calls concurrently via `asyncio.gather()`
+3. Execute any destructive/sequential calls one at a time after
+4. Collect all results, add as tool_result messages, send back to LLM as one batch
+5. Continue the multi-turn loop
 
-## What We Removed
+**Impact on middleware and hooks:**
 
-| Component | Replacement |
-|-----------|-------------|
-| `langchain` + `langchain-core` | `sdk/messages.py` + `sdk/tools.py` |
-| `langchain-ollama` | `sdk/providers/ollama.py` |
-| `langchain-openai` | `sdk/providers/openai.py` |
-| `langchain-anthropic` | `sdk/providers/anthropic.py` |
-| `langgraph` + 4 sub-packages | `sdk/loop.py` |
-| `langsmith` | `sdk/tracing.py` |
-| `src/sdk/langchain_adapter.py` | Native tools |
-| `src/agents/manager.py` | `sdk/runner.py` |
-| `src/middleware/` | `sdk/middleware_*.py` |
-| `src/llm/providers.py` | `sdk/providers/` |
-| `src/storage/checkpoint.py` | Removed (disabled) |
+- **Middleware** runs per-tool (already designed for single invocation). No structural change. In the parallel case, each tool still gets its own `mw.wrap_tool_call()`. Middleware doesn't need to know about parallelism.
+- **PreToolUse hooks** need to handle a batch: given N tool calls, return N decisions (allow/deny/modify). Parallel execution only starts after all pre-hooks approve. If any hook denies a call, that call is skipped; other parallel calls proceed.
+- **PostToolUse hooks** receive individual results — no change needed.
+- **Interrupt handling** changes: when multiple tools are called and one needs HITL approval, we have two options:
+  - **A) Eager**: Execute all safe calls in parallel, but queue any interrupts. After all parallel calls complete, yield interrupts one at a time for user resolution, then execute approved calls.
+  - **B) Conservative**: If any call would interrupt, skip all parallel execution for that batch and ask the user first. Simpler but slower.
+  - **Recommend: Option A** — don't block independent work on a single approval decision.
+- **Guardrails** already run per-tool — no structural change.
 
-## What Remains (Blocked on Telegram SDK Rewrite)
-
-| Component | Why It's Still Here |
-|-----------|---------------------|
-| `src/agents/` | Telegram bot imports `agents/manager.py` |
-| `src/llm/providers.py` | Telegram bot imports LangChain providers |
-| `src/middleware/` | Telegram bot imports old middlewares |
-| `src/tools/` (active storage files) | SDK tools import `storage.py` / `db.py` |
-| `src/telegram/` | Needs full SDK rewrite (future task) |
+**Impact on streaming protocol:**
+- Block-structured events already support multiple concurrent tool calls (each `tool_input_start` / `tool_result` has its own `tool_call_id`)
+- For parallel execution, we emit `tool_input_start` for all parallel calls, then emit their `tool_result` events as they complete (order may differ from start order)
+- No protocol change needed
 
 ---
 
-## Risk Mitigation
+## Middleware vs Hooks
 
-| Risk | Mitigation |
-|------|-----------|
-| Streaming protocol change breaks Flutter | Backward-compat aliases maintained |
-| Data path migration breaks existing users | Auto-migration on first run: `data/users/` → `data/private/` |
-| Tool migration introduces bugs | Per-domain test suites already passing |
-| Provider-specific features leak | `provider_options` keyed by provider name |
-| MCP annotation adoption diverges | Follow MCP spec exactly |
-| Telegram bot rewrite scope creep | Separate task, not part of Phase 8 |
+These are **complementary systems serving different audiences**:
+
+| | Middleware | Hooks |
+|--|-----------|-------|
+| **What** | Python code running in-process | Shell commands running out-of-process |
+| **Who writes it** | Developers (us) | Users (anyone with a shell script) |
+| **When it runs** | Agent lifecycle events: `before_agent`, `before_model`, `after_model` | Tool lifecycle events: `PreToolUse`, `PostToolUse` |
+| **Can modify** | State, messages, tool arguments, tool results | Tool input, tool output, permission override |
+| **Can abort** | Yes (raise exception) | Yes (deny + cancel) |
+| **Example** | `SkillMiddleware` injects skill descriptions; `SummarizationMiddleware` compresses history | A bash script that auto-approves `files_read` but blocks `shell_execute` for specific paths |
+| **Extensibility** | Requires code change + deployment | User creates `.ea/hooks/pre-tool-use.sh` and it works |
+
+**Why both:** Middleware handles structural transformations (memory injection, summarization, skill discovery) that require deep SDK access. Hooks handle per-tool policy decisions (approve/deny/modify) that users should customize without touching code. They coexist — middleware runs at agent lifecycle boundaries, hooks run at tool execution boundaries.
+
+---
+
+## Skills: Discovery-Based (Removing SkillMiddleware)
+
+**Current:** `SkillMiddleware` injects skill names+descriptions into the **system prompt on every request**. This costs tokens even when the LLM never needs a skill. Three separate `SkillRegistry` instances (middleware, SDK tools, legacy tools) are not synchronized.
+
+**Target:** Kill `SkillMiddleware`. Move skill discovery into the tool description of `skills_list`. The tool's `description` field dynamically includes available skill names. The LLM sees skills as part of the tools list — zero system prompt waste.
+
+Pattern (adopted from Claw Code and OpenCode):
+
+```
+Tool: skills_list
+Description: |
+  List and discover available skills. Current skills:
+  - deep-research: Deep research and web content analysis
+  - planning-with-files: Multi-step task planning
+  - skill-creator: Create and improve skills
+  - subagent-manager: Create and manage subagents
+  
+  Use skills_load(name) to get full instructions for any skill.
+```
+
+**Progressive disclosure stays the same:** LLM sees names+descriptions → calls `skills_load("deep-research")` → gets full SKILL.md body → optionally reads bundled scripts/references via `files_read`.
+
+**Benefits:**
+- Zero system prompt tokens for skills (was ~100 words per skill per request)
+- Single SkillRegistry instance (shared between `skills_list` tool and `skills_load` tool)
+- Skills appear naturally as a tool the LLM can call, not injected text
+- LLM decides when to explore skills based on relevance, not because they're always in context
+
+---
+
+## Phase 10: Agent Loop Modernization
+
+### 10.1 Critical Bug Fixes
+
+| # | Task | Priority |
+|---|------|----------|
+| 1 | Delete dead `src/skills/tools.py` (legacy LangChain 153 lines) | High |
+| 2 | Fix `UserSkillStorage` stale path (`data/users/` → `DataPaths.skills_dir()`) | High |
+| 3 | Unify SkillRegistry instances (one per user, shared between middleware + tools) | High |
+| 4 | Fix streaming interrupt inconsistency: both `run()` and `run_stream()` should yield interrupt chunks, never raise `Interrupt` as exception | High |
+| 5 | Remove `interrupt_on` parameter from AgentLoop — rely solely on `ToolAnnotations.destructive` | High |
+| 6 | Delete CLI (`src/cli/`, `src/__main__.py` CLI entry) — HTTP API is primary interface | High |
+
+### 10.2 MCP Tool Bridge
+
+| # | Task | Priority |
+|---|------|----------|
+| 7 | Build `MCPToolBridge`: convert MCP `mcp` SDK tool objects → SDK `ToolDefinition` | High |
+| 8 | Add `AgentLoop.register_tool()` / `unregister_tool()` for dynamic tool registration | High |
+| 9 | Inject discovered MCP tools into main loop as `mcp__{server}__{tool}` | High |
+| 10 | Support degraded-mode: partial MCP server failures don't crash the agent | Medium |
+| 11 | Replace `MCPManager._run_async()` thread hack with proper async integration | Medium |
+
+### 10.3 Discovery-Based Skills
+
+| # | Task | Priority |
+|---|------|----------|
+| 12 | Kill `SkillMiddleware` — remove from runner.py middleware stack | High |
+| 13 | Move skill descriptions into `skills_list` tool description (dynamically generated) | High |
+| 14 | Consolidate SkillRegistry to single per-user instance (shared by all tools) | High |
+| 15 | Remove `src/sdk/middleware_skill.py` | High |
+
+### 10.4 Parallel Tool Execution
+
+| # | Task | Priority |
+|---|------|----------|
+| 16 | Modify `AgentLoop` to identify independent tool calls (non-destructive, no shared state) | High |
+| 17 | Execute independent tool calls concurrently via `asyncio.gather()` | High |
+| 18 | Execute destructive/dependent calls sequentially after concurrent batch | High |
+| 19 | Update PreToolUse hooks to support batch mode (list of tool calls → list of decisions) | Medium |
+| 20 | Update streaming to emit parallel `tool_input_start`/`tool_result` events correctly | Medium |
+
+### 10.5 Architecture Improvements
+
+| # | Task | Priority |
+|---|------|----------|
+| 21 | Implement `ToolResult` properly in `_execute_tool()`: return structured content + human content + audience + is_error | High |
+| 22 | Add shell hooks at `PreToolUse` / `PostToolUse` (user-extensible, out-of-process) | High |
+| 23 | Add plugin system: `plugin.json` manifest + subprocess execution like Claw Code | Medium |
+| 24 | Plumb actual token counts from provider responses into `CostTracker` | Medium |
+| 25 | Accept `provider_options` from `RunConfig` or per-request kwargs (currently hardcoded `None`) | Medium |
+
+### 10.6 Advanced (Phase 11+)
+
+| # | Task | Priority | Status |
+|---|------|----------|--------|
+| 26 | HITL middleware: adopt interrupt/approve/reject flow — when a destructive tool is called, yield interrupt chunk, wait for user resolution, then continue or skip | High | 🔲 Future |
+| 27 | Skill-activated tools: skills can declare tool dependencies that get registered on load | Medium | 🔲 Future |
+| 28 | Git-based undo/redo for file changes (like OpenCode snapshots) | Low | 🔲 Future |
+| 29 | ~~Subagent system rewrite (LangChain → SDK)~~ | ~~High~~ | ✅ Done (Phase 11) |
+| 30 | Worker state machine (Spawning → Ready → Running → Finished) | Medium | 🔲 Future (Phase 12) |
+| 31 | Email/contacts/todos redesign (currently disabled, pending redesign) | Medium | 🔲 Future |
+| 32 | Calendar tools (new, doesn't exist yet) | Medium | 🔲 Future |
+
+---
+
+## Phase 11: Subagent V1 — ✅ DONE
+
+SQLite work_queue-backed coordination with supervisor pattern. Full design in `docs/SUBAGENT_RESEARCH.md`.
+
+### New Files
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `src/sdk/subagent_models.py` | 98 | `AgentDef`, `SubagentResult`, `TaskStatus`, `TaskCancelledError`, `MaxCallsExceededError`, `CostLimitExceededError` |
+| `src/sdk/work_queue.py` | 254 | `WorkQueueDB` (aiosqlite, per-user at `data/private/subagents/work_queue.db`) |
+| `src/sdk/middleware_progress.py` | 85 | `ProgressMiddleware` (progress updates, doom loop detection) |
+| `src/sdk/middleware_instruction.py` | 58 | `InstructionMiddleware` (cancel signal, course-correction injection) |
+| `src/sdk/coordinator.py` | 327 | `SubagentCoordinator` (create/update/invoke/cancel/instruct/delete) |
+| `tests/sdk/test_subagent_v1.py` | — | 38 tests (all passing) |
+
+### 8 V1 Tools (in `src/sdk/tools_core/subagent.py`)
+
+| Tool | Purpose |
+|------|---------|
+| `subagent_create` | Create AgentDef, persist to disk |
+| `subagent_update` | Amend existing AgentDef (partial update) |
+| `subagent_invoke` | Insert task into work_queue + run AgentLoop with middlewares |
+| `subagent_list` | List AgentDefs + active tasks |
+| `subagent_progress` | Check task status/progress |
+| `subagent_instruct` | Inject course-correction into running subagent |
+| `subagent_cancel` | Set cancel_requested flag |
+| `subagent_delete` | Remove AgentDef + cancel running tasks |
+
+### Key Design Decisions
+
+- **Config frozen at invocation**: `work_queue.config` — amendments don't affect running tasks
+- **No recursion**: `disallowed_tools` defaults include all `subagent_*` tools
+- **Cost tracking**: `SubagentCoordinator.invoke()` uses `AgentLoop.run()`, wrapped in `asyncio.wait_for(timeout)`
+- **Doom loop detection**: Same tool+args called 3x → `progress.stuck = true` + auto-instruction
+- **Cancel via flag**: `InstructionMiddleware` checks `cancel_requested` before each LLM call
+- **Cost limit**: Checked by `ProgressMiddleware` after each model call
+
+### Deferred to Phase 12+
+
+- DAG dependencies between subagents
+- Worker pools / priority queue
+- Webhooks / callbacks
+- Handoff mode / model-driven routing (`delegate_to_{name}` auto-generation)
+- `access_memory` / `access_messages` flags
+- Structured output in SubagentResult
+- Session resumption / AgentDef versioning
+
+---
+
+## HybridDB — ✅ DONE
+
+`src/sdk/hybrid_db.py` (~1143 lines): SQLite + FTS5 + ChromaDB with journal-based self-healing.
+
+All three domain stores now backed by HybridDB:
+
+| Store | File | Status |
+|-------|------|--------|
+| `ConversationStore` | `src/storage/messages.py` | ✅ HybridDB |
+| `MemoryStore` | `src/storage/memory.py` | ✅ HybridDB |
+| `AppStorage` | `src/sdk/tools_core/apps_storage.py` | ✅ HybridDB |
+| `SubagentScheduler` | `src/subagent/scheduler.py` | ❌ Still raw SQLite |
+
+---
+
+## Disabled Tools (Pending Redesign)
+
+Email (8 tools), contacts (6 tools), and todos (5 tools) are disabled pending redesign. They will be reimplemented as skills using external CLI tools rather than built-in IMAP/database tools:
+
+| Domain | Current | Target |
+|--------|---------|--------|
+| **Email** | Built-in IMAP/SMTP tools | `gws` skill (Google Workspace CLI) or `m365` skill |
+| **Contacts** | Built-in SQLite CRUD | Part of `gws`/`m365` skill, or lightweight built-in |
+| **Todos** | Built-in SQLite CRUD | Part of app ecosystem, or lightweight built-in |
+| **Calendar** | Doesn't exist | `gws` skill or `m365` skill |
+
+---
+
+## Architecture Research — Agent Loops Compared
+
+### Claw Code (Rust, ultraworkers/claw-code)
+
+- **Agent loop**: `ConversationRuntime<C, T>` — generic ReAct with injectable API client + tool executor
+- **Permission**: 3-tier (`ReadOnly` < `WorkspaceWrite` < `DangerFullAccess`) + rule-based policy engine + shell hooks
+- **Hooks**: PreToolUse / PostToolUse user shell scripts that can approve/deny/modify
+- **MCP**: Full lifecycle (spawn → init → discover → invoke → shutdown), namespaced `mcp__server__tool`, degraded-mode for partial failures
+- **Skills**: File-based discovery (`.claw/skills/`), loaded on-demand via `Skill` tool
+- **Session**: JSONL per-worktree, auto-compaction at 100K tokens
+- **Workers**: State machine (Spawning → TrustRequired → ReadyForPrompt → Running → Finished)
+- **Parallel tools**: Sequential (one at a time per turn)
+- **Plugin system**: `plugin.json` manifest, subprocess execution
+
+### OpenCode (TypeScript, anomalyco/opencode)
+
+- **Agent loop**: ReAct with subagents via `@mention` and `task` tool
+- **Permission**: `allow`/`deny`/`ask` per tool + bash glob patterns
+- **Skills**: Same SKILL.md format, discovery-based, loaded by `skill({ name })` tool
+- **MCP**: Local (stdio) + Remote (HTTP/OAuth), tools appear as regular tools, lazy loading
+- **TUI**: SolidJS terminal UI with tool rendering, permission dialogs, session navigation
+- **Session**: SQLite + compaction agents + git snapshots for undo/redo
+- **Parallel tools**: Sequential within an agent turn
+- **Plugin system**: `@opencode-ai/plugin` SDK with Zod schemas, lifecycle hooks, TUI slots
+
+### Our Executive Assistant (Python)
+
+- **Agent loop**: `AgentLoop` async ReAct with guardrails, handoffs, tracing
+- **Permission**: `ToolAnnotations` (readOnly, destructive, idempotent, openWorld) + auto-approval + HITL interrupts
+- **Middleware**: `MemoryMiddleware`, `SummarizationMiddleware`, `SkillMiddleware` (discovery-based)
+- **MCP**: `MCPToolBridge` — MCP tools registered as `mcp__{server}__{tool}`, degraded-mode, dynamic reload
+- **Skills**: Discovery-based — `skills_list` tool with dynamic descriptions, `skills_load` for full content
+- **Session**: HybridDB ConversationStore + SummarizationMiddleware (no checkpoints)
+- **Subagents**: SQLite work_queue + `SubagentCoordinator` + `ProgressMiddleware` + `InstructionMiddleware`
+- **Parallel tools**: Classified (parallel_safe / sequential / interrupt), `asyncio.gather()` for safe batch
+- **Plugin system**: None (to be added)
 
 ---
 
@@ -444,3 +644,4 @@ Four SDKs/protocols studied; key patterns extracted:
 - [DATA_ARCHITECTURE.md](./DATA_ARCHITECTURE.md) — Data paths, app sharing, deployment models
 - [DEPLOYMENT.md](./DEPLOYMENT.md) — Self-hosted .dmg/.exe, hosted container architecture
 - [AGENTS.md](./AGENTS.md) — Build/lint/test commands, coding style, current architecture
+- [docs/HYBRIDDB_SPEC.md](./docs/HYBRIDDB_SPEC.md) — HybridDB design specification

@@ -1,10 +1,10 @@
 """Shared fixtures for API contract tests."""
 
 import os
+
 import pytest
 from fastapi.testclient import TestClient
 
-os.environ.setdefault("CHECKPOINT_ENABLED", "false")
 os.environ.setdefault("USER_ID", "test_api_user")
 
 

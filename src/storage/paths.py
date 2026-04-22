@@ -87,6 +87,9 @@ class DataPaths:
         p.mkdir(parents=True, exist_ok=True)
         return p
 
+    def work_queue_db(self) -> Path:
+        return self.subagents_dir() / "work_queue.db"
+
     def apps_dir(self) -> Path:
         p = self.private / "apps"
         p.mkdir(parents=True, exist_ok=True)
