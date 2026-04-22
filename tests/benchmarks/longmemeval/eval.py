@@ -228,13 +228,15 @@ async def evaluate_qa(instances: list[LongMemEvalInstance], max_instances: int |
     """Evaluate QA accuracy by asking our agent questions using injected memory.
 
     For each question:
-    1. Inject all haystack sessions into ConversationStore
+    1. Inject all haystack sessions into the server's ConversationStore
     2. Send the question to our agent via HTTP
     3. Compare agent answer to expected answer (GPT-4o judge or exact match)
+    4. Clear the server's conversation for this user
 
     This is directly comparable to Mastra's and ASMR's QA accuracy numbers.
     """
     import aiohttp
+    from src.storage.messages import get_message_store
 
     results = []
     subset = instances[:max_instances] if max_instances else instances
@@ -244,14 +246,58 @@ async def evaluate_qa(instances: list[LongMemEvalInstance], max_instances: int |
         if instance.is_abstention:
             continue
         start = time.time()
-        adapter = None
+        injected_store = None
         try:
             user_id = f"lme_qa_{instance.question_id}"
-            adapter = LongMemEvalAdapter(user_id=user_id)
-            adapter.inject_sessions(
-                sessions=instance.haystack_sessions,
-                session_dates=instance.haystack_dates,
-                session_ids=instance.haystack_session_ids,
+
+            injected_store = get_message_store(user_id)
+            injected_store.db.raw_query("DELETE FROM messages")
+            collection = injected_store.db._get_collection("messages_content")
+            if collection:
+                try:
+                    existing = collection.get()
+                    if existing and existing["ids"]:
+                        collection.delete(ids=existing["ids"])
+                except Exception:
+                    pass
+
+            from tests.benchmarks.longmemeval.adapter import get_batch_embeddings
+            rows = []
+            texts = []
+            metas = []
+            for session_idx, (session, session_date) in enumerate(
+                zip(instance.haystack_sessions, instance.haystack_dates)
+            ):
+                from tests.benchmarks.longmemeval.adapter import parse_longmemeval_date
+                normalized_date = parse_longmemeval_date(session_date)
+                sid = instance.haystack_session_ids[session_idx] if instance.haystack_session_ids else f"session_{session_idx}"
+                for turn in session:
+                    import json as _json
+                    role = turn["role"]
+                    content = turn["content"]
+                    metadata = {"session_id": sid, "date": normalized_date}
+                    rows.append({
+                        "ts": normalized_date,
+                        "role": role,
+                        "content": content,
+                        "metadata": _json.dumps(metadata),
+                    })
+                    texts.append(content)
+                    metas.append({"role": role, "ts": normalized_date, "session_id": sid})
+
+            embeddings = get_batch_embeddings(texts)
+            msg_ids = []
+            for row in rows:
+                msg_id = injected_store.db.insert("messages", row, sync=False)
+                msg_ids.append(msg_id)
+            injected_store.db.process_journal()
+
+            collection = injected_store.db._get_collection("messages_content")
+            collection.add(
+                ids=[str(mid) for mid in msg_ids],
+                embeddings=embeddings,
+                documents=texts,
+                metadatas=metas,
             )
 
             prompt = f"""Based on our conversation history, please answer this question concisely and directly. If you don't have enough information, say "I don't have enough information to answer that."
@@ -286,8 +332,16 @@ Question: {instance.question}"""
                 latency_ms=(time.time() - start) * 1000,
             ))
         finally:
-            if adapter:
-                adapter.cleanup()
+            if injected_store:
+                try:
+                    injected_store.db.raw_query("DELETE FROM messages")
+                    collection = injected_store.db._get_collection("messages_content")
+                    if collection:
+                        existing = collection.get()
+                        if existing and existing["ids"]:
+                            collection.delete(ids=existing["ids"])
+                except Exception:
+                    pass
 
         if (idx + 1) % 5 == 0:
             r = results[-1]
