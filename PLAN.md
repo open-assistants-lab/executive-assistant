@@ -509,7 +509,7 @@ Description: |
 | 24 | Plumb actual token counts from provider responses into `CostTracker` | Medium |
 | 25 | Accept `provider_options` from `RunConfig` or per-request kwargs (currently hardcoded `None`) | Medium |
 
-### 10.6 Advanced (Phase 11+)
+### 10.6 Advanced (Phase 12+)
 
 | # | Task | Priority | Status |
 |---|------|----------|--------|
@@ -517,9 +517,83 @@ Description: |
 | 27 | Skill-activated tools: skills can declare tool dependencies that get registered on load | Medium | 🔲 Future |
 | 28 | Git-based undo/redo for file changes (like OpenCode snapshots) | Low | 🔲 Future |
 | 29 | ~~Subagent system rewrite (LangChain → SDK)~~ | ~~High~~ | ✅ Done (Phase 11) |
-| 30 | Worker state machine (Spawning → Ready → Running → Finished) | Medium | 🔲 Future (Phase 12) |
+| 30 | Worker state machine (Spawning → Ready → Running → Finished) | Medium | 🔲 Future |
 | 31 | Email/contacts/todos redesign (currently disabled, pending redesign) | Medium | 🔲 Future |
 | 32 | Calendar tools (new, doesn't exist yet) | Medium | 🔲 Future |
+
+---
+
+## Phase 12: Event-Driven Triggers, Smart Routing & Self-Evolution
+
+### 12.1 Event-Driven Agent Triggers
+
+The main agent should be activatable by external events, not just user messages. Three trigger types:
+
+| Trigger Type | Mechanism | Examples |
+|-------------|-----------|----------|
+| **Cron / Scheduled** | APScheduler or `croniter` + asyncio task | "Check email every 30 min", "Daily standup summary at 9am", "Weekly report every Friday" |
+| **Webhook** | HTTP endpoint (FastAPI route) that creates an agent run | GitHub push → code review, Stripe payment → receipt, Slack mention → response |
+| **File Watch** | `watchfiles` / `inotify` on a directory | New file in `data/inbox/` → process, CSV updated → re-analyze, config change → reload |
+
+**Implementation:**
+
+- New `TriggerManager` in `src/triggers/` — registers, schedules, and dispatches triggers
+- Each trigger creates an `AgentLoop.run()` call with the event payload as the initial user message
+- Triggers are persisted in `data/private/triggers.db` (SQLite, same pattern as work_queue)
+- New tools: `trigger_create` (cron/webhook/file), `trigger_list`, `trigger_delete`
+- Webhook triggers expose a unique URL: `POST /webhook/{trigger_id}`
+- Cron triggers use `APScheduler` or `croniter` for scheduling
+- File watch triggers use `watchfiles` (already a dependency via uvicorn)
+
+### 12.2 Smart Subagent Routing (Duration-Aware Orchestration)
+
+When a task is expected to take 10+ seconds, the main agent should automatically route it to a subagent rather than blocking the main conversation. This requires:
+
+1. **Duration estimation**: LLM assesses task complexity (rough categories: <5s instant, 5-30s moderate, 30s+ heavy)
+2. **Auto-delegation**: For moderate/heavy tasks, the main agent creates/invoke a subagent with appropriate tools and a timeout
+3. **Progress reporting**: Main agent informs the user that a subagent is working, checks progress, and delivers results when done
+
+**Implementation:**
+
+- Add `estimated_duration` field to tool annotations or a simple heuristic (tool name → expected range)
+- Main agent system prompt includes routing guidance: "For tasks expected to take 10+ seconds, create a subagent"
+- `subagent_invoke` already supports `max_llm_calls` and `timeout` — these are set based on duration estimate
+- No new tools needed — existing `subagent_create` + `subagent_invoke` + `subagent_progress` cover the workflow
+- The main agent can poll `subagent_progress` while the subagent works
+
+### 12.3 Self-Evolution (Hermes-Agent Pattern)
+
+Inspired by Hermes-type agents that modify their own behavior, prompts, and tools based on experience. Details to be designed, but high-level goals:
+
+| Capability | Description | Example |
+|-----------|-------------|---------|
+| **Prompt self-improvement** | Agent refines its own system prompt based on task outcomes | After 5 failed email drafts, update the email-writing prompt template |
+| **Tool creation** | Agent creates new tool definitions (Python code) for repetitive tasks | "I keep formatting JSON the same way — let me create a `json_format` tool" |
+| **Skill self-improvement** | Agent improves existing skills based on feedback | Better research queries after user corrections |
+| **Memory consolidation** | Agent periodically revisits and consolidates its long-term memory | Merge related memories, delete obsolete ones, create insight summaries |
+| **Behavioral adaptation** | Agent adjusts its behavior based on user preferences | Learns user prefers brief responses, adjusts style |
+
+**Design considerations (to be finalized):**
+
+- Self-modifications must be auditable (log all changes, allow rollback)
+- Prompt changes should be diff-based, not wholesale replacements
+- Tool creation should follow the existing `skill_create` pattern (generates SKILL.md + optional scripts)
+- Safety rails: destructive self-modifications require approval (HITL for tool creation, auto-approve for prompt tuning if non-destructive)
+
+### 12.x Implementation Priority
+
+| # | Task | Priority | Depends on |
+|---|------|----------|-----------|
+| 33 | `TriggerManager` + `trigger_create/list/delete` tools + cron scheduling | High | — |
+| 34 | Webhook trigger endpoint (`POST /webhook/{trigger_id}`) | High | #33 |
+| 35 | File watch triggers (`watchfiles` on directory) | Medium | #33 |
+| 36 | Duration estimation heuristic (tool annotations or LLM-based) | Medium | — |
+| 37 | Auto-delegation system prompt guidance + routing logic | Medium | #36 |
+| 38 | Self-evolution design document | High | — |
+| 39 | Prompt self-improvement mechanism | Medium | #38 |
+| 40 | Tool creation from agent (auto `skill_create`) | Low | #38 |
+| 41 | Memory consolidation agent (periodic revisit) | Medium | — |
+| 42 | Behavioral adaptation (user preference learning) | Low | #39, #41 |
 
 ---
 
