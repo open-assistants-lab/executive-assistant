@@ -3,9 +3,10 @@
 from datetime import date, timedelta
 
 from src.app_logging import get_logger
+from src.sdk.memory_planner import plan_memory_query
 from src.sdk.tools import ToolAnnotations, tool
 from src.storage.memory import get_memory_store
-from src.storage.messages import get_conversation_store
+from src.storage.messages import SearchResult, get_message_store
 
 logger = get_logger()
 
@@ -14,7 +15,7 @@ logger = get_logger()
 def memory_get_history(
     days: int = 7,
     date_str: str | None = None,
-    user_id: str = "default",
+    user_id: str = "default_user",
 ) -> str:
     """Get conversation history for progressive disclosure.
 
@@ -29,7 +30,7 @@ def memory_get_history(
     Returns:
         Formatted conversation history
     """
-    conversation = get_conversation_store(user_id)
+    conversation = get_message_store(user_id)
 
     if date_str:
         try:
@@ -43,7 +44,7 @@ def memory_get_history(
 
             result = f"Conversation on {date_str}:\n"
             for msg in messages:
-                result += f"- {msg.role}: {msg.content[:200]}\n"
+                result += f"- {msg.role}: {msg.content}\n"
             return result
 
         except ValueError:
@@ -58,7 +59,7 @@ def memory_get_history(
     result = f"Recent conversation (last {days} days):\n\n"
     for msg in messages:
         timestamp = msg.ts.strftime("%Y-%m-%d %H:%M")
-        result += f"- {msg.role} [{timestamp}]: {msg.content[:150]}\n"
+        result += f"- {msg.role} [{timestamp}]: {msg.content}\n"
 
     return result
 
@@ -71,12 +72,13 @@ memory_get_history.annotations = ToolAnnotations(
 @tool
 def memory_search(
     query: str,
-    user_id: str = "default",
+    user_id: str = "default_user",
 ) -> str:
     """Search through conversation history using keyword + semantic search.
 
     This is the most comprehensive search - combines exact keyword matching
-    with semantic similarity for better results.
+    with semantic similarity for better results. Automatically generates
+    query variants to improve recall across different phrasings.
 
     Use this when user asks about specific topics from past conversations.
 
@@ -87,17 +89,114 @@ def memory_search(
     Returns:
         Search results
     """
-    conversation = get_conversation_store(user_id)
-    results = conversation.search_hybrid(query, limit=20)
+    conversation = get_message_store(user_id)
+    memory_store = get_memory_store(user_id)
+    plan = plan_memory_query(query)
 
-    if not results:
+    fact_limit = plan.max_facts if plan.intent != "unknown" else 5
+    fact_results = memory_store.find_facts_for_query(query, limit=fact_limit)
+    temporal_results = (
+        memory_store.find_fact_history_for_query(query, limit=plan.max_history)
+        if plan.needs_fact_history
+        else []
+    )
+
+    queries = _expand_queries(query)
+    seen_ids: set[int] = set()
+    all_results: list[SearchResult] = []
+
+    recency_keywords = ["current", "latest", "now", "after", "updated", "new",
+                         "recently", "last", "nowadays", "these days"]
+    recency_boost = any(kw in query.lower() for kw in recency_keywords)
+
+    for q in queries:
+        results = conversation.search_hybrid(
+            q, limit=8,
+            recency_weight=0.7 if recency_boost else 0.3,
+        )
+        for r in results:
+            if r.id not in seen_ids:
+                seen_ids.add(r.id)
+                all_results.append(r)
+
+    all_results.sort(key=lambda r: r.score, reverse=True)
+    all_results = all_results[:10]
+
+    if not fact_results and not temporal_results and not all_results:
         return f"No messages found for '{query}'"
 
-    output = f"Found {len(results)} matches:\n"
-    for r in results:
-        output += f"- {r.role} ({r.ts.date()}): {r.content[:150]} (score: {r.score:.2f})\n"
+    output = ""
+    if fact_results:
+        output += f"Found {len(fact_results)} exact facts:\n"
+        for m in fact_results:
+            sd = m.structured_data
+            previous = sd.get("previous_value")
+            previous_text = f" (previous: {previous})" if previous else ""
+            output += (
+                f"- {sd.get('entity', 'user')}.{sd.get('attribute', m.trigger)} = "
+                f"{sd.get('value', m.action)}{previous_text} "
+                f"(conf: {min(m.confidence, 1.0):.0%})\n"
+            )
+
+    if temporal_results:
+        output += f"Found {len(temporal_results)} temporal/update facts:\n"
+        for m in temporal_results:
+            sd = m.structured_data
+            status = "current" if not m.is_superseded else "superseded"
+            effective_at = sd.get("effective_at") or m.updated_at.date().isoformat()
+            previous = sd.get("previous_value")
+            previous_text = f"; previous={previous}" if previous else ""
+            output += (
+                f"- {effective_at} [{status}] "
+                f"{sd.get('entity', 'user')}.{sd.get('attribute', m.trigger)} = "
+                f"{sd.get('value', m.action)}{previous_text}\n"
+            )
+
+    output += f"Found {len(all_results)} conversation matches:\n"
+    for r in all_results:
+        output += f"- {r.role} ({r.ts.date()}): {r.content} (score: {r.score:.2f})\n"
 
     return output
+
+
+def _expand_queries(query: str) -> list[str]:
+    """Generate search query variants for better recall."""
+    queries = [query]
+
+    words = query.lower().split()
+    if len(words) > 4:
+        queries.append(" ".join(words[:4]))
+
+    for kw in ["how many", "how much", "how long", "how often", "how many days",
+                "how many times", "total", "all the", "list of", "every"]:
+        if kw in query.lower():
+            queries.append(query.lower().replace(kw, "").strip())
+            break
+
+    for kw in ["current", "latest", "now", "after", "updated", "new", "recently",
+                "last", "previous", "before", "changed"]:
+        if kw in query.lower():
+            core = query.lower().replace(kw, "").strip()
+            if core and core != query.lower():
+                queries.append(core)
+            break
+
+    for kw in ["recommend", "suggest", "should i", "what kind of", "what type of",
+                "can you recommend", "can you suggest", "do i like", "do i prefer",
+                "what do i", "what's my favorite", "what is my favorite"]:
+        if kw in query.lower():
+            for sub in ["like", "enjoy", "love", "prefer", "favorite", "interested in"]:
+                queries.append(sub)
+            break
+
+    import re
+    date_refs = re.findall(r"\b(?:january|february|march|april|may|june|july|august"
+                           r"|september|october|november|december|\d{1,2}(?:st|nd|rd|th)?"
+                           r"(?:\s+of)?\s+\d{4})\b", query.lower())
+    for d in date_refs:
+        queries.append(d)
+
+    return queries
 
 
 memory_search.annotations = ToolAnnotations(
@@ -111,7 +210,7 @@ def memory_search_all(
     memories_limit: int = 5,
     messages_limit: int = 5,
     insights_limit: int = 3,
-    user_id: str = "default",
+    user_id: str = "default_user",
 ) -> str:
     """Search across all memory sources: learned memories, conversations, and insights.
 
@@ -130,6 +229,14 @@ def memory_search_all(
         Unified search results
     """
     store = get_memory_store(user_id)
+    plan = plan_memory_query(query)
+    fact_limit = plan.max_facts if plan.intent != "unknown" else memories_limit
+    fact_results = store.find_facts_for_query(query, limit=fact_limit)
+    temporal_results = (
+        store.find_fact_history_for_query(query, limit=plan.max_history)
+        if plan.needs_fact_history
+        else []
+    )
     results = store.search_all(
         query,
         memories_limit=memories_limit,
@@ -139,6 +246,32 @@ def memory_search_all(
     )
 
     parts = [f"## Unified Search Results for '{query}'"]
+
+    if fact_results:
+        parts.append(f"\n### Exact Facts ({len(fact_results)})")
+        for m in fact_results:
+            sd = m.structured_data
+            previous = sd.get("previous_value")
+            previous_text = f" (previous: {previous})" if previous else ""
+            parts.append(
+                f"- {sd.get('entity', 'user')}.{sd.get('attribute', m.trigger)} = "
+                f"{sd.get('value', m.action)}{previous_text} "
+                f"(conf: {min(m.confidence, 1.0):.0%})"
+            )
+
+    if temporal_results:
+        parts.append(f"\n### Temporal / Update Facts ({len(temporal_results)})")
+        for m in temporal_results:
+            sd = m.structured_data
+            status = "current" if not m.is_superseded else "superseded"
+            effective_at = sd.get("effective_at") or m.updated_at.date().isoformat()
+            previous = sd.get("previous_value")
+            previous_text = f"; previous={previous}" if previous else ""
+            parts.append(
+                f"- {effective_at} [{status}] "
+                f"{sd.get('entity', 'user')}.{sd.get('attribute', m.trigger)} = "
+                f"{sd.get('value', m.action)}{previous_text}"
+            )
 
     if results["memories"]:
         parts.append(f"\n### Learned Memories ({len(results['memories'])})")
@@ -156,11 +289,17 @@ def memory_search_all(
         parts.append(f"\n### Conversation Messages ({len(results['messages'])})")
         for m in results["messages"]:
             role = m.get("role", "?")
-            content = m.get("content", "")[:150]
+            content = m.get("content", "")
             score = m.get("score", 0)
             parts.append(f"- {role}: {content} (score: {score:.2f})")
 
-    if not results["memories"] and not results["insights"] and not results["messages"]:
+    if (
+        not fact_results
+        and not temporal_results
+        and not results["memories"]
+        and not results["insights"]
+        and not results["messages"]
+    ):
         parts.append("\nNo results found across any source.")
 
     return "\n".join(parts)
@@ -176,7 +315,7 @@ def memory_search_insights(
     query: str,
     method: str = "hybrid",
     limit: int = 5,
-    user_id: str = "default",
+    user_id: str = "default_user",
 ) -> str:
     """Search synthesized insights using keyword or semantic search.
 
@@ -228,7 +367,7 @@ def memory_connect(
     target_id: str,
     relationship: str = "relates_to",
     strength: float = 1.0,
-    user_id: str = "default",
+    user_id: str = "default_user",
 ) -> str:
     """Create a connection between two memories with a relationship label.
 

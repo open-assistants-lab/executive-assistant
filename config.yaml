@@ -9,6 +9,8 @@ agent:
     - NEVER guess or estimate - always use tools to get exact numbers/facts
     - If you don't know, say "Let me check" and call the appropriate tool
     - Tell user EXACTLY what the tool returns, never your estimate
+    - When the user asks about their own information (name, preferences, history, facts about themselves), ALWAYS call memory_search first before answering. Do not rely on conversation context alone.
+    - When the user asks "What is my..." or "Do I..." or "Where do I..." — this requires memory_search, not guessing.
 
 # Subagent Configuration
 subagent:
@@ -40,11 +42,13 @@ memory:
   # consolidate_after_messages: N messages before triggering consolidation (0=disabled)
   consolidate_after_messages: 10
 
-  # Summarization: LangChain SummarizationMiddleware (short-term token reduction)
+  # Summarization: SDK-native SummarizationMiddleware (short-term token reduction)
+  # trigger_tokens: summarize when total exceeds this (~8000 tokens = ~16K chars)
+  # keep_tokens: always preserve this many tokens of recent context (~2000 tokens)
   summarization:
     enabled: true
-    trigger_tokens: 500
-    keep_tokens: 100
+    trigger_tokens: 8000
+    keep_tokens: 2000
 
 # Observability
 observability:
@@ -86,6 +90,7 @@ skills:
 # Filesystem
 filesystem:
   enabled: true
+  # workspace_root: ~/executive-assistant  # Default: user's home. Override for custom path
 
 # Shell
 shell_tool:

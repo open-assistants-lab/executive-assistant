@@ -26,14 +26,121 @@
 | **10.4** | Parallel Tool Execution | ✅ Done |
 | **10.5** | Architecture Improvements (ToolResult, hooks, usage, provider_options) | ✅ Done |
 | **11** | Subagent V1 (work_queue, coordinator, middlewares, 8 tools) | ✅ Done |
-| **8** | Data Architecture + App Sharing + Folder Cleanup | 🔲 Future |
+| **12** | API Auth + Connection Modes | 🔲 Next |
+| **13** | Flutter 0 — Design System + Responsive Shell + Chat + HITL | 🔲 Next |
+| **14** | Flutter 1 — Settings + Connection + Local Persistence | 🔲 Future |
+| **15** | Flutter 2 — Home Tab (when backend data exists) | 🔲 Future |
+| **16** | Flutter 3 — Email + Tasks + Desktop Sidebar + Chat Panel (when skills re-enabled) | 🔲 Future |
+| **17** | Flutter 4 — More Tab + Profile/Memory + Files + Subagents + Skills | 🔲 Future |
+| **8** | Data Architecture + Team Layer + Folder Cleanup | 🔲 Future |
+| **18** | Event-Driven Triggers, Smart Routing & Self-Evolution | 🔲 Future |
 | **9** | Extract & Open Source SDK | 🔲 Future |
 
 **470+ SDK tests passing. Agent runs end-to-end on CLI and HTTP (REST + SSE + WebSocket). All LangChain removed.**
 
+### Phase Dependency Graph
+
+```
+Phase 12 (Auth) ──────────────┐
+                                ├──► Phase 13 (Flutter 0) ──► Phase 14 (Flutter 1)
+Phase 8 (Data Architecture) ──┘                         │
+                                                        ├──► Phase 15 (Flutter 2)
+Phase 11 (Subagent V1) ────────────────────────────────┘
+                                                         │
+    gws/m365 skills ──► Email/Todos backend ──────────► Phase 16 (Flutter 3)
+                                                         └──► Phase 17 (Flutter 4)
+```
+
 ---
 
 ## Completed Work
+
+### Pre-Phase 13 Bug Fixes (Flutter Client)
+
+Bug fixes applied to existing Flutter code before Phase 13 implementation begins, plus an audit of **additional bugs introduced and fixed** during the Pre-Phase 13 session.
+
+#### Phase 13 Code Already Implemented (Before Bug Fixes)
+
+The Flutter app was already significantly implemented when this session began. This is NOT a from-scratch codebase:
+
+| Module | Files | State |
+|--------|-------|-------|
+| **Theme System** (`lib/theme/`) | `app_colors.dart`, `app_typography.dart`, `app_spacing.dart`, `app_radius.dart`, `app_theme.dart` | **Complete** — All 5 design tokens + full `ThemeData` with card, appbar, bottom nav, FAB, input, sheet, divider, chip themes |
+| **Responsive Layout** (`lib/core/layout/`) | `responsive_shell.dart`, `mobile_layout.dart`, `desktop_layout.dart` | **Complete** — LayoutBuilder + Breakpoints + GoRouter shell route. Mobile: BottomNavigationBar with 4 tabs. Desktop: 240px sidebar + content + 360px RHS chat panel |
+| **Router** (`lib/core/router/`) | `app_router.dart` | **Complete** — GoRouter with ShellRoute, 9 named routes (`/`, `/files`, `/email`, `/tasks`, `/contacts`, `/skills`, `/subagents`, `/settings`, `/more`), `/chat` pushed route |
+| **Home Screen** (`lib/features/home/`) | `home_screen.dart`, `smart_greeting.dart`, `status_cards.dart`, `quick_actions.dart` | **Complete** — SmartGreeting, StatusCards (dummy data), QuickActions, Conversation section, EmptyState. Desktop vs mobile layouts |
+| **Chat Screen** (`lib/features/chat/`) | `chat_screen.dart`, `message_bubble.dart`, `streaming_bubble.dart`, `tool_call_card.dart`, `approval_sheet.dart`, `chat_input.dart`, `error_bar.dart`, `connection_banner.dart` | **Complete** — Refactored from old monolithic `chat_screen.dart` into proper feature directory. HITL bottom sheet, message list, tool cards |
+| **Models** (`lib/models/`) | `message.dart`, `todo.dart`, `contact.dart`, `memory.dart`, `models.dart` | **Complete** — Plain Dart classes with `fromJson`/`toJson` |
+| **Providers** (`lib/providers/`) | `agent_provider.dart` | **Complete** — `AgentNotifier` with streaming, tool calls, HITL, block-structured events, canonical type mapping |
+| **Services** (`lib/services/`) | `ws_client.dart`, `api_client.dart` | **Complete** — WS with reconnect, REST with error handling |
+
+**The app runs.** Analyzing it before this session showed: `No issues found! (ran in 1.6s)`.
+
+---
+
+#### 🔴 Bugs Introduced During This Session (ALL FIXED)
+
+| # | File | Bug Introduced | How Fixed |
+|---|------|----------------|-----------|
+| **1** | `lib/main.dart` | **Destroyed the entire app.** Replaced existing `MaterialApp.router(...)` + `GoRouter` with a dummy `MaterialApp(home: _PlaceholderHome(...))` showing "Phase 13: Chat refactor starts here." All existing UI (responsive shell, sidebar, routing, HomeScreen, ChatScreen, theme) was **completely inaccessible**. | Restored full `MaterialApp.router` with `appRouterProvider`, `AppTheme.light`, and `ProviderScope`. |
+| **2** | `lib/main.dart` | **Duplicate `main()` function.** Two `main()` entries — one created by my edit, one existing from original file. | The file was rewritten cleanly — only one `main()` remains. The `runZonedGuarded` wrapper is preserved for zone error capture. |
+| **3** | `lib/main.dart` | **Wrong import for `ChatScreen`/`screens/` path.** Original Phase 13 code uses `features/chat/chat_screen.dart`, not `screens/chat_screen.dart` (which no longer exists). | Removed the bad import. The app now uses GoRouter to navigate to `HomeScreen()` as the initial route. |
+| **4** | `lib/core/router/app_router.dart` | **Import placed after declarations.** `import 'instrumented_app.dart'` was inserted after `final _rootNavigatorKey = ...`, which Dart rejects. | Moved import to the top of the file, before any declarations. Also added `observers: [EaRouteObserver()]` to `GoRouter` constructor for route tracking. |
+| **5** | `lib/main.dart` | **Attempted `navigatorObservers` on `MaterialApp.router`.** `MaterialApp.router` does not have a `navigatorObservers` parameter — that's only on `MaterialApp`. | Removed the invalid parameter. `EaRouteObserver` is now passed to `GoRouter(observers: [...])` instead, which is the correct location. |
+| **6** | `lib/services/ws_client.dart` | **Duplicate `connect()` method.** During a failed edit, two `connect()` methods existed simultaneously with overlapping `_connecting` flag logic. | Rewrote the entire `connect()` method cleanly. Removed `_connecting` flag (it was not in the original design). Single `connect()` with `_wsScheme`, `_cleanHost`, and proper error handling. |
+| **7** | `lib/services/ws_client.dart` | **Missing `_scheduleReconnect()` method.** It was accidentally deleted during the `connect()` cleanup. | Restored `_scheduleReconnect()` with exponential backoff and `_maxReconnectAttempts` check. |
+| **8** | `lib/services/ws_client.dart` | **Missing `_safeArgs()` helper.** Original Phase 13 code added this helper for type-safe access to `msg['args']`. | Restored `_safeArgs()` method for handling typed tool call arguments from WebSocket messages. |
+
+---
+
+#### ✅ Bugs Fixed in Pre-Existing Code
+
+| # | File | Issue | Fix |
+|---|------|-------|-----|
+| A | `lib/services/api_client.dart` | `jsonDecode(body)['memories']` throws when server returns non-Map (e.g., HTML error page). Same pattern for every list endpoint. | Wrapped all `jsonDecode` results with `if (decoded is Map)` guard, returning `[]` on failure. |
+| B | `lib/services/api_client.dart` | `user_id` missing from POST bodies. Backend requires `user_id` for contacts, todos, memories/search. | Added `'user_id': _userId` to all POST/PUT request bodies. |
+| C | `lib/services/api_client.dart` | `listMemories`, `listContacts`, `listTodos` called `jsonDecode` before `_handleResponse`, causing 500 errors to skip status check and hit raw decode. | Reordered: `_handleResponse` (status check) → `jsonDecode` on successful response. |
+| D | `lib/services/api_client.dart` | Missing `sendMessage` REST method. Code had private helpers but no public method. | Added `Future<Map> sendMessage(content)` for non-streaming chat via REST. |
+| E | `lib/services/ws_client.dart` | Hardcoded `ws://` scheme. Connecting to `https://host:443` or WSS servers fails silently. | Added `_wsScheme` getter (returns `wss` for `https://` or `:443`, `ws` otherwise) + `_cleanHost` getter to strip http(s):// prefixes. |
+| F | `lib/services/ws_client.dart` | `connect()` swallowed actual errors via `catch(_)` — real exception hidden from user. | Changed to `catch(e, stackTrace)`. Still schedules reconnect, but error propagates to listeners. |
+| G | `lib/providers/agent_provider.dart` | `switch(msg.type)` with `break` after each case means `break` never reached in switch (Dart uses `return` or fall-through). | Replaced `switch` with `if/else if` chain using `return`. Added `_canonicalType()` helper mapping backward-compat aliases (`ai_token` → `text_delta`, etc.). |
+| H | `lib/providers/agent_provider.dart` | Block-structured events (`text_delta`, `tool_input_start`, `reasoning_delta`, etc.) not handled. Server emits these, Flutter ignores them. | Added `if/else if` chain for all 17 event types + canonical forms. Forward-compat: unknown types silently ignored. |
+| I | `lib/providers/agent_provider.dart` | Only 1 `_statusSubscription` exists but also `_messageSubscription` field declared but never set, causing constructor to subscribe in `initState`. | Verified code: `_messageSubscription` is set in constructor (line 66). `_disposed` flag added for safe lifecycle. |
+
+#### 🆕 Test Instrumentation Added
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `lib/services/test_instrumentation.dart` | 232 | Core tracker: errors (framework, zone, platform), interactions (tap, drag, scroll, pointer, keyboard), navigation, lifecycle |
+| `lib/services/instrumented_app.dart` | 105 | `InstrumentedApp` widget wrapper + `EaRouteObserver` that logs all GoRouter navigation push/pop/replace |
+| `lib/main.dart` | Updated | Wires instrumentation around app + `runZonedGuarded` for async error capture |
+
+**Instrumentation is zero-overhead when disabled.** Set `TestInstrumentation().enabled = false` at runtime to stop all logging. No rebuild required.
+
+#### ✅ Flutter ↔ Backend Contract Fixes Applied
+
+| # | Area | Fix |
+|---|------|-----|
+| 1 | REST host/scheme handling | `ApiClient` now preserves explicit `http://` / `https://`, infers `https` for `:443`, and strips trailing slashes. This aligns REST with WebSocket scheme handling. |
+| 2 | REST testability | `ApiClient` now uses the injected `http.Client` for every request instead of static `http.get/post/put`, allowing deterministic unit tests without live network calls. |
+| 3 | REST error handling | List endpoints now call the shared response handler before decoding and return `[]` only for successful responses where the expected list key is absent. Non-2xx responses raise `ApiException`. |
+| 4 | WebSocket host handling | `WsClient` uses the public `cleanHost` getter consistently. Analyzer breakage from the `_cleanHost` rename is fixed. |
+| 5 | WebSocket HITL protocol | Backend `/ws/conversation` now handles `reject` and `edit_and_approve` messages explicitly instead of silently ignoring them. It returns deterministic `DoneMessage` or `NO_PENDING_INTERRUPT` errors. |
+| 6 | Cancel behavior | Removed duplicate/unreachable cancel branch in `ws.py`; cancel now sends `DoneMessage(response="Cancelled")` before closing. |
+| 7 | Tests | Added deterministic ApiClient and WsClient unit tests for scheme detection, user_id/query propagation, response handling, and error handling. Targeted suite passes. |
+
+**Verification:**
+
+- `flutter analyze` → **No issues found**
+- `flutter test test/models/ test/services/api_client_test.dart test/services/ws_client_test.dart` → **41 passed**
+- `uv run pytest tests/api/test_agent_loop.py -q` → **10 passed**
+
+**Remaining contract gaps:**
+
+- Email, contacts, and todos routers remain disabled backend-side, so Flutter should keep these screens/placeholders non-live until gws/m365 skills are implemented.
+- Full HITL resume semantics are not solved yet. `approve`, `reject`, and `edit_and_approve` now produce deterministic backend responses, but approve/edit do not yet resume the interrupted tool execution. That requires deeper AgentLoop interrupt continuation support.
+- Memory JSON shape still differs: backend returns `trigger`/`action`/`updated_at`, Flutter `Memory` expects `content`/`created_at`. Either map `content = action` client-side or add a backend compatibility field.
+- The generated broad widget test suite still needs cleanup; several tests are harness issues (missing GoRouter/ProviderScope/Material context) rather than app bugs. The targeted contract/unit suite is stable.
 
 ### Phase 7: Tool Migration — ✅ DONE
 
@@ -73,6 +180,293 @@ All tools migrated from LangChain `@tool` to SDK `@tool` in `src/sdk/tools_core/
 - `src/sdk/tools_core/browser.py` — new, using Agent-Browser CLI (Rust, ref-based)
 - `src/sdk/tools_core/browser_use.py` — deleted (was Browser-Use CLI, Python-based)
 - `native_tools.py` — imports updated, tool names updated
+
+---
+
+## Phase 12: API Auth + Connection Modes — 🔲 NEXT
+
+> Prerequisite for any remote Flutter client (LAN, Tailscale, cloud). Currently the HTTP server and WebSocket have zero auth — any connection is trusted. This must be fixed before Phase 13.
+
+### Why Auth Now
+
+1. **The Flutter app connects remotely.** Solo mode (localhost) needs no auth, but LAN, Tailscale, and cloud deployments expose the API to the network. Without auth, anyone on the same network can send messages, approve tool calls, and read conversation history.
+
+2. **The WS protocol passes `user_id` as a plain string.** Any client can impersonate any user by setting `user_id: "alice"`. The server trusts it blindly.
+
+3. **Solo mode should remain zero-config.** Auth must not add friction for localhost users. The solution: auth is required on all connections unless the request comes from localhost (127.0.0.1/::1).
+
+### Design: API Key Auth (Not JWT)
+
+| Aspect | Decision | Why |
+|--------|----------|-----|
+| **Method** | Bearer token (API key) | Simplest auth that works for all connection modes. No token refresh, no OIDC flow, no session management. |
+| **Why not JWT** | JWT adds issuance, rotation, expiry, revocation infrastructure. EA is per-user (one container = one user). A static API key per container is sufficient — JWT solves multi-user single-process auth which we don't have. |
+| **Why not OAuth** | OAuth requires an authorization server, redirect flows, and scope management. Overkill for a single-user agent API. |
+| **Storage** | `EA_API_KEY` env var or `api_key` in `config.yaml`. Hashed with SHA-256 for comparison. | Same pattern as DEPLOYMENT.md team mode (`EA_AUTH_JWT_SECRET`). |
+| **Solo bypass** | Requests from 127.0.0.1 or ::1 skip auth. | Zero-config for localhost. No API key needed for `ea http` on your own machine. |
+| **Flutter client** | API key stored in `flutter_secure_storage`. Sent as `Authorization: Bearer <key>` header (REST) and `{"type": "auth", "api_key": "<key>"}` first WS message. | Matches DEPLOYMENT.md connection modes. |
+
+### Implementation
+
+| # | Task | Details |
+|---|------|---------|
+| 1 | Add `AuthConfig` to `src/config/settings.py` | `api_key: str = ""` (empty = auth disabled for solo), `solo_bypass: bool = True` (skip auth for localhost) |
+| 2 | Create `src/http/auth.py` | `verify_api_key(key: str) -> bool` — SHA-256 compare against configured key. `get_api_key_hash() -> str` — hash for storage. `is_localhost(request: Request) -> bool` — check client IP. |
+| 3 | Create `src/http/middleware.py` | FastAPI `Depends` dependency. If `auth_config.api_key` is empty → allow all. If `auth_config.solo_bypass` and `is_localhost(request)` → allow. Otherwise → validate `Authorization: Bearer <key>` header. Returns 401 on failure. |
+| 4 | Add auth dependency to all REST routers | `conversation_router`, `memories_router`, `workspace_router`, `skills_router`, `subagents_router` — all get `Depends(auth_middleware)`. Health endpoints remain unauthenticated. |
+| 5 | Add auth to WebSocket handshake | On `ws/conversation` connect, client must send `{"type": "auth", "api_key": "<key>"}` as first message. Server validates and responds with `{"type": "auth_ok"}` or `{"type": "error", "code": "AUTH_FAILED"}` and closes. If `EA_API_KEY` is empty and client connects from localhost → skip auth. |
+| 6 | Add auth message type to `ws_protocol.py` | `AuthMessage(api_key: str)` → client-to-server. `AuthOkMessage()` → server-to-client. |
+| 7 | Update `WsClient` in Flutter | Add `apiKey` field. On connect, send `AuthMessage` as first message if key is non-empty. Handle `auth_ok` and `auth_failed` responses. |
+| 8 | Update `ApiClient` in Flutter | Add `Authorization: Bearer <key>` header to all requests if key is non-empty. |
+| 9 | Add connection mode detection to Flutter | `ConnectionMode` enum: `localhost` (no auth needed), `lan` (need API key), `tailscale` (need API key), `cloud` (need API key). Auto-detect: if host is 127.0.0.1 or localhost → `localhost`. Otherwise → `lan` (require key). |
+| 10 | Update Flutter settings | Replace `_SettingsSheet` bottom sheet with proper settings screen. Add connection mode indicator (green/amber/red dot), API key field (masked), model display. Store API key in `flutter_secure_storage`. |
+| 11 | Add REST endpoint `GET /auth/verify` | Returns `{"valid": true}` if API key is correct. Flutter calls this on connect to validate the stored key. Unauthenticated if auth is disabled (solo mode). |
+
+### Solo vs Remote Auth Flow
+
+```
+Solo (localhost):
+  Client connects → no EA_API_KEY → no auth required → proceeds
+  Client connects → EA_API_KEY set → localhost bypass → proceeds
+
+Remote (LAN/Tailscale/Cloud):
+  Client connects → EA_API_KEY is set → auth required
+  REST: Authorization: Bearer <key> → middleware validates → 401 or proceed
+  WS: {"type": "auth", "api_key": "<key>"} → server validates → auth_ok or close
+  Client connects → EA_API_KEY empty → 401/forbidden (remote without key = unsafe)
+```
+
+---
+
+## Phase 13: Flutter 0 — Design System + Responsive Shell + Chat + HITL — 🔲 NEXT
+
+> The first usable Flutter app. Depends on Phase 12 for auth (remote connections).
+
+Full design doc: [docs/FLUTTER_UX_PLAN.md](./docs/FLUTTER_UX_PLAN.md)
+
+### 13.1 Design System (`lib/theme/`)
+
+Create the foundational theme files that everything else depends on.
+
+| # | Task | Details |
+|---|------|---------|
+| 1 | Create `lib/theme/app_colors.dart` | Color tokens: Background `#FFFFFF`, Surface `#F5F5F7`, Primary `#1A1A2E`, Accent `#0D9488`, Accent hover `#0F766E`, Success `#22C55E`, Warning `#F59E0B`, Danger `#EF4444`, Text primary/secondary/dim |
+| 2 | Create `lib/theme/app_typography.dart` | Inter-only type scale: Screen title 30px/SemiBold/-2.5%, Section title 22px/SemiBold/-1.5%, Body 14px/Regular, Caption 12px/Regular/+1%, Tool 13px/Medium, Metric 24px/Bold/-1% |
+| 3 | Create `lib/theme/app_spacing.dart` | Spacing tokens: screenEdge 24px, betweenSections 32px, betweenCards 12px, cardPadding 16px, componentDefault 16px, textToComponent 16px |
+| 4 | Create `lib/theme/app_radius.dart` | Radius tokens: card 24px/32px (mobile/desktop), button 16px, chip 12px, sheet 24px, input 12px, dialog 24px/28px |
+| 5 | Create `lib/theme/app_theme.dart` | Material 3 `ThemeData` combining all tokens. Light mode only (dark = Phase 3). Export `AppTheme` class. |
+| 6 | Update `main.dart` to use `AppTheme` | Replace `ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo))` |
+
+### 13.2 Responsive Layout Shell
+
+Build the three-breakpoint adaptive shell that switches between mobile tabs, tablet hybrid, and desktop three-panel.
+
+| # | Task | Details |
+|---|------|---------|
+| 7 | Create `lib/core/router/app_router.dart` | GoRouter config with shell route for bottom tabs. Routes: `/` (Home), `/email`, `/tasks`, `/more`, `/more/contacts`, `/more/files`, `/more/skills`, `/more/subagents`, `/more/memory`, `/more/settings`, `/chat/:id` (pushed from Home). |
+| 8 | Create `lib/core/constants/breakpoints.dart` | `class Breakpoints { mobile: 768, tablet: 1024 }` |
+| 9 | Create `lib/core/layout/responsive_shell.dart` | `ResponsiveShell` widget: uses `LayoutBuilder` + breakpoints. If >1024: `DesktopLayout` (sidebar + content + chat). If 768-1024: `TabletLayout` (icon sidebar + content + slide-in chat). If <768: `MobileLayout` (bottom tabs). |
+| 10 | Create `lib/core/layout/desktop_layout.dart` | Three-panel: `Sidebar` (240px, collapsible to 48px icons) + `MainContent` (flexible) + `ChatPanel` (360px, resizable via drag). Sidebar items: Home, Files, Email, Todos, Contacts, Skills, Subagents, Memory, divider, Settings. |
+| 11 | Create `lib/core/layout/tablet_layout.dart` | Collapsed icon sidebar (48px) + main content + `SlidingChatPanel` (opens from right via toggle button in app bar). |
+| 12 | Create `lib/core/layout/mobile_layout.dart` | `BottomNavigationBar` with 4 tabs: Home, Email, Tasks, More. `GoRouter` shell route manages navigation. No chat panel — chat integrated in Home tab. |
+| 13 | Create `lib/core/layout/sidebar.dart` | Desktop sidebar widget with icon + label items. Collapsible. Active state uses accent color. Settings at bottom, separated by divider. |
+| 14 | Create `lib/core/widgets/status_badge.dart` | Reusable `StatusBadge` widget: green/amber/red dot + label. Used for connection status, sync status, subagent status. |
+| 15 | Create `lib/core/widgets/sync_indicator.dart` | `SyncIndicator`: shows "Last synced: X min ago" or "Offline — cached from HH:MM". For remote (self-hosted) mode awareness. |
+| 16 | Update `main.dart` to use `ResponsiveShell` + `AppRouter` | Replace `home: const ChatScreen()` with `MaterialApp.router(routerConfig: appRouter, theme: AppTheme.light)` |
+
+### 13.3 Home Screen (Chat-Only Placeholder)
+
+The primary screen for Phase 13 is chat-only — the full dashboard with status cards and recent activity moves to Phase 15 when backend data exists. For now, the Home screen is just the ChatScreen from Phase 13.4 embedded in the mobile layout and desktop chat panel.
+
+| # | Task | Details |
+|---|------|---------|
+| 17 | Create `lib/features/home/home_screen.dart` | Placeholder: embeds `ChatScreen` for mobile, delegates to dashboard layout for desktop. Full dashboard cards (status, activity, quick actions) move to Phase 15. |
+
+### 13.4 Chat (Refactored)
+
+Refactor existing `chat_screen.dart` into proper feature structure and add block-structured streaming support.
+
+| # | Task | Details |
+|---|------|---------|
+| 23 | Create `lib/features/chat/chat_screen.dart` | Mobile: used when pushing from Home conversation tap (`/chat/:id`). Full-screen chat with back button. Desktop: already visible as RHS panel, this widget fills it. |
+| 24 | Create `lib/features/chat/widgets/message_bubble.dart` | Extract from `_MessageBubble`. User right-aligned (accent bg), assistant left-aligned (surface bg). 24px radius (top corners only for user, bottom corners for assistant — chat bubble shape). |
+| 25 | Create `lib/features/chat/widgets/streaming_bubble.dart` | Extract from `_StreamingBubble`. Shows partial text with spinner. Uses accent color for the typing indicator dot. |
+| 26 | Create `lib/features/chat/widgets/tool_call_card.dart` | Replace `_ToolCallBubble` + `_ToolCallChip`. Collapsible card: shows `toolName` + status (spinning ✓ or failed ✗). Tap expands to show args + result. Uses Inter Medium 13px, chip bg = surface color, 12px radius. |
+| 27 | Create `lib/features/chat/widgets/editable_draft_card.dart` | New. When assistant produces a draft (email, etc.), shows it in an editable card with `[Send] [Edit] [Discard]` buttons. Wise "edit before send" pattern. |
+| 28 | Create `lib/features/chat/widgets/chat_input.dart` | Extract from `_InputStream`. Always-visible input bar: `TextField` (24px radius, surface bg) + `[📎]` attachment + `[➤]` send (accent color). Send swaps to stop icon when streaming. |
+| 29 | Create `lib/features/chat/providers/chat_provider.dart` | Refactor `AgentNotifier` + `ChatState` from `agent_provider.dart`. Add support for block-structured streaming events: `text_start`, `text_delta`, `text_end`, `tool_input_start`, `tool_input_delta`, `tool_input_end`, `tool_result`, `reasoning_start`, `reasoning_delta`, `reasoning_end`, `usage`. Keep backward-compat aliases for existing events. |
+| 30 | Create `lib/features/chat/widgets/reasoning_card.dart` | Collapsible card for reasoning/thinking content. Default collapsed, tap to expand. Shows "Thinking..." with a brain icon. Dimmed text, surface bg. |
+
+### 13.5 HITL Approval Sheet
+
+Full-screen bottom sheet for destructive tool approvals. Wise "Confirm Transfer" pattern.
+
+| # | Task | Details |
+|---|------|---------|
+| 31 | Create `lib/features/chat/widgets/approval_sheet.dart` | `showModalBottomSheet(isScrollControlled: true, ...)` — full-height sheet. Contains: tool icon + name, key arguments highlighted, risk level badge (amber for destructive, red for irreversible), "View full args ▾" progressive disclosure, editable fields section, `[Reject]` (gray) + `[Approve]` (accent) buttons. 24px top corner radius. |
+| 32 | Create `lib/features/chat/widgets/risk_badge.dart` | `RiskBadge` widget: amber "⚡ Destructive" or red "⚠️ Irreversible". Based on `ToolAnnotations.destructive` + `readOnly`. |
+| 33 | Create `lib/features/chat/widgets/editable_fields.dart` | `EditableFields` widget: renders tool args as editable `TextField`s. Only arguments marked as editable by tool annotations. Pre-filled with current values. |
+| 34 | Wire approval sheet into `chat_provider.dart` | Replace inline `_ApprovalBar` with `ApprovalSheet`. On `interrupt` event, show `ApprovalSheet`. On approve: send `approveToolCall`. On reject: send `rejectToolCall`. |
+
+### 13.6 Connection Status + Settings Refactor
+
+Move settings from bottom sheet to proper screen inside Profile/More tab. Keep connection status as a persistent indicator.
+
+| # | Task | Details |
+|---|------|---------|
+| 35 | Create `lib/features/settings/settings_screen.dart` | Connection section (host, user ID, model, cost this session), Privacy section (memory toggle, auto-approve read-only), Danger Zone section (clear conversation, reset memory, disconnect accounts). Wise-inspired card layout. |
+| 36 | Create `lib/features/settings/widgets/connection_card.dart` | Shows server host, user ID, connected status (green/red/amber dot), model name, session cost. Tap to edit. |
+| 37 | Create `lib/features/settings/widgets/privacy_card.dart` | Memory on/off toggle, auto-approve read-only toggle, data stored locally indicator. |
+| 38 | Create `lib/features/settings/widgets/danger_zone_card.dart` | Red-accented card with destructive actions: clear conversation, reset memory, disconnect. Each with confirmation dialog. |
+| 39 | Refactor `agent_provider.dart` → `connection_provider.dart` + `chat_provider.dart` | Split connection state (host, userId, connected) into `ConnectionNotifier`. Chat state stays in `ChatNotifier`. Settings provider for preferences. |
+
+### 13.7 Services Layer
+
+Update and expand the services to support the new screens.
+
+| # | Task | Details |
+|---|------|---------|
+| 40 | Update `lib/services/ws_client.dart` | Add handlers for block-structured events: `text_start/delta/end`, `tool_input_start/delta/end`, `tool_result`, `reasoning_start/delta/end`, `usage`. Map backward-compat aliases (`ai_token` → `text_delta`, `tool_start` → `tool_input_start`, etc.). |
+| 41 | Update `lib/services/api_client.dart` | Add methods for new endpoints: `getEmails`, `getTodos`, `getContacts`, `getSubagents`, `getMemories`, `getSkills`. All take `user_id` param. |
+| 42 | Create `lib/services/sync_service.dart` | `SyncService` tracks last-sync timestamps per data type. Shows "Last synced X min ago" or "Offline — cached from HH:MM". For self-hosted mode awareness. |
+| 43 | Create `lib/models/` barrel file updates | Use plain Dart classes with `copyWith` (skip `freezed` for now — thin client doesn't need the build step overhead). Add `fromJson`/`toJson` manually where needed for WS/REST serialization. |
+
+> **Note on `freezed`:** The original plan called for freezed + json_serializable on all models. After review, this adds significant build_step complexity (`dart run build_runner build`) for a thin WebSocket client. Plain Dart classes with `copyWith` (as the current app already uses) are sufficient. Add freezed later only if model immutability becomes painful.
+
+---
+
+## Phase 14: Flutter 1 — Settings + Connection + Local Persistence — 🔲 FUTURE
+
+> Depends on Phase 13 for the design system and basic UI structure.
+
+### 14.1 Settings Screen + Auth Integration
+
+| # | Task | Details |
+|---|------|---------|
+| 1 | Implement Phase 12 auth in Flutter | If `EA_API_KEY` is set on server and host is not localhost, show API key field in settings. Send `AuthMessage` as first WS message. Add `Authorization` header to REST calls. |
+| 2 | Create settings screen (task 35 from Phase 13) | Connection section with mode indicator (localhost/lan/cloud), host field, API key field (masked), user ID, model name, session cost. Privacy section. Danger zone section. |
+| 3 | Create connection card widget (task 36) | Shows host, user ID, connected status dot, model name, session cost. Tap to edit. |
+| 4 | Create privacy card widget (task 37) | Memory toggle, auto-approve read-only toggle, data stored locally indicator. |
+| 5 | Create danger zone card widget (task 38) | Clear conversation, reset memory, disconnect. Each with confirmation dialog. |
+| 6 | Add `ConnectionMode` detection | Auto-detect: localhost → no auth, LAN → need API key, Tailscale → need API key, Cloud → need API key. |
+
+### 14.2 Provider Refactor + Local Persistence
+
+| # | Task | Details |
+|---|------|---------|
+| 7 | Refactor `agent_provider.dart` → `connection_provider.dart` + `chat_provider.dart` | Split: `ConnectionNotifier` owns host/userId/connected/status. `ChatNotifier` owns messages/streaming/toolCalls/approvals. |
+| 8 | Add `shared_preferences` dependency | Key-value storage for: host, user_id, api_key (move to flutter_secure_storage later), auto_approve_readonly, memory_enabled. |
+| 9 | Add `flutter_secure_storage` dependency | Store API key securely. Never store in shared_preferences. |
+| 10 | Create `lib/services/storage_service.dart` | Wrapper over shared_preferences + flutter_secure_storage. Load/save connection config, user preferences. Survives app restart. |
+| 11 | Cache conversation metadata locally | Store conversation IDs + last message preview in shared_preferences. Enables Home tab's "Recent activity" without a network call. |
+
+---
+
+## Phase 15: Flutter 2 — Home Tab — 🔲 FUTURE
+
+> Depends on Phase 14 for settings/persistence, and backend data existing (conversation history API, subagent status API).
+
+### 15.1 Home Tab
+
+| # | Task | Details |
+|---|------|---------|
+| 1 | Create `lib/features/home/home_screen.dart` | Mobile: `Column(SmartGreeting, StatusCards, RecentActivity, ChatInput)`. Desktop: delegates to dashboard content area. |
+| 2 | Create `lib/features/home/widgets/smart_greeting.dart` | "Good morning, Eddy" + date. Dynamic greeting based on time of day. |
+| 3 | Create `lib/features/home/widgets/status_cards.dart` | Horizontal scrolling cards. Unread emails, due tasks, active subagents. Each card shows count + icon + accent color. Tap navigates to tab. 24px radius. |
+| 4 | Create `lib/features/home/widgets/quick_actions.dart` | Action chips: "Draft reply", "Summarize", "Schedule". Tap pre-fills chat input. |
+| 5 | Create `lib/features/home/widgets/recent_activity.dart` | Recent conversation summaries grouped by date. Tap pushes to `/chat/:id`. |
+| 6 | Create `lib/features/home/providers/home_provider.dart` | Riverpod `AsyncNotifier` fetching: unread counts, due tasks, active subagents, recent conversations. |
+
+> **Note:** Status cards for email and tasks will show "Connect account" or "0" until the gws/m365 skills are implemented and the email/todos endpoints are re-enabled. The subagent card can show real data immediately (subagent endpoints are active).
+
+---
+
+## Phase 16: Flutter 3 — Email + Tasks + Desktop Sidebar + Chat Panel — 🔲 FUTURE
+
+> Depends on email/todos skills being re-enabled (gws/m365). Build these screens when backend data exists.
+
+### 16.1 Email Screen
+
+| # | Task | Details |
+|---|------|---------|
+| 1 | Create `lib/features/email/email_screen.dart` | Pull-to-refresh list. Connected accounts card at top. Emails grouped by date ("Today", "Yesterday", "This week"). Unread = red dot. Tap → thread view (push). |
+| 2 | Create `lib/features/email/widgets/connected_accounts_card.dart` | Shows connected email accounts with status dots (green = connected, red = disconnected). Tap to reconnect. 24px radius card. |
+| 3 | Create `lib/features/email/widgets/email_list_tile.dart` | Leading: avatar or initials. Title: sender name. Subtitle: subject. Trailing: timestamp + unread dot. Tap pushes to email detail. |
+| 4 | Create `lib/features/email/widgets/email_detail_screen.dart` | Full email thread view. From/To/Subject header. Body content. Action bar: Reply, Forward, Archive. |
+| 5 | Create `lib/features/email/providers/email_provider.dart` | Riverpod `AsyncNotifier` fetching emails from `ApiClient`. Supports: pull-to-refresh, search, filter by account. |
+| 6 | Add FAB for contextual agent on email screen | `[💬]` FAB → bottom sheet with "Ask about your emails..." input. Agent response can update email list filter. |
+
+### 16.2 Tasks Screen
+
+| # | Task | Details |
+|---|------|---------|
+| 7 | Create `lib/features/tasks/tasks_screen.dart` | Tasks grouped by urgency: Today (red/amber/green priority dots), This Week, Completed (strikethrough, gray). Pull-to-refresh. FAB to add task. |
+| 8 | Create `lib/features/tasks/widgets/task_group.dart` | Section with header ("Today", "This Week", "Completed") + list of `TaskTile` items. 32px between sections. |
+| 9 | Create `lib/features/tasks/widgets/task_tile.dart` | Leading: priority dot (red/amber/green). Title: task content. Trailing: due date. Tap → task detail sheet. Checkbox to complete. |
+| 10 | Create `lib/features/tasks/widgets/add_task_sheet.dart` | Bottom sheet with text field. Auto-extract from `todos_extract` or manual entry. Accent "Add" button. |
+| 11 | Create `lib/features/tasks/providers/tasks_provider.dart` | Riverpod `AsyncNotifier` fetching todos from `ApiClient`. Supports: add, complete, delete, refresh. |
+| 12 | Add FAB for contextual agent on tasks screen | `[💬]` FAB → bottom sheet with "Add or update tasks..." input. |
+
+### 16.3 Desktop Sidebar + Chat Panel
+
+| # | Task | Details |
+|---|------|---------|
+| 13 | Implement desktop `Sidebar` widget | 240px wide, collapsible to 48px icons. Items: Home, Files, Email, Todos, Contacts, Skills, Subagents, Memory. Divider. Settings at bottom. Active item uses accent color. |
+| 14 | Implement desktop `ChatPanel` widget | 360px wide, resizable via drag handle. Contains: chat messages + input bar. Always visible. Can be minimized to icon button. |
+| 15 | Wire bidirectional navigation | Chat can drive content panel: "show me Sarah's emails" navigates sidebar to Email tab with Sarah filter. Sidebar tab changes update content panel. |
+| 16 | Tablet: implement `SlidingChatPanel` | Animation slide-in from right. Toggle button in app bar. 360px width when open. |
+
+---
+
+## Phase 17: Flutter 4 — More Tab + Profile/Memory + Files + Subagents + Skills — 🔲 FUTURE
+
+### 17.1 More Tab (Mobile)
+
+| # | Task | Details |
+|---|------|---------|
+| 1 | Create `lib/features/more/more_screen.dart` | List of section items: Contacts, Files (⟁ Remote badge), Skills, Subagents (● N active badge), Memory. Divider. Settings at bottom. Each item pushes to its screen. 24px radius list items with icons. |
+| 2 | Create `lib/features/more/widgets/more_list_tile.dart` | Leading icon, title, optional trailing badge or subtitle. Tap pushes to detail screen. |
+
+### 17.2 Profile / Memory Screen
+
+| # | Task | Details |
+|---|------|---------|
+| 3 | Create `lib/features/memory/memory_screen.dart` | "What I Know About You" grouped by domain (Work, Communication, Private). Each memory shows content + confidence stars. Tap to reveal private items. Editable. AI-generated insights section with Keep/Dismiss. |
+| 4 | Create `lib/features/memory/widgets/memory_domain_group.dart` | Card per domain (Work, Communication, Private). Expansion tile with memory items. Each item: content text + confidence star rating. |
+| 5 | Create `lib/features/memory/widgets/insight_card.dart` | AI-generated text with `[Keep]` / `[Dismiss]` buttons. Surface bg, 24px radius. |
+| 6 | Create `lib/features/memory/providers/memory_provider.dart` | Riverpod `AsyncNotifier` fetching memories from `ApiClient`. Supports: search, edit, delete, create insight. |
+
+### 17.3 Contacts Screen
+
+| # | Task | Details |
+|---|------|---------|
+| 7 | Create `lib/features/contacts/contacts_screen.dart` | Search bar at top. Contact list: avatar + name + company + email. Tap → contact detail. Alphabetical sections. |
+| 8 | Create `lib/features/contacts/widgets/contact_tile.dart` | Leading: initials avatar. Title: name. Subtitle: company. Trailing: email icon. |
+| 9 | Create `lib/features/contacts/providers/contacts_provider.dart` | Riverpod `AsyncNotifier` fetching contacts from `ApiClient`. Search, add, update. |
+
+### 17.4 Files Screen
+
+| # | Task | Details |
+|---|------|---------|
+| 10 | Create `lib/features/files/files_screen.dart` | Search bar. "⟁ Remote" badge in app bar (self-hosted mode). File tree grouped by folder. "Last synced: X min ago" indicator. Tap file → preview/download. |
+| 11 | Create `lib/features/files/widgets/file_tile.dart` | Leading: file type icon (doc/image/code). Title: filename. Subtitle: size + modified date. Trailing: download icon. |
+| 12 | Create `lib/features/files/providers/files_provider.dart` | Riverpod `AsyncNotifier` calling `files_list` via `ApiClient`. Supports: navigate folders, search, download. |
+
+### 17.5 Subagents Screen
+
+| # | Task | Details |
+|---|------|---------|
+| 13 | Create `lib/features/subagents/subagents_screen.dart` | Two sections: Active (with status, progress bar, cost) and Completed. Tap → subagent detail. "New Subagent" FAB. |
+| 14 | Create `lib/features/subagents/widgets/subagent_card.dart` | Card with: name, status dot (running/complete/failed), task description, progress bar, cost, `[Instruct]` `[Cancel]` buttons. 24px radius. |
+| 15 | Create `lib/features/subagents/providers/subagents_provider.dart` | Riverpod `AsyncNotifier` fetching subagents from `ApiClient`. Supports: create, invoke, progress, cancel, instruct. |
+
+### 17.6 Skills Screen
+
+| # | Task | Details |
+|---|------|---------|
+| 16 | Create `lib/features/skills/skills_screen.dart` | Two sections: Active skills (currently loaded) and Available skills (can be loaded). Tap → skill description + load button. Search bar. |
+| 17 | Create `lib/features/skills/widgets/skill_tile.dart` | Icon + name + short description + "Loaded X ago" or "Tap to load". |
+| 18 | Create `lib/features/skills/providers/skills_provider.dart` | Riverpod `AsyncNotifier` fetching skills from `ApiClient`. Load, search. |
 
 ---
 
@@ -509,7 +903,7 @@ Description: |
 | 24 | Plumb actual token counts from provider responses into `CostTracker` | Medium |
 | 25 | Accept `provider_options` from `RunConfig` or per-request kwargs (currently hardcoded `None`) | Medium |
 
-### 10.6 Advanced (Phase 12+)
+### 10.6 Advanced (Phase 18+)
 
 | # | Task | Priority | Status |
 |---|------|----------|--------|
@@ -523,9 +917,9 @@ Description: |
 
 ---
 
-## Phase 12: Event-Driven Triggers, Smart Routing & Self-Evolution
+## Phase 18: Event-Driven Triggers, Smart Routing & Self-Evolution — 🔲 FUTURE
 
-### 12.1 Event-Driven Agent Triggers
+### 18.1 Event-Driven Agent Triggers
 
 The main agent should be activatable by external events, not just user messages. Three trigger types:
 
@@ -545,7 +939,7 @@ The main agent should be activatable by external events, not just user messages.
 - Cron triggers use `APScheduler` or `croniter` for scheduling
 - File watch triggers use `watchfiles` (already a dependency via uvicorn)
 
-### 12.2 Smart Subagent Routing (Duration-Aware Orchestration)
+### 18.2 Smart Subagent Routing (Duration-Aware Orchestration)
 
 When a task is expected to take 10+ seconds, the main agent should automatically route it to a subagent rather than blocking the main conversation. This requires:
 
@@ -561,7 +955,7 @@ When a task is expected to take 10+ seconds, the main agent should automatically
 - No new tools needed — existing `subagent_create` + `subagent_invoke` + `subagent_progress` cover the workflow
 - The main agent can poll `subagent_progress` while the subagent works
 
-### 12.3 Self-Evolution (Hermes-Agent Pattern)
+### 18.3 Self-Evolution (Hermes-Agent Pattern)
 
 Inspired by Hermes-type agents that modify their own behavior, prompts, and tools based on experience. Details to be designed, but high-level goals:
 
@@ -580,7 +974,7 @@ Inspired by Hermes-type agents that modify their own behavior, prompts, and tool
 - Tool creation should follow the existing `skill_create` pattern (generates SKILL.md + optional scripts)
 - Safety rails: destructive self-modifications require approval (HITL for tool creation, auto-approve for prompt tuning if non-destructive)
 
-### 12.x Implementation Priority
+### 18.x Implementation Priority
 
 | # | Task | Priority | Depends on |
 |---|------|----------|-----------|
@@ -654,7 +1048,7 @@ All three domain stores now backed by HybridDB:
 
 | Store | File | Status |
 |-------|------|--------|
-| `ConversationStore` | `src/storage/messages.py` | ✅ HybridDB |
+| `MessageStore` | `src/storage/messages.py` | ✅ HybridDB |
 | `MemoryStore` | `src/storage/memory.py` | ✅ HybridDB |
 | `AppStorage` | `src/sdk/tools_core/apps_storage.py` | ✅ HybridDB |
 | `SubagentScheduler` | `src/subagent/scheduler.py` | ❌ Still raw SQLite |
@@ -706,7 +1100,7 @@ Email (8 tools), contacts (6 tools), and todos (5 tools) are disabled pending re
 - **Middleware**: `MemoryMiddleware`, `SummarizationMiddleware`, `SkillMiddleware` (discovery-based)
 - **MCP**: `MCPToolBridge` — MCP tools registered as `mcp__{server}__{tool}`, degraded-mode, dynamic reload
 - **Skills**: Discovery-based — `skills_list` tool with dynamic descriptions, `skills_load` for full content
-- **Session**: HybridDB ConversationStore + SummarizationMiddleware (no checkpoints)
+- **Session**: HybridDB MessageStore + SummarizationMiddleware (no checkpoints)
 - **Subagents**: SQLite work_queue + `SubagentCoordinator` + `ProgressMiddleware` + `InstructionMiddleware`
 - **Parallel tools**: Classified (parallel_safe / sequential / interrupt), `asyncio.gather()` for safe batch
 - **Plugin system**: None (to be added)
@@ -716,6 +1110,7 @@ Email (8 tools), contacts (6 tools), and todos (5 tools) are disabled pending re
 ## Cross-Reference Documents
 
 - [DATA_ARCHITECTURE.md](./DATA_ARCHITECTURE.md) — Data paths, app sharing, deployment models
-- [DEPLOYMENT.md](./DEPLOYMENT.md) — Self-hosted .dmg/.exe, hosted container architecture
+- [DEPLOYMENT.md](./DEPLOYMENT.md) — Self-hosted .dmg/.exe, hosted container architecture, team layer
 - [AGENTS.md](./AGENTS.md) — Build/lint/test commands, coding style, current architecture
 - [docs/HYBRIDDB_SPEC.md](./docs/HYBRIDDB_SPEC.md) — HybridDB design specification
+- [docs/FLUTTER_UX_PLAN.md](./docs/FLUTTER_UX_PLAN.md) — Flutter UI/UX design system, navigation, screen specs

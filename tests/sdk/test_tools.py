@@ -117,19 +117,19 @@ class TestToolSchema:
 
     def test_user_id_default(self):
         @tool
-        def my_tool(user_id: str = "default") -> str:
+        def my_tool(user_id: str = "default_user") -> str:
             """My tool."""
             return user_id
 
         props = my_tool.parameters["properties"]
-        assert props["user_id"]["default"] == "default"
+        assert props["user_id"]["default"] == "default_user"
         assert "user_id" not in my_tool.parameters.get("required", [])
 
 
 class TestToolOpenAIFormat:
     def test_to_openai_format(self):
         @tool
-        def time_get(user_id: str = "default") -> str:
+        def time_get(user_id: str = "default_user") -> str:
             """Get current time."""
             return "3pm"
 
@@ -141,7 +141,7 @@ class TestToolOpenAIFormat:
 
     def test_to_anthropic_format(self):
         @tool
-        def time_get(user_id: str = "default") -> str:
+        def time_get(user_id: str = "default_user") -> str:
             """Get current time."""
             return "3pm"
 
@@ -295,7 +295,7 @@ class TestToolRegistry:
         registry = ToolRegistry()
 
         @tool
-        def time_get(user_id: str = "default") -> str:
+        def time_get(user_id: str = "default_user") -> str:
             """Get time."""
             return "3pm"
 
@@ -309,7 +309,7 @@ class TestToolRegistry:
         registry = ToolRegistry()
 
         @tool
-        def time_get(user_id: str = "default") -> str:
+        def time_get(user_id: str = "default_user") -> str:
             """Get time."""
             return "3pm"
 

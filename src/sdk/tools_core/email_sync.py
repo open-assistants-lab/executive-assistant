@@ -6,11 +6,11 @@ from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from typing import Any
 
-from src.sdk.tools import tool
 from sqlalchemy import text
 
 from src.app_logging import get_logger
 from src.config import get_settings
+from src.sdk.tools import tool
 from src.sdk.tools_core.email_db import get_engine as _get_engine
 
 logger = get_logger()
@@ -497,8 +497,8 @@ async def _sync_all_accounts() -> None:
     from src.storage.user import get_all_user_ids
 
     user_ids = get_all_user_ids()
-    # Filter out "default" user - it's not valid for email operations
-    user_ids = [uid for uid in user_ids if uid and uid != "default"]
+    # Filter out "default_user" user - it's not valid for email operations
+    user_ids = [uid for uid in user_ids if uid and uid != "default_user"]
     batch_size = SETTINGS.email_sync.batch_size
 
     for user_id in user_ids:

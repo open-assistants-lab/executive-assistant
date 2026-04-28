@@ -6,7 +6,7 @@ router = APIRouter(prefix="/email", tags=["email"])
 
 
 @router.get("/accounts")
-async def list_email_accounts(user_id: str = "default"):
+async def list_email_accounts(user_id: str = "default_user"):
     """List connected email accounts."""
     from src.sdk.tools_core.email import email_accounts
 
@@ -27,7 +27,7 @@ async def connect_email(req: EmailConnectRequest):
 
 
 @router.delete("/accounts/{account_name}")
-async def disconnect_email(account_name: str, user_id: str = "default"):
+async def disconnect_email(account_name: str, user_id: str = "default_user"):
     """Disconnect an email account."""
     from src.sdk.tools_core.email import email_disconnect
 
@@ -40,7 +40,7 @@ async def list_emails(
     account_name: str = "default",
     limit: int = 20,
     folder: str = "INBOX",
-    user_id: str = "default",
+    user_id: str = "default_user",
 ):
     """List emails from an account."""
     from src.sdk.tools_core.email import email_list
@@ -55,7 +55,7 @@ async def list_emails(
 async def get_email(
     email_id: str,
     account_name: str = "default",
-    user_id: str = "default",
+    user_id: str = "default_user",
 ):
     """Get a specific email."""
     from src.sdk.tools_core.email import email_get
@@ -70,7 +70,7 @@ async def get_email(
 async def search_emails(
     query: str,
     account_name: str = "default",
-    user_id: str = "default",
+    user_id: str = "default_user",
 ):
     """Search emails."""
     from src.sdk.tools_core.email import email_search
@@ -85,7 +85,7 @@ async def send_email(
     subject: str,
     body: str,
     account_name: str = "default",
-    user_id: str = "default",
+    user_id: str = "default_user",
 ):
     """Send an email."""
     from src.sdk.tools_core.email import email_send

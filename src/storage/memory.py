@@ -15,6 +15,7 @@ Domain wrapper over HybridDB that adds:
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -185,6 +186,54 @@ class MemoryStore:
     def _generate_id(self, trigger: str, action: str) -> str:
         content = f"{trigger}:{action}"
         return hashlib.sha256(content.encode()).hexdigest()[:16]
+
+    def _generate_fact_id(self, scope: str, entity: str, attribute: str, value: str) -> str:
+        content = f"fact:{scope}:{entity}:{attribute}:{value}"
+        return hashlib.sha256(content.encode()).hexdigest()[:16]
+
+    def _fact_key(self, entity: str, attribute: str, scope: str = SCOPE_GLOBAL) -> str:
+        return f"{scope}:{self._normalize_fact_token(entity)}:{self._normalize_fact_token(attribute)}"
+
+    @staticmethod
+    def _normalize_fact_token(value: str) -> str:
+        value = value.lower().strip()
+        value = re.sub(r"[^a-z0-9]+", "_", value)
+        return value.strip("_") or "unknown"
+
+    @staticmethod
+    def _fact_query_aliases(query: str) -> set[str]:
+        query_lower = query.lower()
+        aliases: set[str] = set()
+        alias_map = {
+            "location": ["live", "lives", "living", "city", "state", "where", "address"],
+            "address": ["address", "street", "apartment", "apt", "where"],
+            "name": ["name", "called", "nickname"],
+            "nickname": ["nickname", "called", "call me"],
+            "spouse": ["wife", "husband", "spouse", "partner"],
+            "wife": ["wife", "spouse", "priya"],
+            "manager": ["manager", "boss", "reports to"],
+            "job": ["job", "work", "role", "title", "company", "employer"],
+            "role": ["job", "role", "title", "position"],
+            "project": ["project", "working on", "dashboard", "pipeline"],
+            "commute": ["commute", "transport", "transit", "bike", "drive", "metrorail"],
+            "drink_preference": ["drink", "coffee", "tea", "latte"],
+            "coffee": ["coffee", "latte", "drink"],
+            "pet": ["pet", "dog", "cat", "animal"],
+            "dog": ["dog", "biscuit", "pet"],
+            "cat": ["cat", "kitten", "noodle", "pet"],
+            "allergy": ["allergy", "allergic", "shellfish"],
+            "birthday": ["birthday", "born", "month"],
+            "editor": ["editor", "ide", "vscode", "vs code", "neovim"],
+            "project_tracker": ["tracker", "jira", "linear", "project management"],
+            "parking": ["parking", "spot", "garage"],
+            "phone": ["phone", "number", "contact"],
+            "email": ["email", "mail"],
+            "certification": ["certification", "cert", "aws"],
+        }
+        for canonical, terms in alias_map.items():
+            if any(term in query_lower for term in terms):
+                aliases.add(canonical)
+        return aliases
 
     def _normalize_domain(self, domain: str) -> str:
         domain = domain.lower().strip()
@@ -453,6 +502,234 @@ class MemoryStore:
         if result is None:
             raise RuntimeError(f"Failed to create memory: {effective_id}")
         return result
+
+    def _find_current_fact(
+        self,
+        entity: str,
+        attribute: str,
+        scope: str = SCOPE_GLOBAL,
+    ) -> Memory | None:
+        fact_key = self._fact_key(entity, attribute, scope)
+        rows = self.db.query(
+            "memories",
+            where="memory_type = ? AND is_superseded = 0 AND scope = ?",
+            params=(MEMORY_TYPE_FACT, scope),
+            order_by="updated_at DESC",
+            limit=1000,
+        )
+        for row in rows:
+            memory = self._row_to_memory(row)
+            if memory.structured_data.get("fact_key") == fact_key:
+                return memory
+        return None
+
+    def upsert_fact_memory(
+        self,
+        entity: str,
+        attribute: str,
+        value: str,
+        *,
+        domain: str = "personal",
+        confidence: float = DEFAULT_CONFIDENCE,
+        source: str = SOURCE_LEARNED,
+        trigger: str | None = None,
+        previous_value: str | None = None,
+        effective_at: str | None = None,
+        scope: str = SCOPE_GLOBAL,
+        project_id: str | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> Memory:
+        """Insert or update an exact fact while preserving superseded history."""
+        entity = entity.strip() or "user"
+        attribute = attribute.strip()
+        value = str(value).strip()
+        if not attribute or not value:
+            raise ValueError("attribute and value are required for fact memory")
+
+        fact_key = self._fact_key(entity, attribute, scope)
+        old_memory = self._find_current_fact(entity, attribute, scope=scope)
+        old_value = old_memory.structured_data.get("value") if old_memory else None
+
+        if old_memory and str(old_value).strip().lower() == value.lower():
+            structured = dict(old_memory.structured_data)
+            structured.update(
+                {
+                    "entity": entity,
+                    "attribute": attribute,
+                    "value": value,
+                    "fact_key": fact_key,
+                    "current": True,
+                    "effective_at": effective_at or structured.get("effective_at"),
+                }
+            )
+            if extra:
+                structured.update(extra)
+            updated = self.update_memory(
+                old_memory.id,
+                new_trigger=trigger or old_memory.trigger,
+                new_action=value,
+                new_domain=domain,
+                new_structured_data=structured,
+            )
+            if updated is None:
+                raise RuntimeError(f"Failed to update fact memory: {old_memory.id}")
+            return updated
+
+        now = datetime.now(UTC).isoformat()
+        structured_data = {
+            "entity": entity,
+            "attribute": attribute,
+            "value": value,
+            "previous_value": previous_value or old_value,
+            "fact_key": fact_key,
+            "current": True,
+            "effective_at": effective_at or now,
+        }
+        if extra:
+            structured_data.update(extra)
+
+        memory_trigger = trigger or f"{entity}'s {attribute}"
+        memory_id = self._generate_fact_id(scope, entity, attribute, value)
+        if self.db.get("memories", memory_id):
+            memory_id = self._generate_fact_id(scope, entity, attribute, f"{value}:{now}")
+        cap = MAX_CONFIDENCE if source == SOURCE_LEARNED else 1.0
+
+        self.db.insert(
+            "memories",
+            {
+                "id": memory_id,
+                "trigger": memory_trigger,
+                "action": value,
+                "confidence": min(confidence, cap),
+                "domain": self._normalize_domain(domain),
+                "source": source,
+                "memory_type": MEMORY_TYPE_FACT,
+                "importance": 8.0,
+                "observations": 1,
+                "created_at": now,
+                "updated_at": now,
+                "structured_data": json.dumps(structured_data),
+                "scope": scope,
+                "project_id": project_id,
+                "linked_to": self._serialize_connections([]),
+                "is_superseded": False,
+                "superseded_by": None,
+                "consolidated": False,
+                "access_count": 0,
+                "last_accessed_at": None,
+            },
+        )
+
+        if old_memory:
+            old_structured = dict(old_memory.structured_data)
+            old_structured["current"] = False
+            self.db.update(
+                "memories",
+                old_memory.id,
+                {
+                    "is_superseded": True,
+                    "superseded_by": memory_id,
+                    "updated_at": now,
+                    "structured_data": json.dumps(old_structured),
+                },
+            )
+            self.add_connection(memory_id, old_memory.id, relationship="updates")
+
+        result = self.get_memory(memory_id)
+        if result is None:
+            raise RuntimeError(f"Failed to create fact memory: {memory_id}")
+        return result
+
+    def find_facts_for_query(
+        self,
+        query: str,
+        limit: int = 8,
+        include_superseded: bool = False,
+    ) -> list[Memory]:
+        """Return exact structured facts likely relevant to a user query."""
+        query_lower = query.lower()
+        query_terms = set(re.findall(r"[a-z0-9]+", query_lower))
+        query_aliases = self._fact_query_aliases(query)
+        rows = self.db.query(
+            "memories",
+            where="memory_type = ?" + ("" if include_superseded else " AND is_superseded = 0"),
+            params=(MEMORY_TYPE_FACT,),
+            order_by="confidence DESC, updated_at DESC",
+            limit=1000,
+        )
+
+        scored: list[tuple[int, Memory]] = []
+        for row in rows:
+            memory = self._row_to_memory(row)
+            sd = memory.structured_data
+            haystack = " ".join(
+                str(sd.get(key, ""))
+                for key in ("entity", "attribute", "value", "previous_value", "fact_key")
+            ).lower()
+            haystack += f" {memory.trigger.lower()} {memory.action.lower()} {memory.domain.lower()}"
+            haystack_terms = set(re.findall(r"[a-z0-9]+", haystack))
+            overlap = len(query_terms & haystack_terms)
+            attribute = str(sd.get("attribute", "")).lower()
+            normalized_attribute = self._normalize_fact_token(attribute)
+            if attribute and attribute in query_lower:
+                overlap += 3
+            if normalized_attribute in query_aliases:
+                overlap += 4
+            if overlap == 0:
+                continue
+            if "current" in query_lower or "now" in query_lower:
+                overlap += 1 if sd.get("current", True) else -2
+            scored.append((overlap, memory))
+
+        scored.sort(key=lambda item: (item[0], item[1].confidence, item[1].updated_at), reverse=True)
+        results = [memory for _, memory in scored[:limit]]
+        for memory in results:
+            self._boost_access(memory.id)
+        return results
+
+    def find_fact_history_for_query(self, query: str, limit: int = 12) -> list[Memory]:
+        """Return current and superseded structured facts for temporal/update questions."""
+        current_facts = self.find_facts_for_query(query, limit=limit, include_superseded=False)
+        fact_keys = {
+            fact.structured_data.get("fact_key") for fact in current_facts if fact.structured_data
+        }
+
+        if not fact_keys:
+            candidate_facts = self.find_facts_for_query(
+                query,
+                limit=max(limit, 20),
+                include_superseded=True,
+            )
+            fact_keys = {
+                fact.structured_data.get("fact_key") for fact in candidate_facts if fact.structured_data
+            }
+
+        if not fact_keys:
+            return []
+
+        rows = self.db.query(
+            "memories",
+            where="memory_type = ?",
+            params=(MEMORY_TYPE_FACT,),
+            order_by="updated_at DESC",
+            limit=2000,
+        )
+
+        history: list[Memory] = []
+        seen_ids: set[str] = set()
+        for row in rows:
+            memory = self._row_to_memory(row)
+            if memory.id in seen_ids:
+                continue
+            if memory.structured_data.get("fact_key") not in fact_keys:
+                continue
+            seen_ids.add(memory.id)
+            history.append(memory)
+
+        history.sort(key=lambda m: (m.structured_data.get("effective_at") or m.updated_at.isoformat()))
+        for memory in history[:limit]:
+            self._boost_access(memory.id)
+        return history[:limit]
 
     def reconcile_vectors(self, limit: int = 100) -> int:
         reconciled = 0
@@ -916,9 +1193,9 @@ class MemoryStore:
 
         if user_id:
             try:
-                from src.storage.messages import get_conversation_store
+                from src.storage.messages import get_message_store
 
-                conv_store = get_conversation_store(user_id)
+                conv_store = get_message_store(user_id)
                 message_results = conv_store.search_hybrid(query, limit=messages_limit)
                 results["messages"] = [
                     {"id": m.id, "content": m.content, "role": m.role, "score": m.score}

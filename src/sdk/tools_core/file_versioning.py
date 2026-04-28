@@ -63,7 +63,7 @@ def capture_version(user_id: str, file_path: str, new_content: str) -> str | Non
 
 
 @tool
-def files_versions_list(path: str, user_id: str = "default") -> str:
+def files_versions_list(path: str, user_id: str = "default_user") -> str:
     """List all versions of a file.
 
     Args:
@@ -101,7 +101,7 @@ files_versions_list.annotations = ToolAnnotations(
 
 
 @tool
-def files_versions_restore(path: str, version: str, user_id: str = "default") -> str:
+def files_versions_restore(path: str, version: str, user_id: str = "default_user") -> str:
     """Restore a file to a specific version.
 
     Args:
@@ -140,7 +140,7 @@ files_versions_restore.annotations = ToolAnnotations(title="Restore File Version
 
 
 @tool
-def files_versions_delete(path: str, version: str | None = None, user_id: str = "default") -> str:
+def files_versions_delete(path: str, version: str | None = None, user_id: str = "default_user") -> str:
     """Delete a specific version or all versions of a file.
 
     Args:
@@ -177,7 +177,7 @@ files_versions_delete.annotations = ToolAnnotations(title="Delete File Version",
 
 
 @tool
-def files_versions_clean(user_id: str = "default") -> str:
+def files_versions_clean(user_id: str = "default_user") -> str:
     """Clean up old versions based on retention policy.
 
     Daily: keep all for 7 days

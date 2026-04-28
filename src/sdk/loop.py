@@ -36,11 +36,7 @@ from src.sdk.guardrails import (
     ToolGuardrail,
 )
 from src.sdk.handoffs import Handoff
-from src.sdk.hooks import HookDecision, HookManager
-from src.sdk.messages import Message, StreamChunk, ToolCall, Usage
-from src.sdk.middleware import Middleware
-from src.sdk.providers.base import LLMProvider, ModelCost
-from src.sdk.state import AgentState
+from src.sdk.subagent_models import TaskCancelledError
 from src.sdk.tools import ToolDefinition, ToolRegistry, ToolResult
 from src.sdk.tracing import SpanType, TraceProvider
 from src.sdk.validation import repair_tool_call
@@ -48,7 +44,7 @@ from src.sdk.validation import repair_tool_call
 logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_ITERATIONS = 25
-DEFAULT_MAX_LLM_CALLS = 50
+DEFAULT_MAX_LLM_CALLS = 25
 DEFAULT_MAX_TOKENS_TOTAL = 1_000_000
 DEFAULT_COST_LIMIT_USD = 10.0
 
@@ -142,7 +138,7 @@ class AgentLoop:
         handoffs: list[Handoff] | None = None,
         trace_provider: TraceProvider | None = None,
         run_config: RunConfig | None = None,
-        hook_manager: HookManager | None = None,
+        user_id: str | None = None,
     ) -> None:
         self.provider = provider
         self.system_prompt = system_prompt
@@ -154,7 +150,7 @@ class AgentLoop:
         self.handoffs = handoffs or []
         self.trace_provider = trace_provider
         self.run_config = run_config or RunConfig(max_iterations=max_iterations)
-        self.hook_manager = hook_manager
+        self.user_id = user_id
 
         self._registry = ToolRegistry()
         if tools:
@@ -164,6 +160,8 @@ class AgentLoop:
         self._handoff_tool_names: set[str] = set()
         for h in self.handoffs:
             self._handoff_tool_names.add(h.tool_name)
+
+        self._approved_tools: set[tuple[str, str]] = set()
 
     def register_tool(self, tool_def: ToolDefinition) -> None:
         if self._registry.has(tool_def.name):
@@ -180,6 +178,12 @@ class AgentLoop:
     def _should_interrupt(self, tc: ToolCall) -> bool:
         tool_def = self._registry.get(tc.name)
         if tool_def and tool_def.annotations.destructive and not tool_def.annotations.read_only:
+            if tc.arguments:
+                args_key = (tc.name, json.dumps(tc.arguments, sort_keys=True))
+                approved = getattr(self, "_approved_tools", set())
+                if args_key in approved:
+                    approved.discard(args_key)
+                    return False
             return True
         return False
 
@@ -226,6 +230,14 @@ class AgentLoop:
         if tool_def is None:
             return ToolResult(content=f"Unknown tool: {tc.name}", is_error=True)
 
+        if self.user_id:
+            props = tool_def.parameters.get("properties", {})
+            if "user_id" in props:
+                current = tc.arguments.get("user_id")
+                uid_default = props["user_id"].get("default", "")
+                if current is None or current == "" or current == uid_default:
+                    tc = ToolCall(id=tc.id, name=tc.name, arguments={**tc.arguments, "user_id": self.user_id})
+
         try:
             if tool_def._coroutine:
                 result = await tool_def.ainvoke(tc.arguments)
@@ -253,23 +265,9 @@ class AgentLoop:
             )
             return
 
-        # PreToolUse hooks
-        if self.hook_manager:
-            hook_result = await self.hook_manager.run_pre_tool_use(tc.name, tc.arguments)
-            if hook_result.decision == HookDecision.DENY:
-                state.add_message(
-                    Message.tool_result(
-                        tool_call_id=tc.id,
-                        content=json.dumps({"error": f"Tool denied by hook: {hook_result.reason}"}),
-                        name=tc.name,
-                    )
-                )
-                return
-            if (
-                hook_result.decision == HookDecision.MODIFY
-                and hook_result.modified_args is not None
-            ):
-                tc = ToolCall(id=tc.id, name=tc.name, arguments=hook_result.modified_args)
+        # PreToolUse hooks removed — hooks were never wired into production
+        # and the shell-subprocess model is wrong for streaming.
+        # Use middleware (_add_middleware) for tool interception instead.
 
         for mw in self.middlewares:
             tc.arguments = mw.wrap_tool_call(tc.name, tc.arguments)
@@ -285,16 +283,6 @@ class AgentLoop:
         result_content = result.content
         if result.is_error:
             result_content = json.dumps({"error": result_content})
-
-        # PostToolUse hooks
-        if self.hook_manager:
-            hook_result = await self.hook_manager.run_post_tool_use(
-                tc.name, tc.arguments, result_content
-            )
-            if hook_result.decision == HookDecision.DENY:
-                result_content = json.dumps(
-                    {"error": f"Tool output blocked by hook: {hook_result.reason}"}
-                )
 
         try:
             await self._check_tool_guardrails(tc, "output", result_content)
@@ -493,6 +481,8 @@ class AgentLoop:
             try:
                 updates = await method(state)
                 self._apply_updates(state, updates)
+            except TaskCancelledError:
+                raise
             except Exception:
                 logger.warning(f"{hook_name} error in {mw.name}", exc_info=True)
 
@@ -501,6 +491,11 @@ class AgentLoop:
         if self.system_prompt:
             if not messages or messages[0].role != "system":
                 messages.insert(0, Message.system(self.system_prompt))
+            elif (
+                isinstance(messages[0].content, str)
+                and self.system_prompt not in messages[0].content
+            ):
+                messages[0] = Message.system(f"{self.system_prompt}\n\n{messages[0].content}")
         return messages
 
     async def _check_input_guardrails(self, state: AgentState) -> GuardrailResult | None:
@@ -885,7 +880,8 @@ class AgentLoop:
                         "interrupt": True,
                         "tool": tc.name,
                         "args": tc.arguments,
-                        "message": f"Tool call '{tc.name}' requires approval",
+                        "message": f"Tool '{tc.name}' requires user approval. When approved, retry the exact same {tc.name} call.",
+                        "retry_on_approve": True,
                         "allowed_actions": ["approve", "reject", "edit"],
                     }
                 )
@@ -932,8 +928,14 @@ class AgentLoop:
         in_text_block: bool,
         in_reasoning_block: bool,
     ) -> AsyncIterator[StreamChunk]:
-        """Process a provider-emitted chunk, emitting block-structured events + backward-compat aliases."""
+        """Process a provider-emitted chunk, emitting block-structured events + backward-compat aliases.
+
+        Providers emit both canonical and alias types (e.g. text_delta + ai_token).
+        We skip alias input chunks here since we emit our own aliases below.
+        """
         canonical = chunk.canonical_type
+        if chunk.type != canonical:
+            return
 
         if canonical == "text_delta":
             if not in_text_block:

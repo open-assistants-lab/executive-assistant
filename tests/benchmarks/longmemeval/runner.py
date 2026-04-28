@@ -1,7 +1,7 @@
 """LongMemEval evaluation runner.
 
 This module handles the evaluation loop:
-1. For each question instance, inject history into ConversationStore
+1. For each question instance, inject history into MessageStore
 2. Run our agent with the question
 3. Collect the agent's response
 """
@@ -85,7 +85,7 @@ class LongMemEvalRunner:
 
     This tests our agent's memory retrieval + reasoning on the LongMemEval benchmark.
     For QA mode, we:
-    1. Inject all session history into our ConversationStore
+    1. Inject all session history into our MessageStore
     2. Ask the question via our agent (which uses memory tools)
     3. Compare agent answer to expected answer
     """
@@ -143,7 +143,7 @@ class LongMemEvalRunner:
     ) -> EvaluationResult:
         """Evaluate using our memory tools (the real test).
 
-        This injects sessions into ConversationStore and lets our agent
+        This injects sessions into MessageStore and lets our agent
         use memory_get_history, memory_search, etc. to answer.
         """
         self.adapter.inject_sessions(

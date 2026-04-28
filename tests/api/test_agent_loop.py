@@ -33,10 +33,10 @@ class TestMessageEndpoint:
 
     def test_conversation_persists(self, client):
         """Messages sent via /message are stored in conversation history."""
-        from src.storage.messages import get_conversation_store
+        from src.storage.messages import get_message_store
 
         uid = "test_persist_conv_api"
-        store = get_conversation_store(uid)
+        store = get_message_store(uid)
         store.clear()
         client.post("/message", json={"message": "Hello agent", "user_id": uid})
         messages = store.get_recent_messages(1)

@@ -2,7 +2,6 @@
 
 import uuid
 from datetime import UTC, datetime
-from pathlib import Path
 
 from sqlalchemy import create_engine, text
 
@@ -15,12 +14,10 @@ _engines: dict[str, object] = {}
 
 def get_db_path(user_id: str) -> str:
     """Get SQLite database path for user."""
-    if not user_id or user_id == "default":
-        raise ValueError(f"Invalid user_id: {user_id}")
-    cwd = Path.cwd()
-    base_dir = cwd / "data" / "users" / user_id / "contacts"
-    base_dir.mkdir(parents=True, exist_ok=True)
-    return str(base_dir / "contacts.db")
+    from src.storage.paths import get_paths
+
+    uid = user_id or "default_user"
+    return str(get_paths(uid).contacts_db())
 
 
 def get_engine(user_id: str):

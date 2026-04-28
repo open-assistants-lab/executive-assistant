@@ -9,6 +9,7 @@ import threading
 from typing import Any
 
 from src.app_logging import get_logger
+from src.sdk.memory_planner import plan_memory_query
 from src.sdk.messages import Message
 from src.sdk.middleware import Middleware
 from src.sdk.state import AgentState
@@ -87,21 +88,23 @@ NEW_INFO_KEYWORDS = [
     "speaks ",
 ]
 
-EXTRACTION_PROMPT = """You are a user pattern extraction system. Analyze the conversation and extract ONLY meaningful behavioral patterns.
+EXTRACTION_PROMPT = """You are a user information extraction system. Extract factual information about the user that should be remembered for future conversations.
 
 ## EXTRACTION RULES:
-1. Only extract when user EXPLICITLY expresses a preference, makes a correction, or provides NEW personal information
-2. Do NOT extract from normal conversational responses
-3. Each memory must be actionable - something the AI should remember and act on
+1. Extract CONCRETE FACTS: names, locations, dates, numbers, preferences, changes, corrections
+2. Each memory trigger should be a specific fact query (e.g., "user's name" not "when user asks about name")
+3. Each memory action should be the EXACT factual answer (e.g., "Jordan Mitchell" not "respond with stored info")
+4. Do NOT extract meta-observations about the conversation itself
+5. Prioritize FACTS and CORRECTIONS over workflow patterns
 
 ## MEMORY TYPES (pick one):
 
 | Type | When to use |
 |------|-------------|
+| **fact** | Factual info about user (name, location, job, family, pets, etc) |
 | **preference** | User expresses what they want/prefer (likes, dislikes, wants) |
-| **fact** | Factual info about user (name, location, job, etc) |
-| **workflow** | User's working patterns or habits |
-| **correction** | User corrects the AI ("no, not like that") |
+| **correction** | User corrects previous info ("I moved to...", "actually it's...") |
+| **workflow** | User's working patterns or habits (less common) |
 
 ## DOMAINS (for categorization):
 
@@ -126,8 +129,13 @@ EXTRACTION_PROMPT = """You are a user pattern extraction system. Analyze the con
 
 For **fact** type memories, include structured fields:
 ```json
-{{"entity": "person/object", "attribute": "property name", "value": "the value"}}
+{{"entity": "user", "attribute": "property name", "value": "the exact value", "previous_value": "optional old value", "effective_at": "optional date/time"}}
 ```
+
+Examples:
+- User says "My name is Jordan Mitchell" → trigger="user's name", action="Jordan Mitchell", structured_data={{"entity":"user","attribute":"name","value":"Jordan Mitchell"}}
+- User says "I moved to Denver" → trigger="user's location", action="Denver", structured_data={{"entity":"user","attribute":"location","value":"Denver"}}
+- User says "My new manager is Tom, not Karen" → trigger="user's manager", action="Tom", structured_data={{"entity":"user","attribute":"manager","value":"Tom","previous_value":"Karen"}}
 
 For **workflow** type memories, include steps:
 ```json
@@ -189,7 +197,7 @@ class MemoryMiddleware(Middleware):
     """
 
     def __init__(self, user_id: str | None = None):
-        self.user_id = user_id or "default"
+        self.user_id = user_id or "default_user"
         self.memory_store = get_memory_store(self.user_id)
         self._model: Any = None
         self._turn_count = 0
@@ -197,11 +205,11 @@ class MemoryMiddleware(Middleware):
     def _get_model(self) -> Any | None:
         if self._model is None:
             try:
-                from src.sdk.providers.factory import create_provider
+                from src.sdk.providers.factory import create_model_from_config
 
                 settings = __import__("src.config", fromlist=["get_settings"]).get_settings()
                 model_str = getattr(settings.agent, "model", "ollama:minimax-m2.5")
-                self._model = create_provider(model_str)
+                self._model = create_model_from_config(model_str)
             except Exception as e:
                 logger.warning(
                     "memory.model_unavailable",
@@ -218,6 +226,135 @@ class MemoryMiddleware(Middleware):
         elif isinstance(content, list):
             return " ".join(c.get("text", "") if isinstance(c, dict) else str(c) for c in content)
         return str(content)
+
+    def _latest_user_query(self, messages: list[Message]) -> str:
+        for msg in reversed(messages):
+            if msg.role == "user":
+                return self._get_message_content(msg).strip()
+        return ""
+
+    def _get_relevant_memory_context(self, query: str) -> str:
+        plan = plan_memory_query(query)
+        if plan.intent == "unknown":
+            return ""
+
+        sections: list[str] = []
+        fact_memories = []
+
+        try:
+            fact_memories = (
+                self.memory_store.find_facts_for_query(query, limit=plan.max_facts)
+                if plan.needs_current_facts
+                else []
+            )
+            if fact_memories:
+                sections.append("### Exact Structured Facts")
+                for memory in fact_memories:
+                    sd = memory.structured_data
+                    previous = sd.get("previous_value")
+                    previous_text = f" (previous: {previous})" if previous else ""
+                    sections.append(
+                        f"- {sd.get('entity', 'user')}.{sd.get('attribute', memory.trigger)} = "
+                        f"{sd.get('value', memory.action)}{previous_text}"
+                    )
+
+            if plan.needs_fact_history:
+                temporal_facts = self.memory_store.find_fact_history_for_query(
+                    query, limit=plan.max_history
+                )
+                if temporal_facts:
+                    sections.append("### Temporal / Update History")
+                    for memory in temporal_facts:
+                        sd = memory.structured_data
+                        status = "current" if not memory.is_superseded else "superseded"
+                        effective_at = sd.get("effective_at") or memory.updated_at.date().isoformat()
+                        previous = sd.get("previous_value")
+                        previous_text = f"; previous={previous}" if previous else ""
+                        sections.append(
+                            f"- {effective_at} [{status}] "
+                            f"{sd.get('entity', 'user')}.{sd.get('attribute', memory.trigger)} = "
+                            f"{sd.get('value', memory.action)}{previous_text}"
+                        )
+
+            fact_ids = {memory.id for memory in fact_memories}
+            memories = [m for m in self.memory_store.search_hybrid(query, limit=8) if m.id not in fact_ids]
+            if memories:
+                sections.append("### Learned Memories")
+                for memory in memories[:6]:
+                    sections.append(f"- [{memory.domain}] {memory.trigger}: {memory.action}")
+        except Exception as e:
+            logger.debug(
+                "memory.query_memories_failed",
+                {"error": str(e), "query": query[:100]},
+                user_id=self.user_id,
+            )
+
+        needs_message_fallback = plan.intent == "current_fact" and not fact_memories
+        if plan.needs_messages or needs_message_fallback:
+            try:
+                from src.sdk.tools_core.memory import _expand_queries
+                from src.storage.messages import get_message_store
+
+                conversation = get_message_store(self.user_id)
+                seen_ids: set[int] = set()
+                message_results = []
+                recency_keywords = [
+                    "current",
+                    "latest",
+                    "now",
+                    "after",
+                    "updated",
+                    "new",
+                    "recently",
+                    "last",
+                    "today",
+                ]
+                recency_weight = (
+                    0.7 if any(kw in query.lower() for kw in recency_keywords) else 0.3
+                )
+
+                for expanded_query in _expand_queries(query):
+                    for result in conversation.search_hybrid(
+                        expanded_query,
+                        limit=plan.max_messages or 5,
+                        recency_weight=recency_weight,
+                    ):
+                        if result.id in seen_ids:
+                            continue
+                        seen_ids.add(result.id)
+                        message_results.append(result)
+
+                message_results.sort(key=lambda r: r.score, reverse=True)
+                if message_results:
+                    sections.append("### Relevant Conversation History")
+                    for result in message_results[: (plan.max_messages or 5)]:
+                        content = result.content.replace("\n", " ")
+                        sections.append(
+                            f"- {result.role} ({result.ts.date()}): {content} "
+                            f"(score: {result.score:.2f})"
+                        )
+            except Exception as e:
+                logger.debug(
+                    "memory.query_messages_failed",
+                    {"error": str(e), "query": query[:100]},
+                    user_id=self.user_id,
+                )
+
+        if not sections:
+            return ""
+
+        logger.info(
+            "memory.query_context_injected",
+            {
+                "query": query[:100],
+                "intent": plan.intent,
+                "sections": len(sections),
+                "needs_history": plan.needs_fact_history,
+                "needs_messages": plan.needs_messages or needs_message_fallback,
+            },
+            user_id=self.user_id,
+        )
+        return "## Relevant Memory Search Results\n" + "\n".join(sections)
 
     def _should_extract(self, messages: list[Message]) -> bool:
         self._turn_count += 1
@@ -244,9 +381,14 @@ class MemoryMiddleware(Middleware):
 
     def before_agent(self, state: AgentState) -> dict[str, Any] | None:
         memory_context = self.memory_store.get_memory_context(detail_level=MEMORY_DETAIL_SUMMARY)
+        query = self._latest_user_query(state.messages)
+        query_context = self._get_relevant_memory_context(query)
 
-        if not memory_context:
+        contexts = [context for context in (memory_context, query_context) if context]
+        if not contexts:
             return None
+
+        combined_context = "\n\n".join(contexts)
 
         current_messages = state.messages
 
@@ -259,15 +401,15 @@ class MemoryMiddleware(Middleware):
         if system_idx is not None:
             sys_msg = current_messages[system_idx]
             content = self._get_message_content(sys_msg)
-            if "## User Profile & Preferences" not in content:
-                updated_content = content + "\n\n" + memory_context
+            if combined_context not in content:
+                updated_content = content + "\n\n" + combined_context
                 current_messages[system_idx] = Message.system(updated_content)
         else:
-            current_messages.insert(0, Message.system(memory_context))
+            current_messages.insert(0, Message.system(combined_context))
 
         logger.debug(
             "memory.injected",
-            {"context_length": len(memory_context)},
+            {"context_length": len(combined_context), "query_context": bool(query_context)},
             user_id=self.user_id,
         )
 
@@ -379,6 +521,49 @@ class MemoryMiddleware(Middleware):
                 if trigger_key in seen_triggers:
                     continue
                 seen_triggers.add(trigger_key)
+
+                if memory_type == MEMORY_TYPE_FACT and isinstance(structured_data, dict):
+                    entity = str(structured_data.get("entity") or "user").strip()
+                    attribute = str(structured_data.get("attribute") or "").strip()
+                    value = str(structured_data.get("value") or action).strip()
+                    if attribute and value:
+                        extra = {
+                            k: v
+                            for k, v in structured_data.items()
+                            if k
+                            not in {
+                                "entity",
+                                "attribute",
+                                "value",
+                                "previous_value",
+                                "effective_at",
+                            }
+                        }
+                        mem = self.memory_store.upsert_fact_memory(
+                            entity=entity,
+                            attribute=attribute,
+                            value=value,
+                            domain=domain,
+                            confidence=min(confidence, MAX_CONFIDENCE),
+                            source=SOURCE_LEARNED,
+                            trigger=trigger,
+                            previous_value=structured_data.get("previous_value"),
+                            effective_at=structured_data.get("effective_at"),
+                            extra=extra or None,
+                        )
+                        logger.info(
+                            "memory.fact_upserted",
+                            {
+                                "id": mem.id,
+                                "entity": entity,
+                                "attribute": attribute,
+                                "value": value,
+                                "domain": domain,
+                                "confidence": confidence,
+                            },
+                            user_id=self.user_id,
+                        )
+                        continue
 
                 existing = self.memory_store.search_hybrid(trigger, limit=3)
                 similar = [m for m in existing if m.domain == domain and not m.is_superseded]

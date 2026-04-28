@@ -5,13 +5,12 @@ from fastapi.responses import StreamingResponse
 
 from src.app_logging import get_logger, timer
 from src.http.models import MessageRequest, MessageResponse
-from src.sdk.messages import Message
 from src.sdk.runner import (
     _messages_from_conversation,
     run_sdk_agent,
     run_sdk_agent_stream,
 )
-from src.storage.messages import get_conversation_store
+from src.storage.messages import get_message_store
 
 _pending_approvals: dict[str, dict] = {}
 
@@ -19,23 +18,28 @@ router = APIRouter(tags=["conversation"])
 
 
 @router.get("/conversation")
-async def get_conversation(user_id: str = "default", limit: int = 100):
+async def get_conversation(user_id: str = "default_user", limit: int = 100):
     """Get conversation history."""
-    conversation = get_conversation_store(user_id)
+    conversation = get_message_store(user_id)
     messages = conversation.get_recent_messages(limit)
 
     return {
         "messages": [
-            {"role": m.role, "content": m.content, "timestamp": m.ts.isoformat() if m.ts else None}
+            {
+                "role": m.role,
+                "content": m.content,
+                "timestamp": m.ts.isoformat() if m.ts else None,
+                "metadata": m.metadata,
+            }
             for m in messages
         ]
     }
 
 
 @router.delete("/conversation")
-async def clear_conversation(user_id: str = "default"):
+async def clear_conversation(user_id: str = "default_user"):
     """Clear conversation history."""
-    conversation = get_conversation_store(user_id)
+    conversation = get_message_store(user_id)
     conversation.clear()
 
     return {"status": "cleared", "user_id": user_id}
@@ -45,7 +49,7 @@ async def clear_conversation(user_id: str = "default"):
 async def handle_message(req: MessageRequest) -> MessageResponse:
     """Send a message to the agent (SDK-powered)."""
     try:
-        user_id = req.user_id or "default"
+        user_id = req.user_id or "default_user"
         msg_content = req.message.strip()
 
         if user_id in _pending_approvals and msg_content.lower() in ("approve", "reject", "edit"):
@@ -61,12 +65,12 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
 
             return MessageResponse(response=f"{tool_name} approved (execution pending).")
 
-        conversation = get_conversation_store(user_id)
+        conversation = get_message_store(user_id)
         conversation.add_message("user", req.message)
 
         recent_messages = conversation.get_messages_with_summary(50)
         sdk_messages = _messages_from_conversation(recent_messages)
-        sdk_messages.append(Message.user(req.message))
+        # recent_messages already includes the just-added user message
 
         logger = get_logger()
         verbose_data: dict | None = None
@@ -130,18 +134,23 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
                 if not response and ai_content_parts:
                     response = "".join(ai_content_parts)
                 if not response:
-                    result_messages = await run_sdk_agent(user_id=user_id, messages=sdk_messages)
-                    last_ai = None
-                    for m in reversed(result_messages):
-                        if m.role == "assistant" and m.content:
-                            last_ai = m
-                            break
-                    if last_ai:
-                        response = (
-                            last_ai.content
-                            if isinstance(last_ai.content, str)
-                            else str(last_ai.content)
+                    if not tool_events:
+                        result_messages = await run_sdk_agent(
+                            user_id=user_id, messages=sdk_messages
                         )
+                        last_ai = None
+                        for m in reversed(result_messages):
+                            if m.role == "assistant" and m.content:
+                                last_ai = m
+                                break
+                        if last_ai:
+                            response = (
+                                last_ai.content
+                                if isinstance(last_ai.content, str)
+                                else str(last_ai.content)
+                            )
+                        else:
+                            response = "Task completed."
                     else:
                         response = "Task completed."
             else:
@@ -223,14 +232,13 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
 async def message_stream(req: MessageRequest):
     """Send a message and stream response using SSE (SDK-powered)."""
     try:
-        user_id = req.user_id or "default"
+        user_id = req.user_id or "default_user"
 
-        conversation = get_conversation_store(user_id)
+        conversation = get_message_store(user_id)
         conversation.add_message("user", req.message)
 
         recent_messages = conversation.get_messages_with_summary(50)
         sdk_messages = _messages_from_conversation(recent_messages)
-        sdk_messages.append(Message.user(req.message))
 
         logger = get_logger()
 
@@ -243,45 +251,28 @@ async def message_stream(req: MessageRequest):
                 user_id=user_id,
                 messages=sdk_messages,
             ):
-                if chunk.type == "ai_token" and chunk.content:
+                canonical = chunk.canonical_type
+
+                if canonical == "text_delta" and chunk.content:
                     ai_content_parts.append(chunk.content)
                     yield f"data: {json.dumps({'type': 'messages', 'data': {'content': chunk.content}})}\n\n"
 
-                elif chunk.type == "text_delta" and chunk.content:
-                    ai_content_parts.append(chunk.content)
-                    yield f"data: {json.dumps({'type': 'messages', 'data': {'content': chunk.content}})}\n\n"
-
-                elif chunk.type == "tool_start" and chunk.tool:
+                elif canonical == "tool_input_start" and chunk.tool:
                     tool_metadata_list.append(
                         {"tool_name": chunk.tool, "tool_call_id": chunk.call_id or ""}
                     )
                     yield f"data: {json.dumps({'type': 'updates', 'data': {'content': f'Using tool: {chunk.tool}'}})}\n\n"
 
-                elif chunk.type == "tool_input_start" and chunk.tool:
-                    tool_metadata_list.append(
-                        {"tool_name": chunk.tool, "tool_call_id": chunk.call_id or ""}
-                    )
-                    yield f"data: {json.dumps({'type': 'updates', 'data': {'content': f'Using tool: {chunk.tool}'}})}\n\n"
-
-                elif chunk.type == "tool_end" and chunk.tool:
+                elif canonical == "tool_result" and chunk.tool:
                     output = (chunk.result_preview or "")[:500]
                     if output:
                         tool_results.append(output)
                         yield f"data: {json.dumps({'type': 'updates', 'data': {'content': output}})}\n\n"
 
-                elif chunk.type == "tool_result" and chunk.tool:
-                    output = (chunk.result_preview or "")[:500]
-                    if output:
-                        tool_results.append(output)
-                        yield f"data: {json.dumps({'type': 'updates', 'data': {'content': output}})}\n\n"
-
-                elif chunk.type == "reasoning" and chunk.content:
+                elif canonical == "reasoning_delta" and chunk.content:
                     yield f"data: {json.dumps({'type': 'messages', 'data': {'content': f'[Reasoning] {chunk.content}'}})}\n\n"
 
-                elif chunk.type == "reasoning_delta" and chunk.content:
-                    yield f"data: {json.dumps({'type': 'messages', 'data': {'content': f'[Reasoning] {chunk.content}'}})}\n\n"
-
-                elif chunk.type == "reasoning_start":
+                elif canonical == "reasoning_start":
                     yield f"data: {json.dumps({'type': 'updates', 'data': {'content': '[Thinking...]'}})}\n\n"
 
                 elif chunk.type == "error":

@@ -2,7 +2,6 @@
 
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
-from pathlib import Path
 from typing import Any
 
 from sqlalchemy import create_engine, text
@@ -14,12 +13,10 @@ logger = get_logger()
 
 def get_db_path(user_id: str) -> str:
     """Get SQLite database path for user."""
-    if not user_id or user_id == "default":
-        raise ValueError(f"Invalid user_id: {user_id}")
-    cwd = Path.cwd()
-    base_dir = cwd / "data" / "users" / user_id / "email"
-    base_dir.mkdir(parents=True, exist_ok=True)
-    return str(base_dir / "emails.db")
+    from src.storage.paths import get_paths
+
+    uid = user_id or "default_user"
+    return str(get_paths(uid).email_db())
 
 
 def get_engine(user_id: str):

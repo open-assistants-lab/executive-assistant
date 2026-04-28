@@ -41,7 +41,7 @@ def _resolve_path(path: str | None, user_id: str) -> Path:
 
 
 @tool
-def files_glob_search(pattern: str = "**/*", path: str = ".", user_id: str = "default") -> str:
+def files_glob_search(pattern: str = "**/*", path: str = ".", user_id: str = "default_user") -> str:
     """Search for files matching a glob pattern.
 
     Args:
@@ -92,7 +92,7 @@ def files_grep_search(
     path: str = ".",
     include: str | None = None,
     count: bool = False,
-    user_id: str = "default",
+    user_id: str = "default_user",
 ) -> str:
     """Search file contents using regex.
 

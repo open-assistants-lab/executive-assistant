@@ -23,14 +23,14 @@ class MemorySearchRequest(BaseModel):
     query: str
     method: str = "hybrid"
     limit: int = 10
-    user_id: str = "default"
+    user_id: str = "default_user"
 
 
 class InsightSearchRequest(BaseModel):
     query: str
     method: str = "hybrid"
     limit: int = 5
-    user_id: str = "default"
+    user_id: str = "default_user"
 
 
 class SearchAllRequest(BaseModel):
@@ -38,7 +38,7 @@ class SearchAllRequest(BaseModel):
     memories_limit: int = 5
     messages_limit: int = 5
     insights_limit: int = 3
-    user_id: str = "default"
+    user_id: str = "default_user"
 
 
 class ConnectionRequest(BaseModel):
@@ -46,11 +46,11 @@ class ConnectionRequest(BaseModel):
     target_id: str
     relationship: str = "relates_to"
     strength: float = 1.0
-    user_id: str = "default"
+    user_id: str = "default_user"
 
 
 class EmailConnectRequest(BaseModel):
     email: str
     password: str
     provider: str | None = None
-    user_id: str = "default"
+    user_id: str = "default_user"

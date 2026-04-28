@@ -208,6 +208,7 @@ class SubagentCoordinator:
             system_prompt=system_prompt,
             middlewares=[progress_mw, instruction_mw],
             run_config=run_config,
+            user_id=self.user_id,
         )
 
         messages = [Message.user(task)]

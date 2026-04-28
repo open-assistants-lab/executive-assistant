@@ -12,7 +12,7 @@ router = APIRouter(prefix="/memories", tags=["memories"])
 
 @router.get("")
 async def list_memories(
-    user_id: str = "default",
+    user_id: str = "default_user",
     domain: str | None = None,
     memory_type: str | None = None,
     min_confidence: float = 0.0,
@@ -70,7 +70,7 @@ async def add_memory(
     action: str,
     domain: str = "general",
     memory_type: str = "fact",
-    user_id: str = "default",
+    user_id: str = "default_user",
 ):
     """Add a new memory entry."""
     from src.storage.memory import get_memory_store
@@ -91,7 +91,7 @@ async def update_memory(
     trigger: str | None = None,
     action: str | None = None,
     confidence: float | None = None,
-    user_id: str = "default",
+    user_id: str = "default_user",
 ):
     """Update a memory entry."""
     from src.storage.memory import get_memory_store
@@ -108,7 +108,7 @@ async def update_memory(
 
 
 @router.delete("/{memory_id}")
-async def remove_memory(memory_id: str, user_id: str = "default"):
+async def remove_memory(memory_id: str, user_id: str = "default_user"):
     """Remove a memory."""
     from src.storage.memory import get_memory_store
 
@@ -154,7 +154,7 @@ async def search_memories(request: MemorySearchRequest):
 
 
 @router.post("/consolidate")
-async def consolidate_memories(user_id: str = "default"):
+async def consolidate_memories(user_id: str = "default_user"):
     """Trigger memory consolidation manually."""
     from src.storage.consolidation import trigger_consolidation
 
@@ -163,7 +163,7 @@ async def consolidate_memories(user_id: str = "default"):
 
 
 @router.get("/insights")
-async def list_insights(user_id: str = "default", limit: int = 20, domain: str | None = None):
+async def list_insights(user_id: str = "default_user", limit: int = 20, domain: str | None = None):
     """List synthesized insights from memory consolidation."""
     from src.storage.memory import get_memory_store
 
@@ -187,7 +187,7 @@ async def list_insights(user_id: str = "default", limit: int = 20, domain: str |
 
 
 @router.delete("/insights/{insight_id}")
-async def remove_insight(insight_id: str, user_id: str = "default"):
+async def remove_insight(insight_id: str, user_id: str = "default_user"):
     """Remove an insight."""
     from src.storage.memory import get_memory_store
 
@@ -252,7 +252,7 @@ async def add_connection(request: ConnectionRequest):
 
 
 @router.get("/stats")
-async def memory_stats(user_id: str = "default"):
+async def memory_stats(user_id: str = "default_user"):
     """Get memory system statistics."""
     from src.storage.memory import get_memory_store
 

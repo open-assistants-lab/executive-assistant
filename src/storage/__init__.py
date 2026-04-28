@@ -1,18 +1,18 @@
 """Storage module for Executive Assistant."""
 
 from src.storage.messages import (
-    ConversationStore,
     Message,
+    MessageStore,
     SearchResult,
-    get_conversation_store,
+    get_message_store,
 )
 from src.storage.user_storage import UserStorage, get_user_storage
 
 __all__ = [
     "UserStorage",
     "get_user_storage",
-    "ConversationStore",
-    "get_conversation_store",
+    "MessageStore",
+    "get_message_store",
     "Message",
     "SearchResult",
 ]

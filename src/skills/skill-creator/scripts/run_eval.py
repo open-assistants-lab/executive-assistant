@@ -23,7 +23,7 @@ spec.loader.exec_module(utils)
 parse_skill_md = utils.parse_skill_md
 
 
-def run_single_query(query, skill_name, description=None, user_id="default", skill_path=None):
+def run_single_query(query, skill_name, description=None, user_id="default_user", skill_path=None):
     user_skills_dir = f"data/users/{user_id}/skills"
 
     try:
@@ -138,7 +138,7 @@ def run_eval(
     eval_set,
     skill_name,
     description,
-    user_id="default",
+    user_id="default_user",
     num_workers=1,
     timeout=30,
     model_name=None,

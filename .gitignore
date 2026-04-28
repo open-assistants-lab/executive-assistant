@@ -69,3 +69,4 @@ flutter_app/ios/.symlinks/
 flutter_app/
 data/evaluations/
 .DS_Store
+.firecrawl/

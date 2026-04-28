@@ -27,7 +27,7 @@ class InstructionMiddleware(Middleware):
     def __init__(self, task_id: str, db: Any):
         self.task_id = task_id
         self.db = db
-        self._last_checked = ""
+        self._last_checked: str | None = None
 
     async def abefore_model(self, state: AgentState) -> dict[str, Any] | None:
         try:
@@ -46,7 +46,11 @@ class InstructionMiddleware(Middleware):
             raise TaskCancelledError(self.task_id)
 
         instructions = json.loads(row.get("instructions") or "[]")
-        new = [i for i in instructions if i["added_at"] > self._last_checked] if self._last_checked else instructions
+        new = (
+            [i for i in instructions if i["added_at"] > self._last_checked]
+            if self._last_checked is not None
+            else instructions
+        )
 
         if new:
             self._last_checked = instructions[-1]["added_at"]

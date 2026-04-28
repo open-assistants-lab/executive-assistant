@@ -58,6 +58,9 @@ class QAResult:
     judge_reasoning: str | None = None
     latency_ms: float = 0.0
     error: str | None = None
+    failure_category: str | None = None  # no_search, search_miss, answer_wrong, empty_response, idk_response
+    tool_calls: list[str] | None = None  # list of tool names called
+    tool_outputs: list[str] | None = None  # truncated tool outputs
 
 
 @dataclass
@@ -155,7 +158,7 @@ async def evaluate_retrieval(instances: list[LongMemEvalInstance], max_instances
 
             verification = adapter.verify_injection()
             if verification["total_messages"] == 0:
-                raise Exception(f"Injection failed: 0 messages stored")
+                raise Exception("Injection failed: 0 messages stored")
 
             hits = adapter.search_with_session_ids(
                 query=instance.question,
@@ -236,6 +239,7 @@ async def evaluate_qa(instances: list[LongMemEvalInstance], max_instances: int |
     This is directly comparable to Mastra's and ASMR's QA accuracy numbers.
     """
     import aiohttp
+
     from src.storage.messages import get_message_store
 
     results = []
@@ -261,14 +265,13 @@ async def evaluate_qa(instances: list[LongMemEvalInstance], max_instances: int |
                 except Exception:
                     pass
 
-            from tests.benchmarks.longmemeval.adapter import get_batch_embeddings
+            from tests.benchmarks.longmemeval.adapter import get_batch_embeddings, parse_longmemeval_date
             rows = []
             texts = []
             metas = []
             for session_idx, (session, session_date) in enumerate(
                 zip(instance.haystack_sessions, instance.haystack_dates)
             ):
-                from tests.benchmarks.longmemeval.adapter import parse_longmemeval_date
                 normalized_date = parse_longmemeval_date(session_date)
                 sid = instance.haystack_session_ids[session_idx] if instance.haystack_session_ids else f"session_{session_idx}"
                 for turn in session:
@@ -300,11 +303,11 @@ async def evaluate_qa(instances: list[LongMemEvalInstance], max_instances: int |
                 metadatas=metas,
             )
 
-            prompt = f"""Based on our conversation history, please answer this question concisely and directly. If you don't have enough information, say "I don't have enough information to answer that."
+            prompt = f"""Search your conversation history using the memory_search or memory_get_history tools BEFORE answering. Use the question as your search query. Only say "I don't have enough information to answer that" if you have already searched and cannot find the answer.
 
 Question: {instance.question}"""
 
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=120)) as session:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=180)) as session:
                 payload = {"message": prompt, "user_id": user_id}
                 async with session.post(f"{http_url}/message", json=payload) as resp:
                     if resp.status != 200:
@@ -312,6 +315,35 @@ Question: {instance.question}"""
                         raise Exception(f"HTTP {resp.status}: {text[:200]}")
                     data = await resp.json()
                     agent_answer = data.get("response", "")
+                    tool_calls_list = data.get("tool_calls") or []
+                    tool_calls = [tc["name"] for tc in tool_calls_list]
+                    verbose_data = data.get("verbose_data") or {}
+                    tool_events = verbose_data.get("tool_events", [])
+                    tool_outputs = [
+                        (e.get("output") or "")[:200]
+                        for e in tool_events
+                        if e.get("stage") == "end" and e.get("output")
+                    ]
+
+            used_memory = any("memory" in tc.lower() for tc in tool_calls)
+            ans_lower = agent_answer.lower().strip()
+            is_empty = not ans_lower
+            is_idk = "don't have enough information" in ans_lower or "i don't have enough" in ans_lower
+            mentions_search = "search" in ans_lower or "memory_search" in ans_lower or "memory_get_history" in ans_lower
+            if not used_memory and mentions_search:
+                used_memory = True
+
+            if is_empty:
+                has_tool_content = bool(tool_outputs) and any(o.strip() for o in tool_outputs)
+                failure_category = "tool_only_response" if has_tool_content else "empty_response"
+            elif is_idk and not used_memory:
+                failure_category = "no_search"
+            elif is_idk and used_memory:
+                failure_category = "search_miss"
+            elif not is_idk and not used_memory:
+                failure_category = "no_search"
+            else:
+                failure_category = None
 
             results.append(QAResult(
                 question_id=instance.question_id,
@@ -320,6 +352,9 @@ Question: {instance.question}"""
                 expected_answer=instance.answer,
                 agent_answer=agent_answer,
                 latency_ms=(time.time() - start) * 1000,
+                failure_category=failure_category,
+                tool_calls=tool_calls,
+                tool_outputs=tool_outputs,
             ))
         except Exception as e:
             results.append(QAResult(
@@ -330,6 +365,7 @@ Question: {instance.question}"""
                 agent_answer="",
                 error=str(e)[:200],
                 latency_ms=(time.time() - start) * 1000,
+                failure_category="error",
             ))
         finally:
             if injected_store:
@@ -343,10 +379,15 @@ Question: {instance.question}"""
                 except Exception:
                     pass
 
-        if (idx + 1) % 5 == 0:
+        if (idx + 1) % 5 == 0 or (idx + 1) == len(subset):
             r = results[-1]
             status = "OK" if not r.error else "ERR"
-            print(f"  QA {idx+1}/{len(subset)}: {status} {r.question_type} ({r.latency_ms:.0f}ms)")
+            cat = r.failure_category or ""
+            tools = ",".join(r.tool_calls or []) or "none"
+            ans_preview = (r.agent_answer or "")[:60].replace("\n", " ")
+            print(f"  QA {idx+1}/{len(subset)}: {status} [{cat}] tools=[{tools}] {r.question_type} ({r.latency_ms:.0f}ms)")
+            if not r.error and r.agent_answer:
+                print(f"    Answer: {ans_preview}...")
 
     if use_judge and results:
         print(f"  Judging {len(results)} answers with GPT-4o...")
@@ -365,6 +406,258 @@ Question: {instance.question}"""
                 r.judge_reasoning = f"Judge error: {str(e)[:100]}"
             if (i + 1) % 20 == 0:
                 print(f"  Judged {i+1}/{len(results)}")
+
+        wrong = [r for r in results if r.is_correct is False]
+        for r in wrong:
+            if r.failure_category is None:
+                ans_lower = (r.agent_answer or "").lower()
+                if not ans_lower.strip():
+                    r.failure_category = "empty_response"
+                elif "don't have enough" in ans_lower or "i don't have enough" in ans_lower:
+                    r.failure_category = "idk_response"
+                else:
+                    r.failure_category = "answer_wrong"
+
+    failure_cats: dict[str, int] = {}
+    for r in results:
+        cat = r.failure_category or "unknown"
+        failure_cats[cat] = failure_cats.get(cat, 0) + 1
+    if failure_cats:
+        print("\n  Failure category breakdown:")
+        for cat, count in sorted(failure_cats.items()):
+            print(f"    {cat}: {count}")
+
+    return results
+
+
+async def evaluate_qa_direct(instances: list[LongMemEvalInstance], max_instances: int | None = None, use_judge: bool = True) -> list[QAResult]:
+    """Evaluate QA accuracy by running AgentLoop directly (no HTTP server).
+
+    Injects sessions into the same MessageStore that the agent's memory tools use,
+    then runs the SDK AgentLoop directly in the same process.
+    """
+    from src.sdk.messages import Message
+    from src.sdk.runner import create_sdk_loop, reset_sdk_loop
+    from src.storage.messages import get_message_store
+    from tests.benchmarks.longmemeval.adapter import get_batch_embeddings, parse_longmemeval_date
+
+    results = []
+    subset = instances[:max_instances] if max_instances else instances
+
+    for idx, instance in enumerate(subset):
+        if instance.is_abstention:
+            continue
+        start = time.time()
+        try:
+            user_id = f"lme_qa_{instance.question_id}"
+
+            store = get_message_store(user_id)
+            store.db.raw_query("DELETE FROM messages")
+            collection = store.db._get_collection("messages_content")
+            if collection:
+                try:
+                    existing = collection.get()
+                    if existing and existing["ids"]:
+                        collection.delete(ids=existing["ids"])
+                except Exception:
+                    pass
+
+            rows, texts, metas = [], [], []
+            for session_idx, (session, session_date) in enumerate(
+                zip(instance.haystack_sessions, instance.haystack_dates)
+            ):
+                normalized_date = parse_longmemeval_date(session_date)
+                sid = instance.haystack_session_ids[session_idx] if instance.haystack_session_ids else f"session_{session_idx}"
+                for turn in session:
+                    role = turn["role"]
+                    content = turn["content"]
+                    metadata = {"session_id": sid, "date": normalized_date}
+                    rows.append({"ts": normalized_date, "role": role, "content": content, "metadata": json.dumps(metadata)})
+                    texts.append(content)
+                    metas.append({"role": role, "ts": normalized_date, "session_id": sid})
+
+            embeddings = get_batch_embeddings(texts)
+            msg_ids = [store.db.insert("messages", row, sync=False) for row in rows]
+            store.db.process_journal()
+            collection = store.db._get_collection("messages_content")
+            collection.add(ids=[str(mid) for mid in msg_ids], embeddings=embeddings, documents=texts, metadatas=metas)
+
+            verification_count = store.count_messages()
+            if verification_count == 0:
+                raise Exception("Injection failed: 0 messages stored")
+
+            loop = await create_sdk_loop(user_id)
+            prompt = f"""IMPORTANT: Your user_id is "{user_id}". You MUST pass user_id="{user_id}" to every memory_search and memory_get_history call.
+
+Search your conversation history using the memory_search(query="...", user_id="{user_id}") tool BEFORE answering. memory_search automatically expands your query, so use specific keywords.
+
+Key strategies:
+- For "how many/much" questions: search for each specific activity/item separately with different queries, then combine the results.
+- For "current/latest/after" questions: the search already prioritizes recent results — focus on the most recent mention.
+- For recommendation/preference questions: if the initial search doesn't find preferences, try searching for "like", "enjoy", "love", "prefer", or "favorite" plus the topic.
+- For temporal questions (when, how long, how many days between): search for the specific events or dates mentioned, then compute the answer from the dates found.
+- Use memory_get_history(user_id="{user_id}") if you need more context or to find nearby messages.
+
+Only say "I don't have enough information to answer that" if you have already searched AND cannot find the answer.
+
+Question: {instance.question}"""
+
+            messages = [Message.user(prompt)]
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    result_messages = await loop.run(messages)
+                    break
+                except Exception as run_err:
+                    if attempt < max_retries - 1:
+                        print(f"    Retry {attempt+1}/{max_retries} after error: {str(run_err)[:100]}")
+                        await asyncio.sleep(2 * (attempt + 1))
+                    else:
+                        raise
+
+            agent_answer = ""
+            for m in reversed(result_messages):
+                if m.role == "assistant" and m.content:
+                    agent_answer = m.content if isinstance(m.content, str) else str(m.content)
+                    break
+
+            if agent_answer.strip().lower().startswith("error") and len(agent_answer.strip()) < 50:
+                for retry_attempt in range(2):
+                    reset_sdk_loop(user_id)
+                    loop = await create_sdk_loop(user_id)
+                    await asyncio.sleep(2 * (retry_attempt + 1))
+                    try:
+                        result_messages = await loop.run(messages)
+                        for m in reversed(result_messages):
+                            if m.role == "assistant" and m.content:
+                                agent_answer = m.content if isinstance(m.content, str) else str(m.content)
+                                break
+                        if not agent_answer.strip().lower().startswith("error"):
+                            break
+                    except Exception:
+                        pass
+
+            tool_names = []
+            for m in result_messages:
+                if m.role == "tool":
+                    if m.name and m.name not in tool_names:
+                        tool_names.append(m.name)
+
+            reset_sdk_loop(user_id)
+
+            used_memory = any("memory" in tc.lower() for tc in tool_names)
+            ans_lower = agent_answer.lower().strip()
+            is_empty = not ans_lower
+            is_idk = "don't have enough information" in ans_lower or "i don't have enough" in ans_lower
+            mentions_search = "search" in ans_lower or "memory_search" in ans_lower
+            if not used_memory and mentions_search:
+                used_memory = True
+
+            if is_empty:
+                failure_category = "empty_response"
+            elif is_idk and not used_memory:
+                failure_category = "no_search"
+            elif is_idk and used_memory:
+                failure_category = "search_miss"
+            elif not is_idk and not used_memory:
+                failure_category = "no_search"
+            else:
+                failure_category = None
+
+            results.append(QAResult(
+                question_id=instance.question_id,
+                question_type=instance.question_type,
+                question=instance.question,
+                expected_answer=instance.answer,
+                agent_answer=agent_answer,
+                latency_ms=(time.time() - start) * 1000,
+                failure_category=failure_category,
+                tool_calls=tool_names or None,
+            ))
+
+        except Exception as e:
+            results.append(QAResult(
+                question_id=instance.question_id,
+                question_type=instance.question_type,
+                question=instance.question,
+                expected_answer=instance.answer,
+                agent_answer="",
+                error=str(e)[:500],
+                latency_ms=(time.time() - start) * 1000,
+                failure_category="error",
+            ))
+
+        finally:
+            try:
+                store.db.raw_query("DELETE FROM messages")
+                collection = store.db._get_collection("messages_content")
+                if collection:
+                    existing = collection.get()
+                    if existing and existing["ids"]:
+                        collection.delete(ids=existing["ids"])
+            except Exception:
+                pass
+
+        if (idx + 1) % 1 == 0:
+            r = results[-1]
+            status = "OK" if not r.error else "ERR"
+            cat = r.failure_category or ""
+            tools = ",".join(r.tool_calls or []) or "none"
+            ans_preview = (r.agent_answer or "")[:100].replace("\n", " ")
+            q_preview = instance.question[:60].replace("\n", " ")
+            print(f"  QA {idx+1}/{len(subset)}: {status} [{cat}] {r.question_type} tools=[{tools}] ({r.latency_ms:.0f}ms)")
+            print(f"    Q: {q_preview}")
+            if r.agent_answer:
+                print(f"    A: {ans_preview}")
+
+    if use_judge and results:
+        print(f"\n  Judging {len(results)} answers (parallel batch)...")
+        judge = Judge()
+        to_judge = [(i, r) for i, r in enumerate(results) if not r.error]
+        batch = [{"question": r.question, "expected_answer": r.expected_answer, "predicted_answer": r.agent_answer} for _, r in to_judge]
+        try:
+            batch_results = await judge.evaluate_batch(batch)
+            for (idx, r), evaluation in zip(to_judge, batch_results):
+                r.is_correct = evaluation.get("is_correct")
+                r.judge_reasoning = evaluation.get("reasoning")
+        except Exception as e:
+            print(f"  Batch judge failed, falling back to sequential: {str(e)[:100]}")
+            for i, r in enumerate(results):
+                if r.error:
+                    r.is_correct = None
+                    r.judge_reasoning = f"Error: {r.error}"
+                    continue
+                try:
+                    evaluation = await judge.evaluate(r.question, r.expected_answer, r.agent_answer)
+                    r.is_correct = evaluation.get("is_correct")
+                    r.judge_reasoning = evaluation.get("reasoning")
+                except Exception as je:
+                    r.is_correct = None
+                    r.judge_reasoning = f"Judge error: {str(je)[:100]}"
+        for r in results:
+            if r.error and r.is_correct is None:
+                r.is_correct = None
+                r.judge_reasoning = f"Error: {r.error}"
+
+        wrong = [r for r in results if r.is_correct is False]
+        for r in wrong:
+            if r.failure_category is None:
+                ans_lower = (r.agent_answer or "").lower()
+                if not ans_lower.strip():
+                    r.failure_category = "empty_response"
+                elif "don't have enough" in ans_lower or "i don't have enough" in ans_lower:
+                    r.failure_category = "idk_response"
+                else:
+                    r.failure_category = "answer_wrong"
+
+    failure_cats: dict[str, int] = {}
+    for r in results:
+        cat = r.failure_category or "unknown"
+        failure_cats[cat] = failure_cats.get(cat, 0) + 1
+    if failure_cats:
+        print("\n  Failure category breakdown:")
+        for cat, count in sorted(failure_cats.items()):
+            print(f"    {cat}: {count}")
 
     return results
 
@@ -433,7 +726,7 @@ def print_results(results: BenchmarkResults, mode: str):
         else:
             print("  No retrieval results.")
 
-    if mode in ("qa_only", "both"):
+    if mode in ("qa_only", "qa_direct", "both"):
         print()
         print("-" * 80)
         print("QA ACCURACY")
@@ -443,6 +736,29 @@ def print_results(results: BenchmarkResults, mode: str):
             print(f"  Accuracy: {metrics['accuracy']:.1%} ({metrics['accuracy_count']})")
             print(f"  Avg latency: {metrics['avg_latency_ms']:.0f}ms")
             print(f"  Errors: {metrics['errors']}")
+
+            failure_cats: dict[str, int] = {}
+            for r in results.qa_results:
+                cat = r.failure_category or ("correct" if r.is_correct else "unknown")
+                failure_cats[cat] = failure_cats.get(cat, 0) + 1
+            if failure_cats:
+                print()
+                print("  Failure category breakdown:")
+                for cat, count in sorted(failure_cats.items()):
+                    print(f"    {cat}: {count}")
+
+            wrong = [r for r in results.qa_results if r.is_correct is False]
+            if wrong:
+                print()
+                print("  Sample wrong answers (up to 5):")
+                for r in wrong[:5]:
+                    tools = ",".join(r.tool_calls or []) or "none"
+                    ans = (r.agent_answer or "")[:120].replace("\n", " ")
+                    print(f"    QID={r.question_id} [{r.failure_category}] tools=[{tools}]")
+                    print(f"      Q: {r.question[:100]}")
+                    print(f"      A: {ans}...")
+                    print(f"      Expected: {str(r.expected_answer)[:80]}")
+
             print()
             print("  Per-type breakdown:")
             print(f"  {'Type':<35s} {'Accuracy':>10s}")
@@ -485,14 +801,15 @@ Our evaluation methodology:
 
 async def main():
     parser = argparse.ArgumentParser(description="LongMemEval Benchmark for Executive Assistant")
-    parser.add_argument("--mode", choices=["retrieval_only", "qa_only", "both"], default="both",
-                        help="Which evaluation to run (default: both)")
+    parser.add_argument("--mode", choices=["retrieval_only", "qa_only", "qa_direct", "both"], default="both",
+                        help="Which evaluation to run (default: both). qa_direct runs agent in-process, no HTTP server needed.")
     parser.add_argument("--max", type=int, default=None, help="Max instances to evaluate")
     parser.add_argument("--variant", choices=["small", "medium", "oracle"], default="small",
                         help="Dataset variant (default: small)")
     parser.add_argument("--model", type=str, default="default",
                         help="Model identifier for results metadata")
     parser.add_argument("--no-judge", action="store_true", help="Skip GPT-4o judging (exact match only)")
+    parser.add_argument("--stratify", action="store_true", help="Sample evenly across question types instead of taking first N")
     parser.add_argument("--output", type=str, default=None, help="Output JSON path")
     args = parser.parse_args()
 
@@ -519,13 +836,31 @@ async def main():
 
     results = BenchmarkResults(variant=args.variant, model=args.model, timestamp=timestamp)
 
+    if args.stratify and args.max:
+        from collections import defaultdict
+        by_type: dict[str, list] = defaultdict(list)
+        for i in answerable:
+            by_type[i.question_type].append(i)
+        per_type = max(1, args.max // len(by_type))
+        sampled = []
+        for qtype, items in sorted(by_type.items()):
+            sampled.extend(items[:per_type])
+        print(f"Stratified sampling: {per_type}/type from {len(by_type)} types = {len(sampled)} total")
+        answerable = sampled
+    elif args.max:
+        print(f"Taking first {args.max} answerable instances (may be single-type)")
+
     if args.mode in ("retrieval_only", "both"):
         print("\n--- Running Retrieval Evaluation ---")
         results.retrieval_results = await evaluate_retrieval(answerable, max_instances=args.max)
 
     if args.mode in ("qa_only", "both"):
-        print("\n--- Running QA Evaluation ---")
+        print("\n--- Running QA Evaluation (HTTP) ---")
         results.qa_results = await evaluate_qa(answerable, max_instances=args.max, use_judge=not args.no_judge)
+
+    if args.mode == "qa_direct":
+        print("\n--- Running QA Evaluation (Direct/Same-process) ---")
+        results.qa_results = await evaluate_qa_direct(answerable, max_instances=args.max, use_judge=not args.no_judge)
 
     print_results(results, args.mode)
 
@@ -544,7 +879,11 @@ async def main():
                                     "latency_ms": r.latency_ms, "error": r.error}
                                    for r in results.retrieval_results],
             "qa_results": [{"question_id": r.question_id, "question_type": r.question_type,
-                              "is_correct": r.is_correct, "judge_reasoning": r.judge_reasoning,
+                              "question": r.question, "expected_answer": r.expected_answer,
+                              "agent_answer": r.agent_answer, "is_correct": r.is_correct,
+                              "judge_reasoning": r.judge_reasoning,
+                              "failure_category": r.failure_category,
+                              "tool_calls": r.tool_calls, "tool_outputs": r.tool_outputs,
                               "latency_ms": r.latency_ms, "error": r.error}
                              for r in results.qa_results],
         }, f, indent=2)

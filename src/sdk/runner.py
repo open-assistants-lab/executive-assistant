@@ -45,12 +45,17 @@ async def create_sdk_loop(user_id: str) -> AgentLoop:
     MCP tools are discovered and injected via MCPToolBridge.
     No more LangChain adapter needed.
     """
+    import time
+
+    t0 = time.monotonic()
     settings = get_settings()
     model_str = getattr(settings.agent, "model", "ollama:minimax-m2.5")
 
     provider = create_model_from_config(model_str)
+    t1 = time.monotonic()
 
     tools = get_native_tools()
+    t2 = time.monotonic()
 
     mcp_tools: list = []
     mcp_bridge = None
@@ -66,6 +71,7 @@ async def create_sdk_loop(user_id: str) -> AgentLoop:
         logger.warning("sdk_runner.mcp_failed", {"error": str(e)}, user_id=user_id)
 
     all_tools = tools + mcp_tools
+    t3 = time.monotonic()
 
     logger.info("sdk_runner.tools_loaded", {"count": len(all_tools)}, user_id=user_id)
 
@@ -83,16 +89,32 @@ async def create_sdk_loop(user_id: str) -> AgentLoop:
         )
 
     middlewares.append(MemoryMiddleware(user_id=user_id))
+    t4 = time.monotonic()
 
     loop = AgentLoop(
         provider=provider,
         tools=all_tools,
         system_prompt=_get_system_prompt(user_id),
         middlewares=middlewares,
+        user_id=user_id,
     )
 
     if mcp_bridge:
         loop._mcp_bridge = mcp_bridge
+
+    t5 = time.monotonic()
+    logger.info(
+        "sdk_runner.create_timing",
+        {
+            "provider": f"{t1-t0:.3f}s",
+            "tools": f"{t2-t1:.3f}s",
+            "mcp": f"{t3-t2:.3f}s",
+            "middleware": f"{t4-t3:.3f}s",
+            "agentloop": f"{t5-t4:.3f}s",
+            "total": f"{t5-t0:.3f}s",
+        },
+        user_id=user_id,
+    )
 
     return loop
 
@@ -109,17 +131,29 @@ async def get_sdk_loop(user_id: str) -> AgentLoop:
 def _messages_from_conversation(messages: list[Any]) -> list[Message]:
     """Convert conversation store messages to SDK Messages."""
     sdk_messages: list[Message] = []
+    pending_reasoning: str | None = None
     for m in messages:
         role = getattr(m, "role", "user")
         content = getattr(m, "content", "")
         if role == "user":
             sdk_messages.append(Message.user(content))
+            pending_reasoning = None
         elif role == "summary":
             sdk_messages.append(Message.user(f"[SUMMARY OF PREVIOUS CONVERSATION]\n{content}"))
+            pending_reasoning = None
         elif role == "system":
             sdk_messages.append(Message.system(content))
+            pending_reasoning = None
+        elif role == "tool":
+            # Tool metadata is for audit/display, not LLM context
+            continue
+        elif role == "reasoning":
+            pending_reasoning = content or None
         else:
-            sdk_messages.append(Message.assistant(content))
+            sdk_messages.append(
+                Message.assistant(content, reasoning=pending_reasoning)
+            )
+            pending_reasoning = None
     return sdk_messages
 
 
@@ -165,7 +199,7 @@ async def run_sdk_agent_stream(
         yield StreamChunk.error(message=str(e))
 
 
-def reset_sdk_loop(user_id: str = "default") -> None:
+def reset_sdk_loop(user_id: str = "default_user") -> None:
     """Reset the SDK agent loop for a user."""
     if user_id in _loop_cache:
         del _loop_cache[user_id]

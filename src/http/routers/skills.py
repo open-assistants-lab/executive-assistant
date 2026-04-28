@@ -4,7 +4,7 @@ router = APIRouter(prefix="/skills", tags=["skills"])
 
 
 @router.get("")
-async def list_skills(user_id: str = "default"):
+async def list_skills(user_id: str = "default_user"):
     """List all available skills."""
     from src.skills.registry import get_skill_registry
 
@@ -27,7 +27,7 @@ async def list_skills(user_id: str = "default"):
 
 
 @router.post("")
-async def create_skill(name: str, description: str, content: str, user_id: str = "default"):
+async def create_skill(name: str, description: str, content: str, user_id: str = "default_user"):
     """Create a new skill."""
     from src.skills.storage import UserSkillStorage
 
@@ -42,7 +42,7 @@ async def create_skill(name: str, description: str, content: str, user_id: str =
 
 
 @router.delete("/{skill_name}")
-async def delete_skill(skill_name: str, user_id: str = "default"):
+async def delete_skill(skill_name: str, user_id: str = "default_user"):
     """Delete a user skill."""
     import shutil
 

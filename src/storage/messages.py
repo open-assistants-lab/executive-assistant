@@ -1,4 +1,4 @@
-"""Conversation storage using HybridDB.
+"""Message storage using HybridDB.
 
 Domain wrapper that adds:
 - Conversation compression (summary messages)
@@ -36,8 +36,8 @@ class SearchResult:
     score: float
 
 
-class ConversationStore:
-    """Manages conversation storage (messages only).
+class MessageStore:
+    """Manages message storage.
 
     Structure:
         data/private/conversation/
@@ -242,10 +242,10 @@ class ConversationStore:
             self.db.delete("messages", r["id"])
 
 
-_stores: dict[str, ConversationStore] = {}
+_stores: dict[str, MessageStore] = {}
 
 
-def get_conversation_store(user_id: str = "default") -> ConversationStore:
+def get_message_store(user_id: str = "default_user") -> MessageStore:
     if user_id not in _stores:
-        _stores[user_id] = ConversationStore(user_id)
+        _stores[user_id] = MessageStore(user_id)
     return _stores[user_id]

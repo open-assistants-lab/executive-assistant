@@ -89,7 +89,7 @@ def _validate_command(command: str) -> str | None:
 
 
 @tool
-def shell_execute(command: str, user_id: str = "default") -> str:
+def shell_execute(command: str, user_id: str = "default_user") -> str:
     """Run a shell command.
 
     Args:

@@ -60,13 +60,13 @@ class MockProvider(LLMProvider):
             resp = self.responses[idx]
             self._call_count += 1
             if resp.content:
-                yield StreamChunk.ai_token(
+                yield StreamChunk.text_delta(
                     content=resp.content if isinstance(resp.content, str) else ""
                 )
             if resp.tool_calls:
                 for tc in resp.tool_calls:
-                    yield StreamChunk.tool_start(tool=tc.name, call_id=tc.id, args=tc.arguments)
-                    yield StreamChunk.tool_end(tool=tc.name, call_id=tc.id)
+                    yield StreamChunk.tool_input_start(tool=tc.name, call_id=tc.id, args=tc.arguments)
+                    yield StreamChunk.tool_input_end(tool=tc.name, call_id=tc.id)
             yield StreamChunk.done(content=resp.content if isinstance(resp.content, str) else "")
         else:
             yield StreamChunk.done(content="")
@@ -348,8 +348,8 @@ class TestAgentLoopStreaming:
         provider.set_stream_events(
             [
                 [
-                    StreamChunk.ai_token(content="Hi "),
-                    StreamChunk.ai_token(content="there"),
+                    StreamChunk.text_delta(content="Hi "),
+                    StreamChunk.text_delta(content="there"),
                     StreamChunk.done(content="Hi there"),
                 ]
             ]
@@ -369,9 +369,9 @@ class TestAgentLoopStreaming:
         provider.set_stream_events(
             [
                 [
-                    StreamChunk.ai_token(content=""),
-                    StreamChunk.tool_start(tool="echo", call_id="c1", args={"text": "hi"}),
-                    StreamChunk.tool_end(tool="echo", call_id="c1"),
+                    StreamChunk.text_delta(content=""),
+                    StreamChunk.tool_input_start(tool="echo", call_id="c1", args={"text": "hi"}),
+                    StreamChunk.tool_input_end(tool="echo", call_id="c1"),
                     StreamChunk.done(content=""),
                 ],
                 [
@@ -539,8 +539,8 @@ class TestAgentLoopHITL:
         provider.set_stream_events(
             [
                 [
-                    StreamChunk.ai_token(content=""),
-                    StreamChunk.tool_start(tool="files_delete", call_id="c1", args={"path": "/x"}),
+                    StreamChunk.text_delta(content=""),
+                    StreamChunk.tool_input_start(tool="files_delete", call_id="c1", args={"path": "/x"}),
                     StreamChunk.interrupt(tool="files_delete", call_id="c1", args={"path": "/x"}),
                     StreamChunk.done(content=""),
                 ],
@@ -976,14 +976,14 @@ class TestParallelToolExecution:
         provider.set_stream_events(
             [
                 [
-                    StreamChunk.tool_start(tool="echo", call_id="c1", args={"text": "a"}),
-                    StreamChunk.tool_end(tool="echo", call_id="c1"),
-                    StreamChunk.tool_start(tool="add", call_id="c2", args={"a": 1, "b": 2}),
-                    StreamChunk.tool_end(tool="add", call_id="c2"),
+                    StreamChunk.tool_input_start(tool="echo", call_id="c1", args={"text": "a"}),
+                    StreamChunk.tool_input_end(tool="echo", call_id="c1"),
+                    StreamChunk.tool_input_start(tool="add", call_id="c2", args={"a": 1, "b": 2}),
+                    StreamChunk.tool_input_end(tool="add", call_id="c2"),
                     StreamChunk.done(content=""),
                 ],
                 [
-                    StreamChunk.ai_token(content="Done"),
+                    StreamChunk.text_delta(content="Done"),
                     StreamChunk.done(content="Done"),
                 ],
             ]

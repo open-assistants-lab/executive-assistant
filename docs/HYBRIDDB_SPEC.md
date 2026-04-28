@@ -16,7 +16,7 @@
 6. [Schema Management](#6-schema-management)
 7. [Search API](#7-search-api)
 8. [Fitness Check: MemoryStore](#8-fitness-check-memorystore)
-9. [Fitness Check: ConversationStore](#9-fitness-check-conversationstore)
+9. [Fitness Check: MessageStore](#9-fitness-check-conversationstore)
 10. [File Layout](#10-file-layout)
 11. [Public API Reference](#11-public-api-reference)
 12. [In Scope / Out of Scope](#12-in-scope--out-of-scope)
@@ -908,9 +908,9 @@ This is a **domain-layer addition**, not a HybridDB feature. HybridDB stays gene
 
 ---
 
-## 9. Fitness Check: ConversationStore
+## 9. Fitness Check: MessageStore
 
-### ConversationStore schema mapped to HybridDB
+### MessageStore schema mapped to HybridDB
 
 ```python
 messages = {
@@ -930,9 +930,9 @@ messages_content    # embeddings of content, metadata: {role, ts}
 
 Just **one** LONGTEXT column → **one** ChromaDB collection. Simplest possible mapping.
 
-### ConversationStore current features → HybridDB mapping
+### MessageStore current features → HybridDB mapping
 
-| Feature | How ConversationStore does it | How HybridDB does it |
+| Feature | How MessageStore does it | How HybridDB does it |
 |---------|------------------------------|---------------------|
 | FTS5 keyword search | Custom `search_keyword()` with BM25 | `search("messages", "content", query, mode=KEYWORD)` — same BM25 |
 | Vector search | Custom `search_vector()` with cosine similarity | `search("messages", "content", query, mode=SEMANTIC)` — same ChromaDB query |
@@ -944,7 +944,7 @@ Just **one** LONGTEXT column → **one** ChromaDB collection. Simplest possible 
 | `add_message_with_embedding()` | Skip computing embedding | `insert()` with pre-computed embedding — same pattern |
 | `reconcile_vectors()` | Not implemented (just silently drops ghosts) | Replaced by journal — never needed |
 
-### ConversationStore features that stay in ConversationStore
+### MessageStore features that stay in MessageStore
 
 | Feature | Why |
 |---------|-----|
@@ -952,7 +952,7 @@ Just **one** LONGTEXT column → **one** ChromaDB collection. Simplest possible 
 | `add_summary_message()` | Domain logic — conversation compression |
 | `has_summary()` | Domain logic — checks for compression marker |
 
-### Verdict: ConversationStore fits on HybridDB perfectly ✅
+### Verdict: MessageStore fits on HybridDB perfectly ✅
 
 - Single LONGTEXT column → single ChromaDB collection
 - No gaps, no composite embeddings needed
@@ -1244,7 +1244,7 @@ Without numeric metadata, `clv > 2000` requires Python post-filtering (fetch 100
 
 ### Why recency_weight is optional, not always-on
 
-ConversationStore uses recency (messages get stale). MemoryStore doesn't (memories are permanent). CRM probably doesn't. Making it optional prevents unnecessary computation for tables where recency doesn't matter.
+MessageStore uses recency (messages get stale). MemoryStore doesn't (memories are permanent). CRM probably doesn't. Making it optional prevents unnecessary computation for tables where recency doesn't matter.
 
 ### Why SQLite AUTOINCREMENT is mandatory
 
@@ -1286,7 +1286,7 @@ Adding/dropping TEXT/LONGTEXT columns requires rebuilding FTS5 virtual tables. F
 
 ---
 
-## 15. Migration Impact: ConversationStore & MemoryStore
+## 15. Migration Impact: MessageStore & MemoryStore
 
 ### Current state
 
@@ -1294,7 +1294,7 @@ Both stores manually wire the same SQLite+FTS5+ChromaDB pattern that HybridDB ex
 
 | Store | Lines | SQLite | FTS5 | ChromaDB | Journal | Schema management |
 |-------|-------|--------|------|----------|---------|-------------------|
-| ConversationStore | ~516 | ✅ | ✅ (1 table) | ✅ (1 collection) | ❌ reconcile-only | ❌ hardcoded |
+| MessageStore | ~516 | ✅ | ✅ (1 table) | ✅ (1 collection) | ❌ reconcile-only | ❌ hardcoded |
 | MemoryStore | ~1708 | ✅ | ✅ (3 fields) | ✅ (4 collections) | ❌ reconcile-only | ❌ hardcoded |
 | AppStorage | ~791 | ✅ | ✅ (per-table) | ✅ (per-column) | ❌ reconcile-only | ✅ dynamic |
 
@@ -1302,7 +1302,7 @@ Both stores manually wire the same SQLite+FTS5+ChromaDB pattern that HybridDB ex
 
 | Store | Lines (est.) | What remains |
 |-------|-------------|-------------|
-| ConversationStore | ~50 | `get_messages_with_summary()`, `add_summary_message()`, `has_summary()` — domain logic only |
+| MessageStore | ~50 | `get_messages_with_summary()`, `add_summary_message()`, `has_summary()` — domain logic only |
 | MemoryStore | ~150 | Confidence decay, supersession, connections graph, working/long-term tiers — domain logic only |
 | AppStorage | ~30 | App-level concerns (`_app_meta`, `_app_shares`) — domain logic only |
 
@@ -1312,7 +1312,7 @@ Both stores manually wire the same SQLite+FTS5+ChromaDB pattern that HybridDB ex
 
 1. Implement `HybridDB` as a standalone class in `src/sdk/hybrid_db.py`
 2. Create thin domain wrappers:
-   - `ConversationStore` delegates CRUD+search to `HybridDB`, adds compression logic
+   - `MessageStore` delegates CRUD+search to `HybridDB`, adds compression logic
    - `MemoryStore` delegates CRUD+search to `HybridDB`, adds confidence/connections logic
    - `AppStorage` delegates schema+CRUD+search to `HybridDB`, adds app metadata
 3. Existing databases are backward-compatible — same SQLite schema, same ChromaDB collections. The `_journal` and `_schema` tables are added on first open.
@@ -1322,7 +1322,7 @@ Both stores manually wire the same SQLite+FTS5+ChromaDB pattern that HybridDB ex
 
 | Feature | Store | Why it stays |
 |---------|-------|---------------|
-| Conversation compression | ConversationStore | Domain logic — when/how to summarize |
+| Conversation compression | MessageStore | Domain logic — when/how to summarize |
 | Working vs long-term memory | MemoryStore | Domain logic — tier selection |
 | Confidence boost on access | MemoryStore | Domain logic — only memories have confidence |
 | Supersession | MemoryStore | Domain logic — only memories supersede |

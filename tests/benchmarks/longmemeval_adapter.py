@@ -1,6 +1,6 @@
 """LongMemEval benchmark adapter for Executive Assistant memory system.
 
-Evaluates retrieval recall@k using ConversationStore (FTS5 + ChromaDB)
+Evaluates retrieval recall@k using MessageStore (FTS5 + ChromaDB)
 against the LongMemEval benchmark.
 
 Usage:
@@ -29,7 +29,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from src.storage.messages import ConversationStore
+from src.storage.messages import MessageStore
 from src.sdk.tools_core.apps import get_embedding as _get_embedding_func
 
 _embedding_cache: dict[str, list[float]] = {}
@@ -41,8 +41,8 @@ def get_embedding(text: str) -> list[float]:
     return _embedding_cache[text]
 
 
-def ingest_instance(store: ConversationStore, instance: dict) -> None:
-    """Ingest a single LongMemEval instance's sessions into ConversationStore."""
+def ingest_instance(store: MessageStore, instance: dict) -> None:
+    """Ingest a single LongMemEval instance's sessions into MessageStore."""
     for session_id, session, date_str in zip(
         instance["haystack_session_ids"],
         instance["haystack_sessions"],
@@ -68,7 +68,7 @@ def ingest_instance(store: ConversationStore, instance: dict) -> None:
             )
 
 
-def get_session_ids_for_messages(store: ConversationStore, msg_ids: list[int]) -> list[str]:
+def get_session_ids_for_messages(store: MessageStore, msg_ids: list[int]) -> list[str]:
     """Batch look up session_ids from the messages DB by message IDs."""
     if not msg_ids:
         return []
@@ -122,7 +122,7 @@ def evaluate_instance(
     results = {"question_id": question_id, "question_type": question_type}
 
     try:
-        store = ConversationStore.__new__(ConversationStore)
+        store = MessageStore.__new__(MessageStore)
         store.user_id = f"bench_{question_id}"
         base_path = Path(tmpdir) / "messages"
         base_path.mkdir(parents=True, exist_ok=True)

@@ -51,7 +51,7 @@ class AgentBrowserCLI(CLIToolAdapter):
 
 _ab = AgentBrowserCLI()
 
-_DEFAULT_SESSION = "ea_default"
+_DEFAULT_SESSION = "default_session"
 _DEFAULT_TIMEOUT = 60
 
 
@@ -77,7 +77,7 @@ def browser_open(url: str, session: str | None = None) -> str:
 
     Args:
         url: The URL to open (e.g., 'https://example.com')
-        session: Optional session name to reuse (default: 'ea_default')
+        session: Optional session name to reuse (default: 'default_session')
 
     Returns:
         Confirmation of navigation or error message
@@ -109,7 +109,7 @@ def browser_snapshot(session: str | None = None) -> str:
     vs 3000-5000 for full DOM.
 
     Args:
-        session: Optional session name (default: 'ea_default')
+        session: Optional session name (default: 'default_session')
 
     Returns:
         Accessibility tree with refs for each interactive element
@@ -145,7 +145,7 @@ def browser_click(ref: str, session: str | None = None) -> str:
 
     Args:
         ref: Element ref from browser_snapshot (e.g., '@e5')
-        session: Optional session name (default: 'ea_default')
+        session: Optional session name (default: 'default_session')
 
     Returns:
         Result of the click action
@@ -175,7 +175,7 @@ def browser_fill(ref: str, text: str, session: str | None = None) -> str:
     Args:
         ref: Element ref from browser_snapshot (e.g., '@e3')
         text: Text to fill into the field
-        session: Optional session name (default: 'ea_default')
+        session: Optional session name (default: 'default_session')
 
     Returns:
         Confirmation or error message
@@ -205,7 +205,7 @@ def browser_type(text: str, submit_key: str | None = None, session: str | None =
     Args:
         text: Text to type
         submit_key: Optional key to press after typing (e.g., 'Enter', 'Tab')
-        session: Optional session name (default: 'ea_default')
+        session: Optional session name (default: 'default_session')
 
     Returns:
         Confirmation or error message
@@ -243,7 +243,7 @@ def browser_press(key: str, session: str | None = None) -> str:
 
     Args:
         key: Key or key combination (e.g., 'Enter', 'Control+a', 'Escape')
-        session: Optional session name (default: 'ea_default')
+        session: Optional session name (default: 'default_session')
 
     Returns:
         Confirmation or error message
@@ -271,7 +271,7 @@ def browser_scroll(direction: str = "down", amount: int = 500, session: str | No
     Args:
         direction: Scroll direction: 'up' or 'down' (default: 'down')
         amount: Pixels to scroll (default: 500)
-        session: Optional session name (default: 'ea_default')
+        session: Optional session name (default: 'default_session')
 
     Returns:
         Confirmation or error message
@@ -301,7 +301,7 @@ def browser_hover(ref: str, session: str | None = None) -> str:
 
     Args:
         ref: Element ref from browser_snapshot (e.g., '@e2')
-        session: Optional session name (default: 'ea_default')
+        session: Optional session name (default: 'default_session')
 
     Returns:
         Confirmation or error message
@@ -326,7 +326,7 @@ def browser_screenshot(path: str | None = None, session: str | None = None) -> s
 
     Args:
         path: Optional file path to save screenshot (e.g., 'page.png')
-        session: Optional session name (default: 'ea_default')
+        session: Optional session name (default: 'default_session')
 
     Returns:
         Path to saved screenshot or confirmation message
@@ -355,7 +355,7 @@ def browser_eval(script: str, session: str | None = None) -> str:
 
     Args:
         script: JavaScript code to execute (e.g., 'document.title')
-        session: Optional session name (default: 'ea_default')
+        session: Optional session name (default: 'default_session')
 
     Returns:
         JavaScript execution result
@@ -381,7 +381,7 @@ def browser_get_title(session: str | None = None) -> str:
     """Get the title of the current browser page.
 
     Args:
-        session: Optional session name (default: 'ea_default')
+        session: Optional session name (default: 'default_session')
 
     Returns:
         Page title
@@ -408,7 +408,7 @@ def browser_get_text(ref: str | None = None, session: str | None = None) -> str:
 
     Args:
         ref: Optional element ref (e.g., '@e1') to get text from. If omitted, gets all page text.
-        session: Optional session name (default: 'ea_default')
+        session: Optional session name (default: 'default_session')
 
     Returns:
         Page or element text content
@@ -445,7 +445,7 @@ def browser_get_html(session: str | None = None) -> str:
     Use browser_snapshot for the most token-efficient page representation.
 
     Args:
-        session: Optional session name (default: 'ea_default')
+        session: Optional session name (default: 'default_session')
 
     Returns:
         HTML source (truncated if very long)
@@ -475,7 +475,7 @@ def browser_get_url(session: str | None = None) -> str:
     """Get the current URL of the browser page.
 
     Args:
-        session: Optional session name (default: 'ea_default')
+        session: Optional session name (default: 'default_session')
 
     Returns:
         Current page URL
@@ -502,7 +502,7 @@ def browser_tab_new(url: str | None = None, session: str | None = None) -> str:
 
     Args:
         url: Optional URL to open in the new tab
-        session: Optional session name (default: 'ea_default')
+        session: Optional session name (default: 'default_session')
 
     Returns:
         Confirmation of new tab
@@ -530,7 +530,7 @@ def browser_tab_close(session: str | None = None) -> str:
     """Close the current browser tab.
 
     Args:
-        session: Optional session name (default: 'ea_default')
+        session: Optional session name (default: 'default_session')
 
     Returns:
         Confirmation of tab closure
@@ -554,7 +554,7 @@ def browser_back(session: str | None = None) -> str:
     """Navigate back to the previous page.
 
     Args:
-        session: Optional session name (default: 'ea_default')
+        session: Optional session name (default: 'default_session')
 
     Returns:
         Confirmation or error message
@@ -578,7 +578,7 @@ def browser_forward(session: str | None = None) -> str:
     """Navigate forward to the next page.
 
     Args:
-        session: Optional session name (default: 'ea_default')
+        session: Optional session name (default: 'default_session')
 
     Returns:
         Confirmation or error message
@@ -604,7 +604,7 @@ def browser_wait_text(text: str, timeout_ms: int = 5000, session: str | None = N
     Args:
         text: Text to wait for
         timeout_ms: Maximum wait time in milliseconds (default: 5000)
-        session: Optional session name (default: 'ea_default')
+        session: Optional session name (default: 'default_session')
 
     Returns:
         Confirmation that text appeared or timeout message

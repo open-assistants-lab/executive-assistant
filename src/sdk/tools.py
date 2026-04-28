@@ -45,7 +45,7 @@ class ToolResult(BaseModel):
     audience: list[str] = Field(default_factory=lambda: ["assistant"])
 
     @classmethod
-    def from_raw(cls, result: Any) -> "ToolResult":
+    def from_raw(cls, result: Any) -> ToolResult:
         """Wrap a raw tool return value as ToolResult.
 
         If the tool already returned a ToolResult, pass it through.
@@ -149,8 +149,6 @@ def _python_type_to_json_schema(tp: Any) -> dict[str, Any]:
         return {"type": _TYPE_MAP[tp]}
     if tp is Any:
         return {}
-    if hasattr(tp, "__origin__") and tp.__origin__ is list:
-        return {"type": "array"}
     return {"type": "string"}
 
 
@@ -217,7 +215,7 @@ def tool(func: Callable | None = None, *, name: str | None = None) -> Any:
 
     Usage:
         @tool
-        def time_get(user_id: str = "default") -> str:
+        def time_get(user_id: str = "default_user") -> str:
             '''Get the current time.'''
             ...
 

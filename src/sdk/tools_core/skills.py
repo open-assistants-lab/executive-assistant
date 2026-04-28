@@ -29,7 +29,7 @@ def _get_registry(user_id: str) -> SkillRegistry:
 
 
 @tool
-def skills_list(user_id: str = "default") -> str:
+def skills_list(user_id: str = "default_user") -> str:
     """List available skills with one-line descriptions. Use skills_load(name) to get full instructions.
 
     Call this when you need to discover what skills are available.
@@ -59,7 +59,7 @@ skills_list.annotations = ToolAnnotations(title="List Skills", read_only=True, i
 
 
 @tool
-def skills_search(query: str, user_id: str = "default") -> str:
+def skills_search(query: str, user_id: str = "default_user") -> str:
     """Search for skills matching a query.
 
     Use this when you're looking for skills related to a specific task or topic
@@ -103,7 +103,7 @@ skills_search.annotations = ToolAnnotations(title="Search Skills", read_only=Tru
 
 
 @tool
-def skills_load(skill_name: str, user_id: str = "default") -> str:
+def skills_load(skill_name: str, user_id: str = "default_user") -> str:
     """Load the full content of a skill into the agent's context.
 
     Use this when you need detailed information about handling a specific
@@ -134,7 +134,7 @@ skills_load.annotations = ToolAnnotations(title="Load Skill", read_only=True, id
 
 
 @tool
-def skill_create(name: str, content: str, user_id: str = "default") -> str:
+def skill_create(name: str, content: str, user_id: str = "default_user") -> str:
     """Create a new skill in the user's skills directory.
 
     This tool automatically saves to the correct directory from config.
@@ -189,7 +189,7 @@ skill_create.annotations = ToolAnnotations(title="Create Skill", destructive=Tru
 
 
 @tool
-def sql_write_query(query: str, database: str, user_id: str = "default") -> str:
+def sql_write_query(query: str, database: str, user_id: str = "default_user") -> str:
     """Write and validate a SQL query for a specific database.
 
     The required skill must be loaded first using skills_load.

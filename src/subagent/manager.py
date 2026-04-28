@@ -12,10 +12,10 @@ import yaml
 
 from src.app_logging import get_logger
 from src.config import get_settings
-from src.subagent.config import SubagentConfig
-from src.subagent.validation import validate_subagent_config
 from src.skills import get_skill_registry
 from src.storage.paths import get_paths
+from src.subagent.config import SubagentConfig
+from src.subagent.validation import validate_subagent_config
 
 logger = get_logger()
 
@@ -184,8 +184,8 @@ You have access to tools and skills as configured. Always use the planning-with-
     async def _invoke_async(self, config: dict, task: str) -> dict[str, Any]:
         """Run subagent with SDK AgentLoop."""
         from src.sdk.loop import AgentLoop
-        from src.sdk.providers.factory import create_model_from_config
         from src.sdk.messages import Message
+        from src.sdk.providers.factory import create_model_from_config
 
         model_str = config.get("model", self.settings.agent.model)
         provider = create_model_from_config(model_str)

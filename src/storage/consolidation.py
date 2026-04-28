@@ -88,7 +88,7 @@ async def _consolidate_domain(
     store: Any,
     domain: str,
     memories: list[Memory],
-    user_id: str = "default",
+    user_id: str = "default_user",
 ) -> dict[str, Any]:
     """Consolidate memories within a single domain using LLM."""
     try:

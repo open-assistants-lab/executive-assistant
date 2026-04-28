@@ -223,11 +223,11 @@ class SummarizationMiddleware(Middleware):
             )
             return None
 
-        self._last_summary_msg_count = current_msg_count
-
         summary_msg = Message.system(f"## Conversation Summary\n\n{summary_content}")
 
         new_messages = list(system_messages) + [summary_msg] + list(messages[split_idx:])
+
+        self._last_summary_msg_count = len(new_messages)
 
         logger.info(
             "summarization.completed",

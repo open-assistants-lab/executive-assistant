@@ -87,7 +87,7 @@ class TestOllamaProviderContract:
                     {
                         "function": {
                             "name": "time_get",
-                            "arguments": {"user_id": "default"},
+                            "arguments": {"user_id": "default_user"},
                         }
                     }
                 ],
@@ -164,7 +164,7 @@ class TestOpenAIProviderContract:
                                 "type": "function",
                                 "function": {
                                     "name": "time_get",
-                                    "arguments": '{"user_id": "default"}',
+                                    "arguments": '{"user_id": "default_user"}',
                                 },
                             }
                         ],
@@ -241,7 +241,7 @@ class TestAnthropicProviderContract:
                     "type": "tool_use",
                     "id": "toolu_123",
                     "name": "time_get",
-                    "input": {"user_id": "default"},
+                    "input": {"user_id": "default_user"},
                 }
             ],
             "stop_reason": "tool_use",
@@ -249,7 +249,7 @@ class TestAnthropicProviderContract:
         tool_block = response["content"][0]
         assert tool_block["type"] == "tool_use"
         assert tool_block["name"] == "time_get"
-        assert tool_block["input"]["user_id"] == "default"
+        assert tool_block["input"]["user_id"] == "default_user"
 
     def test_anthropic_streaming_event_types(self):
         """Anthropic streaming uses specific event types."""

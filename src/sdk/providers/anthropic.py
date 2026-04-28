@@ -235,6 +235,7 @@ class AnthropicProvider(LLMProvider):
                     "id": block.get("id", ""),
                     "name": block.get("name", ""),
                     "arguments": "",
+                    "_type": "tool_use",
                 }
                 events.append(
                     StreamChunk.tool_input_start(
@@ -250,23 +251,26 @@ class AnthropicProvider(LLMProvider):
                 )
             elif block.get("type") == "thinking":
                 events.append(StreamChunk.reasoning_start())
+                current_tool_calls[idx] = {"_type": "thinking"}
             elif block.get("type") == "text":
                 events.append(StreamChunk.text_start())
+                current_tool_calls[idx] = {"_type": "text"}
 
         elif event_type == "content_block_stop":
             idx = data.get("index", 0)
-            if idx in current_tool_calls:
-                tc = current_tool_calls[idx]
+            block_info = current_tool_calls.pop(idx, {})
+            block_type = block_info.get("_type", "")
+            if block_type == "tool_use":
                 events.append(
                     StreamChunk.tool_input_end(
-                        call_id=tc["id"],
-                        tool=tc["name"],
+                        call_id=block_info.get("id", ""),
+                        tool=block_info.get("name", ""),
                     )
                 )
-                del current_tool_calls[idx]
-            else:
-                events.append(StreamChunk.text_end())
+            elif block_type == "thinking":
                 events.append(StreamChunk.reasoning_end())
+            elif block_type == "text":
+                events.append(StreamChunk.text_end())
 
         elif event_type == "message_start":
             msg_data = data.get("message", {})

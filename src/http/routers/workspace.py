@@ -11,7 +11,7 @@ router = APIRouter(tags=["workspace"])
 
 
 @router.get("/workspace/read/{path:path}")
-async def read_workspace_file(path: str, user_id: str = "default"):
+async def read_workspace_file(path: str, user_id: str = "default_user"):
     """Read file - auto-mark as downloaded."""
     from src.http.workspace_cache import get_file_cache
     from src.sdk.tools_core.filesystem import files_read
@@ -28,7 +28,7 @@ async def read_workspace_file(path: str, user_id: str = "default"):
 
 
 @router.get("/workspace/{path:path}")
-async def list_workspace_files(path: str = "", user_id: str = "default"):
+async def list_workspace_files(path: str = "", user_id: str = "default_user"):
     """List files in workspace."""
     from src.sdk.tools_core.filesystem import files_list
 
@@ -39,7 +39,7 @@ async def list_workspace_files(path: str = "", user_id: str = "default"):
 @router.post("/workspace/{path:path}")
 async def write_workspace_file(
     path: str,
-    user_id: str = "default",
+    user_id: str = "default_user",
     request: dict | None = None,
 ):
     """Write file to workspace."""
@@ -55,7 +55,7 @@ async def write_workspace_file(
 
 
 @router.delete("/workspace/{path:path}")
-async def delete_workspace_file(path: str, user_id: str = "default"):
+async def delete_workspace_file(path: str, user_id: str = "default_user"):
     """Delete file from workspace."""
     from src.sdk.tools_core.filesystem import files_delete
 
@@ -64,7 +64,7 @@ async def delete_workspace_file(path: str, user_id: str = "default"):
 
 
 @router.get("/sync/status")
-async def get_sync_status(user_id: str = "default"):
+async def get_sync_status(user_id: str = "default_user"):
     """Get sync status for all files."""
     from src.http.workspace_cache import get_file_cache
 
@@ -73,7 +73,7 @@ async def get_sync_status(user_id: str = "default"):
 
 
 @router.post("/sync/pin/{path:path}")
-async def pin_file(path: str, user_id: str = "default"):
+async def pin_file(path: str, user_id: str = "default_user"):
     """Pin a file (keep downloaded)."""
     from src.http.workspace_cache import get_file_cache
 
@@ -83,7 +83,7 @@ async def pin_file(path: str, user_id: str = "default"):
 
 
 @router.delete("/sync/pin/{path:path}")
-async def unpin_file(path: str, user_id: str = "default"):
+async def unpin_file(path: str, user_id: str = "default_user"):
     """Unpin a file (remove from keep downloaded)."""
     from src.http.workspace_cache import get_file_cache
 
@@ -93,7 +93,7 @@ async def unpin_file(path: str, user_id: str = "default"):
 
 
 @router.post("/sync/download/{path:path}")
-async def mark_downloaded(path: str, user_id: str = "default"):
+async def mark_downloaded(path: str, user_id: str = "default_user"):
     """Mark a file as downloaded."""
     from src.http.workspace_cache import get_file_cache
 
@@ -103,7 +103,7 @@ async def mark_downloaded(path: str, user_id: str = "default"):
 
 
 @router.get("/sync/stream")
-async def sync_stream(user_id: str = "default"):
+async def sync_stream(user_id: str = "default_user"):
     """SSE stream for real-time file change notifications."""
 
     async def event_generator():

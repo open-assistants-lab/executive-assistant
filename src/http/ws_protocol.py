@@ -30,7 +30,7 @@ class UserMessage(BaseModel):
 
     type: str = "user_message"
     content: str
-    user_id: str = "default"
+    user_id: str = "default_user"
     verbose: bool = False
 
 

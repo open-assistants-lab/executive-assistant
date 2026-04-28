@@ -34,7 +34,7 @@ from src.sdk.tools import ToolDefinition, tool
 
 
 @tool
-def time_get(user_id: str = "default") -> str:
+def time_get(user_id: str = "default_user") -> str:
     """Get the current time."""
     import datetime
 

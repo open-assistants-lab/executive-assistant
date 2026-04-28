@@ -51,7 +51,7 @@ Evaluate whether the predicted answer is correct. Consider:
 
 Respond in the specified JSON format."""
 
-    def __init__(self, model: str = "gpt-4o"):
+    def __init__(self, model: str = "gpt-4o-mini"):
         self.model = model
         self.client = AsyncOpenAI(
             api_key=os.environ.get("OPENAI_API_KEY"),

@@ -105,7 +105,7 @@ class Logger:
         return level >= self.level
 
     def _log(
-        self, level: int, event: str, data: dict, user_id: str = "default", channel: str = "cli"
+        self, level: int, event: str, data: dict, user_id: str = "default_user", channel: str = "cli"
     ):
         """Internal log method - handles filtering and formatting."""
         if not self.enabled:
@@ -138,19 +138,19 @@ class Logger:
         today = datetime.now().strftime("%Y-%m-%d")
         return self.json_dir / f"{today}.jsonl"
 
-    def debug(self, event: str, data: dict, user_id: str = "default", channel: str = "cli"):
+    def debug(self, event: str, data: dict, user_id: str = "default_user", channel: str = "cli"):
         """Log debug level event."""
         self._log(LogLevel.DEBUG, event, data, user_id, channel)
 
-    def info(self, event: str, data: dict, user_id: str = "default", channel: str = "cli"):
+    def info(self, event: str, data: dict, user_id: str = "default_user", channel: str = "cli"):
         """Log info level event."""
         self._log(LogLevel.INFO, event, data, user_id, channel)
 
-    def warning(self, event: str, data: dict, user_id: str = "default", channel: str = "cli"):
+    def warning(self, event: str, data: dict, user_id: str = "default_user", channel: str = "cli"):
         """Log warning level event."""
         self._log(LogLevel.WARNING, event, data, user_id, channel)
 
-    def error(self, event: str, data: dict, user_id: str = "default", channel: str = "cli"):
+    def error(self, event: str, data: dict, user_id: str = "default_user", channel: str = "cli"):
         """Log error level event."""
         self._log(LogLevel.ERROR, event, data, user_id, channel)
 
@@ -159,7 +159,7 @@ class Logger:
         self,
         event: str,
         data: dict | None = None,
-        user_id: str = "default",
+        user_id: str = "default_user",
         channel: str = "cli",
         level: int = LogLevel.INFO,
     ):
@@ -206,7 +206,7 @@ def get_logger() -> Logger:
     return _logger
 
 
-def log_event(event: str, data: dict, user_id: str = "default", channel: str = "cli"):
+def log_event(event: str, data: dict, user_id: str = "default_user", channel: str = "cli"):
     """Log an event."""
     get_logger().info(event, data, user_id, channel)
 
@@ -215,7 +215,7 @@ def log_event(event: str, data: dict, user_id: str = "default", channel: str = "
 def timer(
     event: str,
     data: dict | None = None,
-    user_id: str = "default",
+    user_id: str = "default_user",
     channel: str = "cli",
     level: int = LogLevel.INFO,
 ):

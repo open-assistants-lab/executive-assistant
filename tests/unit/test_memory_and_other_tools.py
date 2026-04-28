@@ -12,7 +12,7 @@ class TestMemoryGetHistory:
         """Test memory_get_history with empty result."""
         from src.sdk.tools_core.memory import memory_get_history
 
-        with patch("src.storage.messages.get_conversation_store") as mock_get_store:
+        with patch("src.storage.messages.get_message_store") as mock_get_store:
             mock_store = MagicMock()
             mock_store.get_messages.return_value = []
             mock_get_store.return_value = mock_store
@@ -27,7 +27,7 @@ class TestMemoryGetHistory:
             {"role": "user", "content": "Hello"},
             {"role": "assistant", "content": "Hi there"},
         ]
-        with patch("src.storage.messages.get_conversation_store") as mock_get_store:
+        with patch("src.storage.messages.get_message_store") as mock_get_store:
             mock_store = MagicMock()
             mock_store.get_messages.return_value = mock_messages
             mock_get_store.return_value = mock_store

@@ -308,7 +308,7 @@ subagent_list.annotations = ToolAnnotations(title="List Subagents", read_only=Tr
 def subagent_progress(
     task_id: str | None = None,
     parent_id: str | None = None,
-    user_id: str = "default",
+    user_id: str = "default_user",
 ) -> str:
     """Check progress/status of subagent tasks.
 

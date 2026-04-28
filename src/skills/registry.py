@@ -9,13 +9,13 @@ _registries: dict[str, "SkillRegistry"] = {}
 _lock = threading.Lock()
 
 
-def get_skill_registry(user_id: str = "default", system_dir: str = "src/skills") -> "SkillRegistry":
+def get_skill_registry(user_id: str = "default_user", system_dir: str = "src/skills") -> "SkillRegistry":
     """Get or create a cached SkillRegistry for a user.
 
     All code should use this factory instead of constructing SkillRegistry
     directly, to ensure a single cached instance per user.
     """
-    uid = user_id or "default"
+    uid = user_id or "default_user"
     with _lock:
         if uid not in _registries:
             _registries[uid] = SkillRegistry(system_dir=system_dir, user_id=user_id)

@@ -137,6 +137,12 @@ class FilesystemConfig(_BaseSettings):
 
     enabled: bool = True
     max_file_size_mb: int = 10
+    workspace_root: str | None = Field(
+        default=None,
+        description="Shared workspace directory. When set, all filesystem tools "
+        "resolve relative paths from this directory instead of per-user workspace. "
+        "Example: /Users/eddy/shared_workspace",
+    )
 
     model_config = ConfigDict(env_prefix="FILESYSTEM_")
 

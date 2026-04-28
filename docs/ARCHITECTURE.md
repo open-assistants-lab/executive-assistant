@@ -22,7 +22,7 @@ Executive Assistant is a multi-channel AI assistant (CLI, HTTP) with long-term m
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│              ConversationStore (Hybrid Search)            │
+│              MessageStore (Hybrid Search)            │
 │  ┌──────────────────┐    ┌──────────────────────────┐    │
 │  │ SQLite + FTS5   │    │    ChromaDB           │    │
 │  │ (keyword search)│    │    (vector search)    │    │
