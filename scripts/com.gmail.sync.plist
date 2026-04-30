@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.gmail.sync</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <string>export PATH="/opt/homebrew/bin:$PATH" &amp;&amp; cd /Users/eddy/Developer/Langgraph/executive-assistant &amp;&amp; .venv/bin/python3 scripts/sync_gmail.py --max 10 --no-body</string>
+    </array>
+
+    <key>StartInterval</key>
+    <integer>300</integer>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/eddy/Library/Logs/gmail-sync.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/eddy/Library/Logs/gmail-sync.err</string>
+</dict>
+</plist>

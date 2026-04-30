@@ -110,6 +110,13 @@ from src.sdk.tools_core.subagent import (
     subagent_update,
 )
 from src.sdk.tools_core.time import time_get
+from src.sdk.tools_core.workspace import (
+    workspace_create,
+    workspace_delete,
+    workspace_list,
+    workspace_current,
+    workspace_switch,
+)
 
 _registry = ToolRegistry()
 
@@ -196,6 +203,12 @@ def _register_all() -> None:
     registry.register(subagent_delete)
     registry.register(subagent_update)
 
+    registry.register(workspace_create)
+    registry.register(workspace_list)
+    registry.register(workspace_switch)
+    registry.register(workspace_current)
+    registry.register(workspace_delete)
+
     registry.register(mcp_list)
     registry.register(mcp_reload)
     registry.register(mcp_tools)
@@ -205,6 +218,22 @@ def _register_all() -> None:
     registry.register(skills_load)
     registry.register(skill_create)
     registry.register(sql_write_query)
+
+    # Agent Connect meta-tools
+    try:
+        from agent_connect.meta_tools import (
+            connector_connect,
+            connector_disconnect,
+            connector_health,
+            connector_list,
+        )
+
+        registry.register(connector_list)
+        registry.register(connector_connect)
+        registry.register(connector_disconnect)
+        registry.register(connector_health)
+    except ImportError:
+        pass
 
 
 _register_all()

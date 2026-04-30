@@ -1,0 +1,47 @@
+# Firecrawl — web scraping, crawling, and search
+# https://docs.firecrawl.dev
+
+name: firecrawl
+display: "Firecrawl"
+icon: globe
+category: web
+version: "1.0"
+description: "Web scraping, crawling, search, and AI-powered data extraction"
+auth:
+  type: api_key
+  api_key:
+    env_var: FIRECRAWL_API_KEY
+tool_source:
+  type: cli
+  command: firecrawl
+  install: npm install -g firecrawl@latest
+  env_mapping:
+    api_key: FIRECRAWL_API_KEY
+tool_descriptions:
+  - name: firecrawl__scrape_url
+    description: "Scrape a URL and return clean markdown content. Use for reading any webpage. Supports multiple output formats."
+    parameter_descriptions:
+      url: "The full URL to scrape (e.g. https://example.com)"
+      formats: "Output format: markdown, html, rawHtml, links, screenshot, screenshotFull, json, summary. Comma-separated for multiple. Default: markdown"
+      only_main_content: "Extract only main content, removing navigation, footers, and ads. Default: true"
+  - name: firecrawl__search_web
+    description: "Search the web and return results with full page content. More comprehensive than simple search — returns actual page text."
+    parameter_descriptions:
+      query: "Search query string"
+  - name: firecrawl__map_url
+    description: "Discover and list all URLs on a website. Use to find pages on a domain."
+    parameter_descriptions:
+      url: "The base URL to map"
+  - name: firecrawl__crawl_url
+    description: "Crawl multiple pages from a starting URL, following links up to a depth limit."
+    parameter_descriptions:
+      url: "Starting URL for the crawl"
+      max_depth: "Maximum link depth to follow (default: 3)"
+  - name: firecrawl__get_crawl_status
+    description: "Check the status of a running crawl job."
+    parameter_descriptions:
+      id: "Crawl job ID returned from crawl_url"
+  - name: firecrawl__cancel_crawl
+    description: "Cancel a running crawl job."
+    parameter_descriptions:
+      id: "Crawl job ID to cancel"

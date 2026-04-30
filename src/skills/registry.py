@@ -1,15 +1,20 @@
-"""Skill registry that combines system and user skills."""
+"""Skill registry — unified storage for all skills.
+
+System skills (src/skills/) are seeded to ~/Executive Assistant/Skills/ on first run.
+After seeding, system and user skills live in the same directory and are treated identically.
+"""
 
 import threading
+from pathlib import Path
 
 from src.skills.models import Skill
-from src.skills.storage import SystemSkillStorage, UserSkillStorage
+from src.skills.storage import SkillStorage
 
 _registries: dict[str, "SkillRegistry"] = {}
 _lock = threading.Lock()
 
 
-def get_skill_registry(user_id: str = "default_user", system_dir: str = "src/skills") -> "SkillRegistry":
+def get_skill_registry(user_id: str = "default_user") -> "SkillRegistry":
     """Get or create a cached SkillRegistry for a user.
 
     All code should use this factory instead of constructing SkillRegistry
@@ -18,7 +23,7 @@ def get_skill_registry(user_id: str = "default_user", system_dir: str = "src/ski
     uid = user_id or "default_user"
     with _lock:
         if uid not in _registries:
-            _registries[uid] = SkillRegistry(system_dir=system_dir, user_id=user_id)
+            _registries[uid] = SkillRegistry(user_id=user_id)
         return _registries[uid]
 
 
@@ -29,33 +34,50 @@ def reset_skill_registries() -> None:
 
 
 class SkillRegistry:
-    """Registry that combines system and user skills."""
+    """Registry for all skills (system + user) in one unified location.
+
+    On first run, system skills are seeded from src/skills/ to
+    the user's skills directory (~/Executive Assistant/Skills/).
+    After seeding, all skills live in the same place and are treated identically.
+    """
 
     def __init__(
         self,
-        system_dir: str = "src/skills",
+        skills_dir: str | Path | None = None,
         user_id: str | None = None,
     ):
-        self.system_storage = SystemSkillStorage(system_dir)
-        self.user_storage = UserSkillStorage(user_id) if user_id else None
-        self._system_skills: list[Skill] | None = None
-        self._user_skills: list[Skill] | None = None
+        from src.storage.paths import DataPaths
+
+        paths = DataPaths(user_id=user_id)
+        self.skills_dir = Path(skills_dir) if skills_dir else paths.skills_dir()
+        self.storage = SkillStorage(self.skills_dir)
         self._loaded_skills: set[str] = set()
+        self._seeded = False
 
-    def _load_system_skills(self) -> list[Skill]:
-        if self._system_skills is None:
-            self._system_skills = self.system_storage.load_skills()
-        return self._system_skills
+    def _seed_system_skills(self) -> None:
+        """Copy system skills to user skills directory on first run."""
+        if self._seeded:
+            return
+        self._seeded = True
 
-    def _load_user_skills(self) -> list[Skill]:
-        if self._user_skills is None and self.user_storage:
-            self._user_skills = self.user_storage.load_skills()
-        return self._user_skills or []
+        import shutil
+
+        system_src = Path("src/skills")
+        if not system_src.exists():
+            return
+
+        self.skills_dir.mkdir(parents=True, exist_ok=True)
+
+        for item in system_src.iterdir():
+            if not item.is_dir():
+                continue
+            dest = self.skills_dir / item.name
+            if not dest.exists():
+                shutil.copytree(item, dest)
 
     def reload(self) -> None:
-        """Reload all skills (clear cache)."""
-        self._system_skills = None
-        self._user_skills = None
+        """Reload all skills (clear cache, re-seed system skills)."""
+        self._seeded = False
 
     def mark_skill_loaded(self, skill_name: str) -> None:
         """Track that a skill has been loaded into context."""
@@ -66,32 +88,14 @@ class SkillRegistry:
         return list(self._loaded_skills)
 
     def get_all_skills(self) -> list[Skill]:
-        """Get all available skills (system + user)."""
-        system = self._load_system_skills()
-        user = self._load_user_skills()
-        return system + user
-
-    def get_system_skills(self) -> list[Skill]:
-        """Get system skills only."""
-        return self._load_system_skills()
+        """Get all available skills."""
+        self._seed_system_skills()
+        return self.storage.load_skills()
 
     def get_skill(self, skill_name: str) -> Skill | None:
-        """Get a specific skill by name.
-
-        Checks user skills first, then system skills.
-
-        Args:
-            skill_name: Name of the skill
-
-        Returns:
-            Skill dict or None if not found
-        """
-        if self.user_storage:
-            skill = self.user_storage.load_skill(skill_name)
-            if skill:
-                return skill
-
-        return self.system_storage.load_skill(skill_name)
+        """Get a specific skill by name."""
+        self._seed_system_skills()
+        return self.storage.load_skill(skill_name)
 
     def list_skills(self) -> list[str]:
         """List all available skill names."""

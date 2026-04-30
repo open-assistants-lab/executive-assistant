@@ -202,6 +202,7 @@ async def ws_conversation(websocket: WebSocket):
 
     session_id = str(uuid.uuid4())[:8]
     user_id = "default_user"
+    workspace_id = "personal"
     verbose = False
     pending_container: list = [None]
 
@@ -285,13 +286,14 @@ async def ws_conversation(websocket: WebSocket):
                 break
 
             user_id = getattr(msg, "user_id", user_id) or user_id
+            workspace_id = getattr(msg, "workspace_id", workspace_id) or workspace_id
             verbose = getattr(msg, "verbose", verbose)
 
             if not hasattr(msg, "content"):
                 continue
 
             content = msg.content
-            conversation = get_message_store(user_id)
+            conversation = get_message_store(user_id, workspace_id)
 
             # If user types "approve" while a tool is pending, trigger retry
             if pending_container[0] and content.strip().lower() in ("approve", "yes", "accept"):

@@ -1,0 +1,68 @@
+# GitHub — repos, issues, PRs, and more
+# Uses gh CLI: https://cli.github.com
+
+name: github
+display: "GitHub"
+icon: github
+category: dev-tools
+version: "1.0"
+description: "GitHub repositories, issues, pull requests, gists, and actions"
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://github.com/login/oauth/authorize
+    token_url: https://github.com/login/oauth/access_token
+    scopes:
+      - repo
+      - read:org
+      - gist
+      - workflow
+    token_env_var: GITHUB_TOKEN
+tool_source:
+  type: cli
+  command: gh
+  install: brew install gh
+  env_mapping:
+    access_token: GITHUB_TOKEN
+tool_descriptions:
+  - name: github__issue_list
+    description: "List issues in a GitHub repository with filtering options."
+    parameter_descriptions:
+      repo: "Repository in owner/name format (e.g. microsoft/typescript)"
+      state: "Issue state: open, closed, or all (default: open)"
+      limit: "Maximum issues to return (default: 30)"
+      label: "Filter by label name"
+      assignee: "Filter by assignee username"
+  - name: github__issue_create
+    description: "Create a new issue in a GitHub repository."
+    parameter_descriptions:
+      repo: "Repository in owner/name format"
+      title: "Issue title"
+      body: "Issue description in markdown"
+      label: "Comma-separated labels to apply"
+  - name: github__issue_view
+    description: "View full details of a specific GitHub issue."
+    parameter_descriptions:
+      repo: "Repository in owner/name format"
+      issue: "Issue number"
+  - name: github__pr_list
+    description: "List pull requests in a GitHub repository."
+    parameter_descriptions:
+      repo: "Repository in owner/name format"
+      state: "PR state: open, closed, merged, or all (default: open)"
+      limit: "Maximum PRs to return (default: 30)"
+  - name: github__pr_view
+    description: "View full details of a specific pull request including diff."
+    parameter_descriptions:
+      repo: "Repository in owner/name format"
+      pr: "Pull request number"
+  - name: github__repo_list
+    description: "List repositories for the authenticated user or an organization."
+    parameter_descriptions:
+      org: "Optional: filter by organization name"
+      limit: "Maximum repos to return (default: 30)"
+  - name: github__search_code
+    description: "Search GitHub code across repositories."
+    parameter_descriptions:
+      query: "Search query (e.g. 'filename:README.md language:python')"
+      limit: "Maximum results (default: 20)"

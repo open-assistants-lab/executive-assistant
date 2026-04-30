@@ -286,8 +286,10 @@ def sync_emails(
     page_token: str | None = None
     pages = 0
 
+    page_size = min(max_results, _LIST_PAGE_SIZE) if max_results > 0 else _LIST_PAGE_SIZE
+
     while True:
-        params: dict[str, Any] = {"userId": "me", "maxResults": _LIST_PAGE_SIZE}
+        params: dict[str, Any] = {"userId": "me", "maxResults": min(page_size, _LIST_PAGE_SIZE)}
         if query:
             params["q"] = query
         if page_token:

@@ -127,14 +127,40 @@ def memory_search(
 
     output = ""
     if fact_results:
-        output += f"Found {len(fact_results)} exact facts:\n"
-        for m in fact_results:
+        # Show current facts first, superseded after
+        current_facts = [m for m in fact_results if not m.is_superseded]
+        superseded_facts = [m for m in fact_results if m.is_superseded]
+
+        facts_to_show = current_facts + superseded_facts
+        active_count = len(current_facts)
+        total_count = len(facts_to_show)
+        output += f"Found {active_count} active facts"
+        if superseded_facts:
+            output += f" (plus {len(superseded_facts)} outdated)"
+        output += ":\n"
+
+        for m in facts_to_show:
             sd = m.structured_data
             previous = sd.get("previous_value")
             previous_text = f" (previous: {previous})" if previous else ""
+            superseded_marker = "[OUTDATED] " if m.is_superseded else ""
+
+            # For location-style data: show replaced_by when available
+            replaced = ""
+            if m.is_superseded:
+                # Find what superseded this
+                for cur in current_facts:
+                    csd = cur.structured_data
+                    if (csd.get("entity") == sd.get("entity") and
+                        csd.get("attribute") == sd.get("attribute")):
+                        replaced = f" → replaced by: {csd.get('value', 'unknown')}"
+                        break
+
             output += (
-                f"- {sd.get('entity', 'user')}.{sd.get('attribute', m.trigger)} = "
-                f"{sd.get('value', m.action)}{previous_text} "
+                f"- {superseded_marker}"
+                f"{sd.get('entity', 'user')}.{sd.get('attribute', m.trigger)} = "
+                f"{sd.get('value', m.action)}{previous_text}"
+                f"{replaced} "
                 f"(conf: {min(m.confidence, 1.0):.0%})\n"
             )
 

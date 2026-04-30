@@ -8,27 +8,25 @@ Tests use mocked HTTP responses to verify:
 - Factory config resolution
 """
 
-import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.sdk.messages import Message, StreamChunk, ToolCall, Usage
-from src.sdk.providers.base import LLMProvider, ModelInfo
+from src.sdk.messages import Message
+from src.sdk.providers.anthropic import AnthropicProvider
 from src.sdk.providers.factory import (
+    _ENV_KEY_MAP,
+    _PROVIDER_CLASSES,
+    _default_base_url,
+    _parse_model_string,
     create_model_from_config,
     create_provider,
-    _parse_model_string,
-    _PROVIDER_CLASSES,
-    _ENV_KEY_MAP,
-    _default_base_url,
+    create_provider_from_registry_model,
 )
+from src.sdk.providers.gemini import GeminiProvider
 from src.sdk.providers.ollama import OllamaCloud, OllamaLocal
 from src.sdk.providers.openai import OpenAIProvider
-from src.sdk.providers.anthropic import AnthropicProvider
-from src.sdk.providers.gemini import GeminiProvider
-from src.sdk.tools import ToolDefinition, tool
-
+from src.sdk.tools import tool
 
 # ─── Fixtures ───
 
@@ -51,7 +49,7 @@ def tool_defs():
 
 class TestLLMProviderInterface:
     def test_provider_classes_has_all_types(self):
-        expected = {"ollama", "ollama-cloud", "openai", "openai-compatible", "anthropic", "gemini"}
+        expected = {"ollama", "openai", "openai-compatible", "anthropic", "gemini"}
         assert set(_PROVIDER_CLASSES.keys()) == expected
 
     def test_env_key_map_covers_major_providers(self):
@@ -441,6 +439,16 @@ class TestProviderFactory:
         assert provider == "openai"
         assert model == "gpt-4o"
 
+    def test_parse_model_string_with_slash_provider(self):
+        provider, model = _parse_model_string("anthropic/claude-sonnet-4-5")
+        assert provider == "anthropic"
+        assert model == "claude-sonnet-4-5"
+
+    def test_parse_model_string_colon_preserves_model_slashes(self):
+        provider, model = _parse_model_string("openrouter:anthropic/claude-sonnet-4")
+        assert provider == "openrouter"
+        assert model == "anthropic/claude-sonnet-4"
+
     def test_parse_model_string_without_provider(self):
         provider, model = _parse_model_string("minimax-m2.5")
         assert provider == "ollama"
@@ -453,8 +461,8 @@ class TestProviderFactory:
 
     def test_create_ollama_cloud_provider(self):
         p = create_provider("ollama-cloud", model="minimax-m2.5", api_key="test")
-        assert isinstance(p, OllamaCloud)
-        assert p.api_key == "test"
+        assert isinstance(p, OpenAIProvider)
+        assert p.model == "minimax-m2.5"
 
     def test_create_openai_provider(self):
         p = create_provider("openai", model="gpt-4o", api_key="sk-test")
@@ -503,6 +511,40 @@ class TestProviderFactory:
                 mock_settings.return_value.agent.model = "ollama:minimax-m2.5"
                 p = create_model_from_config("ollama:minimax-m2.5")
                 assert isinstance(p, OllamaLocal)
+
+    def test_create_model_from_config_ollama_does_not_auto_switch_to_cloud(self):
+        with patch.dict(
+            "os.environ",
+            {"OLLAMA_BASE_URL": "https://ollama.com", "OLLAMA_API_KEY": "test"},
+        ):
+            p = create_model_from_config("ollama/minimax-m2.5")
+            assert isinstance(p, OllamaLocal)
+            assert p.base_url == "http://localhost:11434/v1"
+
+    def test_create_model_from_config_explicit_ollama_cloud(self):
+        with patch.dict("os.environ", {"OLLAMA_API_KEY": "test"}):
+            p = create_model_from_config("ollama-cloud/minimax-m2.5")
+            assert isinstance(p, OpenAIProvider)
+            assert p.model == "minimax-m2.5"
+
+    def test_create_provider_from_registry_model_uses_models_dev_provider(self):
+        with patch.dict("os.environ", {"OLLAMA_API_KEY": "test"}):
+            p = create_provider_from_registry_model("ollama-cloud/minimax-m2.5")
+            assert isinstance(p, OpenAIProvider)
+            assert p is not None
+            assert p.model == "minimax-m2.5"
+
+    def test_legacy_native_ollama_cloud_emits_thinking(self):
+        p = OllamaCloud(model="minimax-m2.5", api_key="test")
+        chunks = p._parse_chunk(
+            {
+                "model": "minimax-m2.5",
+                "message": {"thinking": "hidden", "content": ""},
+                "done": False,
+            },
+            {},
+        )
+        assert [c.type for c in chunks] == ["reasoning_delta", "reasoning"]
 
 
 # ─── Message Format Conversion Tests ───

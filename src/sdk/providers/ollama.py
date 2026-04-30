@@ -315,7 +315,13 @@ class OllamaCloud(LLMProvider):
             result.reasoning = reasoning
         return result
 
-    def _parse_chunk(self, data: dict, current_tool_calls: dict[int, dict]) -> list[StreamChunk]:
+    def _parse_chunk(
+        self,
+        data: dict,
+        current_tool_calls: dict[int, dict],
+        provider_options: dict[str, dict[str, Any]] | None = None,
+        emitted_starts: set[tuple[str, str]] | None = None,
+    ) -> list[StreamChunk]:
         """Parse a streaming chunk from Ollama Cloud native /api/chat.
 
         Emits block-structured events (tool_input_start/delta/end, text_delta,
@@ -340,7 +346,12 @@ class OllamaCloud(LLMProvider):
                     "name": name,
                     "arguments": "",
                 }
-                if name:
+                # Dedup: skip tool_input_start for duplicate (name, args) pairs
+                # that the MiniMax reasoning model emits multiple times.
+                start_key = (name or "", str(args_str)[:200])
+                if name and (emitted_starts is None or start_key not in emitted_starts):
+                    if emitted_starts is not None:
+                        emitted_starts.add(start_key)
                     chunks.append(
                         StreamChunk.tool_input_start(
                             tool=name,
@@ -453,6 +464,7 @@ class OllamaCloud(LLMProvider):
         )
         client = self._get_client()
         current_tool_calls: dict[int, dict] = {}
+        emitted_starts: set[tuple[str, str]] = set()
         async with client.stream("POST", f"{self.base_url}/api/chat", json=payload) as response:
             response.raise_for_status()
             async for line in response.aiter_lines():
@@ -462,7 +474,7 @@ class OllamaCloud(LLMProvider):
                     data = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-                for chunk in self._parse_chunk(data, current_tool_calls):
+                for chunk in self._parse_chunk(data, current_tool_calls, provider_options, emitted_starts):
                     yield chunk
 
     def count_tokens(self, text: str, model: str | None = None) -> int:

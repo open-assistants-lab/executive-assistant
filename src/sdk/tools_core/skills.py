@@ -3,13 +3,12 @@
 Skills are on-demand knowledge modules (SKILL.md files) that agents can
 load when handling specific task types.
 
-Progressive disclosure flow:
-  1. Agent calls skills_list() or skills_search() to discover available skills
-  2. Agent calls skills_load(skill_name) to get full instructions
-  3. Agent uses other tools to follow the skill's instructions
-
-No skill descriptions are injected into tool definitions or system prompts.
-The agent must explicitly ask to discover skills.
+Design:
+  1. Skill descriptions are injected into the system prompt at startup.
+     The agent always knows what skills are available — no discovery step needed.
+  2. When a task matches a skill's description, call skills_load(name) directly.
+  3. skills_list() and skills_search() are available for explicit queries
+     (e.g., "what skills do you have?" or finding recently added user skills).
 """
 
 from __future__ import annotations
@@ -30,9 +29,12 @@ def _get_registry(user_id: str) -> SkillRegistry:
 
 @tool
 def skills_list(user_id: str = "default_user") -> str:
-    """List available skills with one-line descriptions. Use skills_load(name) to get full instructions.
+    """List all available skills; use skills_load for full instructions.
 
-    Call this when you need to discover what skills are available.
+    Skill descriptions are always available in your system prompt context.
+    Call this explicitly when the user asks "what skills do you have?" or
+    when you want to see user-created skills that may have been added recently.
+
     Then use skills_load(skill_name) to get full instructions for a specific skill.
 
     Args:

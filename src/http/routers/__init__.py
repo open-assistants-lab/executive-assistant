@@ -10,6 +10,7 @@ from src.http.routers.subagents import router as subagents_router
 
 # from src.http.routers.todos import router as todos_router
 from src.http.routers.workspace import router as workspace_router
+from src.http.routers.workspaces import router as workspaces_router
 
 __all__ = [
     "health_router",
@@ -19,6 +20,7 @@ __all__ = [
     # "todos_router",
     # "email_router",
     "workspace_router",
+    "workspaces_router",
     "skills_router",
     "subagents_router",
 ]

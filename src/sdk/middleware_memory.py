@@ -5,11 +5,12 @@ Uses SDK Middleware base class instead of LangChain AgentMiddleware.
 """
 
 import json
+import os
 import threading
 from typing import Any
 
 from src.app_logging import get_logger
-from src.sdk.memory_planner import plan_memory_query
+from src.sdk.memory_planner import is_memory_query, plan_memory_query
 from src.sdk.messages import Message
 from src.sdk.middleware import Middleware
 from src.sdk.state import AgentState
@@ -234,6 +235,13 @@ class MemoryMiddleware(Middleware):
         return ""
 
     def _get_relevant_memory_context(self, query: str) -> str:
+        if os.environ.get("MEMORY_QUERY_PLANNER_ENABLED", "false").lower() not in {
+            "1",
+            "true",
+            "yes",
+        }:
+            return self._get_baseline_memory_context(query)
+
         plan = plan_memory_query(query)
         if plan.intent == "unknown":
             return ""
@@ -351,6 +359,102 @@ class MemoryMiddleware(Middleware):
                 "sections": len(sections),
                 "needs_history": plan.needs_fact_history,
                 "needs_messages": plan.needs_messages or needs_message_fallback,
+            },
+            user_id=self.user_id,
+        )
+        return "## Relevant Memory Search Results\n" + "\n".join(sections)
+
+    def _get_baseline_memory_context(self, query: str) -> str:
+        """Best validated retrieval path: facts + learned memories + message evidence."""
+        if not is_memory_query(query):
+            return ""
+
+        sections: list[str] = []
+
+        try:
+            fact_memories = self.memory_store.find_facts_for_query(query, limit=6)
+            if fact_memories:
+                sections.append("### Exact Structured Facts")
+                for memory in fact_memories:
+                    sd = memory.structured_data
+                    previous = sd.get("previous_value")
+                    previous_text = f" (previous: {previous})" if previous else ""
+                    sections.append(
+                        f"- {sd.get('entity', 'user')}.{sd.get('attribute', memory.trigger)} = "
+                        f"{sd.get('value', memory.action)}{previous_text}"
+                    )
+
+            fact_ids = {memory.id for memory in fact_memories}
+            memories = [m for m in self.memory_store.search_hybrid(query, limit=8) if m.id not in fact_ids]
+            if memories:
+                sections.append("### Learned Memories")
+                for memory in memories[:6]:
+                    sections.append(f"- [{memory.domain}] {memory.trigger}: {memory.action}")
+        except Exception as e:
+            logger.debug(
+                "memory.query_memories_failed",
+                {"error": str(e), "query": query[:100]},
+                user_id=self.user_id,
+            )
+
+        try:
+            from src.sdk.tools_core.memory import _expand_queries
+            from src.storage.messages import get_message_store
+
+            conversation = get_message_store(self.user_id)
+            seen_ids: set[int] = set()
+            message_results = []
+            recency_keywords = [
+                "current",
+                "latest",
+                "now",
+                "after",
+                "updated",
+                "new",
+                "recently",
+                "last",
+                "today",
+            ]
+            recency_weight = 0.7 if any(kw in query.lower() for kw in recency_keywords) else 0.3
+
+            for expanded_query in _expand_queries(query):
+                for result in conversation.search_hybrid(
+                    expanded_query,
+                    limit=8,
+                    recency_weight=recency_weight,
+                ):
+                    if result.id in seen_ids:
+                        continue
+                    seen_ids.add(result.id)
+                    message_results.append(result)
+
+            message_results.sort(key=lambda r: r.score, reverse=True)
+            if message_results:
+                sections.append("### Relevant Conversation History")
+                for result in message_results[:8]:
+                    content = result.content.replace("\n", " ")
+                    sections.append(
+                        f"- {result.role} ({result.ts.date()}): {content} "
+                        f"(score: {result.score:.2f})"
+                    )
+        except Exception as e:
+            logger.debug(
+                "memory.query_messages_failed",
+                {"error": str(e), "query": query[:100]},
+                user_id=self.user_id,
+            )
+
+        if not sections:
+            return ""
+
+        logger.info(
+            "memory.query_context_injected",
+            {
+                "query": query[:100],
+                "intent": "baseline",
+                "sections": len(sections),
+                "needs_history": False,
+                "needs_messages": True,
             },
             user_id=self.user_id,
         )
@@ -483,16 +587,20 @@ class MemoryMiddleware(Middleware):
 
             loop = AgentLoop(provider=model)
 
+            # Run in a background thread — create a persistent event loop
+            # that stays alive for subsequent HybridDB operations (ChromaDB
+            # needs an active loop for embedding generation and vector ops).
             try:
                 asyncio.get_running_loop()
-                import concurrent.futures
-
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    result = executor.submit(
-                        asyncio.run, loop.run_single(extraction_messages)
-                    ).result()
+                raise RuntimeError("Already in event loop, use _extract_in_executor")
             except RuntimeError:
-                result = asyncio.run(loop.run_single(extraction_messages))
+                pass
+
+            extraction_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(extraction_loop)
+            result = extraction_loop.run_until_complete(
+                loop.run_single(extraction_messages)
+            )
 
             if result is None:
                 return

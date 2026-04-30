@@ -34,7 +34,12 @@
 | **17** | Flutter 4 — More Tab + Profile/Memory + Files + Subagents + Skills | 🔲 Future |
 | **8** | Data Architecture + Team Layer + Folder Cleanup | 🔲 Future |
 | **18** | Event-Driven Triggers, Smart Routing & Self-Evolution | 🔲 Future |
-| **9** | Extract & Open Source SDK | 🔲 Future |
+| **9** | Extract & Open Source SDK | 🔲 Planned |
+| **19** | Parallel Subagent Execution | 🔲 Planned |
+| **20** | Dynamic Subagent Creation (inline spawn) | 🔲 Planned |
+| **21** | Agent Teams (multi-agent coordination) | 🔲 Planned |
+| **22** | Computer Use (screen control + app automation) | 🔲 Planned |
+| **23** | Workspaces (multi-project isolation) | 🔲 Planned |
 
 **470+ SDK tests passing. Agent runs end-to-end on CLI and HTTP (REST + SSE + WebSocket). All LangChain removed.**
 
@@ -45,7 +50,12 @@ Phase 12 (Auth) ──────────────┐
                                 ├──► Phase 13 (Flutter 0) ──► Phase 14 (Flutter 1)
 Phase 8 (Data Architecture) ──┘                         │
                                                         ├──► Phase 15 (Flutter 2)
-Phase 11 (Subagent V1) ────────────────────────────────┘
+Phase 11 (Subagent V1) ──┬── Phase 19 (Parallel)       │
+                         ├── Phase 20 (Dynamic Spawn)   │
+                         ├── Phase 21 (Agent Teams) ────┤
+                          └── Phase 22 (Computer Use)    │
+                                                         │
+Phase 23 (Workspaces) ─── standalone (affects all layers)
                                                          │
     gws/m365 skills ──► Email/Todos backend ──────────► Phase 16 (Flutter 3)
                                                          └──► Phase 17 (Flutter 4)
@@ -1103,9 +1113,118 @@ Email (8 tools), contacts (6 tools), and todos (5 tools) are disabled pending re
 - **Session**: HybridDB MessageStore + SummarizationMiddleware (no checkpoints)
 - **Subagents**: SQLite work_queue + `SubagentCoordinator` + `ProgressMiddleware` + `InstructionMiddleware`
 - **Parallel tools**: Classified (parallel_safe / sequential / interrupt), `asyncio.gather()` for safe batch
-- **Plugin system**: None (to be added)
+- **Subagents V2**: Parallel execution, dynamic spawn, agent teams (planned below)
+- **Workspaces**: Multi-project isolation with scoped conversation, memory, files, and subagents
 
 ---
+
+## Phase 23: Workspaces — Multi-Project Isolation
+
+> An executive assistant handles multiple projects. Each project gets its own Workspace with scoped conversation history, memory, files, subagents, and custom AI instructions. Modeled on Perplexity Spaces + Claude Code project scoping.
+
+**Current state:** One `user_id` = one conversation stream = one memory bank = one flat file directory. Everything bleeds together. The agent searching "Q2 budget" returns facts from "Home Renovation." Files from all projects share one folder. No way to give different AI instructions per project.
+
+**Goal:** Named Workspaces that isolate context, reduce token waste, and make the agent context-aware per project.
+
+### Architecture
+
+```
+~/Executive Assistant/
+├── Workspaces/
+│   ├── Q2 Planning/
+│   │   ├── files/              ← budget.xlsx, strategy.md
+│   │   ├── conversation.app.db ← scoped chat history
+│   │   ├── memory/             ← scoped HybridDB: "Q2 budget is $2.4M"
+│   │   ├── subagents/          ← research-agent, writer (workspace-scoped)
+│   │   └── instructions.yaml   ← "Respond like a Product Manager. Use AEST."
+│   │
+│   ├── Home Renovation/
+│   │   ├── files/              ← quotes.pdf, floorplan.png
+│   │   ├── conversation.app.db
+│   │   └── ...
+│   │
+│   └── Personal/
+│       └── ...
+│
+├── Skills/                     ← global: available to all workspaces
+├── Memory/global/              ← user-level facts: "Eddy lives in Melbourne"
+├── Subagents/global/           ← user-level agents: research-agent (shared)
+└── data/                       ← internal: email, contacts, todos
+```
+
+### Scoping Rules
+
+| Resource | Workspace scope | Global scope | Default |
+|----------|----------------|-------------|---------|
+| **Conversation** | `data/workspaces/{id}/conversation.app.db` | None — always scoped | Workspace |
+| **Memory** | `data/workspaces/{id}/memory/` | `data/users/{uid}/global_memory/` | Workspace |
+| **Files** | `Workspaces/{name}/files/` | None | Workspace |
+| **Subagents** | `data/workspaces/{id}/subagents/` | `data/users/{uid}/subagents/` | Workspace (user-global fallback) |
+| **Skills** | — | `Skills/` (always global) | Global |
+| **AI Instructions** | Per-workspace `instructions.yaml` | System-wide default | Workspace overrides global |
+
+### LLM Impact: Net Token Reduction
+
+**No additional API calls.** Workspace context is injected into the existing system prompt. The net effect is a token **reduction** for users with multiple projects:
+
+| Factor | Single-session (current) | Multi-workspace (new) |
+|--------|-------------------------|----------------------|
+| **System prompt** | ~1500 chars (skills + rules) | ~1600 chars (+ workspace name + custom instructions) |
+| **Conversation history** | All messages from all topics | Only this workspace's messages |
+| **Memory search** | Must filter across all domains | Pre-filtered by workspace |
+| **Example: 3 projects, 50 msgs each** | 150 messages in context | 50 messages in context |
+
+The conversation history reduction (150 → 50 messages) saves **far more tokens** than the ~100 extra chars for workspace context. A net win.
+
+### Subagent Scoping (Claude Code Model)
+
+```
+Subagent lookup order (highest priority first):
+1. Workspace-scoped: data/workspaces/{id}/subagents/
+2. User-global:       data/users/{uid}/subagents/
+
+If agent_researcher exists in both → workspace version wins.
+If only in user-global → that version is used.
+If neither → agent doesn't know about it.
+```
+
+Workspace subagents have access to workspace files + memory by default. User-global subagents get current workspace context injected.
+
+### Implementation
+
+| Step | What | Lines |
+|------|------|-------|
+| 1 | `Workspace` model: id, name, description, custom_instructions, created_at | ~40 |
+| 2 | `DataPaths` updated with workspace-scoped paths | ~30 |
+| 3 | `workspace_create/list/switch/delete` tools for the agent | ~120 |
+| 4 | System prompt includes workspace name + custom instructions | ~20 |
+| 5 | Conversation history filtered by workspace_id | ~30 (SQL WHERE clause) |
+| 6 | Memory search defaults to workspace scope (`scope` parameter for global) | ~50 |
+| 7 | Subagent registry scoped: workspace-first, user-fallback | ~80 |
+| 8 | Flutter sidebar: workspace switcher dropdown + "New Workspace" button | ~200 |
+| 9 | Flutter WorkspacePanel: shows workspace files, subagents, instructions | ~150 |
+
+### Dependencies
+
+- ✅ `DataPaths` with per-user isolation (exists)
+- ✅ `HybridDB` with per-collection scoping (exists)
+- ✅ `SubagentCoordinator` with agent defs (exists)
+- ✅ Flutter sidebar with icons (exists)
+- ❌ `Workspace` model (new)
+- ❌ Workspace-scoped conversation/memory/file paths (new)
+- ❌ Workspace CRUD tools (new)
+- ❌ Flutter workspace switcher (new)
+
+### Edge Cases
+
+| Scenario | Handling |
+|----------|----------|
+| User deletes workspace | Move files to archive, purge conversation + memory |
+| Agent needs cross-workspace info | `memory_search(query, scope="global")` |
+| No workspace selected | Auto-create "Default" on first launch |
+| Workspace with custom instructions conflicts with system prompt | Workspace instructions appended to system prompt, not replacing it |
+| Subagent created in workspace A used in workspace B | User-global agents only. Workspace agents are scoped. |
+
 
 ## Cross-Reference Documents
 

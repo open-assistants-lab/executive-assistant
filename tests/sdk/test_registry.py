@@ -1,15 +1,10 @@
 """Tests for models.dev registry integration."""
 
-import json
-import time
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from src.sdk.providers.base import ModelCost, ModelInfo
 from src.sdk.registry import (
-    _DEFAULT_CACHE_TTL,
     _transform_api_data,
     _transform_model,
     get_model_info,
@@ -18,7 +13,6 @@ from src.sdk.registry import (
     list_providers,
     refresh,
 )
-
 
 SAMPLE_API_DATA = {
     "openai": {
@@ -118,6 +112,36 @@ SAMPLE_API_DATA = {
                 "release_date": "2024-12-26",
                 "last_updated": "2024-12-26",
             },
+        },
+    },
+    "another-openai-compatible": {
+        "id": "another-openai-compatible",
+        "name": "Another OpenAI Compatible",
+        "npm": "@ai-sdk/openai-compatible",
+        "api": "https://api.example.com/v1",
+        "env": ["EXAMPLE_API_KEY"],
+        "models": {
+            "gpt-4o": {
+                "id": "gpt-4o",
+                "name": "GPT-4o via Example",
+                "reasoning": True,
+                "limit": {"context": 64000, "output": 4096},
+            }
+        },
+    },
+    "ollama-cloud": {
+        "id": "ollama-cloud",
+        "name": "Ollama Cloud",
+        "npm": "@ai-sdk/openai-compatible",
+        "api": "https://ollama.com/v1",
+        "env": ["OLLAMA_API_KEY"],
+        "models": {
+            "minimax-m2.5": {
+                "id": "minimax-m2.5",
+                "name": "minimax-m2.5",
+                "reasoning": True,
+                "limit": {"context": 204800, "output": 131072},
+            }
         },
     },
 }
@@ -222,13 +246,22 @@ class TestTransformApiData:
     def test_models_transformed(self):
         models, _ = _transform_api_data(SAMPLE_API_DATA)
         assert "gpt-4o" in models
+        assert "openai/gpt-4o" in models
+        assert "another-openai-compatible/gpt-4o" in models
+        assert "ollama-cloud/minimax-m2.5" in models
         assert "o3" in models
         assert "claude-sonnet-4-20250514" in models
         assert "deepseek-chat" in models
 
     def test_model_count(self):
         models, _ = _transform_api_data(SAMPLE_API_DATA)
-        assert len(models) == 4
+        # 6 provider/model entries plus 5 bare aliases; duplicate bare gpt-4o does not overwrite.
+        assert len(models) == 11
+
+    def test_duplicate_bare_model_does_not_overwrite_first_provider(self):
+        models, _ = _transform_api_data(SAMPLE_API_DATA)
+        assert models["gpt-4o"].provider_id == "openai"
+        assert models["another-openai-compatible/gpt-4o"].provider_id == "another-openai-compatible"
 
 
 class TestRegistryWithMockData:
@@ -250,6 +283,11 @@ class TestRegistryWithMockData:
         assert info.name == "GPT-4o"
         assert info.provider_id == "openai"
 
+    def test_get_qualified_model_info(self):
+        info = get_model_info("another-openai-compatible/gpt-4o")
+        assert info.name == "GPT-4o via Example"
+        assert info.provider_id == "another-openai-compatible"
+
     def test_get_model_info_unknown(self):
         info = get_model_info("unknown-model")
         assert info.id == "unknown-model"
@@ -258,11 +296,11 @@ class TestRegistryWithMockData:
     def test_list_models_filter_provider(self):
         models = list_models(provider="openai")
         assert all(m.provider_id == "openai" for m in models)
-        assert len(models) == 2
+        assert len(models) == 4
 
     def test_list_models_filter_reasoning(self):
         models = list_models(reasoning=True)
-        assert len(models) == 2  # o3 + claude-sonnet-4
+        assert len(models) == 7
 
     def test_list_models_filter_tool_call(self):
         models = list_models(tool_call=True)

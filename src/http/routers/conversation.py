@@ -18,9 +18,9 @@ router = APIRouter(tags=["conversation"])
 
 
 @router.get("/conversation")
-async def get_conversation(user_id: str = "default_user", limit: int = 100):
+async def get_conversation(user_id: str = "default_user", limit: int = 100, workspace_id: str = "personal"):
     """Get conversation history."""
-    conversation = get_message_store(user_id)
+    conversation = get_message_store(user_id, workspace_id)
     messages = conversation.get_recent_messages(limit)
 
     return {

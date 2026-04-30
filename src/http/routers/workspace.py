@@ -10,6 +10,26 @@ from src.storage.paths import get_paths
 router = APIRouter(tags=["workspace"])
 
 
+@router.get("/workspace/json")
+async def list_workspace_json(user_id: str = "default_user", workspace_id: str = "personal"):
+    """List files in workspace as structured JSON."""
+    from src.storage.paths import DataPaths
+    paths = DataPaths(user_id=user_id, workspace_id=workspace_id)
+    workspace_dir = paths.workspace_files_dir()
+    items = []
+    if workspace_dir.exists():
+        for item in sorted(workspace_dir.iterdir()):
+            is_dir = item.is_dir()
+            stat = item.stat()
+            items.append({
+                "name": item.name,
+                "is_dir": is_dir,
+                "size": stat.st_size if not is_dir else 0,
+                "modified": stat.st_mtime,
+            })
+    return {"files": items, "path": str(workspace_dir)}
+
+
 @router.get("/workspace/read/{path:path}")
 async def read_workspace_file(path: str, user_id: str = "default_user"):
     """Read file - auto-mark as downloaded."""
@@ -103,11 +123,12 @@ async def mark_downloaded(path: str, user_id: str = "default_user"):
 
 
 @router.get("/sync/stream")
-async def sync_stream(user_id: str = "default_user"):
+async def sync_stream(user_id: str = "default_user", workspace_id: str = "personal"):
     """SSE stream for real-time file change notifications."""
 
     async def event_generator():
-        workspace_path = get_paths(user_id).workspace_dir()
+        paths = get_paths(user_id, workspace_id=workspace_id)
+        workspace_path = paths.workspace_files_dir()
 
         skills_path = get_paths(user_id).skills_dir()
         subagents_path = get_paths(user_id).subagents_dir()

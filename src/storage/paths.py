@@ -32,12 +32,14 @@ class DataPaths:
         data_path: str | None = None,
         user_id: str | None = None,
         team_id: str | None = None,
+        workspace_id: str | None = None,
     ):
         settings = get_settings()
         self.deployment = deployment or settings.deployment
         self.base = Path(data_path or settings.data_path or "data")
         self.user_id = user_id or DEFAULT_USER_ID
         self.team_id = team_id
+        self.workspace_id = workspace_id or "personal"
         self.base.mkdir(parents=True, exist_ok=True)
 
     # -- Per-user base directory --
@@ -85,21 +87,71 @@ class DataPaths:
         p.mkdir(parents=True, exist_ok=True)
         return p
 
-    def workspace_dir(self) -> Path:
-        settings = get_settings()
-        if settings.filesystem.workspace_root:
-            p = Path(settings.filesystem.workspace_root).expanduser().resolve()
-            p.mkdir(parents=True, exist_ok=True)
-            return p
-        # Default for single-user desktop: ~/Executive Assistant/
-        p = Path.home() / "Executive Assistant"
+    # ── Workspace-scoped paths ──
+
+    def _workspaces_base(self) -> Path:
+        p = Path.home() / "Executive Assistant" / "Workspaces"
         p.mkdir(parents=True, exist_ok=True)
         return p
 
-    def skills_dir(self) -> Path:
-        p = self._user_base() / "skills"
+    def _workspace_dir(self) -> Path:
+        p = self._workspaces_base() / self.workspace_id
         p.mkdir(parents=True, exist_ok=True)
         return p
+
+    def workspace_files_dir(self) -> Path:
+        p = self._workspace_dir() / "files"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    def workspace_memory_dir(self) -> Path:
+        p = self._workspace_dir() / "memory"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    def workspace_conversation_path(self) -> Path:
+        return self._workspace_dir() / "conversation.app.db"
+
+    def workspace_subagents_dir(self) -> Path:
+        p = self._workspace_dir() / "subagents"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    def workspace_skills_dir(self) -> Path:
+        p = self._workspace_dir() / "skills"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    # ── User-global paths (cross-workspace) ──
+
+    def global_memory_dir(self) -> Path:
+        p = Path.home() / "Executive Assistant" / "Memory" / "global"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    def global_subagents_dir(self) -> Path:
+        p = self._user_base() / "subagents" / "global"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    # ── Legacy (backward compat) ──
+
+    def workspace_dir(self) -> Path:
+        """Deprecated: use workspace_files_dir() instead."""
+        return self.workspace_files_dir()
+
+    def skills_dir(self) -> Path:
+        mode = getattr(self.deployment, "mode", None) if hasattr(self, "deployment") else None
+        if mode == "solo":
+            p = Path.home() / "Executive Assistant" / "Skills"
+        else:
+            p = self._user_base() / "skills"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    def global_skills_dir(self) -> Path:
+        """User-global skills directory (same as skills_dir)."""
+        return self.skills_dir()
 
     def subagents_dir(self) -> Path:
         p = self._user_base() / "subagents"
@@ -253,11 +305,16 @@ class DataPaths:
 _paths_cache: dict[str, DataPaths] = {}
 
 
-def get_paths(user_id: str | None = None, team_id: str | None = None) -> DataPaths:
+def get_paths(
+    user_id: str | None = None,
+    team_id: str | None = None,
+    workspace_id: str | None = None,
+) -> DataPaths:
     """Get DataPaths instance (cached per user_id+team_id pair).
 
     In solo mode: user_id defaults to "default_user", team_id is None.
     In team mode: user_id comes from auth (JWT), team_id from config.
+    workspace_id is NOT part of the cache key — it changes per session.
     """
     uid = user_id or DEFAULT_USER_ID
     tid = team_id  # None for solo mode
@@ -266,4 +323,8 @@ def get_paths(user_id: str | None = None, team_id: str | None = None) -> DataPat
     if cache_key not in _paths_cache:
         _paths_cache[cache_key] = DataPaths(user_id=uid, team_id=tid)
 
-    return _paths_cache[cache_key]
+    dp = _paths_cache[cache_key]
+    if workspace_id and workspace_id != dp.workspace_id:
+        # workspace changed — return fresh instance with new workspace_id
+        return DataPaths(user_id=uid, team_id=tid, workspace_id=workspace_id)
+    return dp

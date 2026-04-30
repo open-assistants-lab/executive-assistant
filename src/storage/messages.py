@@ -45,12 +45,14 @@ class MessageStore:
         └── vectors/ # ChromaDB for semantic search
     """
 
-    def __init__(self, user_id: str, base_dir: Path | str | None = None):
+    def __init__(self, user_id: str, base_dir: Path | str | None = None, workspace_id: str = "personal"):
         self.user_id = user_id
+        self.workspace_id = workspace_id
         if base_dir is not None:
             base_path = Path(base_dir)
         else:
-            base_path = get_paths(user_id).conversation_dir()
+            paths = get_paths(user_id, workspace_id=workspace_id)
+            base_path = paths.workspace_conversation_path().parent
         base_path.mkdir(parents=True, exist_ok=True)
 
         self.db = HybridDB(str(base_path))
@@ -245,7 +247,8 @@ class MessageStore:
 _stores: dict[str, MessageStore] = {}
 
 
-def get_message_store(user_id: str = "default_user") -> MessageStore:
-    if user_id not in _stores:
-        _stores[user_id] = MessageStore(user_id)
-    return _stores[user_id]
+def get_message_store(user_id: str = "default_user", workspace_id: str = "personal") -> MessageStore:
+    key = f"{user_id}:{workspace_id}"
+    if key not in _stores:
+        _stores[key] = MessageStore(user_id, workspace_id=workspace_id)
+    return _stores[key]

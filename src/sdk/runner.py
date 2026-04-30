@@ -4,6 +4,8 @@ This is the bridge between the HTTP layer and the SDK AgentLoop.
 It handles:
   - Creating LLM provider from config
   - Loading SDK-native tools (no more LangChain adapter)
+  - Loading MCP tools via MCPToolBridge
+  - Loading SaaS connector tools via AgentConnectBridge
   - Assembling SDK middlewares (memory, summarization)
   - Converting between WS protocol messages and StreamChunks
   - Thread-safe per-user agent instances
@@ -25,6 +27,7 @@ from src.sdk.middleware_memory import MemoryMiddleware
 from src.sdk.middleware_summarization import SummarizationMiddleware
 from src.sdk.native_tools import get_native_tools
 from src.sdk.providers.factory import create_model_from_config
+from src.sdk.tools import ToolAnnotations, ToolDefinition, ToolResult
 
 logger = get_logger()
 
@@ -32,10 +35,74 @@ _loop_cache: dict[str, AgentLoop] = {}
 _loop_lock = asyncio.Lock()
 
 
-def _get_system_prompt(user_id: str) -> str:
+def _seed_default_workspace() -> None:
+    """Create the default Personal workspace if it doesn't exist."""
+    try:
+        from src.sdk.workspace_models import Workspace, load_workspace, save_workspace
+        from src.storage.paths import DataPaths
+        ws = load_workspace("personal")
+        if ws is None:
+            ws = Workspace.from_name("Personal")
+            ws.description = "Default personal workspace"
+            save_workspace(ws)
+            dp = DataPaths(workspace_id="personal")
+            dp.workspace_files_dir()
+            dp.workspace_memory_dir()
+            dp.workspace_subagents_dir()
+    except Exception:
+        pass
+
+
+def _get_system_prompt(user_id: str, workspace_id: str | None = None) -> str:
     settings = get_settings()
     base_prompt = getattr(settings.agent, "system_prompt", "You are a helpful executive assistant.")
-    return base_prompt + f"\n\nuser_id: {user_id}"
+
+    # Inject available skills
+    skills_context = _get_skills_context(user_id)
+
+    # Inject workspace context
+    workspace_context = _get_workspace_context(workspace_id)
+
+    return base_prompt + skills_context + workspace_context + f"\n\nuser_id: {user_id}"
+
+
+def _get_workspace_context(workspace_id: str | None) -> str:
+    """Build workspace context for the system prompt."""
+    if not workspace_id:
+        return ""
+    try:
+        from src.sdk.workspace_models import load_workspace
+        ws = load_workspace(workspace_id)
+        if ws is None or ws.id == "personal":
+            return ""
+        lines = [f"\n\n## Current Workspace: {ws.name}"]
+        if ws.custom_instructions:
+            lines.append(ws.custom_instructions)
+        return "\n".join(lines)
+    except Exception:
+        return ""
+
+
+def _get_skills_context(user_id: str) -> str:
+    """Build a concise skills reference for the system prompt."""
+    try:
+        from src.skills.registry import get_skill_registry
+
+        registry = get_skill_registry(user_id=user_id)
+        skills = registry.get_all_skills()
+        if not skills:
+            return ""
+
+        lines = ["\n\n## Available Skills"]
+        lines.append("When a task matches a skill description below, call skills_load(name) first to get detailed instructions before proceeding. Do NOT call skills_list — descriptions are already here.")
+        lines.append("")
+        for s in skills:
+            name = s.get("name", "")
+            desc = s.get("description", "")
+            lines.append(f"- **{name}**: {desc}")
+        return "\n".join(lines)
+    except Exception:
+        return ""
 
 
 async def create_sdk_loop(user_id: str) -> AgentLoop:
@@ -46,6 +113,9 @@ async def create_sdk_loop(user_id: str) -> AgentLoop:
     No more LangChain adapter needed.
     """
     import time
+
+    # Auto-seed default workspace on first launch
+    _seed_default_workspace()
 
     t0 = time.monotonic()
     settings = get_settings()
@@ -70,7 +140,29 @@ async def create_sdk_loop(user_id: str) -> AgentLoop:
     except Exception as e:
         logger.warning("sdk_runner.mcp_failed", {"error": str(e)}, user_id=user_id)
 
-    all_tools = tools + mcp_tools
+    connector_tools: list = []
+    connector_bridge = None
+    try:
+        from agent_connect.bridge import AgentConnectBridge
+
+        connector_bridge = AgentConnectBridge(user_id=user_id)
+        await connector_bridge.discover()
+        connector_tools = connector_bridge.get_tool_definitions()
+        if connector_tools:
+            logger.info(
+                "sdk_runner.connector_tools",
+                {"count": len(connector_tools)},
+                user_id=user_id,
+            )
+    except Exception as e:
+        logger.warning(
+            "sdk_runner.connector_failed", {"error": str(e)}, user_id=user_id
+        )
+
+    # Convert connector dicts to ToolDefinitions
+    connector_tool_defs = _connector_dicts_to_defs(connector_tools)
+
+    all_tools = tools + mcp_tools + connector_tool_defs
     t3 = time.monotonic()
 
     logger.info("sdk_runner.tools_loaded", {"count": len(all_tools)}, user_id=user_id)
@@ -102,6 +194,9 @@ async def create_sdk_loop(user_id: str) -> AgentLoop:
     if mcp_bridge:
         loop._mcp_bridge = mcp_bridge
 
+    if connector_bridge:
+        loop._connector_bridge = connector_bridge
+
     t5 = time.monotonic()
     logger.info(
         "sdk_runner.create_timing",
@@ -126,6 +221,36 @@ async def get_sdk_loop(user_id: str) -> AgentLoop:
             _loop_cache[user_id] = await create_sdk_loop(user_id)
             logger.info("sdk_runner.loop_created", {"user_id": user_id}, user_id=user_id)
         return _loop_cache[user_id]
+
+
+def _connector_dicts_to_defs(dicts: list[dict]) -> list[ToolDefinition]:
+    """Convert connector tool dicts to SDK ToolDefinition objects.
+
+    Connector adapters produce plain dicts (to avoid depending on the EA SDK).
+    This function converts them to proper ToolDefinition instances.
+    """
+    defs = []
+    for d in dicts:
+        annotations = ToolAnnotations(
+            title=d.get("annotations", {}).get("title", d["name"]),
+            read_only=d.get("annotations", {}).get("read_only", False),
+            destructive=d.get("annotations", {}).get("destructive", False),
+            idempotent=d.get("annotations", {}).get("idempotent", False),
+        )
+        func = d.get("function")
+        ainvoke = d.get("ainvoke")
+
+        td = ToolDefinition(
+            name=d["name"],
+            description=d["description"],
+            parameters=d.get("parameters", {}),
+            annotations=annotations,
+            function=func,
+        )
+        if ainvoke:
+            td._coroutine = ainvoke
+        defs.append(td)
+    return defs
 
 
 def _messages_from_conversation(messages: list[Any]) -> list[Message]:
@@ -178,6 +303,7 @@ async def run_sdk_agent(
 async def run_sdk_agent_stream(
     user_id: str,
     messages: list[Message],
+    workspace_id: str | None = None,
 ) -> Any:
     """Run the SDK agent loop with streaming.
 
@@ -186,11 +312,22 @@ async def run_sdk_agent_stream(
     Args:
         user_id: User identifier.
         messages: Conversation history as SDK Messages.
+        workspace_id: Current workspace ID for context injection.
 
     Yields:
         StreamChunk events.
     """
     loop = await get_sdk_loop(user_id)
+
+    # Inject workspace context into the first system message if present
+    if workspace_id:
+        ctx = _get_workspace_context(workspace_id)
+        if ctx and messages:
+            for i, m in enumerate(messages):
+                if m.role == "system":
+                    messages[i] = Message.system(m.content + ctx)
+                    break
+
     try:
         async for chunk in loop.run_stream(messages):
             yield chunk

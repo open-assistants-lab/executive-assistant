@@ -2055,40 +2055,85 @@ final seq = ++_sequence;
 
 ---
 
-## Flutter Fix Status (April 28, 2026)
+## Flutter Fix Status (Verified May 1, 2026)
+
+Each bug re-verified against actual source code. See detailed notes for partially-fixed bugs.
 
 | Bug | Severity | Status | Notes |
 |-----|----------|--------|-------|
-| BUG-F01 | 🔴 Critical | ✅ Fixed | `ws_client.dart`: pending message queue only pops on success; failed sends retry next reconnect |
-| BUG-F02 | 🔴 Critical | ✅ Fixed | `agent_provider.dart`: `_loadHistorySafely()` wraps `loadHistory()` with `await` + error state on failure |
-| BUG-F03 | 🔴 Critical | ✅ Fixed | `ws_client.dart`: replaced single `_pendingMessage` (String?) with `_pendingMessages` (List) queue |
-| BUG-F04 | 🟠 High | ✅ Fixed | `ws_client.dart`: added `catchError` to `_channel!.ready.then()` + try/catch around ping send |
+| BUG-F01 | 🔴 Critical | ✅ Fixed | `ws_client.dart`: replaced single `_pendingMessage` (String?) with `_pendingMessages` (List) queue; failed sends leave message in queue for next reconnect |
+| BUG-F02 | 🔴 Critical | 🟡 Partial | `agent_provider.dart`: `_loadHistorySafely()` wraps `loadHistory()` with error handling, but call is still fire-and-forget (no `await`). Concurrent state mutations from incoming WebSocket messages can interleave with `loadHistory()`. See [F02 detail](#bug-f02-detail) below. |
+| BUG-F03 | 🔴 Critical | ✅ Fixed | `ws_client.dart`: `_pendingMessages` is now a `List`; each new message is appended instead of overwriting |
+| BUG-F04 | 🟠 High | ✅ Fixed | `ws_client.dart`: `.catchError()` handler added; schedules reconnect on failure |
 | BUG-F05 | 🟠 High | ✅ Fixed | `message_bubble.dart`, `streaming_bubble.dart`: `MediaQuery.size.width * 0.75` → `LayoutBuilder.maxWidth * 0.85` |
-| BUG-F06 | 🟠 High | ✅ Fixed | `approval_sheet.dart`: renders all pending approvals in `ListView.builder` instead of just first |
-| BUG-F07 | 🟠 High | ✅ Fixed | `approval_sheet.dart`: empty sheet auto-pops via `Navigator.pop()` instead of showing blank |
-| BUG-F08 | 🟠 High | ✅ Fixed | `chat_screen.dart`: added `mounted` guard before `showModalBottomSheet` |
-| BUG-F09 | 🟠 High | ✅ Fixed | `agent_provider.dart`: `cancelExecution()` checks `state.connected` before choosing status |
-| BUG-F10 | 🟡 Medium | ✅ Fixed | `chat_screen.dart`: `_sheetShowing` flag prevents double bottom sheet stacking |
-| BUG-F11 | 🟡 Medium | ✅ Fixed | `agent_provider.dart`: `updateHost`/`updateUserId` now disconnect + reconnect |
+| BUG-F06 | 🟠 High | ✅ Fixed | `approval_sheet.dart`: renders all pending approvals via `pendingApprovals.values.toList()` + `ListView.builder` |
+| BUG-F07 | 🟠 High | ✅ Fixed | `approval_sheet.dart`: empty sheet auto-pops via `addPostFrameCallback` + `Navigator.pop()` |
+| BUG-F08 | 🟠 High | 🟡 Partial | `chat_screen.dart`: `_sheetShowing` flag added to prevent overlapping sheets. **BUT** no `mounted` check after the async `showModalBottomSheet` gap — if widget is disposed during the sheet, `_sheetShowing` stays `true` permanently and no more approval sheets can ever open. See [F08 detail](#bug-f08-detail) below. |
+| BUG-F09 | 🟠 High | ✅ Fixed | `agent_provider.dart`: `cancelExecution()` sets `ChatStatus.disconnected` when `!state.connected` |
+| BUG-F10 | 🟡 Medium | ✅ Fixed | `chat_screen.dart`: `_sheetShowing` flag prevents concurrent bottom sheet stacking |
+| BUG-F11 | 🟡 Medium | ✅ Fixed | `agent_provider.dart`: `updateHost`/`updateUserId` both call `disconnect()` + `connect()` |
 | BUG-F12 | 🟡 Medium | ✅ Fixed | `agent_provider.dart`: empty `catch (e) {}` → `debugPrint` with error + stack trace |
-| BUG-F13 | 🟡 Medium | ✅ Fixed | `agent_provider.dart`: skip messages with null role instead of defaulting to `'user'` |
-| BUG-F14 | 🟡 Medium | ✅ Fixed | `agent_provider.dart`: bad timestamps use offset fallback `now - Duration(minutes: idx)` |
-| BUG-F15 | 🟡 Medium | ✅ Fixed | `api_client.dart`: removed duplicate `user_id` from `listMemories` URL params |
-| BUG-F16 | 🟡 Medium | ✅ Fixed | `mobile_layout.dart`: unknown routes now keep previous tab instead of defaulting to 0 |
-| BUG-F17 | 🟡 Medium | ⏭️ Skipped | `initState` connect delay is negligible in practice — WebSocket connect is async, doesn't block first frame |
-| BUG-F18 | 🔵 Low | ⏭️ Skipped | Reasoning event persistence is a feature enhancement, not a bug |
-| BUG-F19 | 🔵 Low | ⏭️ Skipped | Tool input deltas are already rendered via `activeToolCalls` live-streaming |
-| BUG-F20 | 🔵 Low | ⏭️ Skipped | Usage tracking is Phase 14; not a correctness bug |
-| BUG-F21 | 🔵 Low | ⏭️ Skipped | `_send()` catch is intentional — failure is non-fatal and reconnection handles eventual delivery |
-| BUG-F22 | 🔵 Low | ⏭️ Skipped | Binary WebSocket data is irrelevant — all messages are JSON strings |
-| BUG-F23 | 🔵 Low | ⏭️ Skipped | Horizontal scroll for thin panels is a UX enhancement |
-| BUG-F24 | 🔵 Low | ⏭️ Skipped | `SmartGreeting` midnight race is cosmetic — affects one frame |
-| BUG-F25 | 🔵 Low | ⏭️ Skipped | `QuickActions` chip callbacks are placeholder by design |
-| BUG-F26 | 🔵 Low | ⏭️ Skipped | `tool_end` removing from `_pendingApprovals` is correct — prevents stale entries |
-| BUG-F27 | 🔵 Low | ⏭️ Skipped | Divider count mismatch is cosmetic — no overflow |
-| BUG-F28 | 🔵 Low | ⏭️ Skipped | Sequence counter thread safety is irrelevant — all Dart code runs on single isolate |
+| BUG-F13 | 🟡 Medium | ✅ Fixed | `agent_provider.dart`: messages without `role` are skipped (`continue`) instead of defaulting to `'user'` |
+| BUG-F14 | 🟡 Medium | ✅ Fixed | `agent_provider.dart`: bad timestamps use staggered fallback `now.subtract(Duration(minutes: idx))` |
+| BUG-F15 | 🟡 Medium | ✅ Fixed | `api_client.dart`: removed duplicate `user_id` from `listMemories` extra params |
+| BUG-F16 | 🟡 Medium | 🟡 Partial | `mobile_layout.dart`: unknown routes no longer force Home tab highlight (was index 0). Falls back to last-selected tab. Better, but stale tab selection on deep routes is still incorrect UX. |
+| BUG-F17 | 🟡 Medium | ❌ Not fixed | `desktop_layout.dart`: `initState` at line 190 still calls `connect()` synchronously with no error handling. WebSocket connect is async so it won't literally block the frame, but no error path if connect fails. |
+| BUG-F18 | 🔵 Low | ✅ Fixed | `agent_provider.dart`: `reasoning_delta`, `reasoning_start`, `reasoning_end` all have explicit handler cases (consumed with TODO for future storage) |
+| BUG-F19 | 🔵 Low | ✅ Fixed | `agent_provider.dart`: `tool_input_delta` and `tool_input_end` now have explicit handler cases |
+| BUG-F20 | 🔵 Low | ✅ Fixed | `agent_provider.dart`: `usage` events now have explicit handler case with TODO for session tracking |
+| BUG-F21 | 🔵 Low | ❌ Not fixed | `ws_client.dart`: `_send()` still silently catches all exceptions with only a `debugPrint`. No callback, no `Future` return, no status update. Callers have no way to know send failed. |
+| BUG-F22 | 🔵 Low | ❌ Not fixed | `ws_client.dart`: binary WebSocket data still silently dropped with `if (data is! String) return;` — no logging, no visibility. |
+| BUG-F23 | 🔵 Low | ❌ Not fixed | `desktop_layout.dart`: content panel at line 62 still has no horizontal scroll protection — `SizedBox` constrains width but overflow not handled. |
+| BUG-F24 | 🔵 Low | ❌ Not fixed | `smart_greeting.dart`: `DateTime.now()` still called 4 separate times (lines 9, 16, 17, 18), risking midnight boundary display inconsistency. |
+| BUG-F25 | 🔵 Low | ❌ Not fixed | `home_screen.dart`: `_DesktopHome` passes `const QuickActions()` with no callbacks at line 186 — action chips render as tappable but do nothing. |
+| BUG-F26 | 🔵 Low | ✅ Fixed | `ws_client.dart`: `Map.remove(callId)` is safe in Dart even for non-existent keys. No stale state issue. |
+| BUG-F27 | 🔵 Low | ✅ Fixed | `desktop_layout.dart`: `dividerCount = 2` correctly matches the 2 actual `Container(width: 1)` divider widgets. |
+| BUG-F28 | 🔵 Low | ❌ Not fixed | `test_instrumentation.dart`: `_sequence` is still a plain `int` incremented non-atomically at line 45. Low practical risk in single-isolate Dart, but fix is trivial (`final seq = ++_sequence`). |
 
-**Flutter: 16/28 fixed, 12/28 skipped (8 enhancements/cosmetic, 4 non-issues)**
+### BUG-F02 Detail
+
+The fix added `_loadHistorySafely()` which wraps the body in try/catch and sets error state on failure. But the call site in `_onStatusChange()` is still fire-and-forget:
+
+```dart
+void _onStatusChange(WsConnectionStatus status) {
+  if (status == WsConnectionStatus.connected) {
+    _loadHistorySafely();  // 🔴 Not awaited — still fire-and-forget
+    ...
+  }
+}
+```
+
+During the async gap while `_loadHistorySafely()` fetches history over HTTP, `_onMessage` can fire from the WebSocket stream and mutate state concurrently. If history loads after live messages, the loaded history overwrites newly arrived messages. The error surface is improved (failures are logged), but the concurrency bug remains.
+
+**To complete the fix:** Either `await` the call (requires making `_onStatusChange` async) or gate live message processing until history load completes.
+
+### BUG-F08 Detail
+
+The fix added a `_sheetShowing` boolean to prevent double-stacking bottom sheets. However, the flow has an async gap:
+
+```dart
+void _showApprovalSheet() {
+  if (_sheetShowing) return;
+  _sheetShowing = true;
+  showModalBottomSheet(...).then((_) {
+    _sheetShowing = false;  // 🔴 Never runs if widget disposed
+  });
+}
+```
+
+If the widget is disposed while the bottom sheet is open (user navigates away, app backgrounded, rapid state transition), the `.then()` callback never fires and `_sheetShowing` remains `true` permanently. All subsequent approval events are silently ignored — no more sheets can ever open.
+
+**To complete the fix:** Reset `_sheetShowing` in `dispose()`:
+
+```dart
+@override
+void dispose() {
+  _sheetShowing = false;
+  super.dispose();
+}
+```
+
+### Flutter: 18/28 fixed, 3/28 partially fixed, 7/28 not fixed
 
 ---
 
@@ -2096,8 +2141,11 @@ final seq = ++_sequence;
 
 | Layer | Critical | High | Medium | Low | Total | Fixed |
 |-------|----------|------|--------|-----|-------|-------|
-| Backend SDK | 2 | 2 | 9 | 5 | 18 | 11 |
+| Backend SDK | 2 | 2 | 9 | 5 | 18 | 10 |
 | HTTP Layer | 0 | 2 | 6 | 0 | 8 | 4 |
 | HTML Test Harness | 0 | 0 | 3 | 2 | 5 | 0 |
-| Flutter App | 3 | 6 | 8 | 11 | 28 | 16 |
-| **Overall** | **5** | **10** | **26** | **18** | **56** | **27 fixed** |
+| Flutter App | 3 | 6 | 8 | 11 | 28 | 18 |
+| **Overall** | **5** | **10** | **26** | **18** | **56** | **28 fixed, 3 partial, 7 not fixed** |
+
+### Backend: 10/18 fixed, 1 broken (BUG-03)
+### Flutter: 18/28 fixed, 3 partial, 7 not fixed

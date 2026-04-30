@@ -36,6 +36,10 @@ from src.sdk.guardrails import (
     ToolGuardrail,
 )
 from src.sdk.handoffs import Handoff
+from src.sdk.messages import Message, StreamChunk, ToolCall, Usage
+from src.sdk.middleware import Middleware
+from src.sdk.providers.base import LLMProvider, ModelCost
+from src.sdk.state import AgentState
 from src.sdk.subagent_models import TaskCancelledError
 from src.sdk.tools import ToolDefinition, ToolRegistry, ToolResult
 from src.sdk.tracing import SpanType, TraceProvider
@@ -44,7 +48,7 @@ from src.sdk.validation import repair_tool_call
 logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_ITERATIONS = 25
-DEFAULT_MAX_LLM_CALLS = 25
+DEFAULT_MAX_LLM_CALLS = 50
 DEFAULT_MAX_TOKENS_TOTAL = 1_000_000
 DEFAULT_COST_LIMIT_USD = 10.0
 
@@ -867,6 +871,24 @@ class AgentLoop:
                     yield StreamChunk.error(message=f"Output blocked: {e.result.message}")
                 break
 
+            # Deduplicate identical tool calls within a single LLM response.
+            # Reasoning models (MiniMax M2.5, etc.) sometimes emit duplicate
+            # tool_use blocks. Keep only the first occurrence per unique (name, args) pair.
+            seen_keys: set[tuple[str, str]] = set()
+            deduped_calls: list[ToolCall] = []
+            for tc in stream_tool_calls:
+                key = (tc.name, json.dumps(tc.arguments, sort_keys=True))
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    deduped_calls.append(tc)
+            if len(deduped_calls) < len(stream_tool_calls):
+                logger.debug(
+                    "sdk.deduped_tool_calls removed %d duplicates",
+                    len(stream_tool_calls) - len(deduped_calls),
+                )
+            stream_tool_calls = deduped_calls
+
+            # Record tool calls AFTER dedup so only unique names are reported
             all_tool_calls.extend([{"name": tc.name, "call_id": tc.id} for tc in stream_tool_calls])
 
             # Classify tool calls: parallel-safe, sequential, interrupts

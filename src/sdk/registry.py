@@ -24,7 +24,7 @@ import logging
 import os
 import time
 from pathlib import Path
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 from src.sdk.providers.base import ModelCost, ModelInfo
 from src.storage.paths import get_paths
@@ -124,7 +124,13 @@ def _transform_api_data(data: dict) -> tuple[dict[str, ModelInfo], dict[str, dic
         }
 
         for model_id, model_data in provider_data.get("models", {}).items():
-            models[model_id] = _transform_model(model_id, model_data, provider_id)
+            model_info = _transform_model(model_id, model_data, provider_id)
+            qualified_id = f"{provider_id}/{model_id}"
+            models[qualified_id] = model_info
+
+            # Preserve bare model lookup as a convenience alias, but never let duplicate
+            # model IDs from later providers overwrite earlier provider-specific choices.
+            models.setdefault(model_id, model_info)
 
     return models, providers
 
@@ -183,7 +189,8 @@ def _save_to_cache(data: dict) -> None:
 def _fetch_api() -> dict | None:
     url = _get_api_url()
     try:
-        with urlopen(url, timeout=10) as resp:
+        request = Request(url, headers={"User-Agent": "executive-assistant/1.0"})
+        with urlopen(request, timeout=10) as resp:
             data = json.loads(resp.read())
         data["_fetched_at"] = time.time()
         _save_to_cache(data)
@@ -286,6 +293,30 @@ def _load_builtin() -> dict:
                     "modalities": {"input": ["text"], "output": ["text"]},
                     "release_date": "2025-03",
                     "last_updated": "2025-03",
+                },
+            },
+        },
+        "ollama-cloud": {
+            "id": "ollama-cloud",
+            "name": "Ollama Cloud",
+            "npm": "@ai-sdk/openai-compatible",
+            "api": "https://ollama.com/v1",
+            "env": ["OLLAMA_API_KEY"],
+            "doc": "https://docs.ollama.com/cloud",
+            "models": {
+                "minimax-m2.5": {
+                    "id": "minimax-m2.5",
+                    "name": "minimax-m2.5",
+                    "family": "minimax",
+                    "attachment": False,
+                    "reasoning": True,
+                    "tool_call": True,
+                    "structured_output": True,
+                    "temperature": True,
+                    "open_weights": False,
+                    "cost": {"input": 0.0, "output": 0.0},
+                    "limit": {"context": 204800, "output": 131072},
+                    "modalities": {"input": ["text"], "output": ["text"]},
                 },
             },
         },
