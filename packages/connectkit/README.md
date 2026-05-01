@@ -29,13 +29,13 @@ ConnectKit does all of that once, done right. One YAML file per service. No Pyth
 
 | Feature | Status |
 |---------|--------|
-| 524 SaaS connectors (from Nango's 779-provider baseline) | ✅ |
+| 544 SaaS connectors (from Nango's provider baseline) | ✅ |
 | YAML-based connector spec (no Python code per service) | ✅ |
 | Encrypted SQLite credential vault (Fernet) | ✅ |
 | Universal OAuth 2.0 router (one endpoint, all services) | ✅ |
 | CLI adapter backend (wraps any SaaS CLI) | ✅ |
 | MCP adapter backend (connects to MCP servers) | ✅ |
-| Dual CLI + MCP support per connector (53+ connectors) | ✅ |
+| Dual CLI + MCP support per connector (69+ connectors) | ✅ |
 | Connector catalog (list available services + status) | ✅ |
 | Agent meta-tools (list, connect, disconnect, health) | ✅ |
 | Per-user credential isolation | ✅ |
@@ -93,9 +93,9 @@ tool_sources:
 
 | Backend | Count | Best for |
 |---------|-------|----------|
-| **CLI** | 63 | SaaS with official CLIs (gws, gh, glab, m365, stripe, sf, vercel, etc.) |
-| **MCP** | 514 | SaaS with MCP servers (first-party or community) |
-| **Dual** (CLI + MCP) | 53 | Best available backend picked at runtime |
+| **CLI** | 2 | SaaS with official CLIs (gws, gh, glab, m365, stripe, sf, vercel, etc.) |
+| **MCP** | 11 | SaaS with MCP servers (first-party or community) |
+| **Dual** (CLI + MCP) | 69 | Best available backend picked at runtime |
 
 ### CredentialVault
 
@@ -166,4 +166,4 @@ Eddy Xu
 
 ## Status
 
-Alpha — actively developed. Core spec model, vault, OAuth router, and adapter backends are stable with full test coverage (152+ tests). 524 connectors shipped. Currently used in production in the Executive Assistant agent system.
+Alpha — actively developed. Core spec model, vault, OAuth router, and adapter backends are stable with full test coverage (152+ tests). 544 connectors shipped. Currently used in production in the Executive Assistant agent system.
