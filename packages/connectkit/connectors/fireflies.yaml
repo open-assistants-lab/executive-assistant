@@ -1,0 +1,22 @@
+name: fireflies
+display: Fireflies
+icon: fireflie
+category: analytics
+version: '1.0'
+description: Fireflies
+auth:
+  type: api_key
+  api_key:
+    env_var: FIREFLIES_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Fireflies account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/fireflies
+tool_source:
+  type: mcp
+  server_name: fireflies
+  command: fireflies-mcp-server

@@ -1,0 +1,20 @@
+name: unauthenticated
+display: Unauthenticated
+icon: unauthen
+category: other
+version: '1.0'
+description: Unauthenticated
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: ''
+    token_url: ''
+    scopes:
+    - read
+    token_env_var: UNAUTHENTICATED_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/unauthenticated
+tool_source:
+  type: mcp
+  server_name: unauthenticated
+  command: unauthenticated-mcp-server

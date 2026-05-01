@@ -1,0 +1,22 @@
+name: plain
+display: Plain
+icon: plain
+category: support
+version: '1.0'
+description: Plain
+auth:
+  type: api_key
+  api_key:
+    env_var: PLAIN_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Plain account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/plain
+tool_source:
+  type: mcp
+  server_name: plain
+  command: plain-mcp-server

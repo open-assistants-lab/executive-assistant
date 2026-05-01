@@ -1,0 +1,20 @@
+name: aircall
+display: Aircall (OAuth)
+icon: aircall
+category: support
+version: '1.0'
+description: Aircall (OAuth)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://dashboard.aircall.io/oauth/authorize
+    token_url: https://api.aircall.io/v1/oauth/token
+    scopes:
+    - read
+    token_env_var: AIRCALL_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/aircall
+tool_source:
+  type: cli
+  command: aircall
+  install: '# See service docs'

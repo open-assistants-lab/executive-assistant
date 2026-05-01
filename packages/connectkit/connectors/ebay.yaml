@@ -1,0 +1,20 @@
+name: ebay
+display: eBay
+icon: ebay
+category: e-commerce
+version: '1.0'
+description: eBay
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://auth.ebay.com/oauth2/authorize
+    token_url: https://api.ebay.com/identity/v1/oauth2/token
+    scopes:
+    - read
+    token_env_var: EBAY_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/ebay
+tool_source:
+  type: mcp
+  server_name: ebay
+  command: ebay-mcp-server

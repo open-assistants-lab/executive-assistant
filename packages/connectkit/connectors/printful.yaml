@@ -1,0 +1,20 @@
+name: printful
+display: Printful
+icon: printful
+category: e-commerce
+version: '1.0'
+description: Printful
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://www.printful.com/oauth/authorize
+    token_url: https://www.printful.com/oauth/token
+    scopes:
+    - read
+    token_env_var: PRINTFUL_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/printful/how-to-register-your-own-printful-oauth-app
+tool_source:
+  type: mcp
+  server_name: printful
+  command: printful-mcp-server

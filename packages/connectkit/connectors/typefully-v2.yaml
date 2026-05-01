@@ -1,0 +1,22 @@
+name: typefully-v2
+display: Typefully (API v2)
+icon: typefull
+category: analytics
+version: '1.0'
+description: Typefully (API v2)
+auth:
+  type: api_key
+  api_key:
+    env_var: TYPEFULLY-V2_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: aNVlyR********************YxeIDz
+    input_type: text
+    help_text: Your Typefully v2 API key.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/typefully-v2
+tool_source:
+  type: mcp
+  server_name: typefully-v2
+  command: typefully-v2-mcp-server

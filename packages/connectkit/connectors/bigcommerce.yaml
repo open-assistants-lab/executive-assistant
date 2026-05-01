@@ -1,0 +1,35 @@
+name: bigcommerce
+display: BigCommerce
+icon: bigcomme
+category: e-commerce
+version: '1.0'
+description: BigCommerce
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://login.bigcommerce.com/oauth2/authorize
+    token_url: https://login.bigcommerce.com/oauth2/token
+    scopes:
+    - read
+    extra_params:
+      context: stores/${connectionConfig.storeHash}
+      account_uuid: ${connectionConfig.accountUuid}
+    token_env_var: BIGCOMMERCE_ACCESS_TOKEN
+  required_fields:
+  - name: storehash
+    label: Store Hash
+    placeholder: ''
+    input_type: text
+    help_text: The store hash of your BigCommerce account
+    optional: false
+  - name: accountuuid
+    label: Account UUID
+    placeholder: 123e4567-e89b-12d3-a456-426614174000
+    input_type: text
+    help_text: The account UUID of your BigCommerce account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/bigcommerce
+tool_source:
+  type: mcp
+  server_name: bigcommerce
+  command: bigcommerce-mcp-server

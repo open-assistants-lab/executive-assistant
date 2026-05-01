@@ -1,0 +1,20 @@
+name: attio
+display: Attio
+icon: attio
+category: crm
+version: '1.0'
+description: Attio
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://app.attio.com/authorize
+    token_url: https://app.attio.com/oauth/token
+    scopes:
+    - read
+    token_env_var: ATTIO_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/attio/how-to-register-your-own-attio-api-oauth-app
+tool_source:
+  type: mcp
+  server_name: attio
+  command: attio-mcp-server

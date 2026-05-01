@@ -1,0 +1,26 @@
+name: jobber
+display: Jobber
+icon: jobber
+category: crm
+version: '1.0'
+description: Jobber
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://api.getjobber.com/api/oauth/authorize
+    token_url: https://api.getjobber.com/api/oauth/token
+    scopes:
+    - read
+    token_env_var: JOBBER_ACCESS_TOKEN
+  required_fields:
+  - name: version
+    label: ''
+    placeholder: ''
+    input_type: text
+    help_text: ''
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/jobber
+tool_source:
+  type: mcp
+  server_name: jobber
+  command: jobber-mcp-server

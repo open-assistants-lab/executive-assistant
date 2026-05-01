@@ -1,0 +1,28 @@
+name: kustomer
+display: Kustomer
+icon: kustomer
+category: crm
+version: '1.0'
+description: Kustomer
+auth:
+  type: api_key
+  api_key:
+    env_var: KUSTOMER_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Kustomer account
+    optional: false
+  - name: extension
+    label: Kustomer Domain
+    placeholder: domain
+    input_type: text
+    help_text: The subdomain of your Kustomer account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/kustomer
+tool_source:
+  type: mcp
+  server_name: kustomer
+  command: kustomer-mcp-server

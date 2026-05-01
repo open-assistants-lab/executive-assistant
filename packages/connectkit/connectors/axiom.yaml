@@ -1,0 +1,28 @@
+name: axiom
+display: Axiom
+icon: axiom
+category: dev-tools
+version: '1.0'
+description: Axiom
+auth:
+  type: api_key
+  api_key:
+    env_var: AXIOM_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: xaat-********-****-****-****-********8ec6
+    input_type: text
+    help_text: Your Axiom API token.
+    optional: false
+  - name: subdomain
+    label: Edge / region subdomain
+    placeholder: us-east-1.aws.edge
+    input_type: text
+    help_text: The subdomain of the API you would wish to connect to.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/axiom
+tool_source:
+  type: mcp
+  server_name: axiom
+  command: axiom-mcp-server

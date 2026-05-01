@@ -1,0 +1,34 @@
+name: auvik
+display: Auvik
+icon: auvik
+category: support
+version: '1.0'
+description: Auvik
+auth:
+  type: api_key
+  api_key:
+    env_var: AUVIK_API_KEY
+  required_fields:
+  - name: username
+    label: User Name / Account Email
+    placeholder: ''
+    input_type: text
+    help_text: Auvik User Name (usually an individual user's email address)
+    optional: false
+  - name: password
+    label: API Key
+    placeholder: aJ7EjSEDD+7+JqlQ1NtUXyY/3/05GGWwfF7vBbPd0Iy8HG1s
+    input_type: password
+    help_text: Auvik API Key (separate from the user's password)
+    optional: false
+  - name: region
+    label: Region
+    placeholder: us2
+    input_type: text
+    help_text: The region of your Auvik account (visible in your browser address bar when logging into the Auvik web UI)
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/auvik
+tool_source:
+  type: mcp
+  server_name: auvik
+  command: auvik-mcp-server

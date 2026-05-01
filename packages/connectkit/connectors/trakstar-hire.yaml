@@ -1,0 +1,22 @@
+name: trakstar-hire
+display: Trakstar Hire
+icon: trakstar
+category: ats
+version: '1.0'
+description: Trakstar Hire
+auth:
+  type: api_key
+  api_key:
+    env_var: TRAKSTAR-HIRE_API_KEY
+  required_fields:
+  - name: username
+    label: API Key
+    placeholder: a3f8b92c4d6e715f0a1b3c4d5e6f7890
+    input_type: text
+    help_text: Your Trakstar API Key
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/trakstar-hire
+tool_source:
+  type: mcp
+  server_name: trakstar-hire
+  command: trakstar-hire-mcp-server

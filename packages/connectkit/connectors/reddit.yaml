@@ -1,0 +1,22 @@
+name: reddit
+display: Reddit
+icon: reddit
+category: social
+version: '1.0'
+description: Reddit
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://www.reddit.com/api/v1/authorize
+    token_url: https://www.reddit.com/api/v1/access_token
+    scopes:
+    - read
+    extra_params:
+      duration: permanent
+    token_env_var: REDDIT_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/reddit
+tool_source:
+  type: mcp
+  server_name: reddit
+  command: reddit-mcp-server

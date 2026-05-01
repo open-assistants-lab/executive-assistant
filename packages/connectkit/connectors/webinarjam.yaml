@@ -1,0 +1,22 @@
+name: webinarjam
+display: WebinarJam
+icon: webinarj
+category: marketing
+version: '1.0'
+description: WebinarJam
+auth:
+  type: api_key
+  api_key:
+    env_var: WEBINARJAM_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: b7e2d4f1-8a3c-4e6b-9d5f-1a2b3c4d5e6f
+    input_type: text
+    help_text: Your WebinarJam API key.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/webinarjam
+tool_source:
+  type: mcp
+  server_name: webinarjam
+  command: webinarjam-mcp-server

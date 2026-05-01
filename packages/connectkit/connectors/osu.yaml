@@ -1,0 +1,20 @@
+name: osu
+display: Osu
+icon: osu
+category: gaming
+version: '1.0'
+description: Osu
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://osu.ppy.sh/oauth/authorize
+    token_url: https://osu.ppy.sh/oauth/token
+    scopes:
+    - identify
+    token_env_var: OSU_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/osu
+tool_source:
+  type: mcp
+  server_name: osu
+  command: osu-mcp-server

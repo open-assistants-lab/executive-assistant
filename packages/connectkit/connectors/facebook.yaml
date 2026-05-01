@@ -1,0 +1,20 @@
+name: facebook
+display: Facebook
+icon: facebook
+category: marketing
+version: '1.0'
+description: Facebook
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://www.facebook.com/v22.0/dialog/oauth
+    token_url: https://graph.facebook.com/v22.0/oauth/access_token
+    scopes:
+    - read
+    token_env_var: FACEBOOK_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/facebook/how-to-register-your-own-facebook-api-oauth-app
+tool_source:
+  type: mcp
+  server_name: facebook
+  command: facebook-mcp-server

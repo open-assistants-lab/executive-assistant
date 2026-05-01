@@ -1,0 +1,26 @@
+name: amazon
+display: Amazon
+icon: amazon
+category: dev-tools
+version: '1.0'
+description: Amazon
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://www.amazon.com/ap/oa
+    token_url: https://api.amazon.${connectionConfig.extension}/auth/o2/token
+    scopes:
+    - read
+    token_env_var: AMAZON_ACCESS_TOKEN
+  required_fields:
+  - name: extension
+    label: Domain Extension
+    placeholder: com
+    input_type: text
+    help_text: The domain extension for your Amazon account
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/amazon/how-to-register-your-own-amazon-api-oauth-app
+tool_source:
+  type: mcp
+  server_name: amazon
+  command: amazon-mcp-server

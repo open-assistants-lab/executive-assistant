@@ -1,0 +1,26 @@
+name: smartsheet
+display: Smartsheet
+icon: smartshe
+category: productivity
+version: '1.0'
+description: Smartsheet
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://app.smartsheet.com/b/authorize
+    token_url: https://api.${connectionConfig.domain}/2.0/token
+    scopes:
+    - read
+    token_env_var: SMARTSHEET_ACCESS_TOKEN
+  required_fields:
+  - name: domain
+    label: Domain
+    placeholder: smartsheet.com
+    input_type: text
+    help_text: The domain where your account is hosted
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/smartsheet
+tool_source:
+  type: mcp
+  server_name: smartsheet
+  command: smartsheet-mcp-server

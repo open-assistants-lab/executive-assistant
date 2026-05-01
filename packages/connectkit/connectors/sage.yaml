@@ -1,0 +1,22 @@
+name: sage
+display: Sage
+icon: sage
+category: accounting
+version: '1.0'
+description: Sage
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://www.sageone.com/oauth2/auth/central
+    token_url: https://oauth.accounting.sage.com/token
+    scopes:
+    - read
+    extra_params:
+      filter: apiv3.1
+    token_env_var: SAGE_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/sage
+tool_source:
+  type: mcp
+  server_name: sage
+  command: sage-mcp-server

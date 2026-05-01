@@ -1,0 +1,47 @@
+# Airtable — spreadsheet-database hybrid
+# MCP: Official Airtable MCP server
+
+name: airtable
+display: "Airtable"
+icon: airtable
+category: productivity
+version: "1.0"
+description: "Airtable bases, tables, records, and views"
+setup_guide_url: "https://airtable.com/developers/web/guides/personal-access-tokens"
+auth:
+  type: api_key
+  api_key:
+    env_var: AIRTABLE_API_KEY
+  required_fields:
+    - name: api_key
+      label: "Personal Access Token"
+      placeholder: "pat..."
+      input_type: password
+      help_text: "From airtable.com/create/tokens"
+tool_sources:
+  - type: mcp
+    server_name: airtable
+    command: airtable-mcp-server
+    env_mapping:
+      api_key: AIRTABLE_API_KEY
+tool_descriptions:
+  - name: airtable__list_bases
+    description: "List all Airtable bases"
+  - name: airtable__list_records
+    description: "List records from a table"
+    parameter_descriptions:
+      base_id: "Base ID from URL"
+      table_id: "Table name or ID"
+      limit: "Max records (default: 50)"
+  - name: airtable__search_records
+    description: "Search records across a table"
+    parameter_descriptions:
+      base_id: "Base ID"
+      table_id: "Table ID"
+      query: "Search query"
+  - name: airtable__create_record
+    description: "Create a new record in a table"
+    parameter_descriptions:
+      base_id: "Base ID"
+      table_id: "Table ID"
+      fields: "Record fields as JSON"

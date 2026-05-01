@@ -1,0 +1,26 @@
+name: greenhouse
+display: Greenhouse (OAuth)
+icon: greenhou
+category: ats
+version: '1.0'
+description: Greenhouse (OAuth)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://api.greenhouse.io/oauth/authorize
+    token_url: https://api.greenhouse.io/oauth/token
+    scopes:
+    - read
+    token_env_var: GREENHOUSE_ACCESS_TOKEN
+  required_fields:
+  - name: resource
+    label: Greenhouse API Domain
+    placeholder: api
+    input_type: text
+    help_text: The Greenhouse API product domain you want to connect to
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/greenhouse
+tool_source:
+  type: cli
+  command: greenhouse
+  install: '# See service docs'

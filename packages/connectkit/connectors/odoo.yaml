@@ -1,0 +1,26 @@
+name: odoo
+display: Odoo (OAuth)
+icon: odoo
+category: erp
+version: '1.0'
+description: Odoo (OAuth)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.serverUrl}/restapi/1.0/common/oauth2/authorize
+    token_url: https://${connectionConfig.serverUrl}/restapi/1.0/common/oauth2/access_token
+    scopes:
+    - read
+    token_env_var: ODOO_ACCESS_TOKEN
+  required_fields:
+  - name: serverurl
+    label: Domain
+    placeholder: ''
+    input_type: url
+    help_text: The domain of your Odoo account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/odoo
+tool_source:
+  type: mcp
+  server_name: odoo
+  command: odoo-mcp-server

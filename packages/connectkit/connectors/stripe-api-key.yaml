@@ -1,0 +1,28 @@
+name: stripe-api-key
+display: Stripe (API Key)
+icon: stripe
+category: payment
+version: '1.0'
+description: Stripe (API Key)
+auth:
+  type: api_key
+  api_key:
+    env_var: STRIPE-API-KEY_API_KEY
+  required_fields:
+  - name: username
+    label: Restricted API Key
+    placeholder: rk_live_51On1GfAemfaBCd0eHq***************BV5007KeuAVcO
+    input_type: password
+    help_text: Your Stripe restricted API Key
+    optional: false
+  - name: context
+    label: Stripe Context
+    placeholder: acct_1aTnTtAAB0hHJ26p
+    input_type: text
+    help_text: The Stripe account context
+    optional: true
+setup_guide_url: https://nango.dev/docs/api-integrations/stripe-api-key
+tool_source:
+  type: mcp
+  server_name: stripe-api-key
+  command: stripe-api-key-mcp-server

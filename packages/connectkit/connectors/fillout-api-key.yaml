@@ -1,0 +1,28 @@
+name: fillout-api-key
+display: Fillout (API Key)
+icon: fillout
+category: surveys
+version: '1.0'
+description: Fillout (API Key)
+auth:
+  type: api_key
+  api_key:
+    env_var: FILLOUT-API-KEY_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: sk_prod_n5ZEod5AwJQCtG3ncuzgXvpSWx19joz4KMSJlC2nVul9B48zhkCLuPc9Kq97tK7smlOcMChnk1uyaUeZ5Gm4GVrUUnDMxHI7TZH_31032
+    input_type: text
+    help_text: The API key for your Fillout account
+    optional: false
+  - name: hostname
+    label: Hostname
+    placeholder: api.fillout.com
+    input_type: text
+    help_text: The hostname of your Fillout account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/fillout-api-key
+tool_source:
+  type: mcp
+  server_name: fillout-api-key
+  command: fillout-api-key-mcp-server

@@ -1,0 +1,22 @@
+name: clerk
+display: Clerk
+icon: clerk
+category: dev-tools
+version: '1.0'
+description: Clerk
+auth:
+  type: api_key
+  api_key:
+    env_var: CLERK_API_KEY
+  required_fields:
+  - name: apiKey
+    label: Secret Key
+    placeholder: sk_test_abcdefghijklmnop123456789
+    input_type: password
+    help_text: Your Clerk Secret Key (starts with sk_test_ or sk_live_)
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/clerk
+tool_source:
+  type: mcp
+  server_name: clerk
+  command: clerk-mcp-server

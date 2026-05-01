@@ -1,0 +1,28 @@
+name: azure-devops
+display: Azure DevOps
+icon: azure
+category: dev-tools
+version: '1.0'
+description: Azure DevOps
+auth:
+  type: api_key
+  api_key:
+    env_var: AZURE-DEVOPS_API_KEY
+  required_fields:
+  - name: password
+    label: Personal Access Token
+    placeholder: ''
+    input_type: text
+    help_text: The Personal Access Token of your Azure DevOps account
+    optional: false
+  - name: organizationurl
+    label: Organization URL
+    placeholder: dev.azure.com/myorg or myorg.visualstudio.com
+    input_type: text
+    help_text: The URL of your Azure DevOps organization
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/azure-devops
+tool_source:
+  type: mcp
+  server_name: azure-devops
+  command: azure-devops-mcp-server

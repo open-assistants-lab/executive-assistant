@@ -1,0 +1,22 @@
+name: avoma
+display: Avoma
+icon: avoma
+category: productivity
+version: '1.0'
+description: Avoma
+auth:
+  type: api_key
+  api_key:
+    env_var: AVOMA_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: 1awcbx0njh:02k6er2pld4q5irffn23
+    input_type: text
+    help_text: The API Key for your Avoma account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/avoma
+tool_source:
+  type: mcp
+  server_name: avoma
+  command: avoma-mcp-server

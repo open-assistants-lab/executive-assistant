@@ -1,0 +1,28 @@
+name: elevio
+display: Elevio
+icon: elevio
+category: knowledge-base
+version: '1.0'
+description: Elevio
+auth:
+  type: api_key
+  api_key:
+    env_var: ELEVIO_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: x12z67890dd34t8gq5j01ycc75912348
+    input_type: text
+    help_text: The API key to your Elevio account
+    optional: false
+  - name: jwt
+    label: JWT
+    placeholder: ''
+    input_type: text
+    help_text: The JWT to your Elevio account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/elevio
+tool_source:
+  type: mcp
+  server_name: elevio
+  command: elevio-mcp-server

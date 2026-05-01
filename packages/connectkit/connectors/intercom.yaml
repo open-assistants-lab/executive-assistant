@@ -1,0 +1,29 @@
+name: intercom
+display: Intercom
+icon: intercom
+category: marketing
+version: '1.0'
+description: Intercom
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://app.${connectionConfig.region}.intercom.com/oauth || https://app.intercom.com/oauth
+    token_url: https://api.${connectionConfig.region}.intercom.io/auth/eagle/token || https://api.intercom.io/auth/eagle/token
+    scopes:
+    - read
+    token_env_var: INTERCOM_ACCESS_TOKEN
+  required_fields:
+  - name: region
+    label: Region
+    placeholder: eu
+    input_type: text
+    help_text: The API region for your Intercom workspace.
+    optional: true
+tool_sources:
+- type: cli
+  command: intercom
+  install: '# See service docs'
+- type: mcp
+  server_name: intercom
+  command: intercom-mcp-server
+setup_guide_url: https://nango.dev/docs/api-integrations/intercom/how-to-register-your-own-intercom-api-oauth-app

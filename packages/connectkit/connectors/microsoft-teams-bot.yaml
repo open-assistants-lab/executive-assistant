@@ -1,0 +1,35 @@
+name: microsoft-teams-bot
+display: Microsoft Teams Bot
+icon: microsof
+category: communication
+version: '1.0'
+description: Microsoft Teams Bot
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://login.microsoftonline.com/${connectionConfig.tenantId}/oauth2/v2.0/authorize
+    token_url: https://login.microsoftonline.com/${connectionConfig.tenantId}/oauth2/v2.0/token
+    scopes:
+    - offline_access
+    - .default
+    extra_params:
+      response_mode: query
+    token_env_var: MICROSOFT-TEAMS-BOT_ACCESS_TOKEN
+  required_fields:
+  - name: tenantid
+    label: Tenant ID
+    placeholder: a1b2c3d4-e5f6-47a8-9b0c-d1234567890f
+    input_type: text
+    help_text: The unique identifier for your Microsoft Entra ID tenant.
+    optional: false
+  - name: bothosttenantid
+    label: ''
+    placeholder: ''
+    input_type: text
+    help_text: ''
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/microsoft-teams-bot
+tool_source:
+  type: mcp
+  server_name: microsoft-teams-bot
+  command: microsoft-teams-bot-mcp-server

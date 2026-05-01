@@ -1,0 +1,68 @@
+# Microsoft Entra ID — enterprise identity and access management
+# CLI: az (Azure CLI), Microsoft Graph PowerShell
+# MCP: Community MCP servers available
+
+name: microsoft-entra-id
+display: "Microsoft Entra ID"
+icon: microsoft-entra
+category: identity
+version: "1.0"
+description: "Microsoft Entra ID (formerly Azure AD) — identity, users, groups, and access management"
+setup_guide_url: "https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-client-creds-grant-flow"
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://login.microsoftonline.com/common/oauth2/v2.0/authorize
+    token_url: https://login.microsoftonline.com/common/oauth2/v2.0/token
+    scopes:
+      - https://graph.microsoft.com/.default
+    token_env_var: ENTRA_TOKEN
+  required_fields:
+    - name: tenant_id
+      label: "Tenant ID"
+      placeholder: "xxx-xxx-xxx-xxx"
+      input_type: text
+      help_text: "From Azure Portal → Microsoft Entra ID → Overview"
+    - name: client_id
+      label: "Client ID"
+      placeholder: "..."
+      input_type: text
+      help_text: "App registration Application (client) ID"
+    - name: client_secret
+      label: "Client Secret"
+      placeholder: "..."
+      input_type: password
+      help_text: "App registration client secret value"
+tool_sources:
+  - type: cli
+    command: az
+    install: brew install azure-cli
+    env_mapping:
+      access_token: ENTRA_TOKEN
+  - type: mcp
+    server_name: microsoft-entra-id
+    command: uvx
+    args:
+      - "mcp-server-entra-id"
+    install: uvx mcp-server-entra-id
+    env_mapping:
+      access_token: ENTRA_TOKEN
+tool_descriptions:
+  - name: entra__users_list
+    description: "List users in the Entra ID directory."
+    parameter_descriptions:
+      filter: "Optional: OData filter (e.g. 'startsWith(displayName,\"John\")')"
+      limit: "Max results (default: 20)"
+  - name: entra__groups_list
+    description: "List groups in the directory."
+    parameter_descriptions:
+      filter: "Optional: OData filter"
+      limit: "Max results (default: 20)"
+  - name: entra__user_detail
+    description: "Get detailed information about a specific user."
+    parameter_descriptions:
+      user_id: "User object ID or UPN (email)"
+  - name: entra__group_members
+    description: "List members of a specific group."
+    parameter_descriptions:
+      group_id: "Group object ID"

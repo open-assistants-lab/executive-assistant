@@ -1,0 +1,34 @@
+name: paligo
+display: Paligo
+icon: paligo
+category: cms
+version: '1.0'
+description: Paligo
+auth:
+  type: api_key
+  api_key:
+    env_var: PALIGO_API_KEY
+  required_fields:
+  - name: username
+    label: Username
+    placeholder: name@example.com
+    input_type: text
+    help_text: Your Paligo account username (email address).
+    optional: false
+  - name: password
+    label: API Key
+    placeholder: ''
+    input_type: password
+    help_text: The API key token generated.
+    optional: false
+  - name: subdomain
+    label: Paligo Instance Name
+    placeholder: mycompany
+    input_type: text
+    help_text: The name of your Paligo instance
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/paligo
+tool_source:
+  type: mcp
+  server_name: paligo
+  command: paligo-mcp-server

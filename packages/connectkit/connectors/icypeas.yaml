@@ -1,0 +1,22 @@
+name: icypeas
+display: Icypeas
+icon: icypeas
+category: marketing
+version: '1.0'
+description: Icypeas
+auth:
+  type: api_key
+  api_key:
+    env_var: ICYPEAS_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ab84bc2056614635866e4a98c153d7a1ab30541032fd433793d402f2a5db2404
+    input_type: text
+    help_text: The API Key for your Icypeas account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/icypeas
+tool_source:
+  type: mcp
+  server_name: icypeas
+  command: icypeas-mcp-server

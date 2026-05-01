@@ -1,0 +1,22 @@
+name: smartlead-ai
+display: Smartlead.ai
+icon: smartlea
+category: communication
+version: '1.0'
+description: Smartlead.ai
+auth:
+  type: api_key
+  api_key:
+    env_var: SMARTLEAD-AI_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: 12345678-1234-1234-1234-123456789012_abcdefg
+    input_type: text
+    help_text: The API key for your Smartlead.ai account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/smartlead-ai
+tool_source:
+  type: mcp
+  server_name: smartlead-ai
+  command: smartlead-ai-mcp-server

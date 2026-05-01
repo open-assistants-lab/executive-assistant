@@ -1,0 +1,28 @@
+name: bitdefender
+display: Bitdefender
+icon: bitdefen
+category: other
+version: '1.0'
+description: Bitdefender
+auth:
+  type: api_key
+  api_key:
+    env_var: BITDEFENDER_API_KEY
+  required_fields:
+  - name: username
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API Key of your Bitdefender account
+    optional: false
+  - name: access_url
+    label: Access URL
+    placeholder: https://api.bitdefender.com
+    input_type: text
+    help_text: The access URL of your Bitdefender account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/bitdefender
+tool_source:
+  type: mcp
+  server_name: bitdefender
+  command: bitdefender-mcp-server

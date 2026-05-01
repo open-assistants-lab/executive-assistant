@@ -1,0 +1,22 @@
+name: gerrit
+display: Gerrit
+icon: gerrit
+category: dev-tools
+version: '1.0'
+description: Gerrit
+auth:
+  type: api_key
+  api_key:
+    env_var: GERRIT_API_KEY
+  required_fields:
+  - name: host
+    label: Gerrit Host
+    placeholder: http://localhost:8080
+    input_type: text
+    help_text: The host to where you Gerrit instance is hosted
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/gerrit
+tool_source:
+  type: mcp
+  server_name: gerrit
+  command: gerrit-mcp-server

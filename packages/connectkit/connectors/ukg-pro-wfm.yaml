@@ -1,0 +1,35 @@
+name: ukg-pro-wfm
+display: UKG Pro (Workforce Management)
+icon: ukg
+category: hr
+version: '1.0'
+description: UKG Pro (Workforce Management)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://welcome-us.ukg.net/authorize
+    token_url: https://welcome-us.ukg.net/oauth/token
+    scopes:
+    - read
+    extra_params:
+      audience: https://wfm.ukg.net/api
+      realm: ${connectionConfig.tenantName}
+    token_env_var: UKG-PRO-WFM_ACCESS_TOKEN
+  required_fields:
+  - name: hostname
+    label: Tenant URL
+    placeholder: wfm.us1.ukg.com
+    input_type: url
+    help_text: The tenant URL of your UKG Pro instance
+    optional: false
+  - name: tenantname
+    label: Tenant Name
+    placeholder: wfm
+    input_type: text
+    help_text: The tenant name of your UKG Pro instance
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/ukg-pro-wfm
+tool_source:
+  type: mcp
+  server_name: ukg-pro-wfm
+  command: ukg-pro-wfm-mcp-server

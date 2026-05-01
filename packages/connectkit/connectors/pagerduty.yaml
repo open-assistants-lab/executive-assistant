@@ -1,0 +1,41 @@
+# PagerDuty — incident management
+# MCP: Official PagerDuty MCP server (no CLI)
+
+name: pagerduty
+display: "PagerDuty"
+icon: pagerduty
+category: dev-tools
+version: "1.0"
+description: "PagerDuty incidents, on-call schedules, services, and alerts"
+setup_guide_url: "https://developer.pagerduty.com/api-reference/"
+auth:
+  type: api_key
+  api_key:
+    env_var: PAGERDUTY_API_KEY
+  required_fields:
+    - name: api_key
+      label: "API Key"
+      placeholder: "u+x..."
+      input_type: password
+      help_text: "From pagerduty.com → Integrations → API Access Keys"
+tool_sources:
+  - type: mcp
+    server_name: pagerduty
+    command: pagerduty-mcp-server
+    install: pip install pagerduty-mcp
+    env_mapping:
+      api_key: PAGERDUTY_API_KEY
+tool_descriptions:
+  - name: pagerduty__incidents_list
+    description: "List active PagerDuty incidents"
+    parameter_descriptions:
+      statuses: "Filter: triggered, acknowledged (comma-separated)"
+      limit: "Max results (default: 25)"
+  - name: pagerduty__incident_details
+    description: "Get full details of an incident"
+    parameter_descriptions:
+      incident_id: "Incident ID"
+  - name: pagerduty__oncall_list
+    description: "List current on-call engineers"
+  - name: pagerduty__services_list
+    description: "List PagerDuty services"

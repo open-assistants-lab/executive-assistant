@@ -1,0 +1,22 @@
+name: granola
+display: Granola
+icon: granola
+category: productivity
+version: '1.0'
+description: Granola
+auth:
+  type: api_key
+  api_key:
+    env_var: GRANOLA_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: grn_2isA***************_7HRD***********************
+    input_type: text
+    help_text: The API key for your Granola account
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/granola
+tool_source:
+  type: mcp
+  server_name: granola
+  command: granola-mcp-server

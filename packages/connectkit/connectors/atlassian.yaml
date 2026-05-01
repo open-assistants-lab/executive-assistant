@@ -1,0 +1,26 @@
+name: atlassian
+display: Atlassian
+icon: atlassia
+category: dev-tools
+version: '1.0'
+description: Atlassian
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://auth.atlassian.com/authorize
+    token_url: https://auth.atlassian.com/oauth/token
+    scopes:
+    - offline_access
+    extra_params:
+      audience: api.atlassian.com
+      prompt: consent
+    token_env_var: ATLASSIAN_ACCESS_TOKEN
+  required_fields: []
+tool_sources:
+- type: cli
+  command: atlassian
+  install: '# See service docs'
+- type: mcp
+  server_name: atlassian
+  command: atlassian-mcp-server
+setup_guide_url: https://nango.dev/docs/integrations/all/atlassian

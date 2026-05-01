@@ -1,0 +1,28 @@
+name: clicksend
+display: ClickSend
+icon: clicksen
+category: communication
+version: '1.0'
+description: ClickSend
+auth:
+  type: api_key
+  api_key:
+    env_var: CLICKSEND_API_KEY
+  required_fields:
+  - name: username
+    label: Username
+    placeholder: ''
+    input_type: text
+    help_text: Your ClickSend account username
+    optional: false
+  - name: password
+    label: API Key
+    placeholder: ''
+    input_type: password
+    help_text: Your ClickSend API Key
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/clicksend
+tool_source:
+  type: mcp
+  server_name: clicksend
+  command: clicksend-mcp-server

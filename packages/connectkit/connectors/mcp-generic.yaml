@@ -1,0 +1,26 @@
+name: mcp-generic
+display: MCP Server OAuth2 (Generic)
+icon: mcp
+category: mcp
+version: '1.0'
+description: MCP Server OAuth2 (Generic)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: ''
+    token_url: ''
+    scopes:
+    - read
+    token_env_var: MCP-GENERIC_ACCESS_TOKEN
+  required_fields:
+  - name: mcp_server_url
+    label: MCP Server URL
+    placeholder: https://mcp.notion.com/mcp
+    input_type: text
+    help_text: The base URL of your MCP server
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/mcp-generic
+tool_source:
+  type: mcp
+  server_name: mcp-generic
+  command: mcp-generic-mcp-server

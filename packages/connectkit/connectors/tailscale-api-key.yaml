@@ -1,0 +1,28 @@
+name: tailscale-api-key
+display: Tailscale (API Key)
+icon: tailscal
+category: dev-tools
+version: '1.0'
+description: Tailscale (API Key)
+auth:
+  type: api_key
+  api_key:
+    env_var: TAILSCALE-API-KEY_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Access Token
+    placeholder: tskey-api-k7Hpb9Lcv611CNTRL-WJ9YG52LqXJXY9oJ7RtmXJdzWkdRMgBG
+    input_type: text
+    help_text: The API Access Token for your Tailscale account
+    optional: false
+  - name: organizationname
+    label: Organization Name
+    placeholder: example.com
+    input_type: text
+    help_text: Your Tailscale organization name
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/tailscale-api-key
+tool_source:
+  type: mcp
+  server_name: tailscale-api-key
+  command: tailscale-api-key-mcp-server

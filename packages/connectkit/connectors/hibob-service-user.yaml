@@ -1,0 +1,28 @@
+name: hibob-service-user
+display: Hibob Service User
+icon: hibob
+category: hr
+version: '1.0'
+description: Hibob Service User
+auth:
+  type: api_key
+  api_key:
+    env_var: HIBOB-SERVICE-USER_API_KEY
+  required_fields:
+  - name: username
+    label: Hibob ID
+    placeholder: ''
+    input_type: text
+    help_text: Your Hibob ID
+    optional: false
+  - name: password
+    label: Hibob Token
+    placeholder: ''
+    input_type: password
+    help_text: Your Hibob Token
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/hibob-service-user
+tool_source:
+  type: mcp
+  server_name: hibob-service-user
+  command: hibob-service-user-mcp-server

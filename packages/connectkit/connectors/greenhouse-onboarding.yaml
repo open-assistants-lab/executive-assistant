@@ -1,0 +1,28 @@
+name: greenhouse-onboarding
+display: Greenhouse (Onboarding API)
+icon: greenhou
+category: ats
+version: '1.0'
+description: Greenhouse (Onboarding API)
+auth:
+  type: api_key
+  api_key:
+    env_var: GREENHOUSE-ONBOARDING_API_KEY
+  required_fields:
+  - name: username
+    label: Access Key
+    placeholder: ''
+    input_type: text
+    help_text: The Access Key to your Greenhouse Onboarding account
+    optional: false
+  - name: password
+    label: Secret Key
+    placeholder: ''
+    input_type: text
+    help_text: The Secret Key to your Greenhouse Onboarding account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/greenhouse-onboarding
+tool_source:
+  type: mcp
+  server_name: greenhouse-onboarding
+  command: greenhouse-onboarding-mcp-server

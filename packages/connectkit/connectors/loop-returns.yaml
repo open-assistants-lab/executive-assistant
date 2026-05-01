@@ -1,0 +1,22 @@
+name: loop-returns
+display: Loop Returns
+icon: loop
+category: e-commerce
+version: '1.0'
+description: Loop Returns
+auth:
+  type: api_key
+  api_key:
+    env_var: LOOP-RETURNS_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Loop Returns account
+    optional: false
+setup_guide_url: https://docs.nango.dev/integrations/all/loop-returns
+tool_source:
+  type: mcp
+  server_name: loop-returns
+  command: loop-returns-mcp-server

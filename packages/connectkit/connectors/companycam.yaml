@@ -1,0 +1,22 @@
+name: companycam
+display: CompanyCam
+icon: companyc
+category: productivity
+version: '1.0'
+description: CompanyCam
+auth:
+  type: api_key
+  api_key:
+    env_var: COMPANYCAM_API_KEY
+  required_fields:
+  - name: apiKey
+    label: Access Token
+    placeholder: ''
+    input_type: text
+    help_text: The Access Token for your CompanyCam company
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/companycam
+tool_source:
+  type: mcp
+  server_name: companycam
+  command: companycam-mcp-server

@@ -1,0 +1,22 @@
+name: klipfolio
+display: Klipfolio
+icon: klipfoli
+category: productivity
+version: '1.0'
+description: Klipfolio
+auth:
+  type: api_key
+  api_key:
+    env_var: KLIPFOLIO_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Klipfolio account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/klipfolio
+tool_source:
+  type: mcp
+  server_name: klipfolio
+  command: klipfolio-mcp-server

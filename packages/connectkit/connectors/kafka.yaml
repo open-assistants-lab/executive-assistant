@@ -1,0 +1,70 @@
+# Apache Kafka — distributed event streaming
+# CLI: kafka-console-* tools (bundled with Kafka)
+# MCP: Community MCP servers available
+
+name: kafka
+display: "Apache Kafka"
+icon: kafka
+category: messaging
+version: "1.0"
+description: "Apache Kafka — event streaming, pub/sub messaging, and data pipelines"
+setup_guide_url: "https://kafka.apache.org/documentation/#security"
+auth:
+  type: api_key
+  api_key:
+    env_var: KAFKA_BOOTSTRAP_SERVERS
+  required_fields:
+    - name: bootstrap_servers
+      label: "Bootstrap Servers"
+      placeholder: "localhost:9092"
+      input_type: text
+      help_text: "Kafka bootstrap server addresses (comma-separated)"
+    - name: security_protocol
+      label: "Security Protocol"
+      placeholder: "SASL_SSL"
+      input_type: text
+      help_text: "PLAINTEXT, SSL, SASL_PLAINTEXT, or SASL_SSL"
+      optional: true
+    - name: sasl_username
+      label: "SASL Username"
+      placeholder: "..."
+      input_type: text
+      optional: true
+    - name: sasl_password
+      label: "SASL Password"
+      placeholder: "..."
+      input_type: password
+      optional: true
+tool_sources:
+  - type: cli
+    command: kafka-console-consumer
+    install: brew install kafka
+    env_mapping:
+      bootstrap_servers: KAFKA_BOOTSTRAP_SERVERS
+  - type: mcp
+    server_name: kafka-mcp
+    command: uvx
+    args:
+      - "kafka-mcp-server"
+    install: uvx kafka-mcp-server
+    env_mapping:
+      bootstrap_servers: KAFKA_BOOTSTRAP_SERVERS
+tool_descriptions:
+  - name: kafka__topics_list
+    description: "List all Kafka topics."
+  - name: kafka__topic_describe
+    description: "Describe a topic: partitions, replicas, config."
+    parameter_descriptions:
+      topic: "Topic name"
+  - name: kafka__consume
+    description: "Consume messages from a Kafka topic."
+    parameter_descriptions:
+      topic: "Topic name"
+      limit: "Max messages (default: 10)"
+      from_beginning: "Start from beginning (default: false)"
+  - name: kafka__produce
+    description: "Produce a message to a Kafka topic."
+    parameter_descriptions:
+      topic: "Topic name"
+      message: "Message content"
+      key: "Optional: message key"

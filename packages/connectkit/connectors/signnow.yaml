@@ -1,0 +1,20 @@
+name: signnow
+display: SignNow
+icon: signnow
+category: legal
+version: '1.0'
+description: SignNow
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://app.signnow.com/authorize
+    token_url: https://api.signnow.com/oauth2/token
+    scopes:
+    - read
+    token_env_var: SIGNNOW_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/signnow
+tool_source:
+  type: mcp
+  server_name: signnow
+  command: signnow-mcp-server

@@ -1,0 +1,28 @@
+name: builder-io-private
+display: Builder.io (Private)
+icon: builder
+category: dev-tools
+version: '1.0'
+description: Builder.io (Private)
+auth:
+  type: api_key
+  api_key:
+    env_var: BUILDER-IO-PRIVATE_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: bpk-****************************
+    input_type: text
+    help_text: The private key for your Builder.io account.
+    optional: false
+  - name: domain
+    label: Domain
+    placeholder: builder.io
+    input_type: url
+    help_text: The domain used to access your Builder.io write API.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/builder-io-private
+tool_source:
+  type: mcp
+  server_name: builder-io-private
+  command: builder-io-private-mcp-server

@@ -1,0 +1,26 @@
+name: procore
+display: Procore
+icon: procore
+category: erp
+version: '1.0'
+description: Procore
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://login.procore.com/oauth/authorize
+    token_url: https://login.procore.com/oauth/token
+    scopes:
+    - read
+    token_env_var: PROCORE_ACCESS_TOKEN
+  required_fields:
+  - name: companyid
+    label: Company ID
+    placeholder: '598134325779301'
+    input_type: text
+    help_text: Your Procore company ID
+    optional: true
+setup_guide_url: https://nango.dev/docs/api-integrations/procore/how-to-register-your-own-procore-oauth-app
+tool_source:
+  type: mcp
+  server_name: procore
+  command: procore-mcp-server

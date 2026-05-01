@@ -1,0 +1,28 @@
+name: clay
+display: Clay
+icon: clay
+category: crm
+version: '1.0'
+description: Clay
+auth:
+  type: api_key
+  api_key:
+    env_var: CLAY_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: 7de4ba****e439d39****
+    input_type: text
+    help_text: The API key for your Clay account.
+    optional: false
+  - name: workspaceid
+    label: Workspace ID
+    placeholder: '10608232'
+    input_type: text
+    help_text: The ID of your Clay workspace.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/clay
+tool_source:
+  type: mcp
+  server_name: clay
+  command: clay-mcp-server

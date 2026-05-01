@@ -1,0 +1,22 @@
+name: ragieai
+display: Ragie AI
+icon: ragieai
+category: dev-tools
+version: '1.0'
+description: Ragie AI
+auth:
+  type: api_key
+  api_key:
+    env_var: RAGIEAI_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: tnt_IZ56tqGVgX9_k8CKnxQ9MvQgzDXcDGgtcjXABkwusxSOR8QzwxxeA1B
+    input_type: text
+    help_text: The API key for your ragie.ai account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/ragieai
+tool_source:
+  type: mcp
+  server_name: ragieai
+  command: ragieai-mcp-server

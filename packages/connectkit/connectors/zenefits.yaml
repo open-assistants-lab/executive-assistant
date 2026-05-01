@@ -1,0 +1,20 @@
+name: zenefits
+display: Zenefits
+icon: zenefits
+category: hr
+version: '1.0'
+description: Zenefits
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://secure.zenefits.com/oauth2/platform-authorize
+    token_url: https://secure.zenefits.com/oauth2/token
+    scopes:
+    - read
+    token_env_var: ZENEFITS_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/zenefits
+tool_source:
+  type: mcp
+  server_name: zenefits
+  command: zenefits-mcp-server

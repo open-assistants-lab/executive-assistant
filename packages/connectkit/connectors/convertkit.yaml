@@ -1,0 +1,42 @@
+# ConvertKit — creator marketing platform
+# CLI: No official CLI; uses REST API
+# MCP: Community MCP servers available
+
+name: convertkit
+display: "ConvertKit"
+icon: convertkit
+category: marketing
+version: "1.0"
+description: "ConvertKit — email marketing, subscribers, broadcasts, and automation for creators"
+setup_guide_url: "https://developers.convertkit.com/"
+auth:
+  type: api_key
+  api_key:
+    env_var: CONVERTKIT_API_KEY
+  required_fields:
+    - name: api_key
+      label: "API Key"
+      placeholder: "..."
+      input_type: password
+      help_text: "From app.convertkit.com → Settings → Advanced → API"
+tool_sources:
+  - type: mcp
+    server_name: convertkit
+    command: uvx
+    args:
+      - "convertkit-mcp-server"
+    install: uvx convertkit-mcp-server
+    env_mapping:
+      api_key: CONVERTKIT_API_KEY
+tool_descriptions:
+  - name: convertkit__subscribers_list
+    description: "List email subscribers with status."
+    parameter_descriptions:
+      state: "Filter: active, cancelled, all (default: active)"
+      limit: "Max results (default: 25)"
+  - name: convertkit__broadcasts_list
+    description: "List sent and scheduled broadcasts."
+  - name: convertkit__tags_list
+    description: "List subscriber tags and segments."
+  - name: convertkit__forms_list
+    description: "List signup forms and landing pages."

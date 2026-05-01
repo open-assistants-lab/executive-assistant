@@ -1,0 +1,22 @@
+name: luma
+display: Luma
+icon: luma
+category: productivity
+version: '1.0'
+description: Luma
+auth:
+  type: api_key
+  api_key:
+    env_var: LUMA_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Luma account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/luma
+tool_source:
+  type: mcp
+  server_name: luma
+  command: luma-mcp-server

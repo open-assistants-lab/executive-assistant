@@ -1,0 +1,56 @@
+# Databricks — data intelligence platform
+# CLI: databricks (official Databricks CLI)
+# MCP: Community MCP servers available
+
+name: databricks
+display: "Databricks"
+icon: databricks
+category: data-platform
+version: "1.0"
+description: "Databricks — data engineering, analytics, ML, and lakehouse operations"
+setup_guide_url: "https://docs.databricks.com/en/dev-tools/cli/authentication.html"
+auth:
+  type: api_key
+  api_key:
+    env_var: DATABRICKS_TOKEN
+  required_fields:
+    - name: host
+      label: "Workspace URL"
+      placeholder: "https://xxx.cloud.databricks.com"
+      input_type: text
+      help_text: "Your Databricks workspace URL"
+    - name: token
+      label: "Personal Access Token"
+      placeholder: "dapi..."
+      input_type: password
+      help_text: "From User Settings → Developer → Access tokens"
+tool_sources:
+  - type: cli
+    command: databricks
+    install: brew install databricks/tap/databricks
+    env_mapping:
+      host: DATABRICKS_HOST
+      token: DATABRICKS_TOKEN
+  - type: mcp
+    server_name: databricks-mcp
+    command: uvx
+    args:
+      - "databricks-mcp-server"
+    install: uvx databricks-mcp-server
+    env_mapping:
+      host: DATABRICKS_HOST
+      token: DATABRICKS_TOKEN
+tool_descriptions:
+  - name: databricks__clusters_list
+    description: "List all compute clusters with status and config."
+  - name: databricks__jobs_list
+    description: "List and monitor Databricks jobs/workflows."
+  - name: databricks__notebooks_list
+    description: "List notebooks in the workspace."
+    parameter_descriptions:
+      path: "Workspace path (default: /Users/me)"
+  - name: databricks__sql_execute
+    description: "Execute a SQL query via Databricks SQL warehouse."
+    parameter_descriptions:
+      query: "SQL query to execute"
+      warehouse_id: "SQL warehouse ID"

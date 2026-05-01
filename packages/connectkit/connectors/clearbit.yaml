@@ -1,0 +1,46 @@
+# Clearbit — B2B data enrichment
+# CLI: No official CLI; uses REST API
+# MCP: Community MCP servers available
+
+name: clearbit
+display: "Clearbit"
+icon: clearbit
+category: data-enrichment
+version: "1.0"
+description: "Clearbit — company and person data enrichment, prospecting intelligence"
+setup_guide_url: "https://dashboard.clearbit.com/docs"
+auth:
+  type: api_key
+  api_key:
+    env_var: CLEARBIT_API_KEY
+  required_fields:
+    - name: api_key
+      label: "API Key"
+      placeholder: "sk_..."
+      input_type: password
+      help_text: "From dashboard.clearbit.com → API"
+tool_sources:
+  - type: mcp
+    server_name: clearbit
+    command: npx
+    args:
+      - "-y"
+      - "@smithery/mcp-clearbit"
+    install: npx @smithery/mcp-clearbit
+    env_mapping:
+      api_key: CLEARBIT_API_KEY
+tool_descriptions:
+  - name: clearbit__enrich_company
+    description: "Enrich a company by domain (size, industry, tech stack, funding)."
+    parameter_descriptions:
+      domain: "Company domain (e.g. stripe.com)"
+  - name: clearbit__enrich_person
+    description: "Enrich a person by email (role, company, social profiles)."
+    parameter_descriptions:
+      email: "Person's email address"
+  - name: clearbit__prospector
+    description: "Search for companies matching criteria."
+    parameter_descriptions:
+      domain: "Optional: filter by domain keyword"
+      industry: "Optional: filter by industry"
+      limit: "Max results (default: 10)"

@@ -1,0 +1,20 @@
+name: freeagent
+display: FreeAgent
+icon: freeagen
+category: accounting
+version: '1.0'
+description: FreeAgent
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://api.freeagent.com/v2/approve_app
+    token_url: https://api.freeagent.com/v2/token_endpoint
+    scopes:
+    - read
+    token_env_var: FREEAGENT_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/freeagent/how-to-register-your-own-freeagent-oauth-app
+tool_source:
+  type: mcp
+  server_name: freeagent
+  command: freeagent-mcp-server

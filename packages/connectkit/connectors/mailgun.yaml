@@ -1,0 +1,22 @@
+name: mailgun
+display: Mailgun
+icon: mailgun
+category: marketing
+version: '1.0'
+description: Mailgun
+auth:
+  type: api_key
+  api_key:
+    env_var: MAILGUN_API_KEY
+  required_fields:
+  - name: region
+    label: Region
+    placeholder: us
+    input_type: text
+    help_text: The region of your Mailgun account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/mailgun
+tool_source:
+  type: mcp
+  server_name: mailgun
+  command: mailgun-mcp-server

@@ -1,0 +1,20 @@
+name: jobadder
+display: Jobadder
+icon: jobadder
+category: hr
+version: '1.0'
+description: Jobadder
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://id.jobadder.com/connect/authorize
+    token_url: https://id.jobadder.com/connect/token
+    scopes:
+    - offline_access
+    token_env_var: JOBADDER_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/jobadder
+tool_source:
+  type: mcp
+  server_name: jobadder
+  command: jobadder-mcp-server

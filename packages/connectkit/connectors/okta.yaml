@@ -1,0 +1,28 @@
+name: okta
+display: Okta
+icon: okta
+category: dev-tools
+version: '1.0'
+description: Okta
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.subdomain}.okta.com/oauth2/v1/authorize
+    token_url: https://${connectionConfig.subdomain}.okta.com/oauth2/v1/token
+    scopes:
+    - read
+    extra_params:
+      response_mode: query
+    token_env_var: OKTA_ACCESS_TOKEN
+  required_fields:
+  - name: subdomain
+    label: Okta Domain
+    placeholder: domain
+    input_type: text
+    help_text: The subdomain of your Okta account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/okta
+tool_source:
+  type: mcp
+  server_name: okta
+  command: okta-mcp-server

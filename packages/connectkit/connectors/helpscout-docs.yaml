@@ -1,0 +1,22 @@
+name: helpscout-docs
+display: Help Scout Docs
+icon: helpscou
+category: knowledge-base
+version: '1.0'
+description: Help Scout Docs
+auth:
+  type: api_key
+  api_key:
+    env_var: HELPSCOUT-DOCS_API_KEY
+  required_fields:
+  - name: username
+    label: API Key
+    placeholder: ''
+    input_type: password
+    help_text: Your Help Scout Docs API Key
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/helpscout-docs
+tool_source:
+  type: mcp
+  server_name: helpscout-docs
+  command: helpscout-docs-mcp-server

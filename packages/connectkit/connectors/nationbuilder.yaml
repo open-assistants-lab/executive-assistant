@@ -1,0 +1,26 @@
+name: nationbuilder
+display: NationBuilder
+icon: nationbu
+category: crm
+version: '1.0'
+description: NationBuilder
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.accountId}.nationbuilder.com/oauth/authorize
+    token_url: https://${connectionConfig.accountId}.nationbuilder.com/oauth/token
+    scopes:
+    - default
+    token_env_var: NATIONBUILDER_ACCESS_TOKEN
+  required_fields:
+  - name: accountid
+    label: Account ID
+    placeholder: ''
+    input_type: text
+    help_text: The account ID of your NationBuilder account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/nationbuilder
+tool_source:
+  type: mcp
+  server_name: nationbuilder
+  command: nationbuilder-mcp-server

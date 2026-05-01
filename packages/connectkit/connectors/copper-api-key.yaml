@@ -1,0 +1,28 @@
+name: copper-api-key
+display: Copper (API Key)
+icon: copper
+category: crm
+version: '1.0'
+description: Copper (API Key)
+auth:
+  type: api_key
+  api_key:
+    env_var: COPPER-API-KEY_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: 4f3c12efb9659a0b5c123b568745dbf9
+    input_type: text
+    help_text: The API key for your Copper account
+    optional: false
+  - name: useremail
+    label: User Email
+    placeholder: ''
+    input_type: text
+    help_text: Email address of the user who generated the token
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/copper-api-key
+tool_source:
+  type: mcp
+  server_name: copper-api-key
+  command: copper-api-key-mcp-server

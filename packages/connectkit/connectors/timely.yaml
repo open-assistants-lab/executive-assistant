@@ -1,0 +1,20 @@
+name: timely
+display: Timely
+icon: timely
+category: productivity
+version: '1.0'
+description: Timely
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://api.timelyapp.com/1.1/oauth/authorize
+    token_url: https://api.timelyapp.com/1.1/oauth/token
+    scopes:
+    - read
+    token_env_var: TIMELY_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/timely
+tool_source:
+  type: mcp
+  server_name: timely
+  command: timely-mcp-server

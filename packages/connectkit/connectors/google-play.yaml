@@ -1,0 +1,23 @@
+name: google-play
+display: Google Play
+icon: google
+category: dev-tools
+version: '1.0'
+description: Google Play
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://accounts.google.com/o/oauth2/auth
+    token_url: https://accounts.google.com/o/oauth2/token
+    scopes:
+    - read
+    extra_params:
+      access_type: offline
+      prompt: consent
+    token_env_var: GOOGLE-PLAY_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/google-play
+tool_source:
+  type: mcp
+  server_name: google-play
+  command: google-play-mcp-server

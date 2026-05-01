@@ -1,0 +1,28 @@
+name: nyne-ai
+display: Nyne AI
+icon: nyne
+category: analytics
+version: '1.0'
+description: Nyne AI
+auth:
+  type: api_key
+  api_key:
+    env_var: NYNE-AI_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Secret
+    placeholder: 97e7********0463
+    input_type: text
+    help_text: Your Nyne AI API secret.
+    optional: false
+  - name: apikey
+    label: API Key
+    placeholder: 48f0****************************892
+    input_type: text
+    help_text: Your Nyne AI API key.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/nyne-ai
+tool_source:
+  type: mcp
+  server_name: nyne-ai
+  command: nyne-ai-mcp-server

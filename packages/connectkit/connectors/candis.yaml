@@ -1,0 +1,20 @@
+name: candis
+display: Candis
+icon: candis
+category: accounting
+version: '1.0'
+description: Candis
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://id.my.candis.io/auth/realms/candis/protocol/openid-connect/auth
+    token_url: https://id.my.candis.io/auth/realms/candis/protocol/openid-connect/token
+    scopes:
+    - read
+    token_env_var: CANDIS_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/candis/how-to-register-your-own-candis-oauth-app
+tool_source:
+  type: mcp
+  server_name: candis
+  command: candis-mcp-server

@@ -1,0 +1,34 @@
+name: paycor
+display: Paycor
+icon: paycor
+category: hr
+version: '1.0'
+description: Paycor
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://hcm.paycor.com/AppActivation/Authorize
+    token_url: https://apis.paycor.com/sts/v1/common/token?subscription-key=${connectionConfig.subscriptionKey}
+    scopes:
+    - offline_access
+    extra_params:
+      subscription-key: ${connectionConfig.subscriptionKey}
+    token_env_var: PAYCOR_ACCESS_TOKEN
+  required_fields:
+  - name: subscriptionkey
+    label: Subscription Key
+    placeholder: ''
+    input_type: text
+    help_text: The subscription key for your Paycor account
+    optional: false
+  - name: tenantid
+    label: Company ID
+    placeholder: '290180'
+    input_type: text
+    help_text: The company ID for your Paycor account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/paycor
+tool_source:
+  type: mcp
+  server_name: paycor
+  command: paycor-mcp-server

@@ -1,0 +1,28 @@
+name: clari-copilot
+display: Clari Copilot
+icon: clari
+category: marketing
+version: '1.0'
+description: Clari Copilot
+auth:
+  type: api_key
+  api_key:
+    env_var: CLARI-COPILOT_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Clari Copilot account
+    optional: false
+  - name: api_password
+    label: API Password
+    placeholder: ''
+    input_type: text
+    help_text: The API password of your Clari Copilot account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/clari-copilot
+tool_source:
+  type: mcp
+  server_name: clari-copilot
+  command: clari-copilot-mcp-server

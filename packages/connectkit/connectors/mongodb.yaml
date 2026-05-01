@@ -1,0 +1,55 @@
+# MongoDB — NoSQL document database
+# CLI: mongosh (MongoDB Shell)
+# MCP: Multiple community MCP servers available
+
+name: mongodb
+display: "MongoDB"
+icon: mongodb
+category: database
+version: "1.0"
+description: "MongoDB — document database, collections, and aggregation queries"
+setup_guide_url: "https://www.mongodb.com/docs/manual/security/"
+auth:
+  type: api_key
+  api_key:
+    env_var: MONGODB_URI
+  required_fields:
+    - name: connection_string
+      label: "Connection String"
+      placeholder: "mongodb+srv://user:password@cluster.mongodb.net/dbname"
+      input_type: password
+      help_text: "MongoDB connection URI (e.g. mongodb://localhost:27017 or Atlas SRV string)"
+tool_sources:
+  - type: cli
+    command: mongosh
+    install: brew install mongosh
+    env_mapping:
+      connection_string: MONGODB_URI
+  - type: mcp
+    server_name: mongodb
+    command: npx
+    args:
+      - "-y"
+      - "@smithery/mcp-mongodb"
+    install: npx @smithery/mcp-mongodb
+    env_mapping:
+      connection_string: MONGODB_URI
+tool_descriptions:
+  - name: mongodb__find
+    description: "Find documents in a MongoDB collection with a query filter."
+    parameter_descriptions:
+      collection: "Collection name"
+      filter: "Query filter as JSON (default: {})"
+      limit: "Maximum documents to return (default: 25)"
+  - name: mongodb__list_collections
+    description: "List all collections in the current database."
+  - name: mongodb__aggregate
+    description: "Run an aggregation pipeline on a collection."
+    parameter_descriptions:
+      collection: "Collection name"
+      pipeline: "Aggregation pipeline stages as JSON array"
+  - name: mongodb__insert
+    description: "Insert one or more documents into a collection."
+    parameter_descriptions:
+      collection: "Collection name"
+      documents: "Document(s) to insert as JSON"

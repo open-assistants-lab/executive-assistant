@@ -1,0 +1,22 @@
+name: leadmagic
+display: LeadMagic
+icon: leadmagi
+category: marketing
+version: '1.0'
+description: LeadMagic
+auth:
+  type: api_key
+  api_key:
+    env_var: LEADMAGIC_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: 1e30029c105a89d36b76b879f01208d8
+    input_type: text
+    help_text: The API Key for your LeadMagic account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/leadmagic
+tool_source:
+  type: mcp
+  server_name: leadmagic
+  command: leadmagic-mcp-server

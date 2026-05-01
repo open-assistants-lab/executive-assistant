@@ -1,0 +1,20 @@
+name: garmin
+display: Garmin
+icon: garmin
+category: sports
+version: '1.0'
+description: Garmin
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://connect.garmin.com/oauthConfirm
+    token_url: https://connectapi.garmin.com/oauth-service/oauth/access_token
+    scopes:
+    - read
+    token_env_var: GARMIN_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/garmin
+tool_source:
+  type: mcp
+  server_name: garmin
+  command: garmin-mcp-server

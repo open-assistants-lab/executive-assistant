@@ -1,0 +1,32 @@
+name: adyen
+display: Adyen
+icon: adyen
+category: payment
+version: '1.0'
+description: Adyen
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://ca-${connectionConfig.environment}.adyen.com/ca/ca/oauth/connect.shtml
+    token_url: https://oauth-${connectionConfig.environment}.adyen.com/v1/token
+    scopes:
+    - read
+    token_env_var: ADYEN_ACCESS_TOKEN
+  required_fields:
+  - name: environment
+    label: Environment
+    placeholder: live|test
+    input_type: text
+    help_text: The environment to use
+    optional: false
+  - name: resource
+    label: Resource
+    placeholder: kyc
+    input_type: text
+    help_text: The resource to use for your various requests
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/adyen
+tool_source:
+  type: mcp
+  server_name: adyen
+  command: adyen-mcp-server

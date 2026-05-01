@@ -1,0 +1,26 @@
+name: wrike
+display: Wrike
+icon: wrike
+category: productivity
+version: '1.0'
+description: Wrike
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://login.wrike.com/oauth2/authorize/v4
+    token_url: https://login.wrike.com/oauth2/token
+    scopes:
+    - read
+    token_env_var: WRIKE_ACCESS_TOKEN
+  required_fields:
+  - name: host
+    label: Domain
+    placeholder: ''
+    input_type: url
+    help_text: The domain of your Wrike account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/wrike
+tool_source:
+  type: mcp
+  server_name: wrike
+  command: wrike-mcp-server

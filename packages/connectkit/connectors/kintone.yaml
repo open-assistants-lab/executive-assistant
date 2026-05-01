@@ -1,0 +1,26 @@
+name: kintone
+display: Kintone
+icon: kintone
+category: productivity
+version: '1.0'
+description: Kintone
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.subdomain}.kintone.com/oauth2/authorization
+    token_url: https://${connectionConfig.subdomain}.kintone.com/oauth2/token
+    scopes:
+    - read
+    token_env_var: KINTONE_ACCESS_TOKEN
+  required_fields:
+  - name: subdomain
+    label: Subdomain
+    placeholder: urdzw8p24agp
+    input_type: text
+    help_text: The subdomain for your Kintone account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/kintone
+tool_source:
+  type: mcp
+  server_name: kintone
+  command: kintone-mcp-server

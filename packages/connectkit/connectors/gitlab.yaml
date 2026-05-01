@@ -1,0 +1,70 @@
+# GitLab — DevOps platform
+# CLI: https://gitlab.com/gitlab-org/cli (glab)
+# MCP: https://docs.gitlab.com/ee/user/gitlab_duo/agent_mcp/
+
+name: gitlab
+display: "GitLab"
+icon: gitlab
+category: dev-tools
+version: "1.0"
+description: "GitLab repos, issues, merge requests, CI/CD pipelines"
+setup_guide_url: "https://docs.gitlab.com/ee/integration/oauth_provider.html"
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://gitlab.com/oauth/authorize
+    token_url: https://gitlab.com/oauth/token
+    scopes:
+      - read_api
+      - read_repository
+      - write_repository
+      - api
+    token_env_var: GITLAB_TOKEN
+  required_fields:
+    - name: client_id
+      label: "Application ID"
+      placeholder: "a1b2c3d4..."
+      input_type: text
+      help_text: "From gitlab.com → Settings → Applications"
+    - name: client_secret
+      label: "Secret"
+      placeholder: "gloas-..."
+      input_type: password
+      help_text: "From the same Applications page"
+    - name: base_url
+      label: "Self-Hosted URL"
+      placeholder: "https://gitlab.example.com"
+      input_type: url
+      help_text: "Leave empty for gitlab.com. For self-hosted GitLab instances."
+      optional: true
+tool_sources:
+  - type: cli
+    command: glab
+    install: brew install glab
+    env_mapping:
+      access_token: GITLAB_TOKEN
+  - type: mcp
+    server_name: gitlab
+    command: npx @anthropic/gitlab-mcp
+    install: npm install -g @anthropic/gitlab-mcp
+    env_mapping:
+      access_token: GITLAB_TOKEN
+tool_descriptions:
+  - name: gitlab__mr_list
+    description: "List merge requests"
+    parameter_descriptions:
+      repo: "Repository path (e.g. group/project)"
+      state: "MR state: opened, closed, merged, all"
+  - name: gitlab__issue_list
+    description: "List issues"
+    parameter_descriptions:
+      repo: "Repository path"
+      state: "Issue state: opened, closed"
+  - name: gitlab__ci_status
+    description: "Check CI/CD pipeline status"
+    parameter_descriptions:
+      repo: "Repository path"
+  - name: gitlab__repo_clone
+    description: "Clone a repository"
+    parameter_descriptions:
+      repo: "Repository path to clone"

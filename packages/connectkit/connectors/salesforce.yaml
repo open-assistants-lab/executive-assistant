@@ -1,0 +1,63 @@
+# Salesforce — CRM and enterprise platform
+# CLI: https://developer.salesforce.com/tools/sfdxcli
+# MCP: https://registry.npmjs.org/@salesforce/mcp
+
+name: salesforce
+display: "Salesforce"
+icon: salesforce
+category: crm
+version: "1.0"
+description: "Salesforce CRM, accounts, opportunities, leads, and cases"
+setup_guide_url: "https://help.salesforce.com/s/articleView?id=sf.connected_app_create.htm"
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://login.salesforce.com/services/oauth2/authorize
+    token_url: https://login.salesforce.com/services/oauth2/token
+    scopes:
+      - api
+      - refresh_token
+      - offline_access
+    token_env_var: SFDX_AUTH_TOKEN
+  required_fields:
+    - name: client_id
+      label: "Consumer Key"
+      placeholder: "..."
+      input_type: text
+      help_text: "From Salesforce Setup → App Manager → your Connected App"
+    - name: client_secret
+      label: "Consumer Secret"
+      placeholder: "..."
+      input_type: password
+      help_text: "From the same Connected App page"
+    - name: base_url
+      label: "Instance URL"
+      placeholder: "https://login.salesforce.com"
+      input_type: url
+      help_text: "https://login.salesforce.com for production, https://test.salesforce.com for sandbox"
+      optional: true
+tool_sources:
+  - type: cli
+    command: sf
+    install: npm install -g @salesforce/cli
+    env_mapping:
+      access_token: SFDX_AUTH_TOKEN
+  - type: mcp
+    server_name: salesforce
+    command: npx @salesforce/mcp
+    env_mapping:
+      access_token: SFDX_AUTH_TOKEN
+tool_descriptions:
+  - name: salesforce__soql_query
+    description: "Run a SOQL query against Salesforce"
+    parameter_descriptions:
+      query: "SOQL query (e.g. 'SELECT Id, Name FROM Account LIMIT 10')"
+  - name: salesforce__account_list
+    description: "List Salesforce accounts"
+    parameter_descriptions:
+      limit: "Max results (default: 20)"
+  - name: salesforce__opportunity_list
+    description: "List Salesforce opportunities"
+    parameter_descriptions:
+      limit: "Max results (default: 20)"
+      stage: "Filter by stage name"

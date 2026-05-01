@@ -1,0 +1,22 @@
+name: codegen
+display: Codegen
+icon: codegen
+category: dev-tools
+version: '1.0'
+description: Codegen
+auth:
+  type: api_key
+  api_key:
+    env_var: CODEGEN_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: sk-897bd628-de64-4018-8e3b-c6f717ca3e1d
+    input_type: text
+    help_text: The API Key for your Codegen account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/codegen
+tool_source:
+  type: mcp
+  server_name: codegen
+  command: codegen-mcp-server

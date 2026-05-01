@@ -1,0 +1,28 @@
+name: hex
+display: Hex
+icon: hex
+category: analytics
+version: '1.0'
+description: Hex
+auth:
+  type: api_key
+  api_key:
+    env_var: HEX_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: hxtp_a1b2c3d4e5f6***
+    input_type: text
+    help_text: Your Hex API Token.
+    optional: false
+  - name: subdomain
+    label: Subdomain
+    placeholder: app
+    input_type: text
+    help_text: Your Hex subdomain.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/hex
+tool_source:
+  type: mcp
+  server_name: hex
+  command: hex-mcp-server

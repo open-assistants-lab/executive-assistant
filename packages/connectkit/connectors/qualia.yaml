@@ -1,0 +1,34 @@
+name: qualia
+display: Qualia
+icon: qualia
+category: legal
+version: '1.0'
+description: Qualia
+auth:
+  type: api_key
+  api_key:
+    env_var: QUALIA_API_KEY
+  required_fields:
+  - name: username
+    label: Username
+    placeholder: ''
+    input_type: text
+    help_text: Your Qualia organization username.
+    optional: false
+  - name: password
+    label: Password
+    placeholder: ''
+    input_type: password
+    help_text: Your Qualia API password.
+    optional: false
+  - name: subdomain
+    label: Subdomain
+    placeholder: connect
+    input_type: text
+    help_text: The subdomain of the Qualia platform you want to connect to.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/qualia
+tool_source:
+  type: mcp
+  server_name: qualia
+  command: qualia-mcp-server

@@ -1,0 +1,20 @@
+name: brex-staging
+display: Brex (Staging OAuth)
+icon: brex
+category: banking
+version: '1.0'
+description: Brex (Staging OAuth)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://accounts-api.staging.brexapps.com/oauth2/default/v1/authorize
+    token_url: https://accounts-api.staging.brexapps.com/oauth2/default/v1/token
+    scopes:
+    - read
+    token_env_var: BREX-STAGING_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/brex-staging/how-to-register-your-own-brex-staging-oauth-app
+tool_source:
+  type: mcp
+  server_name: brex-staging
+  command: brex-staging-mcp-server

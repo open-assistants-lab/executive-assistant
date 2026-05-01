@@ -1,0 +1,75 @@
+# Microsoft Dynamics 365 — enterprise CRM and ERP
+# CLI: pac (Power Platform CLI)
+# MCP: Community MCP servers available
+
+name: microsoft-dynamics
+display: "Microsoft Dynamics 365"
+icon: microsoft-dynamics
+category: crm
+version: "1.0"
+description: "Microsoft Dynamics 365 — CRM, ERP, sales, service, and marketing automation"
+setup_guide_url: "https://learn.microsoft.com/en-us/power-apps/developer/data-platform/walkthrough-register-app-azure-active-directory"
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://login.microsoftonline.com/common/oauth2/v2.0/authorize
+    token_url: https://login.microsoftonline.com/common/oauth2/v2.0/token
+    scopes:
+      - https://{org}.crm.dynamics.com/.default
+    token_env_var: DYNAMICS_TOKEN
+  required_fields:
+    - name: org_url
+      label: "Organization URL"
+      placeholder: "https://orgname.crm.dynamics.com"
+      input_type: text
+      help_text: "Your Dynamics 365 organization URL"
+    - name: tenant_id
+      label: "Tenant ID"
+      placeholder: "xxx-xxx-xxx-xxx"
+      input_type: text
+      help_text: "Azure tenant ID"
+    - name: client_id
+      label: "Client ID"
+      placeholder: "..."
+      input_type: text
+      help_text: "App registration Application ID"
+    - name: client_secret
+      label: "Client Secret"
+      placeholder: "..."
+      input_type: password
+      help_text: "App registration client secret"
+tool_sources:
+  - type: cli
+    command: pac
+    install: brew install powerapps-cli
+    env_mapping:
+      access_token: DYNAMICS_TOKEN
+  - type: mcp
+    server_name: dynamics-365
+    command: uvx
+    args:
+      - "mcp-server-dynamics"
+    install: uvx mcp-server-dynamics
+    env_mapping:
+      access_token: DYNAMICS_TOKEN
+tool_descriptions:
+  - name: dynamics__accounts_list
+    description: "List accounts (companies/organizations)."
+    parameter_descriptions:
+      filter: "Optional: OData filter query"
+      limit: "Max results (default: 20)"
+  - name: dynamics__contacts_list
+    description: "List contacts (people)."
+    parameter_descriptions:
+      filter: "Optional: OData filter (e.g. 'contains(fullname,\"John\")')"
+      limit: "Max results (default: 20)"
+  - name: dynamics__opportunities_list
+    description: "List sales opportunities with estimated revenue."
+    parameter_descriptions:
+      filter: "Optional: OData filter"
+      limit: "Max results (default: 20)"
+  - name: dynamics__cases_list
+    description: "List support cases/incidents."
+    parameter_descriptions:
+      status: "Filter by status: active, resolved, cancelled"
+      limit: "Max results (default: 20)"

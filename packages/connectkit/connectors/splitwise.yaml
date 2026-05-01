@@ -1,0 +1,20 @@
+name: splitwise
+display: Splitwise
+icon: splitwis
+category: payment
+version: '1.0'
+description: Splitwise
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://secure.splitwise.com/oauth/authorize
+    token_url: https://secure.splitwise.com/oauth/token
+    scopes:
+    - read
+    token_env_var: SPLITWISE_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/splitwise
+tool_source:
+  type: mcp
+  server_name: splitwise
+  command: splitwise-mcp-server

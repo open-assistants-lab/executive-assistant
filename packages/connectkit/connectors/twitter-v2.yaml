@@ -1,0 +1,22 @@
+name: twitter-v2
+display: Twitter (v2)
+icon: twitter
+category: marketing
+version: '1.0'
+description: Twitter (v2)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://twitter.com/i/oauth2/authorize
+    token_url: https://api.twitter.com/2/oauth2/token
+    scopes:
+    - offline.access
+    extra_params:
+      response_mode: query
+    token_env_var: TWITTER-V2_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/twitter-v2/how-to-register-your-own-twitter-v2-api-oauth-app
+tool_source:
+  type: mcp
+  server_name: twitter-v2
+  command: twitter-v2-mcp-server

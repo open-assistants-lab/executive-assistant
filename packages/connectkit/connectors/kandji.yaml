@@ -1,0 +1,28 @@
+name: kandji
+display: Kandji
+icon: kandji
+category: support
+version: '1.0'
+description: Kandji
+auth:
+  type: api_key
+  api_key:
+    env_var: KANDJI_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: 1bc32cba-a5d6-438a-bbcc-af312f560a3c
+    input_type: text
+    help_text: The API Token for your Kandji account
+    optional: false
+  - name: subdomain
+    label: Subdomain
+    placeholder: ''
+    input_type: text
+    help_text: The subdomain to your kandji account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/kandji
+tool_source:
+  type: mcp
+  server_name: kandji
+  command: kandji-mcp-server

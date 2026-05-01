@@ -1,0 +1,20 @@
+name: greenhouse-harvest-partner
+display: Greenhouse Harvest Partner (V3)
+icon: greenhou
+category: ats
+version: '1.0'
+description: Greenhouse Harvest Partner (V3)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://auth.greenhouse.io/authorize
+    token_url: https://auth.greenhouse.io/token
+    scopes:
+    - read
+    token_env_var: GREENHOUSE-HARVEST-PARTNER_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/greenhouse-harvest-partner/how-to-register-your-own-greenhouse-harvest-partner-oauth-app
+tool_source:
+  type: mcp
+  server_name: greenhouse-harvest-partner
+  command: greenhouse-harvest-partner-mcp-server

@@ -1,0 +1,22 @@
+name: strava-web
+display: Strava (Web)
+icon: strava
+category: social
+version: '1.0'
+description: Strava (Web)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://www.strava.com/oauth/authorize
+    token_url: https://www.strava.com/api/v3/oauth/token
+    scopes:
+    - read
+    extra_params:
+      approval_prompt: force
+    token_env_var: STRAVA-WEB_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/strava-web
+tool_source:
+  type: mcp
+  server_name: strava-web
+  command: strava-web-mcp-server

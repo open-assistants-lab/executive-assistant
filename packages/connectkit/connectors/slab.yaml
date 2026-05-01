@@ -1,0 +1,22 @@
+name: slab
+display: Slab
+icon: slab
+category: productivity
+version: '1.0'
+description: Slab
+auth:
+  type: api_key
+  api_key:
+    env_var: SLAB_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: ''
+    input_type: text
+    help_text: Your Slab API token
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/slab
+tool_source:
+  type: mcp
+  server_name: slab
+  command: slab-mcp-server

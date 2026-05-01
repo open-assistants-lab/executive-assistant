@@ -1,0 +1,28 @@
+name: kintone-user-api
+display: Kintone User API
+icon: kintone
+category: productivity
+version: '1.0'
+description: Kintone User API
+auth:
+  type: api_key
+  api_key:
+    env_var: KINTONE-USER-API_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: cy.s.api1.eyJraWQiOiJ2MSIsInR5cCI6IkpXVCIsImFsZyI6IkhTMjU2In0.eyJyYW5kIjoiNWQ4ZmNiOGYtMDk3ZC00MWNhLWJkZjAtYTAxN2ZiMDZkYjNlIiwiaXNzIjoieTkwNzgyIiwiZXhwIjoxNzU4MTg1Mzg5fQ.GUoYL6hBFGOywcfjxQB3Y3vSwEq67evDGcmVQvzPY94
+    input_type: text
+    help_text: The API Token for your Kintone account
+    optional: false
+  - name: subdomain
+    label: Subdomain
+    placeholder: urdzw8p24agp
+    input_type: text
+    help_text: The subdomain for your Kintone account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/kintone-user-api
+tool_source:
+  type: mcp
+  server_name: kintone-user-api
+  command: kintone-user-api-mcp-server

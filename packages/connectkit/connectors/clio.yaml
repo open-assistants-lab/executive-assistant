@@ -1,0 +1,27 @@
+name: clio
+display: Clio
+icon: clio
+category: legal
+version: '1.0'
+description: Clio
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.hostname}/oauth/authorize
+    token_url: https://${connectionConfig.hostname}/oauth/token
+    scopes:
+    - read
+    token_env_var: CLIO_ACCESS_TOKEN
+  required_fields:
+  - name: hostname
+    label: Hostname
+    placeholder: app.clio.com
+    input_type: url
+    help_text: The hostname for your Clio region (e.g. app.clio.com for US, eu.app.clio.com for EU, ca.app.clio.com for CA,
+      au.app.clio.com for AU)
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/clio/how-to-register-your-own-clio-api-oauth-app
+tool_source:
+  type: mcp
+  server_name: clio
+  command: clio-mcp-server

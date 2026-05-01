@@ -1,0 +1,60 @@
+# Dropbox — cloud storage and sharing
+# CLI: Community dbxcli (Go binary)
+# MCP: Community MCP servers
+
+name: dropbox
+display: "Dropbox"
+icon: dropbox
+category: storage
+version: "1.0"
+description: "Dropbox files, folders, sharing, and search"
+setup_guide_url: "https://developers.dropbox.com/oauth-guide"
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://www.dropbox.com/oauth2/authorize
+    token_url: https://api.dropboxapi.com/oauth2/token
+    scopes:
+      - files.metadata.read
+      - files.content.read
+      - files.content.write
+    token_env_var: DROPBOX_ACCESS_TOKEN
+  required_fields:
+    - name: client_id
+      label: "App Key"
+      placeholder: "..."
+      input_type: text
+      help_text: "From dropbox.com/developers → your app → Settings"
+    - name: client_secret
+      label: "App Secret"
+      placeholder: "..."
+      input_type: password
+      help_text: "From the same app Settings page"
+tool_sources:
+  - type: mcp
+    server_name: dropbox
+    command: npx @anthropic/dropbox-mcp
+    install: npx @anthropic/dropbox-mcp
+    env_mapping:
+      access_token: DROPBOX_ACCESS_TOKEN
+  - type: cli
+    command: dbxcli
+    install: brew install dbxcli
+    env_mapping:
+      access_token: DROPBOX_ACCESS_TOKEN
+tool_descriptions:
+  - name: dropbox__files_list
+    description: "List files and folders"
+    parameter_descriptions:
+      path: "Folder path (default: root)"
+      limit: "Max items (default: 20)"
+  - name: dropbox__file_search
+    description: "Search Dropbox files"
+    parameter_descriptions:
+      query: "Search query"
+  - name: dropbox__file_download
+    description: "Download a file"
+    parameter_descriptions:
+      path: "File path"
+  - name: dropbox__shared_links
+    description: "List shared links"

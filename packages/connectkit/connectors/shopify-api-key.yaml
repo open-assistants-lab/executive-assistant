@@ -1,0 +1,28 @@
+name: shopify-api-key
+display: Shopify (API Key)
+icon: shopify
+category: e-commerce
+version: '1.0'
+description: Shopify (API Key)
+auth:
+  type: api_key
+  api_key:
+    env_var: SHOPIFY-API-KEY_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Access Token
+    placeholder: shpat_***************c03266f
+    input_type: text
+    help_text: The API access token generated
+    optional: false
+  - name: subdomain
+    label: Shopify Domain
+    placeholder: domain
+    input_type: text
+    help_text: The subdomain of your Shopify account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/shopify-api-key
+tool_source:
+  type: mcp
+  server_name: shopify-api-key
+  command: shopify-api-key-mcp-server

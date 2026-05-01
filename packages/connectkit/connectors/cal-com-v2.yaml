@@ -1,0 +1,22 @@
+name: cal-com-v2
+display: Cal.com (v2)
+icon: cal
+category: productivity
+version: '1.0'
+description: Cal.com (v2)
+auth:
+  type: api_key
+  api_key:
+    env_var: CAL-COM-V2_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: cal_xxxxxx
+    input_type: text
+    help_text: The API key for your Cal.com account
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/cal-com-v2
+tool_source:
+  type: mcp
+  server_name: cal-com-v2
+  command: cal-com-v2-mcp-server

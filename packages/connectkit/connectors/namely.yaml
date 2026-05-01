@@ -1,0 +1,26 @@
+name: namely
+display: Namely
+icon: namely
+category: hr
+version: '1.0'
+description: Namely
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.company}.namely.com/api/v1/oauth2/authorize
+    token_url: https://${connectionConfig.company}.namely.com/api/v1/oauth2/token
+    scopes:
+    - read
+    token_env_var: NAMELY_ACCESS_TOKEN
+  required_fields:
+  - name: company
+    label: Company
+    placeholder: example
+    input_type: text
+    help_text: The name of your Namely company
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/namely
+tool_source:
+  type: mcp
+  server_name: namely
+  command: namely-mcp-server

@@ -1,0 +1,66 @@
+# Slack — team communication
+# CLI: https://api.slack.com/automation/cli
+# MCP: https://docs.slack.dev/mcp-server
+
+name: slack
+display: "Slack"
+icon: slack
+category: communication
+version: "1.0"
+description: "Slack messaging, channels, users, and search"
+setup_guide_url: "https://api.slack.com/authentication"
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://slack.com/oauth/v2/authorize
+    token_url: https://slack.com/api/oauth.v2.access
+    scopes:
+      - channels:read
+      - channels:history
+      - users:read
+      - chat:write
+      - search:read
+      - reactions:read
+    token_env_var: SLACK_BOT_TOKEN
+  required_fields:
+    - name: client_id
+      label: "Client ID"
+      placeholder: "1234567890.1234567890"
+      input_type: text
+      help_text: "From api.slack.com/apps → your app → Basic Information"
+    - name: client_secret
+      label: "Client Secret"
+      placeholder: "a1b2c3d4..."
+      input_type: password
+      help_text: "From the same app page under App Credentials"
+tool_sources:
+  - type: cli
+    command: slack
+    install: curl -fsSL https://downloads.slack.com/cli/install.sh | bash
+    env_mapping:
+      access_token: SLACK_BOT_TOKEN
+  - type: mcp
+    server_name: slack
+    command: slack-mcp-server
+    install: Official Slack MCP server
+    env_mapping:
+      access_token: SLACK_BOT_TOKEN
+tool_descriptions:
+  - name: slack__channels_list
+    description: "List all channels in the workspace"
+  - name: slack__messages_list
+    description: "List messages from a channel"
+    parameter_descriptions:
+      channel: "Channel ID or name"
+      limit: "Maximum messages (default: 50)"
+  - name: slack__message_send
+    description: "Send a message to a channel"
+    parameter_descriptions:
+      channel: "Channel ID or name"
+      text: "Message text"
+  - name: slack__users_list
+    description: "List all users in the workspace"
+  - name: slack__search
+    description: "Search messages and files across the workspace"
+    parameter_descriptions:
+      query: "Search query"

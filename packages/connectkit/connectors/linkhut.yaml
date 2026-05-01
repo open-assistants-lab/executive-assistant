@@ -1,0 +1,20 @@
+name: linkhut
+display: LinkHut
+icon: linkhut
+category: social
+version: '1.0'
+description: LinkHut
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://ln.ht/_/oauth/authorize
+    token_url: https://api.ln.ht/v1/oauth/token
+    scopes:
+    - read
+    token_env_var: LINKHUT_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/linkhut
+tool_source:
+  type: mcp
+  server_name: linkhut
+  command: linkhut-mcp-server

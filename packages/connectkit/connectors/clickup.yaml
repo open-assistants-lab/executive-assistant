@@ -1,0 +1,51 @@
+# ClickUp — project management
+# CLI: Community clickup-cli
+# MCP: Official ClickUp MCP server
+
+name: clickup
+display: "ClickUp"
+icon: clickup
+category: productivity
+version: "1.0"
+description: "ClickUp tasks, lists, spaces, and docs"
+setup_guide_url: "https://clickup.com/api/developer-portal/authentication"
+auth:
+  type: api_key
+  api_key:
+    env_var: CLICKUP_API_TOKEN
+  required_fields:
+    - name: api_key
+      label: "API Token"
+      placeholder: "pk_..."
+      input_type: password
+      help_text: "From clickup.com → Settings → My Apps → Generate API Token"
+tool_sources:
+  - type: mcp
+    server_name: clickup
+    command: clickup-mcp-server
+    env_mapping:
+      api_key: CLICKUP_API_TOKEN
+  - type: cli
+    command: clickup
+    install: npm install -g clickup-cli
+    env_mapping:
+      api_key: CLICKUP_API_TOKEN
+tool_descriptions:
+  - name: clickup__tasks_list
+    description: "List tasks from a list"
+    parameter_descriptions:
+      list_id: "ClickUp list ID"
+      status: "Filter by status"
+      limit: "Max tasks (default: 50)"
+  - name: clickup__task_create
+    description: "Create a new ClickUp task"
+    parameter_descriptions:
+      list_id: "List ID"
+      name: "Task name"
+      description: "Task description"
+  - name: clickup__task_get
+    description: "Get task details"
+    parameter_descriptions:
+      task_id: "Task ID"
+  - name: clickup__spaces_list
+    description: "List workspaces and spaces"

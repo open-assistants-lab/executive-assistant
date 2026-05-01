@@ -1,0 +1,32 @@
+name: battlenet
+display: Battle.net
+icon: battlene
+category: gaming
+version: '1.0'
+description: Battle.net
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://oauth.battle.${connectionConfig.extension}/authorize
+    token_url: https://oauth.battle.${connectionConfig.extension}/token
+    scopes:
+    - read
+    token_env_var: BATTLENET_ACCESS_TOKEN
+  required_fields:
+  - name: extension
+    label: Domain Extension
+    placeholder: com
+    input_type: text
+    help_text: The domain extension of your Battle.net account
+    optional: false
+  - name: apidomain
+    label: API Domain
+    placeholder: us.api.blizzard.com
+    input_type: text
+    help_text: The domain to where you will access your API
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/battlenet
+tool_source:
+  type: mcp
+  server_name: battlenet
+  command: battlenet-mcp-server

@@ -1,0 +1,42 @@
+# GetResponse — email marketing and automation
+# CLI: No official CLI; uses REST API
+# MCP: Community MCP servers available
+
+name: getresponse
+display: "GetResponse"
+icon: getresponse
+category: marketing
+version: "1.0"
+description: "GetResponse — email marketing, automation, webinars, and landing pages"
+setup_guide_url: "https://apidocs.getresponse.com/v3"
+auth:
+  type: api_key
+  api_key:
+    env_var: GETRESPONSE_API_KEY
+  required_fields:
+    - name: api_key
+      label: "API Key"
+      placeholder: "..."
+      input_type: password
+      help_text: "From GetResponse → Integrations & API → API"
+tool_sources:
+  - type: mcp
+    server_name: getresponse
+    command: uvx
+    args:
+      - "getresponse-mcp-server"
+    install: uvx getresponse-mcp-server
+    env_mapping:
+      api_key: GETRESPONSE_API_KEY
+tool_descriptions:
+  - name: getresponse__contacts_list
+    description: "List contacts with email, tags, and custom fields."
+    parameter_descriptions:
+      limit: "Max results (default: 25)"
+      query: "Optional: search by email or name"
+  - name: getresponse__newsletters_list
+    description: "List newsletters and campaigns with stats."
+  - name: getresponse__autoresponders_list
+    description: "List autoresponder sequences."
+  - name: getresponse__forms_list
+    description: "List signup forms and landing pages."

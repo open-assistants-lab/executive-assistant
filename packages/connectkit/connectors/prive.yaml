@@ -1,0 +1,22 @@
+name: prive
+display: Prive
+icon: prive
+category: e-commerce
+version: '1.0'
+description: Prive
+auth:
+  type: api_key
+  api_key:
+    env_var: PRIVE_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Prive account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/prive
+tool_source:
+  type: mcp
+  server_name: prive
+  command: prive-mcp-server

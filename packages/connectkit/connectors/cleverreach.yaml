@@ -1,0 +1,22 @@
+name: cleverreach
+display: CleverReach
+icon: cleverre
+category: marketing
+version: '1.0'
+description: CleverReach
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://rest.cleverreach.com/oauth/authorize.php
+    token_url: https://rest.cleverreach.com/oauth/token.php
+    scopes:
+    - read
+    extra_params:
+      grant: basic
+    token_env_var: CLEVERREACH_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/cleverreach/how-to-register-your-own-cleverreach-api-oauth-app
+tool_source:
+  type: mcp
+  server_name: cleverreach
+  command: cleverreach-mcp-server

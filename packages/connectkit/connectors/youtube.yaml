@@ -1,0 +1,67 @@
+# YouTube — Google's video platform
+# CLI: youtube-dl / yt-dlp for downloads; Google API for management
+# MCP: Community MCP servers available
+
+name: youtube
+display: "YouTube"
+icon: youtube
+category: content
+version: "1.0"
+description: "YouTube — video management, analytics, channel data, and content operations"
+setup_guide_url: "https://developers.google.com/youtube/registering_an_application"
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://accounts.google.com/o/oauth2/v2/auth
+    token_url: https://oauth2.googleapis.com/token
+    scopes:
+      - https://www.googleapis.com/auth/youtube.readonly
+      - https://www.googleapis.com/auth/yt-analytics.readonly
+    token_env_var: YOUTUBE_TOKEN
+  required_fields:
+    - name: client_id
+      label: "Client ID"
+      placeholder: "..."
+      input_type: text
+      help_text: "From Google Cloud Console → APIs & Services → Credentials"
+    - name: client_secret
+      label: "Client Secret"
+      placeholder: "..."
+      input_type: password
+      help_text: "From Google Cloud Console"
+tool_sources:
+  - type: cli
+    command: yt-dlp
+    install: brew install yt-dlp
+    env_mapping:
+      access_token: YOUTUBE_TOKEN
+  - type: mcp
+    server_name: youtube
+    command: npx
+    args:
+      - "-y"
+      - "@smithery/mcp-youtube"
+    install: npx @smithery/mcp-youtube
+    env_mapping:
+      access_token: YOUTUBE_TOKEN
+tool_descriptions:
+  - name: youtube__channel_info
+    description: "Get channel details: subscriber count, video count, description."
+    parameter_descriptions:
+      channel_id: "YouTube channel ID or handle (e.g. @channelname)"
+  - name: youtube__search
+    description: "Search for YouTube videos by query."
+    parameter_descriptions:
+      query: "Search query"
+      max_results: "Maximum results (default: 10)"
+      order: "Sort order: date, rating, relevance, viewCount (default: relevance)"
+  - name: youtube__video_info
+    description: "Get video details: title, view count, likes, duration."
+    parameter_descriptions:
+      video_id: "YouTube video ID (e.g. dQw4w9WgXcQ)"
+  - name: youtube__analytics
+    description: "Get channel analytics: views, watch time, subscribers over time."
+    parameter_descriptions:
+      channel_id: "YouTube channel ID"
+      start_date: "Start date (YYYY-MM-DD)"
+      end_date: "End date (YYYY-MM-DD)"

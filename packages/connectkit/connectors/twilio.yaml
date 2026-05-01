@@ -1,0 +1,55 @@
+# Twilio — communications platform
+# CLI: Official twilio CLI
+# MCP: Community MCP servers
+
+name: twilio
+display: "Twilio"
+icon: twilio
+category: communication
+version: "1.0"
+description: "Twilio SMS, voice, phone numbers, and messaging"
+setup_guide_url: "https://www.twilio.com/docs/iam/keys/api-key"
+auth:
+  type: api_key
+  api_key:
+    env_var: TWILIO_API_KEY
+  required_fields:
+    - name: api_key
+      label: "API Key"
+      placeholder: "SK..."
+      input_type: password
+      help_text: "From console.twilio.com → Account → API keys"
+    - name: api_secret
+      label: "API Secret"
+      placeholder: "..."
+      input_type: password
+      help_text: "Shown once when creating the API key"
+    - name: account_sid
+      label: "Account SID"
+      placeholder: "AC..."
+      input_type: text
+      help_text: "From your Twilio Console dashboard"
+tool_sources:
+  - type: cli
+    command: twilio
+    install: npm install -g twilio-cli
+    env_mapping:
+      api_key: TWILIO_API_KEY
+  - type: mcp
+    server_name: twilio
+    command: twilio-mcp
+    env_mapping:
+      api_key: TWILIO_API_KEY
+tool_descriptions:
+  - name: twilio__phone_numbers_list
+    description: "List owned Twilio phone numbers"
+  - name: twilio__messages_list
+    description: "List SMS messages"
+    parameter_descriptions:
+      limit: "Max results (default: 20)"
+  - name: twilio__message_send
+    description: "Send an SMS message"
+    parameter_descriptions:
+      to: "Recipient phone number"
+      from_: "Sender Twilio number"
+      body: "Message body"

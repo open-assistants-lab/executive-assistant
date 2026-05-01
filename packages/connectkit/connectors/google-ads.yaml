@@ -1,0 +1,61 @@
+# Google Ads — digital advertising platform
+# CLI: No official CLI; uses gcloud + API
+# MCP: Community MCP servers available
+
+name: google-ads
+display: "Google Ads"
+icon: google-ads
+category: advertising
+version: "1.0"
+description: "Google Ads — campaign management, ad performance, and reporting"
+setup_guide_url: "https://developers.google.com/google-ads/api/docs/first-call/oauth"
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://accounts.google.com/o/oauth2/v2/auth
+    token_url: https://oauth2.googleapis.com/token
+    scopes:
+      - https://www.googleapis.com/auth/adwords
+    token_env_var: GOOGLE_ADS_TOKEN
+  required_fields:
+    - name: client_id
+      label: "Client ID"
+      placeholder: "..."
+      input_type: text
+      help_text: "From Google Cloud Console → APIs & Services → Credentials"
+    - name: client_secret
+      label: "Client Secret"
+      placeholder: "..."
+      input_type: password
+      help_text: "From Google Cloud Console"
+tool_sources:
+  - type: cli
+    command: gcloud
+    install: "brew install google-cloud-sdk && gcloud components install google-ads"
+    env_mapping:
+      access_token: GOOGLE_ADS_TOKEN
+  - type: mcp
+    server_name: google-ads
+    command: npx
+    args:
+      - "-y"
+      - "@smithery/mcp-google-ads"
+    install: npx @smithery/mcp-google-ads
+    env_mapping:
+      access_token: GOOGLE_ADS_TOKEN
+tool_descriptions:
+  - name: google_ads__campaigns_list
+    description: "List Google Ads campaigns with performance metrics."
+    parameter_descriptions:
+      customer_id: "Google Ads customer ID (e.g. 123-456-7890)"
+      status_filter: "Filter by status: ENABLED, PAUSED, REMOVED (default: all)"
+  - name: google_ads__report
+    description: "Run a Google Ads Query Language (GAQL) report."
+    parameter_descriptions:
+      customer_id: "Google Ads customer ID"
+      query: "GAQL query string"
+  - name: google_ads__performance
+    description: "Get key performance metrics: impressions, clicks, cost, conversions."
+    parameter_descriptions:
+      customer_id: "Google Ads customer ID"
+      date_range: "Date range: LAST_7_DAYS, LAST_30_DAYS, THIS_MONTH (default: LAST_30_DAYS)"

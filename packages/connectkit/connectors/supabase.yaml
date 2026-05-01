@@ -1,0 +1,28 @@
+name: supabase
+display: Supabase
+icon: supabase
+category: dev-tools
+version: '1.0'
+description: Supabase
+auth:
+  type: api_key
+  api_key:
+    env_var: SUPABASE_API_KEY
+  required_fields:
+  - name: apiKey
+    label: Secret Key
+    placeholder: sb_secret_*******************************hm
+    input_type: text
+    help_text: The secret key from your Supabase project.
+    optional: false
+  - name: projecturl
+    label: Project URL
+    placeholder: project.supabase.co
+    input_type: url
+    help_text: The Supabase project url you want to connect to.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/supabase
+tool_source:
+  type: mcp
+  server_name: supabase
+  command: supabase-mcp-server

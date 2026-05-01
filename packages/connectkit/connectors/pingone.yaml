@@ -1,0 +1,32 @@
+name: pingone
+display: PingOne
+icon: pingone
+category: dev-tools
+version: '1.0'
+description: PingOne
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://auth.pingone.${connectionConfig.tld}/${connectionConfig.environmentId}/as/authorize
+    token_url: https://auth.pingone.${connectionConfig.tld}/${connectionConfig.environmentId}/as/token
+    scopes:
+    - read
+    token_env_var: PINGONE_ACCESS_TOKEN
+  required_fields:
+  - name: tld
+    label: Top Level Domain
+    placeholder: com
+    input_type: text
+    help_text: The top level domain for your PingOne account
+    optional: false
+  - name: environmentid
+    label: Environment ID
+    placeholder: f2aba07d-270c-42ba-8811-01af5f63d458
+    input_type: text
+    help_text: The environment ID for your PingOne account
+    optional: false
+setup_guide_url: https://docs.nango.dev/integrations/all/pingone
+tool_source:
+  type: mcp
+  server_name: pingone
+  command: pingone-mcp-server

@@ -1,0 +1,26 @@
+name: ironclad
+display: Ironclad
+icon: ironclad
+category: legal
+version: '1.0'
+description: Ironclad
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://ironcladapp.com/oauth/authorize
+    token_url: https://${connectionConfig.subdomain}.ironcladapp.com/oauth/token
+    scopes:
+    - read
+    token_env_var: IRONCLAD_ACCESS_TOKEN
+  required_fields:
+  - name: subdomain
+    label: Subdomain
+    placeholder: na1
+    input_type: text
+    help_text: Your Ironclad Environment Subdomain
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/ironclad
+tool_source:
+  type: mcp
+  server_name: ironclad
+  command: ironclad-mcp-server

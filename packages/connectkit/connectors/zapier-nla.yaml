@@ -1,0 +1,20 @@
+name: zapier-nla
+display: Zapier NLA
+icon: zapier
+category: productivity
+version: '1.0'
+description: Zapier NLA
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://nla.zapier.com/oauth/authorize/
+    token_url: https://nla.zapier.com/oauth/token/
+    scopes:
+    - read
+    token_env_var: ZAPIER-NLA_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/zapier-nla
+tool_source:
+  type: mcp
+  server_name: zapier-nla
+  command: zapier-nla-mcp-server

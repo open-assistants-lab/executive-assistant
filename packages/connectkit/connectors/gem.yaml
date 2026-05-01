@@ -1,0 +1,28 @@
+name: gem
+display: Gem
+icon: gem
+category: ats
+version: '1.0'
+description: Gem
+auth:
+  type: api_key
+  api_key:
+    env_var: GEM_API_KEY
+  required_fields:
+  - name: apiKey
+    label: Shareable Access Key
+    placeholder: Xk9t3HZbWqLp7AeGvM4sUdYjBnR2TfQxCVi81oNz
+    input_type: text
+    help_text: The Shareable Access Key for your Integration
+    optional: false
+  - name: appsecret
+    label: ''
+    placeholder: ''
+    input_type: text
+    help_text: ''
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/gem
+tool_source:
+  type: mcp
+  server_name: gem
+  command: gem-mcp-server

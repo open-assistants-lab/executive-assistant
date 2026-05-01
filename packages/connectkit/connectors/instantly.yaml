@@ -1,0 +1,22 @@
+name: instantly
+display: Instantly
+icon: instantl
+category: marketing
+version: '1.0'
+description: Instantly
+auth:
+  type: api_key
+  api_key:
+    env_var: INSTANTLY_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ZTQ****************************************QQ==
+    input_type: text
+    help_text: The API key for your Instantly account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/instantly
+tool_source:
+  type: mcp
+  server_name: instantly
+  command: instantly-mcp-server

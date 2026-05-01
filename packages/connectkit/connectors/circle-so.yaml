@@ -1,0 +1,22 @@
+name: circle-so
+display: Circle.so
+icon: circle
+category: communication
+version: '1.0'
+description: Circle.so
+auth:
+  type: api_key
+  api_key:
+    env_var: CIRCLE-SO_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Circle.so account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/circle-so
+tool_source:
+  type: mcp
+  server_name: circle-so
+  command: circle-so-mcp-server

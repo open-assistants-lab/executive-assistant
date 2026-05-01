@@ -1,0 +1,29 @@
+name: snowflake
+display: Snowflake
+icon: snowflak
+category: dev-tools
+version: '1.0'
+description: Snowflake
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.snowflake_account_url}/oauth/authorize
+    token_url: https://${connectionConfig.snowflake_account_url}/oauth/token-request
+    scopes:
+    - read
+    token_env_var: SNOWFLAKE_ACCESS_TOKEN
+  required_fields:
+  - name: snowflake_account_url
+    label: Domain
+    placeholder: ''
+    input_type: url
+    help_text: The domain of your Snowflake account
+    optional: false
+tool_sources:
+- type: cli
+  command: snowflake
+  install: '# See service docs'
+- type: mcp
+  server_name: snowflake
+  command: snowflake-mcp-server
+setup_guide_url: https://nango.dev/docs/integrations/all/snowflake

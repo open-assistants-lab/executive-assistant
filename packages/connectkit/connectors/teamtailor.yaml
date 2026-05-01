@@ -1,0 +1,28 @@
+name: teamtailor
+display: Teamtailor
+icon: teamtail
+category: ats
+version: '1.0'
+description: Teamtailor
+auth:
+  type: api_key
+  api_key:
+    env_var: TEAMTAILOR_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Teamtailor account
+    optional: false
+  - name: extension
+    label: Teamtailor Domain
+    placeholder: domain
+    input_type: text
+    help_text: The subdomain of your Teamtailor instance
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/teamtailor
+tool_source:
+  type: mcp
+  server_name: teamtailor
+  command: teamtailor-mcp-server

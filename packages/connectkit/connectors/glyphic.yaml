@@ -1,0 +1,22 @@
+name: glyphic
+display: Glyphic
+icon: glyphic
+category: communication
+version: '1.0'
+description: Glyphic
+auth:
+  type: api_key
+  api_key:
+    env_var: GLYPHIC_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: Your Glyphic API key
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/glyphic
+tool_source:
+  type: mcp
+  server_name: glyphic
+  command: glyphic-mcp-server

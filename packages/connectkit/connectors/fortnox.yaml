@@ -1,0 +1,22 @@
+name: fortnox
+display: Fortnox
+icon: fortnox
+category: accounting
+version: '1.0'
+description: Fortnox
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://apps.fortnox.se/oauth-v1/auth
+    token_url: https://apps.fortnox.se/oauth-v1/token
+    scopes:
+    - read
+    extra_params:
+      access_type: offline
+    token_env_var: FORTNOX_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/fortnox
+tool_source:
+  type: mcp
+  server_name: fortnox
+  command: fortnox-mcp-server

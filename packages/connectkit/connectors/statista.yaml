@@ -1,0 +1,22 @@
+name: statista
+display: Statista
+icon: statista
+category: analytics
+version: '1.0'
+description: Statista
+auth:
+  type: api_key
+  api_key:
+    env_var: STATISTA_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: c5c28261f9ade4e34891ccf761491b94
+    input_type: text
+    help_text: The API key for your Statista account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/statista
+tool_source:
+  type: mcp
+  server_name: statista
+  command: statista-mcp-server

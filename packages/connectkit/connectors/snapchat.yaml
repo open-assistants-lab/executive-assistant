@@ -1,0 +1,20 @@
+name: snapchat
+display: Snapchat (Ads API)
+icon: snapchat
+category: video
+version: '1.0'
+description: Snapchat (Ads API)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://accounts.snapchat.com/login/oauth2/authorize
+    token_url: https://accounts.snapchat.com/login/oauth2/access_token
+    scopes:
+    - read
+    token_env_var: SNAPCHAT_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/snapchat
+tool_source:
+  type: mcp
+  server_name: snapchat
+  command: snapchat-mcp-server

@@ -1,0 +1,23 @@
+name: outreach
+display: Outreach
+icon: outreach
+category: marketing
+version: '1.0'
+description: Outreach
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://api.outreach.io/oauth/authorize
+    token_url: https://api.outreach.io/oauth/token
+    scopes:
+    - read
+    token_env_var: OUTREACH_ACCESS_TOKEN
+  required_fields: []
+tool_sources:
+- type: cli
+  command: outreach
+  install: '# See service docs'
+- type: mcp
+  server_name: outreach
+  command: outreach-mcp-server
+setup_guide_url: https://nango.dev/docs/integrations/all/outreach

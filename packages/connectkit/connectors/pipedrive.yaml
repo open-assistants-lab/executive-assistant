@@ -1,0 +1,29 @@
+name: pipedrive
+display: Pipedrive
+icon: pipedriv
+category: crm
+version: '1.0'
+description: Pipedrive
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://oauth.pipedrive.com/oauth/authorize
+    token_url: https://oauth.pipedrive.com/oauth/token
+    scopes:
+    - read
+    token_env_var: PIPEDRIVE_ACCESS_TOKEN
+  required_fields:
+  - name: api_domain
+    label: ''
+    placeholder: ''
+    input_type: text
+    help_text: ''
+    optional: false
+tool_sources:
+- type: cli
+  command: pipedrive
+  install: '# See service docs'
+- type: mcp
+  server_name: pipedrive
+  command: pipedrive-mcp-server
+setup_guide_url: https://nango.dev/docs/api-integrations/pipedrive/how-to-register-your-own-pipedrive-oauth-app

@@ -1,0 +1,22 @@
+name: wise-api-key
+display: Wise (API Key)
+icon: wise
+category: banking
+version: '1.0'
+description: Wise (API Key)
+auth:
+  type: api_key
+  api_key:
+    env_var: WISE-API-KEY_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: 12345678-1234-1234-1234-123456789abc
+    input_type: text
+    help_text: Your Wise Personal API Token
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/wise-api-key
+tool_source:
+  type: mcp
+  server_name: wise-api-key
+  command: wise-api-key-mcp-server

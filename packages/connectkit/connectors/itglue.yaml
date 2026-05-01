@@ -1,0 +1,28 @@
+name: itglue
+display: IT Glue
+icon: itglue
+category: productivity
+version: '1.0'
+description: IT Glue
+auth:
+  type: api_key
+  api_key:
+    env_var: ITGLUE_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ITG.12cca334567890_123456vasfagas7890
+    input_type: text
+    help_text: Your IT Glue API key
+    optional: false
+  - name: subdomain
+    label: Subdomain
+    placeholder: api
+    input_type: text
+    help_text: Your IT Glue subdomain (api, api.eu, or api.au)
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/itglue
+tool_source:
+  type: mcp
+  server_name: itglue
+  command: itglue-mcp-server

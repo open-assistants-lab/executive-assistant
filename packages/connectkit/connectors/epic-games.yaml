@@ -1,0 +1,20 @@
+name: epic-games
+display: Epic Games
+icon: epic
+category: gaming
+version: '1.0'
+description: Epic Games
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://www.epicgames.com/id/authorize
+    token_url: https://api.epicgames.dev/epic/oauth/v1/token
+    scopes:
+    - read
+    token_env_var: EPIC-GAMES_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/epic-games
+tool_source:
+  type: mcp
+  server_name: epic-games
+  command: epic-games-mcp-server

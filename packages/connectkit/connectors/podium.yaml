@@ -1,0 +1,26 @@
+name: podium
+display: Podium
+icon: podium
+category: communication
+version: '1.0'
+description: Podium
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://api.podium.com/oauth/authorize
+    token_url: https://api.podium.com/oauth/token
+    scopes:
+    - read
+    token_env_var: PODIUM_ACCESS_TOKEN
+  required_fields:
+  - name: apiversion
+    label: API Version
+    placeholder: ''
+    input_type: text
+    help_text: The API version of your Podium account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/podium
+tool_source:
+  type: mcp
+  server_name: podium
+  command: podium-mcp-server

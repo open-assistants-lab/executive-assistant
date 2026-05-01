@@ -1,0 +1,27 @@
+name: fanvue
+display: Fanvue
+icon: fanvue
+category: other
+version: '1.0'
+description: Fanvue
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://auth.fanvue.com/oauth2/auth
+    token_url: https://auth.fanvue.com/oauth2/token
+    scopes:
+    - offline_access
+    - offline
+    token_env_var: FANVUE_ACCESS_TOKEN
+  required_fields:
+  - name: version
+    label: ''
+    placeholder: ''
+    input_type: text
+    help_text: ''
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/fanvue
+tool_source:
+  type: mcp
+  server_name: fanvue
+  command: fanvue-mcp-server

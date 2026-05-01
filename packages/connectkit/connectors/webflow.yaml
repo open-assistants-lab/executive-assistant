@@ -1,0 +1,23 @@
+name: webflow
+display: Webflow
+icon: webflow
+category: dev-tools
+version: '1.0'
+description: Webflow
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://webflow.com/oauth/authorize
+    token_url: https://api.webflow.com/oauth/access_token
+    scopes:
+    - read
+    token_env_var: WEBFLOW_ACCESS_TOKEN
+  required_fields: []
+tool_sources:
+- type: cli
+  command: webflow
+  install: '# See service docs'
+- type: mcp
+  server_name: webflow
+  command: webflow-mcp-server
+setup_guide_url: https://nango.dev/docs/integrations/all/webflow

@@ -1,0 +1,20 @@
+name: bing-webmasters
+display: Bing Webmasters
+icon: bing
+category: dev-tools
+version: '1.0'
+description: Bing Webmasters
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://www.bing.com/webmasters/oauth/authorize
+    token_url: https://www.bing.com/webmasters/oauth/token
+    scopes:
+    - read
+    token_env_var: BING-WEBMASTERS_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/bing-webmasters/how-to-register-your-own-bing-webmasters-api-oauth-app
+tool_source:
+  type: mcp
+  server_name: bing-webmasters
+  command: bing-webmasters-mcp-server

@@ -1,0 +1,23 @@
+name: close
+display: Close
+icon: close
+category: crm
+version: '1.0'
+description: Close
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://app.close.com/oauth2/authorize
+    token_url: https://api.close.com/oauth2/token/
+    scopes:
+    - offline_access
+    token_env_var: CLOSE_ACCESS_TOKEN
+  required_fields: []
+tool_sources:
+- type: cli
+  command: close
+  install: '# See service docs'
+- type: mcp
+  server_name: close
+  command: close-mcp-server
+setup_guide_url: https://nango.dev/docs/integrations/all/close

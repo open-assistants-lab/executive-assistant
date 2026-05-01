@@ -1,0 +1,66 @@
+# Microsoft 365 — Outlook, Calendar, OneDrive, Teams
+# Uses CLI for Microsoft 365: https://pnp.github.io/cli-microsoft365/
+
+name: microsoft-365
+display: "Microsoft 365"
+icon: microsoft
+category: productivity
+version: "1.0"
+description: "Outlook email, Calendar, OneDrive, Teams, and SharePoint"
+setup_guide_url: "https://learn.microsoft.com/en-us/graph/auth-register-app-v2"
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://login.microsoftonline.com/common/oauth2/v2.0/authorize
+    token_url: https://login.microsoftonline.com/common/oauth2/v2.0/token
+    scopes:
+      - Mail.Read
+      - Mail.Send
+      - Calendars.Read
+      - Calendars.ReadWrite
+      - Files.Read
+      - offline_access
+    token_env_var: M365_ACCESS_TOKEN
+  required_fields:
+    - name: client_id
+      label: "Application (client) ID"
+      placeholder: "a1b2c3d4-0123-4567-89ab-cdef01234567"
+      input_type: text
+      help_text: "From Azure Portal → App registrations → Overview"
+    - name: client_secret
+      label: "Client Secret"
+      placeholder: "..."
+      input_type: password
+      help_text: "From Certificates & secrets → New client secret"
+tool_source:
+  type: cli
+  command: m365
+  install: npm install -g @pnp/cli-microsoft365
+  env_mapping:
+    access_token: M365_ACCESS_TOKEN
+tool_descriptions:
+  - name: microsoft_365__mail_list
+    description: "List recent emails from the user's Outlook inbox. Returns subject, sender, received date, and preview."
+    parameter_descriptions:
+      top: "Maximum emails to return (default: 10)"
+      filter: "OData filter (e.g. \"isRead eq false\" for unread only)"
+  - name: microsoft_365__mail_get
+    description: "Get the full content of a specific email by message ID."
+    parameter_descriptions:
+      id: "The Outlook message ID from mail_list"
+  - name: microsoft_365__mail_send
+    description: "Send an email via Outlook. Requires the user to have authorized mail.send scope."
+    parameter_descriptions:
+      to: "Recipient email address"
+      subject: "Email subject line"
+      body: "Email body content (plain text)"
+  - name: microsoft_365__calendar_list
+    description: "List upcoming events from the user's Outlook calendar."
+    parameter_descriptions:
+      top: "Maximum events (default: 10)"
+      filter: "OData filter (e.g. \"start/datetime ge '2026-05-01T00:00:00'\")"
+  - name: microsoft_365__file_list
+    description: "List files and folders from the user's OneDrive."
+    parameter_descriptions:
+      path: "Folder path (default: root directory)"
+      top: "Maximum items (default: 20)"

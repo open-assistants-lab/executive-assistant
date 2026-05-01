@@ -1,0 +1,50 @@
+# Figma — design and collaboration
+# MCP: https://help.figma.com/hc/en-us/articles/31178453140631-Figma-MCP-Server
+# CLI: minimal, remote MCP is preferred
+
+name: figma
+display: "Figma"
+icon: figma
+category: design
+version: "1.0"
+description: "Figma design files, components, styles, and comments"
+setup_guide_url: "https://help.figma.com/hc/en-us/articles/31178453140631-Figma-MCP-Server"
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://www.figma.com/oauth
+    token_url: https://www.figma.com/api/oauth/token
+    scopes:
+      - file_read
+    token_env_var: FIGMA_ACCESS_TOKEN
+  required_fields:
+    - name: client_id
+      label: "Client ID"
+      placeholder: "..."
+      input_type: text
+      help_text: "From figma.com/developers → your app"
+    - name: client_secret
+      label: "Client Secret"
+      placeholder: "..."
+      input_type: password
+      help_text: "From the same app settings"
+tool_source:
+  type: mcp
+  server_name: figma
+  command: figma-mcp
+  install: figma-mcp-server (official, remote endpoint)
+  env_mapping:
+    access_token: FIGMA_ACCESS_TOKEN
+tool_descriptions:
+  - name: figma__file_info
+    description: "Get file information and structure"
+    parameter_descriptions:
+      file_key: "Figma file key from URL"
+  - name: figma__list_components
+    description: "List components in a Figma file"
+    parameter_descriptions:
+      file_key: "Figma file key"
+  - name: figma__list_styles
+    description: "List text and color styles in a Figma file"
+    parameter_descriptions:
+      file_key: "Figma file key"

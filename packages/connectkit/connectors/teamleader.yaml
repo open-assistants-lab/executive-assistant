@@ -1,0 +1,20 @@
+name: teamleader
+display: Teamleader Focus
+icon: teamlead
+category: invoicing
+version: '1.0'
+description: Teamleader Focus
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://focus.teamleader.eu/oauth2/authorize
+    token_url: https://focus.teamleader.eu/oauth2/access_token
+    scopes:
+    - read
+    token_env_var: TEAMLEADER_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/teamleader
+tool_source:
+  type: mcp
+  server_name: teamleader
+  command: teamleader-mcp-server

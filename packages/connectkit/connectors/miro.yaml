@@ -1,0 +1,20 @@
+name: miro
+display: Miro
+icon: miro
+category: design
+version: '1.0'
+description: Miro
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://miro.com/oauth/authorize
+    token_url: https://api.miro.com/v1/oauth/token
+    scopes:
+    - read
+    token_env_var: MIRO_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/miro
+tool_source:
+  type: mcp
+  server_name: miro
+  command: miro-mcp-server

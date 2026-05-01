@@ -1,0 +1,22 @@
+name: devin
+display: Devin
+icon: devin
+category: dev-tools
+version: '1.0'
+description: Devin
+auth:
+  type: api_key
+  api_key:
+    env_var: DEVIN_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: apk_user_dGVzdF9vcmdfeDY1NzRBUElLRVl8Njc1OTdjNDQzMjFhOTZlODhlMmE4MTI0X29yZ194NnB5QlVJa042anVKWWtMOjQ3NzQxYTVmYWE5MTRiNjQ5
+    input_type: text
+    help_text: The API Key for your Devin account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/devin
+tool_source:
+  type: mcp
+  server_name: devin
+  command: devin-mcp-server

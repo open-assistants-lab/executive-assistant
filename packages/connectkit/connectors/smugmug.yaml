@@ -1,0 +1,20 @@
+name: smugmug
+display: Smugmug
+icon: smugmug
+category: storage
+version: '1.0'
+description: Smugmug
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://api.smugmug.com/services/oauth/1.0a/authorize
+    token_url: https://api.smugmug.com/services/oauth/1.0a/getAccessToken
+    scopes:
+    - read
+    token_env_var: SMUGMUG_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/smugmug
+tool_source:
+  type: mcp
+  server_name: smugmug
+  command: smugmug-mcp-server

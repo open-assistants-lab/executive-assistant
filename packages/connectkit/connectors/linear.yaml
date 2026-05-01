@@ -1,0 +1,65 @@
+# Linear — modern issue tracking
+# CLI: Community linear CLI
+# MCP: https://linear.app/docs/mcp
+
+name: linear
+display: "Linear"
+icon: linear
+category: dev-tools
+version: "1.0"
+description: "Linear issues, projects, teams, and cycles"
+setup_guide_url: "https://developers.linear.app/docs/oauth/overview"
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://linear.app/oauth/authorize
+    token_url: https://api.linear.app/oauth/token
+    scopes:
+      - read
+      - issues:create
+    token_env_var: LINEAR_API_KEY
+  required_fields:
+    - name: client_id
+      label: "Client ID"
+      placeholder: "..."
+      input_type: text
+      help_text: "From linear.app → Settings → API → OAuth Applications"
+    - name: client_secret
+      label: "Client Secret"
+      placeholder: "..."
+      input_type: password
+      help_text: "From the same OAuth application page"
+tool_sources:
+  - type: mcp
+    server_name: linear
+    command: npx @anthropic/linear-mcp
+    env_mapping:
+      access_token: LINEAR_API_KEY
+  - type: cli
+    command: linear
+    install: npm install -g @linear/cli
+    env_mapping:
+      access_token: LINEAR_API_KEY
+tool_descriptions:
+  - name: linear__issues_list
+    description: "List Linear issues"
+    parameter_descriptions:
+      team: "Team key (e.g. ENG)"
+      status: "Issue status"
+      assignee: "Assignee username"
+      limit: "Max issues (default: 50)"
+  - name: linear__issue_create
+    description: "Create a new Linear issue"
+    parameter_descriptions:
+      team: "Team key"
+      title: "Issue title"
+      description: "Issue description"
+      priority: "Priority: none, urgent, high, medium, low"
+  - name: linear__issue_get
+    description: "Get issue details"
+    parameter_descriptions:
+      issue_id: "Issue ID (e.g. ENG-123)"
+  - name: linear__cycles_list
+    description: "List active cycles"
+    parameter_descriptions:
+      team: "Team key"

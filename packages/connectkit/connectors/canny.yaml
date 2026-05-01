@@ -1,0 +1,22 @@
+name: canny
+display: Canny
+icon: canny
+category: support
+version: '1.0'
+description: Canny
+auth:
+  type: api_key
+  api_key:
+    env_var: CANNY_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: a1f5937c-82df-bd29-4e3a-7b6fda8c54d1
+    input_type: text
+    help_text: The API key for your Canny account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/canny
+tool_source:
+  type: mcp
+  server_name: canny
+  command: canny-mcp-server

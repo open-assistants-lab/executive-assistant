@@ -1,0 +1,22 @@
+name: holded
+display: Holded
+icon: holded
+category: accounting
+version: '1.0'
+description: Holded
+auth:
+  type: api_key
+  api_key:
+    env_var: HOLDED_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Holded account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/holded
+tool_source:
+  type: mcp
+  server_name: holded
+  command: holded-mcp-server

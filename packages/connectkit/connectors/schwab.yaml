@@ -1,0 +1,20 @@
+name: schwab
+display: Schwab
+icon: schwab
+category: banking
+version: '1.0'
+description: Schwab
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://api.schwabapi.com/v1/oauth/authorize
+    token_url: https://api.schwabapi.com/v1/oauth/token
+    scopes:
+    - read
+    token_env_var: SCHWAB_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/schwab/how-to-register-your-own-schwab-oauth-app
+tool_source:
+  type: mcp
+  server_name: schwab
+  command: schwab-mcp-server

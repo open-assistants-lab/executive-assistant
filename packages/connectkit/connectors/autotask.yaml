@@ -1,0 +1,40 @@
+name: autotask
+display: AutoTask
+icon: autotask
+category: support
+version: '1.0'
+description: AutoTask
+auth:
+  type: api_key
+  api_key:
+    env_var: AUTOTASK_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Secret
+    placeholder: ''
+    input_type: text
+    help_text: The secret for your API-only user account
+    optional: false
+  - name: subdomain
+    label: AutoTask API Zone
+    placeholder: webservices3
+    input_type: text
+    help_text: The zone subdomain for your Autotask instance (e.g., webservices3, webservices1, etc.)
+    optional: false
+  - name: apiintegrationcode
+    label: API Integration Code
+    placeholder: ASHJKLFDKAHKASLFH85LSA905H
+    input_type: text
+    help_text: The tracking identifier assigned to your API-only user (27-character string)
+    optional: false
+  - name: username
+    label: API Username
+    placeholder: apiuser@example.com
+    input_type: text
+    help_text: The email address of your API-only user account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/autotask
+tool_source:
+  type: mcp
+  server_name: autotask
+  command: autotask-mcp-server

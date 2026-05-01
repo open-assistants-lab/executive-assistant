@@ -1,0 +1,28 @@
+name: minimax
+display: MiniMax
+icon: minimax
+category: productivity
+version: '1.0'
+description: MiniMax
+auth:
+  type: api_key
+  api_key:
+    env_var: MINIMAX_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for securely accessing the MiniMax API.
+    optional: false
+  - name: groupid
+    label: Group ID
+    placeholder: '1234567890123456789'
+    input_type: text
+    help_text: The unique identifier for your MiniMax account, linked to your account's privileges.
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/minimax
+tool_source:
+  type: mcp
+  server_name: minimax
+  command: minimax-mcp-server

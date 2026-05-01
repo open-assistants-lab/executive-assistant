@@ -1,0 +1,22 @@
+name: cursor
+display: Cursor
+icon: cursor
+category: dev-tools
+version: '1.0'
+description: Cursor
+auth:
+  type: api_key
+  api_key:
+    env_var: CURSOR_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: key_9164000970ca2f15c999047a0e2b7e03127885be41198616a6975af08b28239b
+    input_type: text
+    help_text: The API Key for your Cursor account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/cursor
+tool_source:
+  type: mcp
+  server_name: cursor
+  command: cursor-mcp-server

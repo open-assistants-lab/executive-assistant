@@ -1,0 +1,20 @@
+name: crisp-plugin-install
+display: Crisp (Plugin Install)
+icon: crisp
+category: communication
+version: '1.0'
+description: Crisp (Plugin Install)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: ''
+    token_url: ''
+    scopes:
+    - read
+    token_env_var: CRISP-PLUGIN-INSTALL_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/crisp-plugin-install/how-to-register-your-own-crisp-plugin
+tool_source:
+  type: mcp
+  server_name: crisp-plugin-install
+  command: crisp-plugin-install-mcp-server

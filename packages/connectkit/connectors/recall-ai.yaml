@@ -1,0 +1,28 @@
+name: recall-ai
+display: Recall.ai
+icon: recall
+category: dev-tools
+version: '1.0'
+description: Recall.ai
+auth:
+  type: api_key
+  api_key:
+    env_var: RECALL-AI_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: 2d7843e2351dd4afa67eecfb5c723142fcb401b1
+    input_type: text
+    help_text: The API key for your Recall.ai account
+    optional: false
+  - name: region
+    label: Region
+    placeholder: us-east-1
+    input_type: text
+    help_text: The region where your Recall.ai account is hosted
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/recall-ai
+tool_source:
+  type: mcp
+  server_name: recall-ai
+  command: recall-ai-mcp-server

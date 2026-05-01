@@ -1,0 +1,28 @@
+name: razorpay
+display: Razorpay
+icon: razorpay
+category: payment
+version: '1.0'
+description: Razorpay
+auth:
+  type: api_key
+  api_key:
+    env_var: RAZORPAY_API_KEY
+  required_fields:
+  - name: username
+    label: Key ID
+    placeholder: rzp_test_*************
+    input_type: text
+    help_text: Your Key ID
+    optional: false
+  - name: password
+    label: Key Secret
+    placeholder: ''
+    input_type: password
+    help_text: Your Key Secret
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/razorpay
+tool_source:
+  type: mcp
+  server_name: razorpay
+  command: razorpay-mcp-server

@@ -1,0 +1,20 @@
+name: front
+display: Front
+icon: front
+category: support
+version: '1.0'
+description: Front
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://app.frontapp.com/oauth/authorize
+    token_url: https://app.frontapp.com/oauth/token
+    scopes:
+    - read
+    token_env_var: FRONT_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/front
+tool_source:
+  type: mcp
+  server_name: front
+  command: front-mcp-server

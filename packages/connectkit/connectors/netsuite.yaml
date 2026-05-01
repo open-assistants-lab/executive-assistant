@@ -1,0 +1,31 @@
+name: netsuite
+display: NetSuite (OAuth)
+icon: netsuite
+category: accounting
+version: '1.0'
+description: NetSuite (OAuth)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.accountId}.app.netsuite.com/app/login/oauth2/authorize.nl
+    token_url: https://${connectionConfig.accountId}.suitetalk.api.netsuite.com/services/rest/auth/oauth2/v1/token
+    scopes:
+    - rest_webservices
+    extra_params:
+      prompt: consent
+    token_env_var: NETSUITE_ACCESS_TOKEN
+  required_fields:
+  - name: accountid
+    label: Account ID
+    placeholder: tstdrv231585
+    input_type: text
+    help_text: The account ID of your NetSuite account
+    optional: false
+tool_sources:
+- type: cli
+  command: netsuite
+  install: '# See service docs'
+- type: mcp
+  server_name: netsuite
+  command: netsuite-mcp-server
+setup_guide_url: https://nango.dev/docs/integrations/all/netsuite

@@ -1,0 +1,22 @@
+name: open-hands
+display: Open Hands
+icon: open
+category: dev-tools
+version: '1.0'
+description: Open Hands
+auth:
+  type: api_key
+  api_key:
+    env_var: OPEN-HANDS_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: aNVlyRBLGWJgnVp1vwXN7TkO1MCYxeIDz
+    input_type: text
+    help_text: The API Key for your Open Hands account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/open-hands
+tool_source:
+  type: mcp
+  server_name: open-hands
+  command: open-hands-mcp-server

@@ -1,0 +1,28 @@
+name: e-conomic
+display: e-conomic
+icon: e
+category: accounting
+version: '1.0'
+description: e-conomic
+auth:
+  type: api_key
+  api_key:
+    env_var: E-CONOMIC_API_KEY
+  required_fields:
+  - name: username
+    label: Private Token
+    placeholder: ''
+    input_type: text
+    help_text: The Private Token for your e-conomic account
+    optional: false
+  - name: password
+    label: Agreement Grant Token
+    placeholder: ''
+    input_type: text
+    help_text: The Agreement Grant Token for your e-conomic account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/e-conomic
+tool_source:
+  type: mcp
+  server_name: e-conomic
+  command: e-conomic-mcp-server

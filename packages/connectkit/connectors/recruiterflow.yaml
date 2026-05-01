@@ -1,0 +1,22 @@
+name: recruiterflow
+display: Recruiterflow
+icon: recruite
+category: hr
+version: '1.0'
+description: Recruiterflow
+auth:
+  type: api_key
+  api_key:
+    env_var: RECRUITERFLOW_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: 7b0c0d****************************
+    input_type: text
+    help_text: The API Key for your Recruiterflow account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/recruiterflow
+tool_source:
+  type: mcp
+  server_name: recruiterflow
+  command: recruiterflow-mcp-server

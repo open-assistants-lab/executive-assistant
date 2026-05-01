@@ -1,0 +1,59 @@
+# Zoom — video conferencing
+# No official CLI
+# MCP: Community + StackOne MCP integrations
+
+name: zoom
+display: "Zoom"
+icon: zoom
+category: communication
+version: "1.0"
+description: "Zoom meetings, recordings, webinars, and users"
+setup_guide_url: "https://developers.zoom.us/docs/integrations/create-a-server-to-server-oauth-app/"
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://zoom.us/oauth/authorize
+    token_url: https://zoom.us/oauth/token
+    scopes:
+      - meeting:read
+      - meeting:write
+      - recording:read
+      - user:read
+    token_env_var: ZOOM_ACCESS_TOKEN
+  required_fields:
+    - name: client_id
+      label: "Client ID"
+      placeholder: "..."
+      input_type: text
+      help_text: "From marketplace.zoom.us → your app → App Credentials"
+    - name: client_secret
+      label: "Client Secret"
+      placeholder: "..."
+      input_type: password
+      help_text: "From the same App Credentials page"
+tool_sources:
+  - type: mcp
+    server_name: zoom
+    command: zoom-mcp-server
+    env_mapping:
+      access_token: ZOOM_ACCESS_TOKEN
+tool_descriptions:
+  - name: zoom__meetings_list
+    description: "List upcoming Zoom meetings"
+    parameter_descriptions:
+      limit: "Max meetings (default: 30)"
+  - name: zoom__meeting_create
+    description: "Schedule a Zoom meeting"
+    parameter_descriptions:
+      topic: "Meeting topic"
+      start_time: "Start time (ISO 8601)"
+      duration: "Duration in minutes"
+  - name: zoom__recordings_list
+    description: "List cloud recordings"
+    parameter_descriptions:
+      from_: "From date (ISO 8601)"
+      to_: "To date"
+  - name: zoom__users_list
+    description: "List Zoom users"
+    parameter_descriptions:
+      limit: "Max users (default: 30)"

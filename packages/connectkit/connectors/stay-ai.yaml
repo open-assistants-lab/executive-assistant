@@ -1,0 +1,22 @@
+name: stay-ai
+display: Stay AI
+icon: stay
+category: e-commerce
+version: '1.0'
+description: Stay AI
+auth:
+  type: api_key
+  api_key:
+    env_var: STAY-AI_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: 7k9***f-***da3e-***hjtb-***22cy
+    input_type: text
+    help_text: Your Stay AI API key.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/stay-ai
+tool_source:
+  type: mcp
+  server_name: stay-ai
+  command: stay-ai-mcp-server

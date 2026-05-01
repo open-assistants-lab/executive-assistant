@@ -1,0 +1,34 @@
+name: mindbody
+display: Mindbody
+icon: mindbody
+category: productivity
+version: '1.0'
+description: Mindbody
+auth:
+  type: api_key
+  api_key:
+    env_var: MINDBODY_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4
+    input_type: text
+    help_text: The API key for your Mindbody account
+    optional: false
+  - name: siteid
+    label: Site ID
+    placeholder: '-99'
+    input_type: text
+    help_text: The site ID for your Mindbody account
+    optional: false
+  - name: staffusertoken
+    label: Staff User Token
+    placeholder: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4
+    input_type: text
+    help_text: The staff user token for your Mindbody account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/mindbody
+tool_source:
+  type: mcp
+  server_name: mindbody
+  command: mindbody-mcp-server

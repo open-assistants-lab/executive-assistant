@@ -1,0 +1,25 @@
+name: cloudflare
+display: Cloudflare
+icon: cloudfla
+category: dev-tools
+version: '1.0'
+description: Cloudflare
+auth:
+  type: api_key
+  api_key:
+    env_var: CLOUDFLARE_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: lGlHlGZN3iPR9z7CupZlMB3nzMpTCdfxeUPNj_pf
+    input_type: text
+    help_text: The API token for your Cloudflare user or account
+    optional: false
+tool_sources:
+- type: cli
+  command: cloudflare
+  install: '# See service docs'
+- type: mcp
+  server_name: cloudflare
+  command: cloudflare-mcp-server
+setup_guide_url: https://nango.dev/docs/api-integrations/cloudflare

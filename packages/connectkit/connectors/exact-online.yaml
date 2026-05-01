@@ -1,0 +1,26 @@
+name: exact-online
+display: Exact Online
+icon: exact
+category: accounting
+version: '1.0'
+description: Exact Online
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://start.exactonline.${connectionConfig.extension}/api/oauth2/auth
+    token_url: https://start.exactonline.${connectionConfig.extension}/api/oauth2/token
+    scopes:
+    - read
+    token_env_var: EXACT-ONLINE_ACCESS_TOKEN
+  required_fields:
+  - name: extension
+    label: Domain Extension
+    placeholder: nl
+    input_type: text
+    help_text: The domain extension of your Exact Online account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/exact-online
+tool_source:
+  type: mcp
+  server_name: exact-online
+  command: exact-online-mcp-server

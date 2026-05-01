@@ -1,0 +1,22 @@
+name: firstbase
+display: Firstbase
+icon: firstbas
+category: hr
+version: '1.0'
+description: Firstbase
+auth:
+  type: api_key
+  api_key:
+    env_var: FIRSTBASE_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Firstbase account
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/firstbase
+tool_source:
+  type: mcp
+  server_name: firstbase
+  command: firstbase-mcp-server

@@ -1,0 +1,20 @@
+name: apaleo
+display: Apaleo
+icon: apaleo
+category: erp
+version: '1.0'
+description: Apaleo
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://identity.apaleo.com/connect/authorize
+    token_url: https://identity.apaleo.com/connect/token
+    scopes:
+    - read
+    token_env_var: APALEO_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/apaleo
+tool_source:
+  type: mcp
+  server_name: apaleo
+  command: apaleo-mcp-server

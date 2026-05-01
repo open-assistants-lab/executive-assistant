@@ -1,0 +1,22 @@
+name: google-maps
+display: Google Maps
+icon: google
+category: productivity
+version: '1.0'
+description: Google Maps
+auth:
+  type: api_key
+  api_key:
+    env_var: GOOGLE-MAPS_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: AIzaSyAY4P9A***************1YMSYBI
+    input_type: text
+    help_text: Your Google Maps API Key.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/google-maps
+tool_source:
+  type: mcp
+  server_name: google-maps
+  command: google-maps-mcp-server

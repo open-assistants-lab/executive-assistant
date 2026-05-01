@@ -1,0 +1,22 @@
+name: contactout
+display: ContactOut
+icon: contacto
+category: crm
+version: '1.0'
+description: ContactOut
+auth:
+  type: api_key
+  api_key:
+    env_var: CONTACTOUT_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ab7KxYpR1qLmN9Zs3TvUeFgH
+    input_type: text
+    help_text: Your ContactOut API Key
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/contactout
+tool_source:
+  type: mcp
+  server_name: contactout
+  command: contactout-mcp-server

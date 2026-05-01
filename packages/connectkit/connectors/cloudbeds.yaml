@@ -1,0 +1,20 @@
+name: cloudbeds
+display: Cloudbeds
+icon: cloudbed
+category: other
+version: '1.0'
+description: Cloudbeds
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://api.cloudbeds.com/api/v1.3/oauth
+    token_url: https://api.cloudbeds.com/api/v1.3/access_token
+    scopes:
+    - read
+    token_env_var: CLOUDBEDS_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/cloudbeds/how-to-register-your-own-cloudbeds-oauth-app
+tool_source:
+  type: mcp
+  server_name: cloudbeds
+  command: cloudbeds-mcp-server

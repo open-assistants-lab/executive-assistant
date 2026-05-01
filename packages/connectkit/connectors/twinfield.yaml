@@ -1,0 +1,32 @@
+name: twinfield
+display: Twinfield
+icon: twinfiel
+category: accounting
+version: '1.0'
+description: Twinfield
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://login.twinfield.com/auth/authentication/connect/authorize
+    token_url: https://login.twinfield.com/auth/authentication/connect/token
+    scopes:
+    - openid
+    - twf.user
+    - twf.organisation
+    - twf.organisationUser
+    - offline_access
+    extra_params:
+      nonce: AnotherRandomStringTwinfield
+    token_env_var: TWINFIELD_ACCESS_TOKEN
+  required_fields:
+  - name: cluster
+    label: Twinfield Cluster
+    placeholder: accounting
+    input_type: text
+    help_text: The cluster to your Twinfield instance
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/twinfield
+tool_source:
+  type: mcp
+  server_name: twinfield
+  command: twinfield-mcp-server

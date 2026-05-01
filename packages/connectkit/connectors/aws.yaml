@@ -1,0 +1,38 @@
+name: aws
+display: AWS
+icon: aws
+category: dev-tools
+version: '1.0'
+description: AWS
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.subdomain}.auth.${connectionConfig.extension}.amazoncognito.com/oauth2/authorize
+    token_url: https://${connectionConfig.subdomain}.auth.${connectionConfig.extension}.amazoncognito.com/oauth2/token
+    scopes:
+    - openid
+    token_env_var: AWS_ACCESS_TOKEN
+  required_fields:
+  - name: subdomain
+    label: Cognito Domain Prefix
+    placeholder: my-app-pool
+    input_type: text
+    help_text: The prefix of your Cognito User Pool domain.
+    optional: false
+  - name: extension
+    label: Cognito Region
+    placeholder: eu-north-1
+    input_type: text
+    help_text: The AWS region where your Cognito User Pool is hosted.
+    optional: false
+  - name: apisubdomain
+    label: Cognito API Subdomain
+    placeholder: idp.eu-north-1
+    input_type: text
+    help_text: The Cognito API subdomain.
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/aws
+tool_source:
+  type: mcp
+  server_name: aws
+  command: aws-mcp-server

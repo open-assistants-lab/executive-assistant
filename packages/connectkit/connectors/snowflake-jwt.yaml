@@ -1,0 +1,44 @@
+name: snowflake-jwt
+display: Snowflake (JWT)
+icon: snowflak
+category: dev-tools
+version: '1.0'
+description: Snowflake (JWT)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: ''
+    token_url: ''
+    scopes:
+    - read
+    token_env_var: SNOWFLAKE-JWT_ACCESS_TOKEN
+  required_fields:
+  - name: accountIdentifier
+    label: Account Identifier
+    placeholder: KXOPMLU-RE00572
+    input_type: text
+    help_text: The unique identifier for your Snowflake account.
+    optional: false
+  - name: userName
+    label: User Name
+    placeholder: MYUSER
+    input_type: text
+    help_text: The username for your Snowflake account used for authentication
+    optional: false
+  - name: privateKey
+    label: Private Key
+    placeholder: '-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA\n-----END PRIVATE KEY-----'
+    input_type: password
+    help_text: The private key associated with your Snowflake account for JWT authentication
+    optional: false
+  - name: subdomain
+    label: Subdomain
+    placeholder: KXOPMLU-RE00572
+    input_type: text
+    help_text: The subdomain for your Snowflake instance
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/snowflake-jwt
+tool_source:
+  type: mcp
+  server_name: snowflake-jwt
+  command: snowflake-jwt-mcp-server

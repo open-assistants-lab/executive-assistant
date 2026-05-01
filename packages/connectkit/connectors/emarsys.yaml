@@ -1,0 +1,32 @@
+name: emarsys
+display: Emarsys Core API (WSSE)
+icon: emarsys
+category: marketing
+version: '1.0'
+description: Emarsys Core API (WSSE)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: ''
+    token_url: ''
+    scopes:
+    - read
+    token_env_var: EMARSYS_ACCESS_TOKEN
+  required_fields:
+  - name: username
+    label: ID
+    placeholder: ''
+    input_type: text
+    help_text: The ID of your Emarsys WSSE API Credentials
+    optional: false
+  - name: password
+    label: Client Secret
+    placeholder: ''
+    input_type: text
+    help_text: The Client Secret of your Emarsys WSSE API Credentials
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/emarsys
+tool_source:
+  type: mcp
+  server_name: emarsys
+  command: emarsys-mcp-server

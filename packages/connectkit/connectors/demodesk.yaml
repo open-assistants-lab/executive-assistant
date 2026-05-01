@@ -1,0 +1,22 @@
+name: demodesk
+display: DemoDesk
+icon: demodesk
+category: productivity
+version: '1.0'
+description: DemoDesk
+auth:
+  type: api_key
+  api_key:
+    env_var: DEMODESK_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: Your DemoDesk API key
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/demodesk
+tool_source:
+  type: mcp
+  server_name: demodesk
+  command: demodesk-mcp-server

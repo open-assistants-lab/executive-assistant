@@ -1,0 +1,20 @@
+name: tsheetsteam
+display: TSheets
+icon: tsheetst
+category: hr
+version: '1.0'
+description: TSheets
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://rest.tsheets.com/api/v1/authorize
+    token_url: https://rest.tsheets.com/api/v1/grant
+    scopes:
+    - read
+    token_env_var: TSHEETSTEAM_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/tsheetsteam
+tool_source:
+  type: mcp
+  server_name: tsheetsteam
+  command: tsheetsteam-mcp-server

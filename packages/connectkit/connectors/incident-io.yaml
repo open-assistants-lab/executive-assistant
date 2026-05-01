@@ -1,0 +1,25 @@
+name: incident-io
+display: Incident.io
+icon: incident
+category: ticketing
+version: '1.0'
+description: Incident.io
+auth:
+  type: api_key
+  api_key:
+    env_var: INCIDENT-IO_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: inc_************************************f2c5e6a7b3d4**********
+    input_type: text
+    help_text: The API key for your Incident.io account
+    optional: false
+tool_sources:
+- type: cli
+  command: incident-io
+  install: '# See service docs'
+- type: mcp
+  server_name: incident-io
+  command: incident-io-mcp-server
+setup_guide_url: https://nango.dev/docs/integrations/all/incident-io

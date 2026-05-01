@@ -1,0 +1,22 @@
+name: rocketreach
+display: RocketReach
+icon: rocketre
+category: crm
+version: '1.0'
+description: RocketReach
+auth:
+  type: api_key
+  api_key:
+    env_var: ROCKETREACH_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: 1e4dfd5***************************e3ca3a
+    input_type: text
+    help_text: Your RocketReach API key.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/rocketreach
+tool_source:
+  type: mcp
+  server_name: rocketreach
+  command: rocketreach-mcp-server

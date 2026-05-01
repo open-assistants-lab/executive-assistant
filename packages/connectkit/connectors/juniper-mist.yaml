@@ -1,0 +1,28 @@
+name: juniper-mist
+display: Juniper Mist
+icon: juniper
+category: dev-tools
+version: '1.0'
+description: Juniper Mist
+auth:
+  type: api_key
+  api_key:
+    env_var: JUNIPER-MIST_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: 3n69xDYMlT36fulLwIq7PDaDopc5W0b*****************************************************************
+    input_type: text
+    help_text: Your Juniper Mist API token
+    optional: false
+  - name: subdomain
+    label: API Subdomain
+    placeholder: api
+    input_type: text
+    help_text: The API subdomain for your Juniper Mist region
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/juniper-mist
+tool_source:
+  type: mcp
+  server_name: juniper-mist
+  command: juniper-mist-mcp-server

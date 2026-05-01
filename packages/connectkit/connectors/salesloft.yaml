@@ -1,0 +1,23 @@
+name: salesloft
+display: Salesloft
+icon: saleslof
+category: marketing
+version: '1.0'
+description: Salesloft
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://accounts.salesloft.com/oauth/authorize
+    token_url: https://accounts.salesloft.com/oauth/token
+    scopes:
+    - read
+    token_env_var: SALESLOFT_ACCESS_TOKEN
+  required_fields: []
+tool_sources:
+- type: cli
+  command: salesloft
+  install: '# See service docs'
+- type: mcp
+  server_name: salesloft
+  command: salesloft-mcp-server
+setup_guide_url: https://nango.dev/docs/integrations/all/salesloft

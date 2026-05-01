@@ -1,0 +1,66 @@
+# MySQL — relational database
+# CLI: mysql (bundled with MySQL server/client)
+# MCP: Multiple community MCP servers available
+
+name: mysql
+display: "MySQL"
+icon: mysql
+category: database
+version: "1.0"
+description: "MySQL database — queries, schema inspection, and data management"
+setup_guide_url: "https://dev.mysql.com/doc/refman/8.4/en/creating-accounts.html"
+auth:
+  type: api_key
+  api_key:
+    env_var: MYSQL_CONNECTION_STRING
+  required_fields:
+    - name: connection_string
+      label: "Connection String"
+      placeholder: "mysql://user:password@host:3306/dbname"
+      input_type: password
+      help_text: "MySQL connection URI (e.g. mysql://user:pass@localhost:3306/mydb)"
+    - name: host
+      label: "Host"
+      placeholder: "localhost"
+      input_type: text
+      optional: true
+    - name: port
+      label: "Port"
+      placeholder: "3306"
+      input_type: text
+      optional: true
+    - name: database
+      label: "Database"
+      placeholder: "mydb"
+      input_type: text
+      optional: true
+    - name: username
+      label: "Username"
+      placeholder: "root"
+      input_type: text
+      optional: true
+tool_sources:
+  - type: cli
+    command: mysql
+    install: brew install mysql
+    env_mapping:
+      connection_string: MYSQL_CONNECTION_STRING
+  - type: mcp
+    server_name: mysql
+    command: uvx
+    args:
+      - "mcp-mysql-server"
+    install: uvx mcp-mysql-server
+    env_mapping:
+      connection_string: MYSQL_CONNECTION_STRING
+tool_descriptions:
+  - name: mysql__query
+    description: "Execute a SQL query against the MySQL database."
+  - name: mysql__list_tables
+    description: "List all tables in the database."
+  - name: mysql__describe_table
+    description: "Show the schema (columns, types, keys) for a specific table."
+    parameter_descriptions:
+      table: "Table name"
+  - name: mysql__list_databases
+    description: "List all databases on the MySQL server."

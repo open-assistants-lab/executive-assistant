@@ -1,0 +1,28 @@
+name: dixa
+display: Dixa
+icon: dixa
+category: support
+version: '1.0'
+description: Dixa
+auth:
+  type: api_key
+  api_key:
+    env_var: DIXA_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Dixa account
+    optional: false
+  - name: apitype
+    label: Api Type
+    placeholder: dev|exports
+    input_type: text
+    help_text: The Api type for your requests
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/dixa
+tool_source:
+  type: mcp
+  server_name: dixa
+  command: dixa-mcp-server

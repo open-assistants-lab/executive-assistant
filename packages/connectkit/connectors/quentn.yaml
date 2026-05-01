@@ -1,0 +1,28 @@
+name: quentn
+display: Quentn
+icon: quentn
+category: marketing
+version: '1.0'
+description: Quentn
+auth:
+  type: api_key
+  api_key:
+    env_var: QUENTN_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: a1bcDeFgHi-jkLmNoPqRsTuVwXyZ0123456789AbCdE
+    input_type: password
+    help_text: Your Quentn API key.
+    optional: false
+  - name: subdomain
+    label: Subdomain
+    placeholder: xk7mdf.eu-5
+    input_type: url
+    help_text: Your Quentn account subdomain.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/quentn
+tool_source:
+  type: mcp
+  server_name: quentn
+  command: quentn-mcp-server

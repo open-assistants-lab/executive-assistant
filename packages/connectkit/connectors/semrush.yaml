@@ -1,0 +1,22 @@
+name: semrush
+display: Semrush (v3)
+icon: semrush
+category: marketing
+version: '1.0'
+description: Semrush (v3)
+auth:
+  type: api_key
+  api_key:
+    env_var: SEMRUSH_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: Your Semrush API key
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/semrush
+tool_source:
+  type: mcp
+  server_name: semrush
+  command: semrush-mcp-server

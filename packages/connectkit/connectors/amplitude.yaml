@@ -1,0 +1,34 @@
+name: amplitude
+display: Amplitude (Event Streaming API)
+icon: amplitud
+category: analytics
+version: '1.0'
+description: Amplitude (Event Streaming API)
+auth:
+  type: api_key
+  api_key:
+    env_var: AMPLITUDE_API_KEY
+  required_fields:
+  - name: username
+    label: API Key
+    placeholder: 64371a39e74ad915af75674c0696e356
+    input_type: text
+    help_text: Your Amplitude API Key
+    optional: false
+  - name: password
+    label: Secret Key
+    placeholder: 6GhPfVz47PKJGSLcDDc9jL5E4Mn
+    input_type: text
+    help_text: Your Amplitude secret key
+    optional: false
+  - name: hostname
+    label: Hostname
+    placeholder: analytics.eu.amplitude.com
+    input_type: text
+    help_text: The hostname associated with your server residency
+    optional: true
+setup_guide_url: https://nango.dev/docs/api-integrations/amplitude
+tool_source:
+  type: mcp
+  server_name: amplitude
+  command: amplitude-mcp-server

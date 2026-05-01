@@ -1,0 +1,22 @@
+name: lever
+display: Lever (OAuth)
+icon: lever
+category: ats
+version: '1.0'
+description: Lever (OAuth)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://auth.lever.co/authorize
+    token_url: https://auth.lever.co/oauth/token
+    scopes:
+    - read
+    extra_params:
+      audience: https://api.lever.co/v1/
+    token_env_var: LEVER_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/lever
+tool_source:
+  type: mcp
+  server_name: lever
+  command: lever-mcp-server

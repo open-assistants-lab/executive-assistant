@@ -1,0 +1,59 @@
+# Google Analytics — web and app analytics
+# CLI: No official CLI; uses Google Analytics Data API
+# MCP: Community MCP servers available
+
+name: google-analytics
+display: "Google Analytics"
+icon: google-analytics
+category: analytics
+version: "1.0"
+description: "Google Analytics — website traffic, user behavior, and conversion analytics"
+setup_guide_url: "https://developers.google.com/analytics/devguides/reporting/data/v1/quickstart-client-libraries"
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://accounts.google.com/o/oauth2/v2/auth
+    token_url: https://oauth2.googleapis.com/token
+    scopes:
+      - https://www.googleapis.com/auth/analytics.readonly
+    token_env_var: GOOGLE_ANALYTICS_TOKEN
+  required_fields:
+    - name: client_id
+      label: "Client ID"
+      placeholder: "..."
+      input_type: text
+      help_text: "From Google Cloud Console → APIs & Services → Credentials"
+    - name: client_secret
+      label: "Client Secret"
+      placeholder: "..."
+      input_type: password
+      help_text: "From Google Cloud Console"
+tool_sources:
+  - type: cli
+    command: gcloud
+    install: "brew install google-cloud-sdk"
+    env_mapping:
+      access_token: GOOGLE_ANALYTICS_TOKEN
+  - type: mcp
+    server_name: google-analytics
+    command: uvx
+    args:
+      - "mcp-server-google-analytics"
+    install: uvx mcp-server-google-analytics
+    env_mapping:
+      access_token: GOOGLE_ANALYTICS_TOKEN
+tool_descriptions:
+  - name: google_analytics__report
+    description: "Run a Google Analytics Data API report."
+    parameter_descriptions:
+      property_id: "GA4 property ID (e.g. 'properties/123456789')"
+      metrics: "Comma-separated metrics (e.g. 'activeUsers,sessions')"
+      date_range: "Date range: 7daysAgo, 30daysAgo, yesterday (default: 30daysAgo)"
+      dimensions: "Optional: comma-separated dimensions (e.g. 'country,deviceCategory')"
+  - name: google_analytics__realtime
+    description: "Get real-time user activity on your site."
+    parameter_descriptions:
+      property_id: "GA4 property ID"
+      metrics: "Metrics (default: activeUsers)"
+  - name: google_analytics__list_properties
+    description: "List available Google Analytics properties and their IDs."

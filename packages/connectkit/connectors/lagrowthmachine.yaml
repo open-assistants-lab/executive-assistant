@@ -1,0 +1,22 @@
+name: lagrowthmachine
+display: La Growth Machine
+icon: lagrowth
+category: marketing
+version: '1.0'
+description: La Growth Machine
+auth:
+  type: api_key
+  api_key:
+    env_var: LAGROWTHMACHINE_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: 1bc32cba-a5d6-438a-bbcc-af312f560a3c
+    input_type: text
+    help_text: The API key for your La Growth Machine account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/lagrowthmachine
+tool_source:
+  type: mcp
+  server_name: lagrowthmachine
+  command: lagrowthmachine-mcp-server

@@ -1,0 +1,22 @@
+name: builtwith
+display: BuiltWith
+icon: builtwit
+category: dev-tools
+version: '1.0'
+description: BuiltWith
+auth:
+  type: api_key
+  api_key:
+    env_var: BUILTWITH_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: 1bc32cba-a5d6-438a-bbcc-af312f560a3c
+    input_type: text
+    help_text: The API key for your BuiltWith account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/builtwith
+tool_source:
+  type: mcp
+  server_name: builtwith
+  command: builtwith-mcp-server

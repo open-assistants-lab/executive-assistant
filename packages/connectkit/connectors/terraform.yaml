@@ -1,0 +1,22 @@
+name: terraform
+display: Terraform
+icon: terrafor
+category: dev-tools
+version: '1.0'
+description: Terraform
+auth:
+  type: api_key
+  api_key:
+    env_var: TERRAFORM_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: VbQo****************************
+    input_type: text
+    help_text: The API Token for your Terraform account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/terraform
+tool_source:
+  type: mcp
+  server_name: terraform
+  command: terraform-mcp-server

@@ -1,0 +1,28 @@
+name: float
+display: Float
+icon: float
+category: productivity
+version: '1.0'
+description: Float
+auth:
+  type: api_key
+  api_key:
+    env_var: FLOAT_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: c9b38e5af69912d0rq9tE/fbT5/RPLk8Ua7tfHo9s6xMiCKvmCOvenR/Krc=
+    input_type: text
+    help_text: The API key for your Float account
+    optional: false
+  - name: appdetails
+    label: App Details
+    placeholder: ''
+    input_type: text
+    help_text: The details of your app
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/float
+tool_source:
+  type: mcp
+  server_name: float
+  command: float-mcp-server

@@ -1,0 +1,28 @@
+name: freshteam
+display: Freshteam
+icon: freshtea
+category: hr
+version: '1.0'
+description: Freshteam
+auth:
+  type: api_key
+  api_key:
+    env_var: FRESHTEAM_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: XtoF94LMNyKPbd5AvR1QJh
+    input_type: text
+    help_text: The API key to your Freshteam account
+    optional: false
+  - name: accountname
+    label: Account Name
+    placeholder: nango
+    input_type: url
+    help_text: The account name of your Freshteam account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/freshteam
+tool_source:
+  type: mcp
+  server_name: freshteam
+  command: freshteam-mcp-server

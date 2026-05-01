@@ -1,0 +1,22 @@
+name: pennylane-company-api
+display: Pennylane (Company API)
+icon: pennylan
+category: accounting
+version: '1.0'
+description: Pennylane (Company API)
+auth:
+  type: api_key
+  api_key:
+    env_var: PENNYLANE-COMPANY-API_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: aZ9b4Lp3QhN7vXyK1sTcO0WfR8jMdEuD5GrIi2-H6PnU
+    input_type: text
+    help_text: The company API token for your Pennylane account
+    optional: false
+setup_guide_url: https://docs.nango.dev/integrations/all/pennylane-company-api
+tool_source:
+  type: mcp
+  server_name: pennylane-company-api
+  command: pennylane-company-api-mcp-server

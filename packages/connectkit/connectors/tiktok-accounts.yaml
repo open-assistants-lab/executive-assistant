@@ -1,0 +1,20 @@
+name: tiktok-accounts
+display: TikTok Accounts
+icon: tiktok
+category: social
+version: '1.0'
+description: TikTok Accounts
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://www.tiktok.com/v2/auth/authorize/
+    token_url: https://business-api.tiktok.com/open_api/v1.3/tt_user/oauth2/token/
+    scopes:
+    - read
+    token_env_var: TIKTOK-ACCOUNTS_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/tiktok-accounts
+tool_source:
+  type: mcp
+  server_name: tiktok-accounts
+  command: tiktok-accounts-mcp-server

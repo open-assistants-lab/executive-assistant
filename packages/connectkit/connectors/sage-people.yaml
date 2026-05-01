@@ -1,0 +1,29 @@
+name: sage-people
+display: Sage People
+icon: sage
+category: hr
+version: '1.0'
+description: Sage People
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://login.salesforce.com/services/oauth2/authorize
+    token_url: https://login.salesforce.com/services/oauth2/token
+    scopes:
+    - offline_access
+    - api
+    extra_params:
+      prompt: consent
+    token_env_var: SAGE-PEOPLE_ACCESS_TOKEN
+  required_fields:
+  - name: instance_url
+    label: Instance URL
+    placeholder: ''
+    input_type: text
+    help_text: The instance URL of your Salesforce account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/sage-people
+tool_source:
+  type: mcp
+  server_name: sage-people
+  command: sage-people-mcp-server

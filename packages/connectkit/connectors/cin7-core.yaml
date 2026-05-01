@@ -1,0 +1,28 @@
+name: cin7-core
+display: Cin7 Core
+icon: cin7
+category: e-commerce
+version: '1.0'
+description: Cin7 Core
+auth:
+  type: api_key
+  api_key:
+    env_var: CIN7-CORE_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Application Key
+    placeholder: 6d6f4999-****-****-****-4e4ed450df0f
+    input_type: password
+    help_text: Your Cin7 Core API Application Key.
+    optional: false
+  - name: accountid
+    label: Account ID
+    placeholder: a1b2c3d4-****-****-****-ef1234567890
+    input_type: text
+    help_text: Your Cin7 Core Account ID.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/cin7-core
+tool_source:
+  type: mcp
+  server_name: cin7-core
+  command: cin7-core-mcp-server

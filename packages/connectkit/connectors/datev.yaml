@@ -1,0 +1,23 @@
+name: datev
+display: Datev
+icon: datev
+category: legal
+version: '1.0'
+description: Datev
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://login.datev.de/openid/authorize
+    token_url: https://api.datev.de/token
+    scopes:
+    - openid
+    extra_params:
+      response_mode: query
+      nonce: AnotherRandomStringDatev
+    token_env_var: DATEV_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/datev
+tool_source:
+  type: mcp
+  server_name: datev
+  command: datev-mcp-server

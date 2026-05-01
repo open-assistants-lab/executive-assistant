@@ -1,0 +1,20 @@
+name: whoop
+display: Whoop
+icon: whoop
+category: sports
+version: '1.0'
+description: Whoop
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://api.prod.whoop.com/oauth/oauth2/auth
+    token_url: https://api.prod.whoop.com/oauth/oauth2/token
+    scopes:
+    - read
+    token_env_var: WHOOP_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/whoop
+tool_source:
+  type: mcp
+  server_name: whoop
+  command: whoop-mcp-server

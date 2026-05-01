@@ -1,0 +1,29 @@
+name: contentful
+display: Contentful
+icon: contentf
+category: dev-tools
+version: '1.0'
+description: Contentful
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://be.contentful.com/oauth/authorize
+    token_url: https://be.contentful.com/oauth/token
+    scopes:
+    - read
+    token_env_var: CONTENTFUL_ACCESS_TOKEN
+  required_fields:
+  - name: subdomain
+    label: Contentful Domain
+    placeholder: domain
+    input_type: text
+    help_text: The subdomain of your Contentful account
+    optional: false
+tool_sources:
+- type: cli
+  command: contentful
+  install: '# See service docs'
+- type: mcp
+  server_name: contentful
+  command: contentful-mcp-server
+setup_guide_url: https://nango.dev/docs/integrations/all/contentful

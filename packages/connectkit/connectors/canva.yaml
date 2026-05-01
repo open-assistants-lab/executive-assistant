@@ -1,0 +1,20 @@
+name: canva
+display: Canva
+icon: canva
+category: design
+version: '1.0'
+description: Canva
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://www.canva.com/api/oauth/authorize
+    token_url: https://api.canva.com/rest/v1/oauth/token
+    scopes:
+    - read
+    token_env_var: CANVA_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/canva
+tool_source:
+  type: mcp
+  server_name: canva
+  command: canva-mcp-server

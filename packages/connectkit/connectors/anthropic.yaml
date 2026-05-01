@@ -1,0 +1,28 @@
+name: anthropic
+display: Anthropic
+icon: anthropi
+category: productivity
+version: '1.0'
+description: Anthropic
+auth:
+  type: api_key
+  api_key:
+    env_var: ANTHROPIC_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Anthropic account
+    optional: false
+  - name: version
+    label: API Version
+    placeholder: '2023-06-01'
+    input_type: text
+    help_text: The version of the Anthropic API to use
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/anthropic
+tool_source:
+  type: mcp
+  server_name: anthropic
+  command: anthropic-mcp-server

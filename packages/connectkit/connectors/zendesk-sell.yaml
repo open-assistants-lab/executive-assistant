@@ -1,0 +1,20 @@
+name: zendesk-sell
+display: Zendesk Sell
+icon: zendesk
+category: crm
+version: '1.0'
+description: Zendesk Sell
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://api.getbase.com/oauth2/authorize
+    token_url: https://api.getbase.com/oauth2/token
+    scopes:
+    - read
+    token_env_var: ZENDESK-SELL_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/zendesk-sell
+tool_source:
+  type: mcp
+  server_name: zendesk-sell
+  command: zendesk-sell-mcp-server

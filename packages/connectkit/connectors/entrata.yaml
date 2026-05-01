@@ -1,0 +1,22 @@
+name: entrata
+display: Entrata
+icon: entrata
+category: other
+version: '1.0'
+description: Entrata
+auth:
+  type: api_key
+  api_key:
+    env_var: ENTRATA_API_KEY
+  required_fields:
+  - name: subdomain
+    label: Entrata Domain
+    placeholder: domain
+    input_type: text
+    help_text: The subdomain of your Entrata account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/entrata
+tool_source:
+  type: mcp
+  server_name: entrata
+  command: entrata-mcp-server

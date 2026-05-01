@@ -1,0 +1,22 @@
+name: rippling
+display: Rippling
+icon: rippling
+category: hr
+version: '1.0'
+description: Rippling
+auth:
+  type: api_key
+  api_key:
+    env_var: RIPPLING_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: ''
+    input_type: text
+    help_text: The API Token for your Rippling account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/rippling
+tool_source:
+  type: mcp
+  server_name: rippling
+  command: rippling-mcp-server

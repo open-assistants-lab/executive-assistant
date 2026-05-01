@@ -1,0 +1,20 @@
+name: constant-contact
+display: Constant Contact
+icon: constant
+category: marketing
+version: '1.0'
+description: Constant Contact
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://authz.constantcontact.com/oauth2/default/v1/authorize
+    token_url: https://authz.constantcontact.com/oauth2/default/v1/token
+    scopes:
+    - offline_access
+    token_env_var: CONSTANT-CONTACT_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/constant-contact/how-to-register-your-own-constant-contact-oauth-app
+tool_source:
+  type: mcp
+  server_name: constant-contact
+  command: constant-contact-mcp-server

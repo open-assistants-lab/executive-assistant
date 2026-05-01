@@ -1,0 +1,28 @@
+name: buildium
+display: Buildium
+icon: buildium
+category: accounting
+version: '1.0'
+description: Buildium
+auth:
+  type: api_key
+  api_key:
+    env_var: BUILDIUM_API_KEY
+  required_fields:
+  - name: apiKey
+    label: Secret
+    placeholder: uOq2p+xlgpFdijfV/HqY+EvYpZKHRwlyhGuAVbJIxXs
+    input_type: text
+    help_text: The Secret for your Buildium account
+    optional: false
+  - name: clientid
+    label: Client ID
+    placeholder: a228f0e7-b4a3-4150-b9ae-8552fc2880d3
+    input_type: text
+    help_text: Your API Key Client ID
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/buildium
+tool_source:
+  type: mcp
+  server_name: buildium
+  command: buildium-mcp-server

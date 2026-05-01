@@ -1,0 +1,20 @@
+name: wiseagent
+display: Wiseagent
+icon: wiseagen
+category: crm
+version: '1.0'
+description: Wiseagent
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://sync.thewiseagent.com/WiseAuth/auth
+    token_url: https://sync.thewiseagent.com/WiseAuth/token
+    scopes:
+    - read
+    token_env_var: WISEAGENT_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/wiseagent/how-to-register-your-own-wiseagent-oauth-app
+tool_source:
+  type: mcp
+  server_name: wiseagent
+  command: wiseagent-mcp-server

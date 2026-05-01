@@ -1,0 +1,22 @@
+name: rocketlane
+display: Rocketlane
+icon: rocketla
+category: productivity
+version: '1.0'
+description: Rocketlane
+auth:
+  type: api_key
+  api_key:
+    env_var: ROCKETLANE_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: rl-3d2d4d87-1801-48ca-8948-8d5ed6f05df7
+    input_type: text
+    help_text: Your Rocketlane API key
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/rocketlane
+tool_source:
+  type: mcp
+  server_name: rocketlane
+  command: rocketlane-mcp-server

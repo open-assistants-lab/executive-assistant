@@ -1,0 +1,41 @@
+# Postman — API development and testing
+# CLI: Official Postman CLI
+# MCP: https://blog.postman.com/introducing-the-postman-mcp-server/
+
+name: postman
+display: "Postman"
+icon: postman
+category: dev-tools
+version: "1.0"
+description: "Postman collections, APIs, environments, and testing"
+setup_guide_url: "https://learning.postman.com/docs/postman-cli/postman-cli-overview/"
+auth:
+  type: api_key
+  api_key:
+    env_var: POSTMAN_API_KEY
+  required_fields:
+    - name: api_key
+      label: "API Key"
+      placeholder: "PMAK-..."
+      input_type: password
+      help_text: "From postman.com → Settings → API Keys → Generate API Key"
+tool_sources:
+  - type: mcp
+    server_name: postman
+    command: postman-mcp-server
+    env_mapping:
+      api_key: POSTMAN_API_KEY
+  - type: cli
+    command: postman
+    install: npm install -g postman-cli
+    env_mapping:
+      api_key: POSTMAN_API_KEY
+tool_descriptions:
+  - name: postman__collections_list
+    description: "List Postman collections"
+  - name: postman__run_collection
+    description: "Run a Postman collection"
+    parameter_descriptions:
+      collection_uid: "Collection UID"
+  - name: postman__apis_list
+    description: "List Postman APIs"

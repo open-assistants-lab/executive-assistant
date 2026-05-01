@@ -1,0 +1,20 @@
+name: pandadoc
+display: Pandadoc
+icon: pandadoc
+category: legal
+version: '1.0'
+description: Pandadoc
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://app.pandadoc.com/oauth2/authorize
+    token_url: https://api.pandadoc.com/oauth2/access_token
+    scopes:
+    - read
+    token_env_var: PANDADOC_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/pandadoc
+tool_source:
+  type: mcp
+  server_name: pandadoc
+  command: pandadoc-mcp-server

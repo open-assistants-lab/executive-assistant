@@ -1,0 +1,35 @@
+name: zoho
+display: Zoho
+icon: zoho
+category: accounting
+version: '1.0'
+description: Zoho
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://accounts.zoho.${connectionConfig.extension}/oauth/v2/auth || https://accounts.zoho.com/oauth/v2/auth
+    token_url: https://accounts.zoho.${connectionConfig.extension}/oauth/v2/token || ${connectionConfig.accounts-server}/oauth/v2/token
+    scopes:
+    - read
+    extra_params:
+      prompt: consent
+      access_type: offline
+    token_env_var: ZOHO_ACCESS_TOKEN
+  required_fields:
+  - name: extension
+    label: Domain Extension
+    placeholder: com
+    input_type: text
+    help_text: The domain extension of your Zoho account
+    optional: true
+  - name: accounts-server
+    label: ''
+    placeholder: ''
+    input_type: text
+    help_text: ''
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/zoho
+tool_source:
+  type: mcp
+  server_name: zoho
+  command: zoho-mcp-server

@@ -1,0 +1,23 @@
+name: spotify
+display: Spotify (OAuth)
+icon: spotify
+category: other
+version: '1.0'
+description: Spotify (OAuth)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://accounts.spotify.com/authorize
+    token_url: https://accounts.spotify.com/api/token
+    scopes:
+    - read
+    token_env_var: SPOTIFY_ACCESS_TOKEN
+  required_fields: []
+tool_sources:
+- type: cli
+  command: spotify
+  install: '# See service docs'
+- type: mcp
+  server_name: spotify
+  command: spotify-mcp-server
+setup_guide_url: https://nango.dev/docs/integrations/all/spotify

@@ -1,0 +1,22 @@
+name: front-api-key
+display: Front (API Key)
+icon: front
+category: support
+version: '1.0'
+description: Front (API Key)
+auth:
+  type: api_key
+  api_key:
+    env_var: FRONT-API-KEY_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.****
+    input_type: text
+    help_text: Your Front API token.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/front-api-key
+tool_source:
+  type: mcp
+  server_name: front-api-key
+  command: front-api-key-mcp-server

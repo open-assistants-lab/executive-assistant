@@ -1,0 +1,20 @@
+name: blackbaud
+display: Blackbaud
+icon: blackbau
+category: crm
+version: '1.0'
+description: Blackbaud
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://app.blackbaud.com/oauth/authorize
+    token_url: https://oauth2.sky.blackbaud.com/token
+    scopes:
+    - read
+    token_env_var: BLACKBAUD_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/blackbaud
+tool_source:
+  type: mcp
+  server_name: blackbaud
+  command: blackbaud-mcp-server

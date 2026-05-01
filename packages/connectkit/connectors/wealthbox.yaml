@@ -1,0 +1,20 @@
+name: wealthbox
+display: Wealthbox
+icon: wealthbo
+category: crm
+version: '1.0'
+description: Wealthbox
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://app.crmworkspace.com/oauth/authorize
+    token_url: https://app.crmworkspace.com/oauth/token
+    scopes:
+    - read
+    token_env_var: WEALTHBOX_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/wealthbox
+tool_source:
+  type: mcp
+  server_name: wealthbox
+  command: wealthbox-mcp-server

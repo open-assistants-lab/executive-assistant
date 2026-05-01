@@ -1,0 +1,23 @@
+name: todoist
+display: Todoist
+icon: todoist
+category: productivity
+version: '1.0'
+description: Todoist
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://todoist.com/oauth/authorize
+    token_url: https://todoist.com/oauth/access_token
+    scopes:
+    - read
+    token_env_var: TODOIST_ACCESS_TOKEN
+  required_fields: []
+tool_sources:
+- type: cli
+  command: todoist
+  install: '# See service docs'
+- type: mcp
+  server_name: todoist
+  command: todoist-mcp-server
+setup_guide_url: https://nango.dev/docs/integrations/all/todoist

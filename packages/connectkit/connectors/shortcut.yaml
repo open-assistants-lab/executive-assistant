@@ -1,0 +1,25 @@
+name: shortcut
+display: Shortcut
+icon: shortcut
+category: dev-tools
+version: '1.0'
+description: Shortcut
+auth:
+  type: api_key
+  api_key:
+    env_var: SHORTCUT_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Shortcut account
+    optional: false
+tool_sources:
+- type: cli
+  command: shortcut
+  install: '# See service docs'
+- type: mcp
+  server_name: shortcut
+  command: shortcut-mcp-server
+setup_guide_url: https://nango.dev/docs/integrations/all/shortcut

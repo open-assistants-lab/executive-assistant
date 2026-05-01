@@ -1,0 +1,22 @@
+name: workpath
+display: Workpath
+icon: workpath
+category: productivity
+version: '1.0'
+description: Workpath
+auth:
+  type: api_key
+  api_key:
+    env_var: WORKPATH_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: ''
+    input_type: text
+    help_text: Your Workpath API Token.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/workpath
+tool_source:
+  type: mcp
+  server_name: workpath
+  command: workpath-mcp-server

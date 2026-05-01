@@ -1,0 +1,20 @@
+name: stripe-express
+display: Stripe Express
+icon: stripe
+category: payment
+version: '1.0'
+description: Stripe Express
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://connect.stripe.com/express/oauth/authorize
+    token_url: https://connect.stripe.com/oauth/token
+    scopes:
+    - read
+    token_env_var: STRIPE-EXPRESS_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/stripe-express
+tool_source:
+  type: mcp
+  server_name: stripe-express
+  command: stripe-express-mcp-server

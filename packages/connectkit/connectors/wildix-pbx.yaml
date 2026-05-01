@@ -1,0 +1,26 @@
+name: wildix-pbx
+display: Wildix PBX
+icon: wildix
+category: communication
+version: '1.0'
+description: Wildix PBX
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.subdomain}.wildixin.com/authorization/oauth2
+    token_url: https://${connectionConfig.subdomain}.wildixin.com/authorization/oauth2Token
+    scopes:
+    - read
+    token_env_var: WILDIX-PBX_ACCESS_TOKEN
+  required_fields:
+  - name: subdomain
+    label: Wildix Domain
+    placeholder: domain
+    input_type: text
+    help_text: The subdomain of your Wildix instance
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/wildix-pbx
+tool_source:
+  type: mcp
+  server_name: wildix-pbx
+  command: wildix-pbx-mcp-server

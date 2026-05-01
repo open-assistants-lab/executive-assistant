@@ -1,0 +1,34 @@
+name: aws-iam
+display: AWS IAM
+icon: aws
+category: dev-tools
+version: '1.0'
+description: AWS IAM
+auth:
+  type: api_key
+  api_key:
+    env_var: AWS-IAM_API_KEY
+  required_fields:
+  - name: username
+    label: AWS Access Key ID
+    placeholder: ''
+    input_type: text
+    help_text: Your Access Key ID
+    optional: false
+  - name: password
+    label: AWS Secret Access Key
+    placeholder: ''
+    input_type: text
+    help_text: Your Secret Access Key
+    optional: false
+  - name: region
+    label: Region
+    placeholder: us-east-1
+    input_type: text
+    help_text: The region to where your AWS account is hosted
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/aws-iam
+tool_source:
+  type: mcp
+  server_name: aws-iam
+  command: aws-iam-mcp-server

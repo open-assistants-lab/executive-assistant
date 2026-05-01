@@ -1,0 +1,26 @@
+name: squarespace
+display: Squarespace
+icon: squaresp
+category: dev-tools
+version: '1.0'
+description: Squarespace
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://login.squarespace.com/api/1/login/oauth/provider/authorize
+    token_url: https://login.squarespace.com/api/1/login/oauth/provider/tokens
+    scopes:
+    - read
+    token_env_var: SQUARESPACE_ACCESS_TOKEN
+  required_fields:
+  - name: customappdescription
+    label: User Agent
+    placeholder: ''
+    input_type: text
+    help_text: The user agent of your custom app
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/squarespace
+tool_source:
+  type: mcp
+  server_name: squarespace
+  command: squarespace-mcp-server

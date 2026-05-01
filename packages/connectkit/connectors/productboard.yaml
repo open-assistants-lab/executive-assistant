@@ -1,0 +1,23 @@
+name: productboard
+display: Productboard
+icon: productb
+category: productivity
+version: '1.0'
+description: Productboard
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://app.productboard.com/oauth2/authorize
+    token_url: https://app.productboard.com/oauth2/token
+    scopes:
+    - read
+    token_env_var: PRODUCTBOARD_ACCESS_TOKEN
+  required_fields: []
+tool_sources:
+- type: cli
+  command: productboard
+  install: '# See service docs'
+- type: mcp
+  server_name: productboard
+  command: productboard-mcp-server
+setup_guide_url: https://nango.dev/docs/integrations/all/productboard

@@ -1,0 +1,22 @@
+name: manatal
+display: Manatal
+icon: manatal
+category: crm
+version: '1.0'
+description: Manatal
+auth:
+  type: api_key
+  api_key:
+    env_var: MANATAL_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Manatal account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/manatal
+tool_source:
+  type: mcp
+  server_name: manatal
+  command: manatal-mcp-server

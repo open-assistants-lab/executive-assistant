@@ -1,0 +1,20 @@
+name: linkedin
+display: LinkedIn
+icon: linkedin
+category: ats
+version: '1.0'
+description: LinkedIn
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://www.linkedin.com/oauth/v2/authorization
+    token_url: https://www.linkedin.com/oauth/v2/accessToken
+    scopes:
+    - read
+    token_env_var: LINKEDIN_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/linkedin/how-to-register-your-own-linkedin-api-oauth-app
+tool_source:
+  type: mcp
+  server_name: linkedin
+  command: linkedin-mcp-server

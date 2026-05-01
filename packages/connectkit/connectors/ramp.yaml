@@ -1,0 +1,23 @@
+name: ramp
+display: Ramp
+icon: ramp
+category: banking
+version: '1.0'
+description: Ramp
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://app.ramp.com/v1/authorize
+    token_url: https://api.ramp.com/developer/v1/token
+    scopes:
+    - read
+    token_env_var: RAMP_ACCESS_TOKEN
+  required_fields: []
+tool_sources:
+- type: cli
+  command: ramp
+  install: '# See service docs'
+- type: mcp
+  server_name: ramp
+  command: ramp-mcp-server
+setup_guide_url: https://nango.dev/docs/integrations/all/ramp

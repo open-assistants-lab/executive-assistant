@@ -1,0 +1,22 @@
+name: google-gemini
+display: Google Gemini
+icon: google
+category: productivity
+version: '1.0'
+description: Google Gemini
+auth:
+  type: api_key
+  api_key:
+    env_var: GOOGLE-GEMINI_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: AIzaSy**********RRtUK5V*********ZFFc64w****AI
+    input_type: text
+    help_text: The API key for your Gemini account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/google-gemini
+tool_source:
+  type: mcp
+  server_name: google-gemini
+  command: google-gemini-mcp-server

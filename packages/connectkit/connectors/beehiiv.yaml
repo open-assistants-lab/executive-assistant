@@ -1,0 +1,28 @@
+name: beehiiv
+display: Beehiiv
+icon: beehiiv
+category: communication
+version: '1.0'
+description: Beehiiv
+auth:
+  type: api_key
+  api_key:
+    env_var: BEEHIIV_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: 8ab3sjxqvHzyUnP9JhvlfT6C0wsbgr5XQrpaZZjxJkYBPy6sntvT1M2Lk94VQeRb
+    input_type: text
+    help_text: The API key for your Beehiiv account
+    optional: false
+  - name: publicationid
+    label: Publication Id
+    placeholder: pub_a3d1b49e-2a5d-4f4b-97c8-8f32e1d2f7b9
+    input_type: text
+    help_text: The prefixed ID of the publication object
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/beehiiv
+tool_source:
+  type: mcp
+  server_name: beehiiv
+  command: beehiiv-mcp-server

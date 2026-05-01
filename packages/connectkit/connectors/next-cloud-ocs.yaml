@@ -1,0 +1,22 @@
+name: next-cloud-ocs
+display: Next Cloud OCS
+icon: next
+category: storage
+version: '1.0'
+description: Next Cloud OCS
+auth:
+  type: api_key
+  api_key:
+    env_var: NEXT-CLOUD-OCS_API_KEY
+  required_fields:
+  - name: domain
+    label: Domain
+    placeholder: ''
+    input_type: url
+    help_text: The domain of your Next Cloud account
+    optional: false
+setup_guide_url: http://nango.dev/docs/integrations/all/next-cloud-ocs
+tool_source:
+  type: mcp
+  server_name: next-cloud-ocs
+  command: next-cloud-ocs-mcp-server

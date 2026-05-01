@@ -1,0 +1,20 @@
+name: freshbooks
+display: FreshBooks
+icon: freshboo
+category: accounting
+version: '1.0'
+description: FreshBooks
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://auth.freshbooks.com/oauth/authorize
+    token_url: https://api.freshbooks.com/auth/oauth/token
+    scopes:
+    - read
+    token_env_var: FRESHBOOKS_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/freshbooks
+tool_source:
+  type: mcp
+  server_name: freshbooks
+  command: freshbooks-mcp-server

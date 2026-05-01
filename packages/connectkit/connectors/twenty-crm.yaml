@@ -1,0 +1,22 @@
+name: twenty-crm
+display: Twenty CRM
+icon: twenty
+category: crm
+version: '1.0'
+description: Twenty CRM
+auth:
+  type: api_key
+  api_key:
+    env_var: TWENTY-CRM_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyMTIxMjEyMS0yNmExLTRkODktYjQ2YS0wNDI0NTViODM3N2YiLCJ0eXBlIjoiQVBJX0tFWSIsIndvcmtzcGFjZUlkIjoiMjEyMTIxMjEtMjZhMS00ZDg5LWI0NmEtMDQyNDU1YjgzNzdmIiwiaWF0IjoxNzMxMzA5MzQwLCJleHAiOjQ4ODQ5MDU3MzksImp0aSI6ImVmZTg4MjcxLTM4OWItNDk5Mi04MjYwLWZjNGIxZmYxYjRiMSJ9.n3tohFIEBBRMsyas_agbh3-KvKXYUnjyhrYzTHYC3vc
+    input_type: text
+    help_text: The API key for your Twenty CRM account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/twenty-crm
+tool_source:
+  type: mcp
+  server_name: twenty-crm
+  command: twenty-crm-mcp-server

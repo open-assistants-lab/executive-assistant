@@ -1,0 +1,22 @@
+name: ringover
+display: Ringover
+icon: ringover
+category: communication
+version: '1.0'
+description: Ringover
+auth:
+  type: api_key
+  api_key:
+    env_var: RINGOVER_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: a3f9e2***************************d8e9f0
+    input_type: text
+    help_text: Your Ringover API key.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/ringover
+tool_source:
+  type: mcp
+  server_name: ringover
+  command: ringover-mcp-server

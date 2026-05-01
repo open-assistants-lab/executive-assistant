@@ -1,0 +1,48 @@
+# PostgreSQL — relational database
+# CLI: psql (bundled with PostgreSQL)
+# MCP: @modelcontextprotocol/server-postgres (official reference server)
+
+name: postgres
+display: "PostgreSQL"
+icon: postgres
+category: database
+version: "1.0"
+description: "PostgreSQL database — queries, schema inspection, and data management"
+setup_guide_url: "https://www.postgresql.org/docs/current/auth-pg-hba-conf.html"
+auth:
+  type: api_key
+  api_key:
+    env_var: DATABASE_URL
+  required_fields:
+    - name: connection_string
+      label: "Connection String"
+      placeholder: "postgresql://user:password@host:5432/dbname"
+      input_type: password
+      help_text: "PostgreSQL connection URI (e.g. postgresql://user:pass@localhost:5432/mydb)"
+tool_sources:
+  - type: cli
+    command: psql
+    install: brew install postgresql@16
+    env_mapping:
+      connection_string: DATABASE_URL
+  - type: mcp
+    server_name: postgres
+    command: npx
+    args:
+      - "-y"
+      - "@modelcontextprotocol/server-postgres"
+      - "${DATABASE_URL}"
+    install: npx @modelcontextprotocol/server-postgres
+    env_mapping:
+      connection_string: DATABASE_URL
+tool_descriptions:
+  - name: postgres__query
+    description: "Execute a read-only SQL query against the PostgreSQL database."
+  - name: postgres__list_tables
+    description: "List all tables in the database with schema information."
+  - name: postgres__describe_table
+    description: "Show the schema (columns, types, constraints) for a specific table."
+    parameter_descriptions:
+      table: "Table name"
+  - name: postgres__execute
+    description: "Execute a SQL statement (INSERT, UPDATE, DELETE, CREATE, etc.)"

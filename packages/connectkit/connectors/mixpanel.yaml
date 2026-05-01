@@ -1,0 +1,31 @@
+name: mixpanel
+display: Mixpanel
+icon: mixpanel
+category: analytics
+version: '1.0'
+description: Mixpanel
+auth:
+  type: api_key
+  api_key:
+    env_var: MIXPANEL_API_KEY
+  required_fields:
+  - name: username
+    label: Service Account Username
+    placeholder: ''
+    input_type: text
+    help_text: Mixpanel Service Account Username
+    optional: false
+  - name: password
+    label: Service Account Secret
+    placeholder: ''
+    input_type: text
+    help_text: Mixpanel Service Account Secret
+    optional: false
+tool_sources:
+- type: cli
+  command: mixpanel
+  install: '# See service docs'
+- type: mcp
+  server_name: mixpanel
+  command: mixpanel-mcp-server
+setup_guide_url: https://nango.dev/docs/integrations/all/mixpanel

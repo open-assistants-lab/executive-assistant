@@ -1,0 +1,42 @@
+name: bullhorn
+display: Bullhorn
+icon: bullhorn
+category: hr
+version: '1.0'
+description: Bullhorn
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://auth-west.bullhornstaffing.com/oauth/authorize
+    token_url: https://auth-west.bullhornstaffing.com/oauth/token
+    scopes:
+    - read
+    extra_params:
+      username: ${connectionConfig.username}
+      password: ${connectionConfig.password}
+      action: Login
+    token_env_var: BULLHORN_ACCESS_TOKEN
+  required_fields:
+  - name: resturl
+    label: ''
+    placeholder: ''
+    input_type: text
+    help_text: ''
+    optional: false
+  - name: username
+    label: Username
+    placeholder: ''
+    input_type: text
+    help_text: Your API Username
+    optional: false
+  - name: password
+    label: Password
+    placeholder: ''
+    input_type: text
+    help_text: Your API Password
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/bullhorn
+tool_source:
+  type: mcp
+  server_name: bullhorn
+  command: bullhorn-mcp-server

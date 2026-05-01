@@ -1,0 +1,22 @@
+name: pandadoc-api-key
+display: Pandadoc (API Key)
+icon: pandadoc
+category: legal
+version: '1.0'
+description: Pandadoc (API Key)
+auth:
+  type: api_key
+  api_key:
+    env_var: PANDADOC-API-KEY_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: 3039ba033eb1410caa0a2227158d63c9d6502cd8
+    input_type: text
+    help_text: The API key for your Pandadoc account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/pandadoc-api-key
+tool_source:
+  type: mcp
+  server_name: pandadoc-api-key
+  command: pandadoc-api-key-mcp-server

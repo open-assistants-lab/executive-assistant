@@ -1,0 +1,32 @@
+name: heymarket
+display: Heymarket
+icon: heymarke
+category: communication
+version: '1.0'
+description: Heymarket
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: ''
+    token_url: ''
+    scopes:
+    - read
+    token_env_var: HEYMARKET_ACCESS_TOKEN
+  required_fields:
+  - name: apiSecretId
+    label: API Secret ID
+    placeholder: a0ee0000-0000-4000-8000-00000000abcd
+    input_type: text
+    help_text: Your Heymarket API Secret ID.
+    optional: false
+  - name: apiSecretKey
+    label: API Secret Key
+    placeholder: Aa0***Cc2***Ee4***Gg6***Ii8***Kk0
+    input_type: password
+    help_text: Your Heymarket API Secret Key.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/heymarket
+tool_source:
+  type: mcp
+  server_name: heymarket
+  command: heymarket-mcp-server

@@ -1,0 +1,34 @@
+name: unipile
+display: Unipile
+icon: unipile
+category: crm
+version: '1.0'
+description: Unipile
+auth:
+  type: api_key
+  api_key:
+    env_var: UNIPILE_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Unipile instance
+    optional: false
+  - name: subdomain
+    label: Subdomain
+    placeholder: api1
+    input_type: text
+    help_text: The subdomain of your Unipile instance
+    optional: false
+  - name: port
+    label: Port
+    placeholder: '13113'
+    input_type: text
+    help_text: The port of your Unipile instance
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/unipile
+tool_source:
+  type: mcp
+  server_name: unipile
+  command: unipile-mcp-server

@@ -1,0 +1,34 @@
+name: bird
+display: Bird
+icon: bird
+category: communication
+version: '1.0'
+description: Bird
+auth:
+  type: api_key
+  api_key:
+    env_var: BIRD_API_KEY
+  required_fields:
+  - name: apiKey
+    label: Access Key
+    placeholder: 6BPC******************Rzh3F4x
+    input_type: text
+    help_text: Your Bird access key
+    optional: false
+  - name: subdomain
+    label: Subdomain
+    placeholder: api
+    input_type: text
+    help_text: The subdomain of your Bird API instance
+    optional: false
+  - name: workspaceid
+    label: Workspaces Id
+    placeholder: 332bb273-0caf-4240-a5b6-8046b5d3074f
+    input_type: text
+    help_text: The  Workspaces Id of your Bird
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/bird
+tool_source:
+  type: mcp
+  server_name: bird
+  command: bird-mcp-server

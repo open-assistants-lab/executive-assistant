@@ -1,0 +1,66 @@
+# FTP — File Transfer Protocol
+# CLI: ftp (bundled with OS), lftp, curl
+# MCP: No MCP server needed (built-in protocol)
+
+name: ftp
+display: "FTP"
+icon: ftp
+category: storage
+version: "1.0"
+description: "FTP/SFTP/FTPS — file transfer, upload, download, and directory listing"
+setup_guide_url: "https://www.openssh.com/manual.html"
+auth:
+  type: api_key
+  api_key:
+    env_var: FTP_URL
+  required_fields:
+    - name: host
+      label: "Host"
+      placeholder: "ftp.example.com"
+      input_type: text
+      help_text: "FTP/SFTP server hostname"
+    - name: username
+      label: "Username"
+      placeholder: "user"
+      input_type: text
+    - name: password
+      label: "Password"
+      placeholder: "..."
+      input_type: password
+    - name: port
+      label: "Port"
+      placeholder: "21"
+      input_type: text
+      help_text: "21 (FTP), 22 (SFTP), 990 (FTPS)"
+      optional: true
+    - name: protocol
+      label: "Protocol"
+      placeholder: "sftp"
+      input_type: text
+      help_text: "ftp, sftp, or ftps (default: sftp)"
+      optional: true
+tool_sources:
+  - type: cli
+    command: lftp
+    install: brew install lftp
+    env_mapping:
+      connection_string: FTP_URL
+tool_descriptions:
+  - name: ftp__list
+    description: "List files and directories in a remote path."
+    parameter_descriptions:
+      path: "Remote directory path (default: root)"
+  - name: ftp__download
+    description: "Download a file from the remote server."
+    parameter_descriptions:
+      remote_path: "Remote file path"
+      local_path: "Local destination path"
+  - name: ftp__upload
+    description: "Upload a file to the remote server."
+    parameter_descriptions:
+      local_path: "Local file path"
+      remote_path: "Remote destination path"
+  - name: ftp__delete
+    description: "Delete a file on the remote server."
+    parameter_descriptions:
+      remote_path: "Remote file path"

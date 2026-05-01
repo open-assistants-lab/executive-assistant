@@ -1,0 +1,22 @@
+name: jazzhr
+display: JazzHR
+icon: jazzhr
+category: hr
+version: '1.0'
+description: JazzHR
+auth:
+  type: api_key
+  api_key:
+    env_var: JAZZHR_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: Your JazzHR API Key
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/jazzhr
+tool_source:
+  type: mcp
+  server_name: jazzhr
+  command: jazzhr-mcp-server

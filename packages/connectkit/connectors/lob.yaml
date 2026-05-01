@@ -1,0 +1,22 @@
+name: lob
+display: Lob
+icon: lob
+category: marketing
+version: '1.0'
+description: Lob
+auth:
+  type: api_key
+  api_key:
+    env_var: LOB_API_KEY
+  required_fields:
+  - name: username
+    label: Secret API Key
+    placeholder: live_0dc8d***************************5b0cc
+    input_type: password
+    help_text: Your Lob Secret API Key.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/lob
+tool_source:
+  type: mcp
+  server_name: lob
+  command: lob-mcp-server

@@ -1,0 +1,22 @@
+name: brex-api-key
+display: Brex (API Key)
+icon: brex
+category: banking
+version: '1.0'
+description: Brex (API Key)
+auth:
+  type: api_key
+  api_key:
+    env_var: BREX-API-KEY_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: bxt_vRUwQT3snBmA1IDVq5iK1kXc4N0bhxr377z4
+    input_type: text
+    help_text: The API Token to your Brex account
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/brex-api-key
+tool_source:
+  type: mcp
+  server_name: brex-api-key
+  command: brex-api-key-mcp-server

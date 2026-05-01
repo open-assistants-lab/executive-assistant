@@ -1,0 +1,22 @@
+name: drata
+display: Drata
+icon: drata
+category: dev-tools
+version: '1.0'
+description: Drata
+auth:
+  type: api_key
+  api_key:
+    env_var: DRATA_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: Your Drata API key
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/drata
+tool_source:
+  type: mcp
+  server_name: drata
+  command: drata-mcp-server

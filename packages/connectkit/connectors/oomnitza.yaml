@@ -1,0 +1,28 @@
+name: oomnitza
+display: Oomnitza
+icon: oomnitza
+category: productivity
+version: '1.0'
+description: Oomnitza
+auth:
+  type: api_key
+  api_key:
+    env_var: OOMNITZA_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: ''
+    input_type: text
+    help_text: Your Oomnitza API token
+    optional: false
+  - name: subdomain
+    label: Oomnitza Subdomain
+    placeholder: mycompany
+    input_type: text
+    help_text: The subdomain of your Oomnitza instance
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/oomnitza
+tool_source:
+  type: mcp
+  server_name: oomnitza
+  command: oomnitza-mcp-server

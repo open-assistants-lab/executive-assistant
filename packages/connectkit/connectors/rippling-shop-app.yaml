@@ -1,0 +1,26 @@
+name: rippling-shop-app
+display: Rippling Shop App
+icon: rippling
+category: hr
+version: '1.0'
+description: Rippling Shop App
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://app.rippling.com/apps/PLATFORM/${connectionConfig.appName}/authorize
+    token_url: https://api.rippling.com/api/o/token/
+    scopes:
+    - read
+    token_env_var: RIPPLING-SHOP-APP_ACCESS_TOKEN
+  required_fields:
+  - name: appname
+    label: ''
+    placeholder: ''
+    input_type: text
+    help_text: ''
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/rippling-shop-app
+tool_source:
+  type: mcp
+  server_name: rippling-shop-app
+  command: rippling-shop-app-mcp-server

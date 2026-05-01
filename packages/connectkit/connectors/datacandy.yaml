@@ -1,0 +1,46 @@
+name: datacandy
+display: DataCandy
+icon: datacand
+category: payment
+version: '1.0'
+description: DataCandy
+auth:
+  type: api_key
+  api_key:
+    env_var: DATACANDY_API_KEY
+  required_fields:
+  - name: username
+    label: Username
+    placeholder: ''
+    input_type: text
+    help_text: DataCandy username
+    optional: false
+  - name: password
+    label: Password
+    placeholder: ''
+    input_type: password
+    help_text: DataCandy password
+    optional: false
+  - name: application_url
+    label: Application URL
+    placeholder: app.datacandy.com
+    input_type: url
+    help_text: The application URL for DataCandy
+    optional: false
+  - name: application_key
+    label: Application Key
+    placeholder: c4f9375f9834b4e7f0a528cc65c055702bf5f24a
+    input_type: text
+    help_text: The application key required for read data access
+    optional: false
+  - name: access_key
+    label: Access Key
+    placeholder: 3CLJII
+    input_type: text
+    help_text: The access key required for read data access
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/datacandy
+tool_source:
+  type: mcp
+  server_name: datacandy
+  command: datacandy-mcp-server

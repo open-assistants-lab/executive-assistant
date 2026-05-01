@@ -1,0 +1,31 @@
+name: gong
+display: Gong (Basic Auth)
+icon: gong
+category: communication
+version: '1.0'
+description: Gong (Basic Auth)
+auth:
+  type: api_key
+  api_key:
+    env_var: GONG_API_KEY
+  required_fields:
+  - name: username
+    label: Access Key
+    placeholder: ''
+    input_type: text
+    help_text: Your Gong Access Key
+    optional: false
+  - name: password
+    label: Access Key Secret
+    placeholder: ''
+    input_type: text
+    help_text: Your Gong Access Key Secret
+    optional: false
+tool_sources:
+- type: cli
+  command: gong
+  install: '# See service docs'
+- type: mcp
+  server_name: gong
+  command: gong-mcp-server
+setup_guide_url: https://nango.dev/docs/integrations/all/gong

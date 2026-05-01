@@ -1,0 +1,20 @@
+name: gumroad
+display: Gumroad
+icon: gumroad
+category: design
+version: '1.0'
+description: Gumroad
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://gumroad.com/oauth/authorize
+    token_url: https://api.gumroad.com/oauth/token
+    scopes:
+    - read
+    token_env_var: GUMROAD_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/gumroad
+tool_source:
+  type: mcp
+  server_name: gumroad
+  command: gumroad-mcp-server

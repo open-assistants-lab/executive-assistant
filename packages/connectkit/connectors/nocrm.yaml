@@ -1,0 +1,28 @@
+name: nocrm
+display: nocrm.io
+icon: nocrm
+category: crm
+version: '1.0'
+description: nocrm.io
+auth:
+  type: api_key
+  api_key:
+    env_var: NOCRM_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: 4b945b************************************4991
+    input_type: text
+    help_text: Your nocrm.io API key
+    optional: false
+  - name: subdomain
+    label: Account subdomain
+    placeholder: acme
+    input_type: text
+    help_text: Your nocrm.io account subdomain
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/nocrm
+tool_source:
+  type: mcp
+  server_name: nocrm
+  command: nocrm-mcp-server

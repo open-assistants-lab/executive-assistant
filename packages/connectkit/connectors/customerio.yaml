@@ -1,0 +1,57 @@
+# Customer.io — marketing automation platform
+# CLI: No official CLI; uses REST API
+# MCP: Community MCP servers available
+
+name: customerio
+display: "Customer.io"
+icon: customerio
+category: marketing
+version: "1.0"
+description: "Customer.io — multi-channel messaging, campaigns, and customer journeys"
+setup_guide_url: "https://customer.io/docs/api/"
+auth:
+  type: api_key
+  api_key:
+    env_var: CUSTOMERIO_API_KEY
+  required_fields:
+    - name: site_id
+      label: "Site ID"
+      placeholder: "..."
+      input_type: text
+      help_text: "From Customer.io dashboard → Settings → API Credentials"
+    - name: api_key
+      label: "API Key"
+      placeholder: "..."
+      input_type: password
+      help_text: "From Customer.io dashboard → Settings → API Credentials"
+    - name: region
+      label: "Region"
+      placeholder: "us"
+      input_type: text
+      help_text: "'us' or 'eu' (default: us)"
+      optional: true
+tool_sources:
+  - type: mcp
+    server_name: customerio
+    command: uvx
+    args:
+      - "customerio-mcp-server"
+    install: uvx customerio-mcp-server
+    env_mapping:
+      site_id: CUSTOMERIO_SITE_ID
+      api_key: CUSTOMERIO_API_KEY
+tool_descriptions:
+  - name: customerio__campaigns_list
+    description: "List messaging campaigns with status."
+  - name: customerio__segments_list
+    description: "List customer segments."
+  - name: customerio__customer_lookup
+    description: "Get customer profile and activity."
+    parameter_descriptions:
+      customer_id: "Customer ID or email"
+  - name: customerio__send_event
+    description: "Send an event to trigger automated workflows."
+    parameter_descriptions:
+      customer_id: "Customer ID"
+      event_name: "Event name"
+      data: "Event properties as JSON"

@@ -1,0 +1,29 @@
+name: microsoft-tenant-specific
+display: Microsoft (Tenant)
+icon: microsof
+category: erp
+version: '1.0'
+description: Microsoft (Tenant)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://login.microsoftonline.com/${connectionConfig.tenant}/oauth2/v2.0/authorize
+    token_url: https://login.microsoftonline.com/${connectionConfig.tenant}/oauth2/v2.0/token
+    scopes:
+    - offline_access
+    extra_params:
+      response_mode: query
+      prompt: consent
+    token_env_var: MICROSOFT-TENANT-SPECIFIC_ACCESS_TOKEN
+  required_fields:
+  - name: tenant
+    label: Tenant
+    placeholder: ''
+    input_type: text
+    help_text: The tenant of your Microsoft account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/microsoft-tenant-specific
+tool_source:
+  type: mcp
+  server_name: microsoft-tenant-specific
+  command: microsoft-tenant-specific-mcp-server

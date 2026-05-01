@@ -1,0 +1,22 @@
+name: upsales
+display: Upsales
+icon: upsales
+category: crm
+version: '1.0'
+description: Upsales
+auth:
+  type: api_key
+  api_key:
+    env_var: UPSALES_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: ''
+    input_type: text
+    help_text: Your Upsales API Token
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/upsales
+tool_source:
+  type: mcp
+  server_name: upsales
+  command: upsales-mcp-server

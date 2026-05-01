@@ -1,0 +1,22 @@
+name: squareup
+display: Squareup
+icon: squareup
+category: payment
+version: '1.0'
+description: Squareup
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://connect.squareup.com/oauth2/authorize
+    token_url: https://connect.squareup.com/oauth2/token
+    scopes:
+    - read
+    extra_params:
+      session: false
+    token_env_var: SQUAREUP_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/squareup/how-to-register-your-own-squareup-oauth-app
+tool_source:
+  type: mcp
+  server_name: squareup
+  command: squareup-mcp-server

@@ -1,0 +1,22 @@
+name: thrivecart-api-key
+display: ThriveCart (API Key)
+icon: thriveca
+category: e-commerce
+version: '1.0'
+description: ThriveCart (API Key)
+auth:
+  type: api_key
+  api_key:
+    env_var: THRIVECART-API-KEY_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ASYDV5S8-0BSO1SH2-4BH5PO7U-YF8SV3CZ
+    input_type: text
+    help_text: The API key for your ThriveCart account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/thrivecart-api-key
+tool_source:
+  type: mcp
+  server_name: thrivecart-api-key
+  command: thrivecart-api-key-mcp-server

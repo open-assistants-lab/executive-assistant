@@ -1,0 +1,28 @@
+name: clickhouse
+display: ClickHouse
+icon: clickhou
+category: dev-tools
+version: '1.0'
+description: ClickHouse
+auth:
+  type: api_key
+  api_key:
+    env_var: CLICKHOUSE_API_KEY
+  required_fields:
+  - name: username
+    label: Key ID
+    placeholder: Mlx1****************
+    input_type: text
+    help_text: Your ClickHouse Cloud API Key ID.
+    optional: false
+  - name: password
+    label: Key Secret
+    placeholder: 4b1d2i7O**********************************
+    input_type: password
+    help_text: Your ClickHouse Cloud API Key Secret.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/clickhouse
+tool_source:
+  type: mcp
+  server_name: clickhouse
+  command: clickhouse-mcp-server

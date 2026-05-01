@@ -1,0 +1,20 @@
+name: lokalise
+display: Lokalise
+icon: lokalise
+category: productivity
+version: '1.0'
+description: Lokalise
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://app.lokalise.com/oauth2/auth
+    token_url: https://app.lokalise.com/oauth2/token
+    scopes:
+    - read
+    token_env_var: LOKALISE_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/lokalise/how-to-register-your-own-lokalise-oauth-app
+tool_source:
+  type: mcp
+  server_name: lokalise
+  command: lokalise-mcp-server

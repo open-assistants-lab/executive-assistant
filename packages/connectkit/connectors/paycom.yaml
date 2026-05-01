@@ -1,0 +1,28 @@
+name: paycom
+display: Paycom
+icon: paycom
+category: hr
+version: '1.0'
+description: Paycom
+auth:
+  type: api_key
+  api_key:
+    env_var: PAYCOM_API_KEY
+  required_fields:
+  - name: username
+    label: SID
+    placeholder: ''
+    input_type: text
+    help_text: The SID of your Paycom account
+    optional: false
+  - name: password
+    label: API Token
+    placeholder: ''
+    input_type: text
+    help_text: The API token of your Paycom account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/paycom
+tool_source:
+  type: mcp
+  server_name: paycom
+  command: paycom-mcp-server

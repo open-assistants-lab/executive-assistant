@@ -1,0 +1,23 @@
+name: bitbucket
+display: Bitbucket
+icon: bitbucke
+category: dev-tools
+version: '1.0'
+description: Bitbucket
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://bitbucket.org/site/oauth2/authorize
+    token_url: https://bitbucket.org/site/oauth2/access_token
+    scopes:
+    - read
+    token_env_var: BITBUCKET_ACCESS_TOKEN
+  required_fields: []
+tool_sources:
+- type: cli
+  command: bitbucket
+  install: '# See service docs'
+- type: mcp
+  server_name: bitbucket
+  command: bitbucket-mcp-server
+setup_guide_url: https://nango.dev/docs/integrations/all/bitbucket

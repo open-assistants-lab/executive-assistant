@@ -1,0 +1,22 @@
+name: private-api-bearer
+display: Private API (Bearer Auth)
+icon: private
+category: other
+version: '1.0'
+description: Private API (Bearer Auth)
+auth:
+  type: api_key
+  api_key:
+    env_var: PRIVATE-API-BEARER_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: Your API Key
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/private-api-bearer
+tool_source:
+  type: mcp
+  server_name: private-api-bearer
+  command: private-api-bearer-mcp-server

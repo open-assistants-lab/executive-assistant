@@ -1,0 +1,52 @@
+# Stripe — payments infrastructure
+# CLI: https://docs.stripe.com/cli
+# MCP: https://docs.stripe.com/cli/mcp-server
+
+name: stripe
+display: "Stripe"
+icon: stripe
+category: payment
+version: "1.0"
+description: "Stripe payments, customers, subscriptions, and invoices"
+setup_guide_url: "https://docs.stripe.com/keys"
+auth:
+  type: api_key
+  api_key:
+    env_var: STRIPE_API_KEY
+  required_fields:
+    - name: api_key
+      label: "Secret Key"
+      placeholder: "sk_live_..."
+      input_type: password
+      help_text: "From dashboard.stripe.com/apikeys — use a restricted key for safety"
+tool_sources:
+  - type: cli
+    command: stripe
+    install: brew install stripe/stripe-cli/stripe
+    env_mapping:
+      api_key: STRIPE_API_KEY
+  - type: mcp
+    server_name: stripe
+    command: stripe-mcp
+    install: Official Stripe MCP server
+    env_mapping:
+      api_key: STRIPE_API_KEY
+tool_descriptions:
+  - name: stripe__customers_list
+    description: "List Stripe customers"
+    parameter_descriptions:
+      limit: "Max results (default: 10)"
+  - name: stripe__payments_list
+    description: "List Stripe payment intents"
+    parameter_descriptions:
+      limit: "Max results (default: 10)"
+  - name: stripe__subscriptions_list
+    description: "List active subscriptions"
+    parameter_descriptions:
+      customer: "Filter by customer ID"
+      limit: "Max results (default: 10)"
+  - name: stripe__invoice_list
+    description: "List invoices"
+    parameter_descriptions:
+      customer: "Filter by customer ID"
+      limit: "Max results (default: 10)"

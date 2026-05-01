@@ -1,0 +1,20 @@
+name: oura
+display: Oura
+icon: oura
+category: sports
+version: '1.0'
+description: Oura
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://cloud.ouraring.com/oauth/authorize
+    token_url: https://api.ouraring.com/oauth/token
+    scopes:
+    - read
+    token_env_var: OURA_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/oura
+tool_source:
+  type: mcp
+  server_name: oura
+  command: oura-mcp-server

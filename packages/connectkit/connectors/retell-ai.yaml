@@ -1,0 +1,22 @@
+name: retell-ai
+display: Retell AI
+icon: retell
+category: dev-tools
+version: '1.0'
+description: Retell AI
+auth:
+  type: api_key
+  api_key:
+    env_var: RETELL-AI_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    input_type: text
+    help_text: The API key for Retell AI
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/retell-ai
+tool_source:
+  type: mcp
+  server_name: retell-ai
+  command: retell-ai-mcp-server

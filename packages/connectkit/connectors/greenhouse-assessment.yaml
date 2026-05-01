@@ -1,0 +1,28 @@
+name: greenhouse-assessment
+display: Greenhouse (Assessment API)
+icon: greenhou
+category: ats
+version: '1.0'
+description: Greenhouse (Assessment API)
+auth:
+  type: api_key
+  api_key:
+    env_var: GREENHOUSE-ASSESSMENT_API_KEY
+  required_fields:
+  - name: username
+    label: API key
+    placeholder: ''
+    input_type: password
+    help_text: The API Key of your Greenhouse account
+    optional: false
+  - name: baseurl
+    label: Assessment Base Url
+    placeholder: www.testing-partner.com
+    input_type: url
+    help_text: The Assessment API Base Url you want to connect to
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/greenhouse-assessment
+tool_source:
+  type: mcp
+  server_name: greenhouse-assessment
+  command: greenhouse-assessment-mcp-server

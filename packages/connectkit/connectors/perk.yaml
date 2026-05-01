@@ -1,0 +1,20 @@
+name: perk
+display: Perk
+icon: perk
+category: productivity
+version: '1.0'
+description: Perk
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://app.travelperk.com/oauth2/authorize/
+    token_url: https://app.travelperk.com/accounts/oauth2/token/
+    scopes:
+    - read
+    token_env_var: PERK_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/perk/how-to-register-your-own-perk-api-oauth-app
+tool_source:
+  type: mcp
+  server_name: perk
+  command: perk-mcp-server

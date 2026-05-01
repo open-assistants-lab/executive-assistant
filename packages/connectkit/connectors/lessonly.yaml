@@ -1,0 +1,28 @@
+name: lessonly
+display: Lessonly
+icon: lessonly
+category: productivity
+version: '1.0'
+description: Lessonly
+auth:
+  type: api_key
+  api_key:
+    env_var: LESSONLY_API_KEY
+  required_fields:
+  - name: username
+    label: Subdomain
+    placeholder: ''
+    input_type: text
+    help_text: Your Lessonly Subdomain
+    optional: false
+  - name: password
+    label: API Key
+    placeholder: ''
+    input_type: password
+    help_text: Your Lessonly API key
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/lessonly
+tool_source:
+  type: mcp
+  server_name: lessonly
+  command: lessonly-mcp-server

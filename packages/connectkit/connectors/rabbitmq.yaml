@@ -1,0 +1,72 @@
+# RabbitMQ — message broker
+# CLI: rabbitmqadmin, rabbitmqctl
+# MCP: No official MCP server; uses management HTTP API
+
+name: rabbitmq
+display: "RabbitMQ"
+icon: rabbitmq
+category: messaging
+version: "1.0"
+description: "RabbitMQ — message broker, queues, exchanges, and pub/sub messaging"
+setup_guide_url: "https://www.rabbitmq.com/docs/access-control"
+auth:
+  type: api_key
+  api_key:
+    env_var: RABBITMQ_URL
+  required_fields:
+    - name: host
+      label: "Host"
+      placeholder: "localhost"
+      input_type: text
+    - name: port
+      label: "Management Port"
+      placeholder: "15672"
+      input_type: text
+      help_text: "RabbitMQ management API port (default: 15672)"
+    - name: username
+      label: "Username"
+      placeholder: "guest"
+      input_type: text
+    - name: password
+      label: "Password"
+      placeholder: "..."
+      input_type: password
+    - name: vhost
+      label: "Virtual Host"
+      placeholder: "/"
+      input_type: text
+      help_text: "Virtual host (default: /)"
+      optional: true
+tool_sources:
+  - type: cli
+    command: rabbitmqadmin
+    install: brew install rabbitmq
+    env_mapping:
+      connection_string: RABBITMQ_URL
+  - type: mcp
+    server_name: rabbitmq-mcp
+    command: uvx
+    args:
+      - "rabbitmq-mcp-server"
+    install: uvx rabbitmq-mcp-server
+    env_mapping:
+      connection_string: RABBITMQ_URL
+tool_descriptions:
+  - name: rabbitmq__queues_list
+    description: "List all queues with message counts and status."
+    parameter_descriptions:
+      vhost: "Virtual host (default: /)"
+  - name: rabbitmq__queue_info
+    description: "Get detailed info about a specific queue."
+    parameter_descriptions:
+      queue: "Queue name"
+      vhost: "Virtual host (default: /)"
+  - name: rabbitmq__publish
+    description: "Publish a message to an exchange with routing key."
+    parameter_descriptions:
+      exchange: "Exchange name"
+      routing_key: "Routing key"
+      message: "Message payload as JSON"
+      vhost: "Virtual host (default: /)"
+  - name: rabbitmq__exchanges_list
+    description: "List all exchanges."

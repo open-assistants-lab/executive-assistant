@@ -1,0 +1,57 @@
+# Redis — in-memory data store
+# CLI: redis-cli (bundled with Redis)
+# MCP: @modelcontextprotocol/server-redis (archived reference server)
+
+name: redis
+display: "Redis"
+icon: redis
+category: database
+version: "1.0"
+description: "Redis — in-memory data structure store, cache, and pub/sub"
+setup_guide_url: "https://redis.io/docs/latest/operate/oss_and_stack/management/security/"
+auth:
+  type: api_key
+  api_key:
+    env_var: REDIS_URL
+  required_fields:
+    - name: connection_string
+      label: "Connection URL"
+      placeholder: "redis://user:password@host:6379/0"
+      input_type: password
+      help_text: "Redis connection URL (e.g. redis://localhost:6379 or rediss:// for TLS)"
+tool_sources:
+  - type: cli
+    command: redis-cli
+    install: brew install redis
+    env_mapping:
+      connection_string: REDIS_URL
+  - type: mcp
+    server_name: redis
+    command: npx
+    args:
+      - "-y"
+      - "@modelcontextprotocol/server-redis"
+      - "${REDIS_URL}"
+    install: npx @modelcontextprotocol/server-redis
+    env_mapping:
+      connection_string: REDIS_URL
+tool_descriptions:
+  - name: redis__get
+    description: "Get the value of a Redis key."
+    parameter_descriptions:
+      key: "Redis key name"
+  - name: redis__set
+    description: "Set a Redis key to a value with optional TTL."
+    parameter_descriptions:
+      key: "Redis key name"
+      value: "Value to store"
+      ttl: "Optional: time-to-live in seconds"
+  - name: redis__keys
+    description: "List keys matching a pattern."
+    parameter_descriptions:
+      pattern: "Pattern to match (e.g. 'user:*' or '*')"
+  - name: redis__scan
+    description: "Incrementally iterate over keys matching a pattern (safe for large datasets)."
+    parameter_descriptions:
+      pattern: "Pattern to match"
+      count: "Number of keys per iteration (default: 10)"

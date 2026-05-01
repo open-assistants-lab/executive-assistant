@@ -1,0 +1,20 @@
+name: calendly
+display: Calendly
+icon: calendly
+category: productivity
+version: '1.0'
+description: Calendly
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://auth.calendly.com/oauth/authorize
+    token_url: https://auth.calendly.com/oauth/token
+    scopes:
+    - read
+    token_env_var: CALENDLY_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/calendly/how-to-register-your-own-calendly-api-oauth-app
+tool_source:
+  type: mcp
+  server_name: calendly
+  command: calendly-mcp-server

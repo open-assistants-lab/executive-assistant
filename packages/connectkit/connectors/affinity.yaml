@@ -1,0 +1,22 @@
+name: affinity
+display: Affinity (v1)
+icon: affinity
+category: crm
+version: '1.0'
+description: Affinity (v1)
+auth:
+  type: api_key
+  api_key:
+    env_var: AFFINITY_API_KEY
+  required_fields:
+  - name: password
+    label: API Key
+    placeholder: nrlW2KR5m-qUCA-rTqKb_EUK1swERlenqn70KNMMrTM
+    input_type: text
+    help_text: Your Affinity API Key
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/affinity
+tool_source:
+  type: mcp
+  server_name: affinity
+  command: affinity-mcp-server

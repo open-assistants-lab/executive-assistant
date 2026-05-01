@@ -1,0 +1,22 @@
+name: ocean-io
+display: Ocean.io
+icon: ocean
+category: crm
+version: '1.0'
+description: Ocean.io
+auth:
+  type: api_key
+  api_key:
+    env_var: OCEAN-IO_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: api_7Zs******_************************mhS
+    input_type: text
+    help_text: Your Ocean.io API token.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/ocean-io
+tool_source:
+  type: mcp
+  server_name: ocean-io
+  command: ocean-io-mcp-server

@@ -1,0 +1,20 @@
+name: stripe-app
+display: Stripe App
+icon: stripe
+category: payment
+version: '1.0'
+description: Stripe App
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://marketplace.stripe.com/oauth/v2/authorize
+    token_url: https://api.stripe.com/v1/oauth/token
+    scopes:
+    - read
+    token_env_var: STRIPE-APP_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/stripe-app
+tool_source:
+  type: mcp
+  server_name: stripe-app
+  command: stripe-app-mcp-server

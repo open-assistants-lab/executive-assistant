@@ -1,0 +1,22 @@
+name: appstle-subscriptions
+display: Appstle Subscriptions
+icon: appstle
+category: productivity
+version: '1.0'
+description: Appstle Subscriptions
+auth:
+  type: api_key
+  api_key:
+    env_var: APPSTLE-SUBSCRIPTIONS_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: lBfFAdbxUxyv6jYRgOmrEVNkijCKD10T
+    input_type: password
+    help_text: Your Appstle Subscriptions API Key
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/appstle-subscriptions
+tool_source:
+  type: mcp
+  server_name: appstle-subscriptions
+  command: appstle-subscriptions-mcp-server

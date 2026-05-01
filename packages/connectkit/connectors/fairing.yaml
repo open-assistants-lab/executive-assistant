@@ -1,0 +1,22 @@
+name: fairing
+display: Fairing
+icon: fairing
+category: marketing
+version: '1.0'
+description: Fairing
+auth:
+  type: api_key
+  api_key:
+    env_var: FAIRING_API_KEY
+  required_fields:
+  - name: apiKey
+    label: Secret Token
+    placeholder: 3UjYpDjuk70Lt7AxC4M1x_7XvxoxkeX-OV7uTahJowilqLb2eLLvrtlvCGZgku1q
+    input_type: text
+    help_text: The Secret Token for your Fairing account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/fairing
+tool_source:
+  type: mcp
+  server_name: fairing
+  command: fairing-mcp-server

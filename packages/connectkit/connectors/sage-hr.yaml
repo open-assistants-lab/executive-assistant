@@ -1,0 +1,28 @@
+name: sage-hr
+display: Sage HR
+icon: sage
+category: hr
+version: '1.0'
+description: Sage HR
+auth:
+  type: api_key
+  api_key:
+    env_var: SAGE-HR_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: apikey****************************
+    input_type: text
+    help_text: The API Key for your Sage HR account
+    optional: false
+  - name: subdomain
+    label: Sage HR Subdomain
+    placeholder: subdomain
+    input_type: text
+    help_text: The subdomain of your Sage HR account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/sage-hr
+tool_source:
+  type: mcp
+  server_name: sage-hr
+  command: sage-hr-mcp-server

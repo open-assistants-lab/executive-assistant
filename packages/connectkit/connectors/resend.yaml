@@ -1,0 +1,25 @@
+name: resend
+display: Resend
+icon: resend
+category: communication
+version: '1.0'
+description: Resend
+auth:
+  type: api_key
+  api_key:
+    env_var: RESEND_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: re_HW***************************65L
+    input_type: text
+    help_text: Your Resend API key.
+    optional: false
+tool_sources:
+- type: cli
+  command: resend
+  install: '# See service docs'
+- type: mcp
+  server_name: resend
+  command: resend-mcp-server
+setup_guide_url: https://nango.dev/docs/api-integrations/resend

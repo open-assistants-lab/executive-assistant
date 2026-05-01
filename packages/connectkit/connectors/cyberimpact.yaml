@@ -1,0 +1,22 @@
+name: cyberimpact
+display: Cyberimpact
+icon: cyberimp
+category: marketing
+version: '1.0'
+description: Cyberimpact
+auth:
+  type: api_key
+  api_key:
+    env_var: CYBERIMPACT_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
+    input_type: text
+    help_text: The API key for your Cyberimpact account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/cyberimpact
+tool_source:
+  type: mcp
+  server_name: cyberimpact
+  command: cyberimpact-mcp-server

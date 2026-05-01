@@ -1,0 +1,26 @@
+name: accelo
+display: Accelo
+icon: accelo
+category: invoicing
+version: '1.0'
+description: Accelo
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.subdomain}.api.accelo.com/oauth2/v0/authorize
+    token_url: https://${connectionConfig.subdomain}.api.accelo.com/oauth2/v0/token
+    scopes:
+    - read
+    token_env_var: ACCELO_ACCESS_TOKEN
+  required_fields:
+  - name: subdomain
+    label: Accelo Domain
+    placeholder: domain
+    input_type: text
+    help_text: The subdomain of your Accelo account
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/accelo/how-to-register-your-own-accelo-api-oauth-app
+tool_source:
+  type: mcp
+  server_name: accelo
+  command: accelo-mcp-server

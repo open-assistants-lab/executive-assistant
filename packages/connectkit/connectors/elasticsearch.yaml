@@ -1,0 +1,65 @@
+# Elasticsearch — search and analytics engine
+# CLI: elasticsearch-cli (ecs) or curl-based
+# MCP: Official elastic/mcp-server-elasticsearch (Docker) or community servers
+
+name: elasticsearch
+display: "Elasticsearch"
+icon: elasticsearch
+category: database
+version: "1.0"
+description: "Elasticsearch — full-text search, observability, and analytics engine"
+setup_guide_url: "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-create-api-key.html"
+auth:
+  type: api_key
+  api_key:
+    env_var: ES_URL
+  required_fields:
+    - name: es_url
+      label: "Elasticsearch URL"
+      placeholder: "https://user:password@host:9200"
+      input_type: password
+      help_text: "Elasticsearch endpoint URL with authentication"
+    - name: api_key
+      label: "API Key"
+      placeholder: "base64EncodedApiKey"
+      input_type: password
+      help_text: "Elasticsearch API key (preferred over username/password)"
+      optional: true
+tool_sources:
+  - type: cli
+    command: curl
+    install: brew install curl
+    env_mapping:
+      connection_string: ES_URL
+  - type: mcp
+    server_name: elasticsearch
+    command: docker
+    args:
+      - "run"
+      - "-i"
+      - "--rm"
+      - "-e"
+      - "ES_URL"
+      - "-e"
+      - "ES_API_KEY"
+      - "docker.elastic.co/mcp/elasticsearch"
+      - "stdio"
+    install: "docker run -i --rm -e ES_URL -e ES_API_KEY docker.elastic.co/mcp/elasticsearch stdio"
+    env_mapping:
+      es_url: ES_URL
+      api_key: ES_API_KEY
+tool_descriptions:
+  - name: elasticsearch__search
+    description: "Search Elasticsearch indices using Query DSL."
+    parameter_descriptions:
+      index: "Index name(s) to search (e.g. 'logs-*')"
+      query: "Elasticsearch query DSL as JSON"
+      size: "Maximum results (default: 10)"
+  - name: elasticsearch__list_indices
+    description: "List all Elasticsearch indices with health and doc count."
+  - name: elasticsearch__get_mappings
+    description: "Get field mappings for a specific index."
+    parameter_descriptions:
+      index: "Index name"
+  - name: elasticsearch__cluster_health
+    description: "Get cluster health status (green, yellow, red)."

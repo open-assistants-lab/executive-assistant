@@ -1,0 +1,28 @@
+name: github-app
+display: GitHub (App)
+icon: github
+category: dev-tools
+version: '1.0'
+description: GitHub (App)
+auth:
+  type: api_key
+  api_key:
+    env_var: GITHUB-APP_API_KEY
+  required_fields:
+  - name: apppubliclink
+    label: App Public Link
+    placeholder: ''
+    input_type: text
+    help_text: The public link of your GitHub App
+    optional: false
+  - name: installation_id
+    label: Installation ID
+    placeholder: '38631545'
+    input_type: text
+    help_text: The installation ID of your GitHub App
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/github-app/how-to-register-your-own-github-app-api-app
+tool_source:
+  type: mcp
+  server_name: github-app
+  command: github-app-mcp-server

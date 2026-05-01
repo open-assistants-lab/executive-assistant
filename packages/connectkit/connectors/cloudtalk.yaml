@@ -1,0 +1,28 @@
+name: cloudtalk
+display: CloudTalk
+icon: cloudtal
+category: communication
+version: '1.0'
+description: CloudTalk
+auth:
+  type: api_key
+  api_key:
+    env_var: CLOUDTALK_API_KEY
+  required_fields:
+  - name: username
+    label: ID
+    placeholder: E1ZH****************RRM
+    input_type: text
+    help_text: Your CloudTalk API Access ID.
+    optional: false
+  - name: password
+    label: Key
+    placeholder: bQI*******************************eZ
+    input_type: password
+    help_text: Your CloudTalk API Access Key.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/cloudtalk
+tool_source:
+  type: mcp
+  server_name: cloudtalk
+  command: cloudtalk-mcp-server

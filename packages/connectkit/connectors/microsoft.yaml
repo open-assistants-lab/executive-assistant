@@ -1,0 +1,23 @@
+name: microsoft
+display: Microsoft
+icon: microsof
+category: communication
+version: '1.0'
+description: Microsoft
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://login.microsoftonline.com/common/oauth2/v2.0/authorize
+    token_url: https://login.microsoftonline.com/common/oauth2/v2.0/token
+    scopes:
+    - offline_access
+    - .default
+    extra_params:
+      response_mode: query
+    token_env_var: MICROSOFT_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/microsoft/how-to-register-your-own-microsoft-api-oauth-app
+tool_source:
+  type: mcp
+  server_name: microsoft
+  command: microsoft-mcp-server

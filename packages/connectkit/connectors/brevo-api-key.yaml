@@ -1,0 +1,22 @@
+name: brevo-api-key
+display: Brevo
+icon: brevo
+category: marketing
+version: '1.0'
+description: Brevo
+auth:
+  type: api_key
+  api_key:
+    env_var: BREVO-API-KEY_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Brevo account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/brevo-api-key
+tool_source:
+  type: mcp
+  server_name: brevo-api-key
+  command: brevo-api-key-mcp-server

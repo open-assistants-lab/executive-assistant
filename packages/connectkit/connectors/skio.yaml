@@ -1,0 +1,22 @@
+name: skio
+display: Skio
+icon: skio
+category: e-commerce
+version: '1.0'
+description: Skio
+auth:
+  type: api_key
+  api_key:
+    env_var: SKIO_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: a1b2c3d4-e5f6-47a8-9b0c-d1234567890f
+    input_type: text
+    help_text: The API Token for your Skio account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/skio
+tool_source:
+  type: mcp
+  server_name: skio
+  command: skio-mcp-server

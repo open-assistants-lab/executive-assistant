@@ -1,0 +1,34 @@
+name: oracle-hcm
+display: Oracle Fusion Cloud (HCM)
+icon: oracle
+category: hr
+version: '1.0'
+description: Oracle Fusion Cloud (HCM)
+auth:
+  type: api_key
+  api_key:
+    env_var: ORACLE-HCM_API_KEY
+  required_fields:
+  - name: username
+    label: Username
+    placeholder: ''
+    input_type: text
+    help_text: Your Oracle Cloud service username.
+    optional: false
+  - name: password
+    label: Password
+    placeholder: ''
+    input_type: text
+    help_text: Your Oracle Cloud service password.
+    optional: false
+  - name: restserverurl
+    label: REST Server URL
+    placeholder: servername.fa.us2.oraclecloud.com
+    input_type: url
+    help_text: The REST server URL for your Oracle Fusion Cloud
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/oracle-hcm
+tool_source:
+  type: mcp
+  server_name: oracle-hcm
+  command: oracle-hcm-mcp-server

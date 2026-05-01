@@ -1,0 +1,28 @@
+name: fellow
+display: Fellow
+icon: fellow
+category: productivity
+version: '1.0'
+description: Fellow
+auth:
+  type: api_key
+  api_key:
+    env_var: FELLOW_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ab84bc2056614635866e4a98c153d7a1ab30541032fd433793d402f2a5db2404
+    input_type: text
+    help_text: Your Fellow API Key
+    optional: false
+  - name: subdomain
+    label: Workspace Subdomain
+    placeholder: myworkspace
+    input_type: text
+    help_text: The subdomain of your Fellow workspace
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/fellow
+tool_source:
+  type: mcp
+  server_name: fellow
+  command: fellow-mcp-server

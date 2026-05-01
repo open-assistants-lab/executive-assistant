@@ -1,0 +1,34 @@
+name: quickbase
+display: Quickbase
+icon: quickbas
+category: productivity
+version: '1.0'
+description: Quickbase
+auth:
+  type: api_key
+  api_key:
+    env_var: QUICKBASE_API_KEY
+  required_fields:
+  - name: apiKey
+    label: User Token
+    placeholder: bb_aa_xxxxxx_xxxxxxxxxxxxxxxxx
+    input_type: text
+    help_text: Your User Token
+    optional: false
+  - name: domain
+    label: Realm Hostname
+    placeholder: demo.quickbase.com
+    input_type: url
+    help_text: Your Quickbase Realm Hostname
+    optional: false
+  - name: appdetails
+    label: App Details
+    placeholder: ''
+    input_type: text
+    help_text: The details of your app
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/quickbase
+tool_source:
+  type: mcp
+  server_name: quickbase
+  command: quickbase-mcp-server

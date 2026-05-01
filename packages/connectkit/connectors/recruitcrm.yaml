@@ -1,0 +1,22 @@
+name: recruitcrm
+display: Recruitcrm
+icon: recruitc
+category: hr
+version: '1.0'
+description: Recruitcrm
+auth:
+  type: api_key
+  api_key:
+    env_var: RECRUITCRM_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: 9SKXL**************************************
+    input_type: text
+    help_text: The API Key for your Recruitcrm account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/recruitcrm
+tool_source:
+  type: mcp
+  server_name: recruitcrm
+  command: recruitcrm-mcp-server

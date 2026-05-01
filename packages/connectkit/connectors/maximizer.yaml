@@ -1,0 +1,32 @@
+name: maximizer
+display: Maximizer (Cloud)
+icon: maximize
+category: crm
+version: '1.0'
+description: Maximizer (Cloud)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.region}.maximizercrmlive.com/oauth2/${connectionConfig.company_alias}/authorize
+    token_url: https://${connectionConfig.region}.maximizercrmlive.com/oauth2/${connectionConfig.company_alias}/token
+    scopes:
+    - read
+    token_env_var: MAXIMIZER_ACCESS_TOKEN
+  required_fields:
+  - name: region
+    label: Region
+    placeholder: caw
+    input_type: text
+    help_text: Region-specific subdomain.
+    optional: false
+  - name: company_alias
+    label: Company Alias
+    placeholder: acme
+    input_type: text
+    help_text: The company alias of your Maximizer cloud account.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/maximizer/how-to-register-your-own-maximizer-oauth-app
+tool_source:
+  type: mcp
+  server_name: maximizer
+  command: maximizer-mcp-server

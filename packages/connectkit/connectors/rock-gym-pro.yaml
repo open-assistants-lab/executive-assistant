@@ -1,0 +1,28 @@
+name: rock-gym-pro
+display: Rock Gym Pro
+icon: rock
+category: crm
+version: '1.0'
+description: Rock Gym Pro
+auth:
+  type: api_key
+  api_key:
+    env_var: ROCK-GYM-PRO_API_KEY
+  required_fields:
+  - name: username
+    label: API Username
+    placeholder: ''
+    input_type: text
+    help_text: Your Rock Gym Pro API username
+    optional: false
+  - name: password
+    label: API Password
+    placeholder: ''
+    input_type: text
+    help_text: Your Rock Gym Pro API password
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/rock-gym-pro
+tool_source:
+  type: mcp
+  server_name: rock-gym-pro
+  command: rock-gym-pro-mcp-server

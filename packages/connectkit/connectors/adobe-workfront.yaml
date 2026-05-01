@@ -1,0 +1,26 @@
+name: adobe-workfront
+display: Adobe Workfront
+icon: adobe
+category: productivity
+version: '1.0'
+description: Adobe Workfront
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.hostname}/integrations/oauth2/authorize
+    token_url: https://${connectionConfig.hostname}/integrations/oauth2/api/v1/token
+    scopes:
+    - read
+    token_env_var: ADOBE-WORKFRONT_ACCESS_TOKEN
+  required_fields:
+  - name: hostname
+    label: Hostname
+    placeholder: acme.my.workfront.com
+    input_type: text
+    help_text: The hostname of your Adobe Workfront account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/adobe-workfront
+tool_source:
+  type: mcp
+  server_name: adobe-workfront
+  command: adobe-workfront-mcp-server

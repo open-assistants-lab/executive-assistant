@@ -1,0 +1,28 @@
+name: connectwise-psa-staging
+display: ConnectWise PSA (Staging)
+icon: connectw
+category: support
+version: '1.0'
+description: ConnectWise PSA (Staging)
+auth:
+  type: api_key
+  api_key:
+    env_var: CONNECTWISE-PSA-STAGING_API_KEY
+  required_fields:
+  - name: apiversion
+    label: Api version
+    placeholder: ''
+    input_type: text
+    help_text: The API version to connect to ConnectWise PSA
+    optional: false
+  - name: clientid
+    label: Client ID
+    placeholder: ''
+    input_type: text
+    help_text: The Client ID assigned to your integration
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/connectwise-psa-staging
+tool_source:
+  type: mcp
+  server_name: connectwise-psa-staging
+  command: connectwise-psa-staging-mcp-server

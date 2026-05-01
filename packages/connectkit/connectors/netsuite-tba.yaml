@@ -1,0 +1,20 @@
+name: netsuite-tba
+display: NetSuite (TBA)
+icon: netsuite
+category: accounting
+version: '1.0'
+description: NetSuite (TBA)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: ''
+    token_url: ''
+    scopes:
+    - read
+    token_env_var: NETSUITE-TBA_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/netsuite-tba/how-to-set-up-netsuite-tba-with-nango
+tool_source:
+  type: mcp
+  server_name: netsuite-tba
+  command: netsuite-tba-mcp-server

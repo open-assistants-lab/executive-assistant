@@ -1,0 +1,20 @@
+name: bitly
+display: Bitly
+icon: bitly
+category: marketing
+version: '1.0'
+description: Bitly
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://bitly.com/oauth/authorize
+    token_url: https://api-ssl.bitly.com/oauth/access_token
+    scopes:
+    - read
+    token_env_var: BITLY_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/bitly
+tool_source:
+  type: cli
+  command: bitly
+  install: '# See service docs'

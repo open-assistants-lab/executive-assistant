@@ -1,0 +1,20 @@
+name: exist
+display: Exist
+icon: exist
+category: other
+version: '1.0'
+description: Exist
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://exist.io/oauth2/authorize
+    token_url: https://exist.io/oauth2/access_token
+    scopes:
+    - read
+    token_env_var: EXIST_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/exist
+tool_source:
+  type: mcp
+  server_name: exist
+  command: exist-mcp-server

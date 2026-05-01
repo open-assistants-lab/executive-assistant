@@ -1,0 +1,40 @@
+name: workday
+display: Workday
+icon: workday
+category: hr
+version: '1.0'
+description: Workday
+auth:
+  type: api_key
+  api_key:
+    env_var: WORKDAY_API_KEY
+  required_fields:
+  - name: username
+    label: Username
+    placeholder: ISU Nango@acme
+    input_type: text
+    help_text: Workday API Username
+    optional: false
+  - name: password
+    label: Password
+    placeholder: ''
+    input_type: text
+    help_text: Workday API Password
+    optional: false
+  - name: hostname
+    label: Hostname
+    placeholder: wd3-impl-services1.workday.com
+    input_type: url
+    help_text: The hostname of your Workday account
+    optional: false
+  - name: tenant
+    label: Tenant
+    placeholder: acme
+    input_type: text
+    help_text: The tenant of your Workday account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/workday
+tool_source:
+  type: mcp
+  server_name: workday
+  command: workday-mcp-server

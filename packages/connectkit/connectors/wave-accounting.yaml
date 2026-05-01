@@ -1,0 +1,20 @@
+name: wave-accounting
+display: Wave Accounting
+icon: wave
+category: accounting
+version: '1.0'
+description: Wave Accounting
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://api.waveapps.com/oauth2/authorize
+    token_url: https://api.waveapps.com/oauth2/token/
+    scopes:
+    - read
+    token_env_var: WAVE-ACCOUNTING_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/wave-accounting
+tool_source:
+  type: mcp
+  server_name: wave-accounting
+  command: wave-accounting-mcp-server

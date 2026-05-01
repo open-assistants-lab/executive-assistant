@@ -1,0 +1,22 @@
+name: whatsapp-business
+display: WhatsApp Business
+icon: whatsapp
+category: communication
+version: '1.0'
+description: WhatsApp Business
+auth:
+  type: api_key
+  api_key:
+    env_var: WHATSAPP-BUSINESS_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The access token to your whatsapp account
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/whatsapp-business/how-to-register-your-own-whatsapp-business-api-oauth-app
+tool_source:
+  type: mcp
+  server_name: whatsapp-business
+  command: whatsapp-business-mcp-server

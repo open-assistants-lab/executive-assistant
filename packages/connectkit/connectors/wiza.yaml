@@ -1,0 +1,22 @@
+name: wiza
+display: Wiza
+icon: wiza
+category: crm
+version: '1.0'
+description: Wiza
+auth:
+  type: api_key
+  api_key:
+    env_var: WIZA_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: 6e0f838beb0a09d35f3f56b52b1344b262ecc713aab41456485d12c5f6edaef7
+    input_type: text
+    help_text: Your Wiza API key
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/wiza
+tool_source:
+  type: mcp
+  server_name: wiza
+  command: wiza-mcp-server

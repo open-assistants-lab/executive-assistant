@@ -1,0 +1,28 @@
+name: braze
+display: Braze
+icon: braze
+category: communication
+version: '1.0'
+description: Braze
+auth:
+  type: api_key
+  api_key:
+    env_var: BRAZE_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key to your Braze account
+    optional: false
+  - name: instanceurl
+    label: Instance URL
+    placeholder: iad-02.braze.com
+    input_type: url
+    help_text: The REST API URL of your Braze instance
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/braze
+tool_source:
+  type: mcp
+  server_name: braze
+  command: braze-mcp-server

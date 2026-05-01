@@ -1,0 +1,40 @@
+name: aws-multi-service
+display: AWS Multi-Service
+icon: aws
+category: dev-tools
+version: '1.0'
+description: AWS Multi-Service
+auth:
+  type: api_key
+  api_key:
+    env_var: AWS-MULTI-SERVICE_API_KEY
+  required_fields:
+  - name: username
+    label: AWS Access Key ID
+    placeholder: AKIAI***MPLE
+    input_type: text
+    help_text: Your Access Key ID.
+    optional: false
+  - name: password
+    label: AWS Secret Access Key
+    placeholder: wJalr***EKEY
+    input_type: text
+    help_text: Your Secret Access Key.
+    optional: false
+  - name: service
+    label: AWS Service
+    placeholder: athena
+    input_type: text
+    help_text: The AWS service you want to connect to.
+    optional: false
+  - name: region
+    label: Region
+    placeholder: us-east-1
+    input_type: text
+    help_text: The AWS region where the service is available.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/aws-multi-service
+tool_source:
+  type: mcp
+  server_name: aws-multi-service
+  command: aws-multi-service-mcp-server

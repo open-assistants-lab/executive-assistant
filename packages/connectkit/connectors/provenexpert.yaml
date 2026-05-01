@@ -1,0 +1,28 @@
+name: provenexpert
+display: ProvenExpert
+icon: provenex
+category: marketing
+version: '1.0'
+description: ProvenExpert
+auth:
+  type: api_key
+  api_key:
+    env_var: PROVENEXPERT_API_KEY
+  required_fields:
+  - name: username
+    label: API ID
+    placeholder: 3yxp1qwZl5UAmyHZ5qRC2Sbpk5KAlEDZ
+    input_type: text
+    help_text: Your ProvenExpert API ID.
+    optional: false
+  - name: password
+    label: API Key
+    placeholder: M3A5NwykMKW1BRy6NRrxAwW2MzI3MxOmNRXzNzByMxW
+    input_type: password
+    help_text: Your ProvenExpert API Key.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/provenexpert
+tool_source:
+  type: mcp
+  server_name: provenexpert
+  command: provenexpert-mcp-server

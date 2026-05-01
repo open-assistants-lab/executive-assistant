@@ -1,0 +1,22 @@
+name: smartrecruiters-api-key
+display: Smartrecruiters
+icon: smartrec
+category: ats
+version: '1.0'
+description: Smartrecruiters
+auth:
+  type: api_key
+  api_key:
+    env_var: SMARTRECRUITERS-API-KEY_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Smartrecruiters account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/smartrecruiters-api-key
+tool_source:
+  type: mcp
+  server_name: smartrecruiters-api-key
+  command: smartrecruiters-api-key-mcp-server

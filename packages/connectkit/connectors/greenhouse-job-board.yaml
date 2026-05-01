@@ -1,0 +1,28 @@
+name: greenhouse-job-board
+display: Greenhouse (Job Board API)
+icon: greenhou
+category: ats
+version: '1.0'
+description: Greenhouse (Job Board API)
+auth:
+  type: api_key
+  api_key:
+    env_var: GREENHOUSE-JOB-BOARD_API_KEY
+  required_fields:
+  - name: username
+    label: API key
+    placeholder: ''
+    input_type: password
+    help_text: The API Key of your Greenhouse account
+    optional: false
+  - name: boardtoken
+    label: Board Token
+    placeholder: ''
+    input_type: text
+    help_text: The Job Board URL token to your Greenhouse account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/greenhouse-job-board
+tool_source:
+  type: mcp
+  server_name: greenhouse-job-board
+  command: greenhouse-job-board-mcp-server

@@ -1,0 +1,20 @@
+name: stackexchange
+display: Stack Exchange
+icon: stackexc
+category: knowledge-base
+version: '1.0'
+description: Stack Exchange
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://stackoverflow.com/oauth
+    token_url: https://stackoverflow.com/oauth/access_token/json
+    scopes:
+    - no_expiry
+    token_env_var: STACKEXCHANGE_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/stackexchange
+tool_source:
+  type: mcp
+  server_name: stackexchange
+  command: stackexchange-mcp-server

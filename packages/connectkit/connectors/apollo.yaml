@@ -1,0 +1,22 @@
+name: apollo
+display: Apollo (API Key)
+icon: apollo
+category: marketing
+version: '1.0'
+description: Apollo (API Key)
+auth:
+  type: api_key
+  api_key:
+    env_var: APOLLO_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: eh_3LUIFtj04rG4KF_FoFw
+    input_type: text
+    help_text: The API key for your Apollo account
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/apollo
+tool_source:
+  type: mcp
+  server_name: apollo
+  command: apollo-mcp-server

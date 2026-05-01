@@ -1,0 +1,31 @@
+name: algolia
+display: Algolia
+icon: algolia
+category: search
+version: '1.0'
+description: Algolia
+auth:
+  type: api_key
+  api_key:
+    env_var: ALGOLIA_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: c5c28261f9ade4e34891ccf761491b94
+    input_type: text
+    help_text: The API key for your Algolia account
+    optional: false
+  - name: app_id
+    label: Application ID
+    placeholder: ERBSOWZO32
+    input_type: text
+    help_text: The application ID for your Algolia account
+    optional: false
+tool_sources:
+- type: cli
+  command: algolia
+  install: '# See service docs'
+- type: mcp
+  server_name: algolia
+  command: algolia-mcp-server
+setup_guide_url: https://nango.dev/docs/integrations/all/algolia

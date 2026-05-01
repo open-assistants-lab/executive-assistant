@@ -1,0 +1,73 @@
+# Jira — issue tracking and project management
+# CLI: https://github.com/go-jira/jira (community), official Atlassian CLI in beta
+# MCP: Official Atlassian MCP covers Jira + Confluence
+
+name: jira
+display: "Jira"
+icon: jira
+category: dev-tools
+version: "1.0"
+description: "Jira issues, projects, sprints, and boards"
+setup_guide_url: "https://developer.atlassian.com/cloud/jira/platform/oauth-2-3lo-apps/"
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://auth.atlassian.com/authorize
+    token_url: https://auth.atlassian.com/oauth/token
+    scopes:
+      - read:jira-work
+      - write:jira-work
+      - read:jira-user
+      - offline_access
+    extra_params:
+      audience: api.atlassian.com
+      prompt: consent
+    token_env_var: JIRA_API_TOKEN
+  required_fields:
+    - name: client_id
+      label: "Client ID"
+      placeholder: "..."
+      input_type: text
+      help_text: "From developer.atlassian.com → your app → Settings"
+    - name: client_secret
+      label: "Client Secret"
+      placeholder: "..."
+      input_type: password
+      help_text: "From the same app settings page"
+    - name: domain
+      label: "Your Jira Domain"
+      placeholder: "your-company"
+      input_type: text
+      help_text: "Your Jira subdomain (e.g. 'your-company' in your-company.atlassian.net)"
+tool_sources:
+  - type: mcp
+    server_name: jira
+    command: npx @anthropic/atlassian-mcp
+    install: npx @anthropic/atlassian-mcp
+    env_mapping:
+      access_token: JIRA_API_TOKEN
+  - type: cli
+    command: jira
+    install: go install github.com/go-jira/jira/cmd/jira@latest
+    env_mapping:
+      access_token: JIRA_API_TOKEN
+tool_descriptions:
+  - name: jira__issue_search
+    description: "Search for Jira issues with JQL"
+    parameter_descriptions:
+      jql: "JQL query (e.g. 'project = DEMO AND status = Open')"
+  - name: jira__issue_get
+    description: "Get full details of a Jira issue"
+    parameter_descriptions:
+      issue_key: "Issue key (e.g. DEMO-123)"
+  - name: jira__issue_create
+    description: "Create a new Jira issue"
+    parameter_descriptions:
+      project_key: "Project key"
+      summary: "Issue summary/title"
+      description: "Issue description"
+      issue_type: "Issue type (Bug, Task, Story, etc.)"
+  - name: jira__sprint_list
+    description: "List active sprints for a board"
+    parameter_descriptions:
+      board_id: "Board ID"

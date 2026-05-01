@@ -1,0 +1,26 @@
+name: maximizer-on-premise
+display: Maximizer (On-Premise)
+icon: maximize
+category: crm
+version: '1.0'
+description: Maximizer (On-Premise)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.hostname}/MaximizerWebAuthentication/OAuth2/Authorize
+    token_url: https://${connectionConfig.hostname}/MaximizerWebAuthentication/OAuth2/Token
+    scopes:
+    - read
+    token_env_var: MAXIMIZER-ON-PREMISE_ACCESS_TOKEN
+  required_fields:
+  - name: hostname
+    label: Hostname
+    placeholder: maximizer.mycompany.com
+    input_type: url
+    help_text: The hostname of your Maximizer on premise instance.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/maximizer-on-premise/how-to-register-your-own-maximizer-on-premise-oauth-app
+tool_source:
+  type: mcp
+  server_name: maximizer-on-premise
+  command: maximizer-on-premise-mcp-server

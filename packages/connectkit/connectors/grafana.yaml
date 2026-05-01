@@ -1,0 +1,31 @@
+name: grafana
+display: Grafana
+icon: grafana
+category: dev-tools
+version: '1.0'
+description: Grafana
+auth:
+  type: api_key
+  api_key:
+    env_var: GRAFANA_API_KEY
+  required_fields:
+  - name: apiKey
+    label: Token
+    placeholder: glsa_*****************************************
+    input_type: text
+    help_text: The Token for your Grafana service account
+    optional: false
+  - name: domain
+    label: Domain
+    placeholder: example.grafana.net
+    input_type: url
+    help_text: Your Grafana domain
+    optional: false
+tool_sources:
+- type: cli
+  command: grafana
+  install: '# See service docs'
+- type: mcp
+  server_name: grafana
+  command: grafana-mcp-server
+setup_guide_url: https://nango.dev/docs/integrations/all/grafana

@@ -1,0 +1,20 @@
+name: dialpad
+display: Dialpad
+icon: dialpad
+category: communication
+version: '1.0'
+description: Dialpad
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://dialpad.com/oauth2/authorize
+    token_url: https://dialpad.com/oauth2/token
+    scopes:
+    - read
+    token_env_var: DIALPAD_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/dialpad
+tool_source:
+  type: mcp
+  server_name: dialpad
+  command: dialpad-mcp-server

@@ -1,0 +1,28 @@
+name: sentinelone
+display: SentinelOne
+icon: sentinel
+category: dev-tools
+version: '1.0'
+description: SentinelOne
+auth:
+  type: api_key
+  api_key:
+    env_var: SENTINELONE_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: ''
+    input_type: text
+    help_text: The API token for your SentinelOne service user
+    optional: false
+  - name: hostname
+    label: Hostname
+    placeholder: your-tenant.sentinelone.net
+    input_type: url
+    help_text: The hostname of your SentinelOne management console
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/sentinelone
+tool_source:
+  type: mcp
+  server_name: sentinelone
+  command: sentinelone-mcp-server

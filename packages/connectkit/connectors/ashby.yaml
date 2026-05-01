@@ -1,0 +1,22 @@
+name: ashby
+display: Ashby
+icon: ashby
+category: ats
+version: '1.0'
+description: Ashby
+auth:
+  type: api_key
+  api_key:
+    env_var: ASHBY_API_KEY
+  required_fields:
+  - name: username
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API Key of your Ashby account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/ashby
+tool_source:
+  type: mcp
+  server_name: ashby
+  command: ashby-mcp-server

@@ -1,0 +1,22 @@
+name: fiber-ai
+display: Fiber AI
+icon: fiber
+category: analytics
+version: '1.0'
+description: Fiber AI
+auth:
+  type: api_key
+  api_key:
+    env_var: FIBER-AI_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: Your Fiber AI API key.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/fiber-ai
+tool_source:
+  type: mcp
+  server_name: fiber-ai
+  command: fiber-ai-mcp-server

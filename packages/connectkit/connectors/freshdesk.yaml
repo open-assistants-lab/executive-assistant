@@ -1,0 +1,31 @@
+name: freshdesk
+display: FreshDesk
+icon: freshdes
+category: support
+version: '1.0'
+description: FreshDesk
+auth:
+  type: api_key
+  api_key:
+    env_var: FRESHDESK_API_KEY
+  required_fields:
+  - name: username
+    label: FreshDesk API Key
+    placeholder: ''
+    input_type: password
+    help_text: The API Key of your FreshDesk account
+    optional: false
+  - name: subdomain
+    label: FreshDesk Domain
+    placeholder: domain
+    input_type: text
+    help_text: The subdomain of your FreshDesk account
+    optional: false
+tool_sources:
+- type: cli
+  command: freshdesk
+  install: '# See service docs'
+- type: mcp
+  server_name: freshdesk
+  command: freshdesk-mcp-server
+setup_guide_url: https://nango.dev/docs/api-integrations/freshdesk

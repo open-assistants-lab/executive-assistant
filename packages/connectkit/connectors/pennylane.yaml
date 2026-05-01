@@ -1,0 +1,20 @@
+name: pennylane
+display: Pennylane
+icon: pennylan
+category: accounting
+version: '1.0'
+description: Pennylane
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://app.pennylane.com/oauth/authorize
+    token_url: https://app.pennylane.com/oauth/token
+    scopes:
+    - read
+    token_env_var: PENNYLANE_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/pennylane
+tool_source:
+  type: mcp
+  server_name: pennylane
+  command: pennylane-mcp-server

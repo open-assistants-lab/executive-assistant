@@ -1,0 +1,28 @@
+name: prtg-classic
+display: PRTG Classic
+icon: prtg
+category: support
+version: '1.0'
+description: PRTG Classic
+auth:
+  type: api_key
+  api_key:
+    env_var: PRTG-CLASSIC_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: RUTOWB5KVJCMEOWHL5MLUWMA324UGNDLPS6JKLTEDT======
+    input_type: text
+    help_text: The API key for your PRTG account
+    optional: false
+  - name: host
+    label: Instance Host
+    placeholder: monitor.example.com
+    input_type: text
+    help_text: The host of your PRTG instance
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/prtg-classic
+tool_source:
+  type: mcp
+  server_name: prtg-classic
+  command: prtg-classic-mcp-server

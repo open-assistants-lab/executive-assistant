@@ -1,0 +1,40 @@
+name: ukg-pro
+display: UKG Pro
+icon: ukg
+category: hr
+version: '1.0'
+description: UKG Pro
+auth:
+  type: api_key
+  api_key:
+    env_var: UKG-PRO_API_KEY
+  required_fields:
+  - name: username
+    label: Service Account Username
+    placeholder: ''
+    input_type: text
+    help_text: The username for your UKG Pro service account
+    optional: false
+  - name: password
+    label: Service Account Password
+    placeholder: ''
+    input_type: password
+    help_text: The password generated for your UKG Pro service account
+    optional: false
+  - name: customerapikey
+    label: Customer API Key
+    placeholder: ''
+    input_type: text
+    help_text: Your UKG Pro Customer API Key found in Service Account Administration
+    optional: false
+  - name: hostname
+    label: Hostname
+    placeholder: servicet.ultipro.com
+    input_type: url
+    help_text: The tenant URL of your UKG Pro instance
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/ukg-pro
+tool_source:
+  type: mcp
+  server_name: ukg-pro
+  command: ukg-pro-mcp-server

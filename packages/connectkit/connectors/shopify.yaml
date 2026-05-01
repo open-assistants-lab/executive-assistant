@@ -1,0 +1,29 @@
+name: shopify
+display: Shopify (OAuth)
+icon: shopify
+category: e-commerce
+version: '1.0'
+description: Shopify (OAuth)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.subdomain}.myshopify.com/admin/oauth/authorize
+    token_url: https://${connectionConfig.subdomain}.myshopify.com/admin/oauth/access_token
+    scopes:
+    - read
+    token_env_var: SHOPIFY_ACCESS_TOKEN
+  required_fields:
+  - name: subdomain
+    label: Shopify Domain
+    placeholder: domain
+    input_type: text
+    help_text: The subdomain of your Shopify account
+    optional: false
+tool_sources:
+- type: cli
+  command: shopify
+  install: '# See service docs'
+- type: mcp
+  server_name: shopify
+  command: shopify-mcp-server
+setup_guide_url: https://nango.dev/docs/api-integrations/shopify/how-to-register-your-own-shopify-api-oauth-app

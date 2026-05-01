@@ -1,0 +1,22 @@
+name: pylon
+display: Pylon
+icon: pylon
+category: productivity
+version: '1.0'
+description: Pylon
+auth:
+  type: api_key
+  api_key:
+    env_var: PYLON_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: ''
+    input_type: text
+    help_text: Your Pylon API token
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/pylon
+tool_source:
+  type: mcp
+  server_name: pylon
+  command: pylon-mcp-server

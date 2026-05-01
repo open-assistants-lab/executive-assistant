@@ -1,0 +1,28 @@
+name: jobvite
+display: Jobvite
+icon: jobvite
+category: ats
+version: '1.0'
+description: Jobvite
+auth:
+  type: api_key
+  api_key:
+    env_var: JOBVITE_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Jobvite account
+    optional: false
+  - name: secretkey
+    label: Secret Key
+    placeholder: ''
+    input_type: text
+    help_text: The secret key for your Jobvite account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/jobvite
+tool_source:
+  type: mcp
+  server_name: jobvite
+  command: jobvite-mcp-server

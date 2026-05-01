@@ -1,0 +1,22 @@
+name: triple-whale
+display: Triple Whale
+icon: triple
+category: analytics
+version: '1.0'
+description: Triple Whale
+auth:
+  type: api_key
+  api_key:
+    env_var: TRIPLE-WHALE_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: 5ab87915-2deb-429c-a1e2-8b0495900f45
+    input_type: text
+    help_text: Your Triple Whale API key.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/triple-whale
+tool_source:
+  type: mcp
+  server_name: triple-whale
+  command: triple-whale-mcp-server

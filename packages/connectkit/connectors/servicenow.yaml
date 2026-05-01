@@ -1,0 +1,26 @@
+name: servicenow
+display: ServiceNow
+icon: servicen
+category: productivity
+version: '1.0'
+description: ServiceNow
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.subdomain}.service-now.com/oauth_auth.do
+    token_url: https://${connectionConfig.subdomain}.service-now.com/oauth_token.do
+    scopes:
+    - read
+    token_env_var: SERVICENOW_ACCESS_TOKEN
+  required_fields:
+  - name: subdomain
+    label: ServiceNow Domain
+    placeholder: domain
+    input_type: text
+    help_text: The subdomain of your ServiceNow account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/servicenow
+tool_source:
+  type: mcp
+  server_name: servicenow
+  command: servicenow-mcp-server

@@ -1,0 +1,28 @@
+name: builder-io-public
+display: Builder.io (Public)
+icon: builder
+category: dev-tools
+version: '1.0'
+description: Builder.io (Public)
+auth:
+  type: api_key
+  api_key:
+    env_var: BUILDER-IO-PUBLIC_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: bb209fb71eh2412dbe0114bdae18fd15
+    input_type: text
+    help_text: The public api key for your Builder.io account.
+    optional: false
+  - name: domain
+    label: Domain
+    placeholder: cdn.builder.io
+    input_type: url
+    help_text: The domain used to access your Builder.io content API.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/builder-io-public
+tool_source:
+  type: mcp
+  server_name: builder-io-public
+  command: builder-io-public-mcp-server

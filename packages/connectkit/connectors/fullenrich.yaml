@@ -1,0 +1,22 @@
+name: fullenrich
+display: FullEnrich
+icon: fullenri
+category: crm
+version: '1.0'
+description: FullEnrich
+auth:
+  type: api_key
+  api_key:
+    env_var: FULLENRICH_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: 123e4567-e89b-12d3-a456-426614174000
+    input_type: text
+    help_text: Your FullEnrich API key.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/fullenrich
+tool_source:
+  type: mcp
+  server_name: fullenrich
+  command: fullenrich-mcp-server

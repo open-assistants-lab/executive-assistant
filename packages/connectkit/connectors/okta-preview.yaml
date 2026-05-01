@@ -1,0 +1,26 @@
+name: okta-preview
+display: Okta (Preview)
+icon: okta
+category: dev-tools
+version: '1.0'
+description: Okta (Preview)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.subdomain}.oktapreview.com/oauth2/v1/authorize
+    token_url: https://${connectionConfig.subdomain}.oktapreview.com/oauth2/v1/token
+    scopes:
+    - read
+    token_env_var: OKTA-PREVIEW_ACCESS_TOKEN
+  required_fields:
+  - name: subdomain
+    label: Okta Preview Domain
+    placeholder: domain
+    input_type: text
+    help_text: The subdomain of your Okta Preview account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/okta-preview
+tool_source:
+  type: mcp
+  server_name: okta-preview
+  command: okta-preview-mcp-server

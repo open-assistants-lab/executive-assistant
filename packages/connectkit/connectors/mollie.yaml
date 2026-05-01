@@ -1,0 +1,20 @@
+name: mollie
+display: Mollie
+icon: mollie
+category: payment
+version: '1.0'
+description: Mollie
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://my.mollie.com/oauth2/authorize
+    token_url: https://api.mollie.com/oauth2/tokens
+    scopes:
+    - read
+    token_env_var: MOLLIE_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/mollie/how-to-register-your-own-mollie-oauth-app
+tool_source:
+  type: mcp
+  server_name: mollie
+  command: mollie-mcp-server

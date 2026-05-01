@@ -1,0 +1,26 @@
+name: qualtrics
+display: Qualtrics
+icon: qualtric
+category: surveys
+version: '1.0'
+description: Qualtrics
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.subdomain}.qualtrics.com/oauth2/auth
+    token_url: https://${connectionConfig.subdomain}.qualtrics.com/oauth2/token
+    scopes:
+    - read
+    token_env_var: QUALTRICS_ACCESS_TOKEN
+  required_fields:
+  - name: subdomain
+    label: Qualtrics Domain
+    placeholder: domain
+    input_type: text
+    help_text: The subdomain of your Qualtrics account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/qualtrics
+tool_source:
+  type: mcp
+  server_name: qualtrics
+  command: qualtrics-mcp-server

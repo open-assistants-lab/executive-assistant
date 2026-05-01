@@ -1,0 +1,34 @@
+name: recruitee
+display: Recruitee
+icon: recruite
+category: ats
+version: '1.0'
+description: Recruitee
+auth:
+  type: api_key
+  api_key:
+    env_var: RECRUITEE_API_KEY
+  required_fields:
+  - name: apiKey
+    label: Personal API Token
+    placeholder: OTlHOGlWNUFJRkErekoxd1lXMGd6dz09
+    input_type: text
+    help_text: The Personal API Token for your Recruitee account
+    optional: false
+  - name: companyid
+    label: Company ID
+    placeholder: '126786'
+    input_type: text
+    help_text: The Company ID for your Recruitee account
+    optional: false
+  - name: companyname
+    label: Company Name
+    placeholder: acme
+    input_type: text
+    help_text: The Company name for your Recruitee account
+    optional: true
+setup_guide_url: https://nango.dev/docs/integrations/all/recruitee
+tool_source:
+  type: mcp
+  server_name: recruitee
+  command: recruitee-mcp-server

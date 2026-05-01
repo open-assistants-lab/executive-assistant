@@ -1,0 +1,42 @@
+# Netlify — web hosting and serverless
+# CLI: Official netlify CLI
+
+name: netlify
+display: "Netlify"
+icon: netlify
+category: dev-tools
+version: "1.0"
+description: "Netlify sites, deployments, forms, and functions"
+setup_guide_url: "https://docs.netlify.com/cli/get-started/#authentication"
+auth:
+  type: api_key
+  api_key:
+    env_var: NETLIFY_AUTH_TOKEN
+  required_fields:
+    - name: api_key
+      label: "Personal Access Token"
+      placeholder: "nfp_..."
+      input_type: password
+      help_text: "From app.netlify.com/user/applications#personal-access-tokens"
+tool_sources:
+  - type: cli
+    command: netlify
+    install: npm install -g netlify-cli
+    env_mapping:
+      api_key: NETLIFY_AUTH_TOKEN
+tool_descriptions:
+  - name: netlify__sites_list
+    description: "List Netlify sites"
+  - name: netlify__deploys_list
+    description: "List recent deployments"
+    parameter_descriptions:
+      site: "Site name or ID"
+      limit: "Max deploys (default: 20)"
+  - name: netlify__logs
+    description: "View site deploy logs"
+    parameter_descriptions:
+      site: "Site name or ID"
+  - name: netlify__env_list
+    description: "List environment variables for a site"
+    parameter_descriptions:
+      site: "Site name or ID"

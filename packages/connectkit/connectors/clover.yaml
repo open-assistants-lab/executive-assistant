@@ -1,0 +1,32 @@
+name: clover
+display: Clover
+icon: clover
+category: e-commerce
+version: '1.0'
+description: Clover
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.authorizeHost}/oauth/v2/authorize
+    token_url: https://${connectionConfig.apiHost}/oauth/v2/token
+    scopes:
+    - read
+    token_env_var: CLOVER_ACCESS_TOKEN
+  required_fields:
+  - name: authorizehost
+    label: Authorization Host
+    placeholder: www.clover.com
+    input_type: text
+    help_text: The Clover authorization hostname for your region.
+    optional: false
+  - name: apihost
+    label: API Host
+    placeholder: api.clover.com
+    input_type: text
+    help_text: The Clover API hostname for your region.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/clover/how-to-register-your-own-clover-api-oauth-app
+tool_source:
+  type: mcp
+  server_name: clover
+  command: clover-mcp-server

@@ -1,0 +1,28 @@
+name: shipstation
+display: Shipstation (v1)
+icon: shipstat
+category: e-commerce
+version: '1.0'
+description: Shipstation (v1)
+auth:
+  type: api_key
+  api_key:
+    env_var: SHIPSTATION_API_KEY
+  required_fields:
+  - name: username
+    label: API Key
+    placeholder: 0ff30856c5634da1b5ce1953fdaf3dcd
+    input_type: text
+    help_text: Your ShipStation API key
+    optional: false
+  - name: password
+    label: API Secret
+    placeholder: 17f1c62148b044c687f80e1060224a4e
+    input_type: text
+    help_text: Your Shipstation API secret
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/shipstation
+tool_source:
+  type: mcp
+  server_name: shipstation
+  command: shipstation-mcp-server

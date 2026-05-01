@@ -1,0 +1,48 @@
+# Discord — community and voice chat
+# No official CLI — uses Bot API via HTTP
+# MCP: Community MCP servers
+
+name: discord
+display: "Discord"
+icon: discord
+category: communication
+version: "1.0"
+description: "Discord servers, channels, messages, and users"
+setup_guide_url: "https://discord.com/developers/docs/getting-started"
+auth:
+  type: api_key
+  api_key:
+    env_var: DISCORD_BOT_TOKEN
+  required_fields:
+    - name: api_key
+      label: "Bot Token"
+      placeholder: "..."
+      input_type: password
+      help_text: "From discord.com/developers/applications → your app → Bot"
+tool_sources:
+  - type: mcp
+    server_name: discord
+    command: discord-mcp-server
+    install: npm install -g discord-mcp-server
+    env_mapping:
+      api_key: DISCORD_BOT_TOKEN
+tool_descriptions:
+  - name: discord__channels_list
+    description: "List channels in a Discord server"
+    parameter_descriptions:
+      server_id: "Server (guild) ID"
+  - name: discord__messages_list
+    description: "List recent messages from a channel"
+    parameter_descriptions:
+      channel_id: "Channel ID"
+      limit: "Max messages (default: 50)"
+  - name: discord__message_send
+    description: "Send a message to a channel"
+    parameter_descriptions:
+      channel_id: "Channel ID"
+      content: "Message text"
+  - name: discord__members_list
+    description: "List members of a server"
+    parameter_descriptions:
+      server_id: "Server ID"
+      limit: "Max members (default: 100)"

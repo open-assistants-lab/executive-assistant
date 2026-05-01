@@ -1,0 +1,42 @@
+# MailerLite — email marketing platform
+# CLI: No official CLI; uses REST API
+# MCP: Community MCP servers available
+
+name: mailerlite
+display: "MailerLite"
+icon: mailerlite
+category: marketing
+version: "1.0"
+description: "MailerLite — email marketing, automation, subscribers, and landing pages"
+setup_guide_url: "https://developers.mailerlite.com/docs/getting-started"
+auth:
+  type: api_key
+  api_key:
+    env_var: MAILERLITE_API_KEY
+  required_fields:
+    - name: api_key
+      label: "API Key"
+      placeholder: "..."
+      input_type: password
+      help_text: "From MailerLite → Integrations → API"
+tool_sources:
+  - type: mcp
+    server_name: mailerlite
+    command: uvx
+    args:
+      - "mailerlite-mcp-server"
+    install: uvx mailerlite-mcp-server
+    env_mapping:
+      api_key: MAILERLITE_API_KEY
+tool_descriptions:
+  - name: mailerlite__subscribers_list
+    description: "List subscribers with status and groups."
+    parameter_descriptions:
+      status: "Filter: active, unsubscribed, bounced (default: active)"
+      limit: "Max results (default: 25)"
+  - name: mailerlite__campaigns_list
+    description: "List email campaigns with stats (opens, clicks)."
+  - name: mailerlite__groups_list
+    description: "List subscriber groups."
+  - name: mailerlite__automations_list
+    description: "List automation workflows."

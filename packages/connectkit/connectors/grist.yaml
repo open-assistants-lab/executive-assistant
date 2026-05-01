@@ -1,0 +1,28 @@
+name: grist
+display: Grist
+icon: grist
+category: productivity
+version: '1.0'
+description: Grist
+auth:
+  type: api_key
+  api_key:
+    env_var: GRIST_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: 980cb267c8fa52ae5b6a0a5b4977ec915add8c07
+    input_type: text
+    help_text: Your Grist API key
+    optional: false
+  - name: environment
+    label: Environment
+    placeholder: docs
+    input_type: text
+    help_text: The environment you want to connect to
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/grist
+tool_source:
+  type: mcp
+  server_name: grist
+  command: grist-mcp-server

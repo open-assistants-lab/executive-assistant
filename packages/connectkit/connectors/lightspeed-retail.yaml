@@ -1,0 +1,26 @@
+name: lightspeed-retail
+display: Lightspeed Retail (X-Series)
+icon: lightspe
+category: e-commerce
+version: '1.0'
+description: Lightspeed Retail (X-Series)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://secure.retail.lightspeed.app/connect
+    token_url: https://${connectionConfig.domain_prefix}.retail.lightspeed.app/api/1.0/token
+    scopes:
+    - read
+    token_env_var: LIGHTSPEED-RETAIL_ACCESS_TOKEN
+  required_fields:
+  - name: domain_prefix
+    label: ''
+    placeholder: ''
+    input_type: text
+    help_text: ''
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/lightspeed-retail/how-to-register-your-own-lightspeed-retail-api-oauth-app
+tool_source:
+  type: mcp
+  server_name: lightspeed-retail
+  command: lightspeed-retail-mcp-server

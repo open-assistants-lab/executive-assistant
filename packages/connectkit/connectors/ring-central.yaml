@@ -1,0 +1,20 @@
+name: ring-central
+display: RingCentral
+icon: ring
+category: support
+version: '1.0'
+description: RingCentral
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://platform.ringcentral.com/restapi/oauth/authorize
+    token_url: https://platform.ringcentral.com/restapi/oauth/token
+    scopes:
+    - read
+    token_env_var: RING-CENTRAL_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/ring-central
+tool_source:
+  type: mcp
+  server_name: ring-central
+  command: ring-central-mcp-server

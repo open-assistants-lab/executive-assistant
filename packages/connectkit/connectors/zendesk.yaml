@@ -1,0 +1,62 @@
+# Zendesk — customer support platform
+# No official CLI
+# MCP: Community/Speakeasy MCP integrations
+
+name: zendesk
+display: "Zendesk"
+icon: zendesk
+category: support
+version: "1.0"
+description: "Zendesk tickets, users, help center, and knowledge base"
+setup_guide_url: "https://developer.zendesk.com/documentation/api-basics/oauth/"
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://{subdomain}.zendesk.com/oauth/authorizations/new
+    token_url: https://{subdomain}.zendesk.com/oauth/tokens
+    scopes:
+      - read
+      - write
+    token_env_var: ZENDESK_ACCESS_TOKEN
+  required_fields:
+    - name: client_id
+      label: "Client ID"
+      placeholder: "..."
+      input_type: text
+      help_text: "From Zendesk Admin → Apps & Integrations → OAuth Clients"
+    - name: client_secret
+      label: "Client Secret"
+      placeholder: "..."
+      input_type: password
+      help_text: "From the same OAuth Client page"
+    - name: subdomain
+      label: "Zendesk Subdomain"
+      placeholder: "yourcompany"
+      input_type: text
+      help_text: "Your Zendesk subdomain (e.g. 'yourcompany' in yourcompany.zendesk.com)"
+tool_sources:
+  - type: mcp
+    server_name: zendesk
+    command: zendesk-mcp-server
+    env_mapping:
+      access_token: ZENDESK_ACCESS_TOKEN
+tool_descriptions:
+  - name: zendesk__tickets_list
+    description: "List Zendesk tickets"
+    parameter_descriptions:
+      limit: "Max tickets (default: 25)"
+      status: "Filter: new, open, pending, solved, closed"
+  - name: zendesk__ticket_get
+    description: "Get ticket details with full conversation"
+    parameter_descriptions:
+      ticket_id: "Ticket ID"
+  - name: zendesk__ticket_create
+    description: "Create a new Zendesk ticket"
+    parameter_descriptions:
+      subject: "Ticket subject"
+      description: "Ticket description"
+      priority: "urgent, high, normal, or low"
+  - name: zendesk__search
+    description: "Search tickets and help center"
+    parameter_descriptions:
+      query: "Search query"

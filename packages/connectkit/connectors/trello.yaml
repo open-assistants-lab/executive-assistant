@@ -1,0 +1,56 @@
+# Trello — visual project management
+# No official CLI
+# MCP: Community + Atlassian MCP support
+
+name: trello
+display: "Trello"
+icon: trello
+category: productivity
+version: "1.0"
+description: "Trello boards, lists, cards, and checklists"
+setup_guide_url: "https://developer.atlassian.com/cloud/trello/guides/rest-api/authorization/"
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://trello.com/1/OAuthAuthorizeToken
+    token_url: https://trello.com/1/OAuthGetAccessToken
+    scopes:
+      - read
+      - write
+    token_env_var: TRELLO_API_KEY
+  required_fields:
+    - name: client_id
+      label: "API Key"
+      placeholder: "..."
+      input_type: text
+      help_text: "From trello.com/power-ups/admin → your Power-Up → API Key"
+    - name: client_secret
+      label: "API Token"
+      placeholder: "..."
+      input_type: password
+      help_text: "Generate from https://trello.com/1/authorize"
+tool_sources:
+  - type: mcp
+    server_name: trello
+    command: trello-mcp-server
+    env_mapping:
+      access_token: TRELLO_API_KEY
+tool_descriptions:
+  - name: trello__boards_list
+    description: "List Trello boards"
+  - name: trello__cards_list
+    description: "List cards on a board or list"
+    parameter_descriptions:
+      board_id: "Board ID"
+      list_id: "List ID (optional)"
+      limit: "Max cards (default: 50)"
+  - name: trello__card_create
+    description: "Create a new Trello card"
+    parameter_descriptions:
+      list_id: "List ID"
+      name: "Card name"
+      description: "Card description"
+  - name: trello__card_get
+    description: "Get card details with checklists and comments"
+    parameter_descriptions:
+      card_id: "Card ID"

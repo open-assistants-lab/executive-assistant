@@ -1,0 +1,20 @@
+name: tiktok-ads
+display: TikTok Ads
+icon: tiktok
+category: social
+version: '1.0'
+description: TikTok Ads
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://business-api.tiktok.com/portal/auth
+    token_url: https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/
+    scopes:
+    - read
+    token_env_var: TIKTOK-ADS_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/tiktok-ads
+tool_source:
+  type: mcp
+  server_name: tiktok-ads
+  command: tiktok-ads-mcp-server

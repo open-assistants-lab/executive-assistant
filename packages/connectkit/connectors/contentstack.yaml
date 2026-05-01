@@ -1,0 +1,38 @@
+name: contentstack
+display: Contentstack
+icon: contents
+category: cms
+version: '1.0'
+description: Contentstack
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.subdomain}.contentstack.com/apps/${connectionConfig.appId}/authorize
+    token_url: https://${connectionConfig.subdomain}.contentstack.com/apps-api/apps/token
+    scopes:
+    - read
+    token_env_var: CONTENTSTACK_ACCESS_TOKEN
+  required_fields:
+  - name: subdomain
+    label: Contentstack Domain
+    placeholder: domain
+    input_type: text
+    help_text: The subdomain of your Contentstack account
+    optional: false
+  - name: appid
+    label: App ID
+    placeholder: ''
+    input_type: text
+    help_text: The app ID of your Contentstack account
+    optional: false
+  - name: apidomain
+    label: API Domain
+    placeholder: eu-api.contentstack.com
+    input_type: text
+    help_text: The domain to where you will access your API
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/contentstack
+tool_source:
+  type: mcp
+  server_name: contentstack
+  command: contentstack-mcp-server

@@ -1,0 +1,60 @@
+# Datadog — monitoring and observability
+# CLI: Official dogapi CLI
+# MCP: Community mcp-server-datadog
+
+name: datadog
+display: "Datadog"
+icon: datadog
+category: dev-tools
+version: "1.0"
+description: "Datadog metrics, monitors, dashboards, logs, and incidents"
+setup_guide_url: "https://docs.datadoghq.com/account_management/api-app-keys/"
+auth:
+  type: api_key
+  api_key:
+    env_var: DD_API_KEY
+  required_fields:
+    - name: api_key
+      label: "API Key"
+      placeholder: "..."
+      input_type: password
+      help_text: "From app.datadoghq.com → Organization Settings → API Keys"
+    - name: app_key
+      label: "Application Key"
+      placeholder: "..."
+      input_type: password
+      help_text: "From the same page → Application Keys"
+    - name: site
+      label: "Datadog Site"
+      placeholder: "datadoghq.com"
+      input_type: text
+      help_text: "datadoghq.com, datadoghq.eu, etc."
+      optional: true
+tool_sources:
+  - type: mcp
+    server_name: datadog
+    command: mcp-server-datadog
+    install: pip install mcp-server-datadog
+    env_mapping:
+      api_key: DD_API_KEY
+  - type: cli
+    command: datadog-ci
+    install: npm install -g @datadog/datadog-ci
+    env_mapping:
+      api_key: DD_API_KEY
+tool_descriptions:
+  - name: datadog__monitors_list
+    description: "List Datadog monitors"
+    parameter_descriptions:
+      tags: "Filter by tags"
+      limit: "Max results (default: 50)"
+  - name: datadog__dashboards_list
+    description: "List Datadog dashboards"
+  - name: datadog__logs_search
+    description: "Search Datadog logs"
+    parameter_descriptions:
+      query: "Log search query"
+      from_ts: "Start timestamp (ISO 8601)"
+      to_ts: "End timestamp"
+  - name: datadog__incidents_list
+    description: "List active incidents"

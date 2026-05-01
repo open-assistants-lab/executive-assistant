@@ -1,0 +1,22 @@
+name: onlogist
+display: Onlogist
+icon: onlogist
+category: other
+version: '1.0'
+description: Onlogist
+auth:
+  type: api_key
+  api_key:
+    env_var: ONLOGIST_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your OnLogist account
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/onlogist
+tool_source:
+  type: mcp
+  server_name: onlogist
+  command: onlogist-mcp-server

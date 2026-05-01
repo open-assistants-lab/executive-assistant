@@ -1,0 +1,20 @@
+name: justworks
+display: Justworks
+icon: justwork
+category: hr
+version: '1.0'
+description: Justworks
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://payroll.justworks.com/oauth/authorize
+    token_url: https://public-api.justworks.com/oauth/token
+    scopes:
+    - read
+    token_env_var: JUSTWORKS_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/justworks/how-to-register-your-own-justworks-oauth-app
+tool_source:
+  type: mcp
+  server_name: justworks
+  command: justworks-mcp-server

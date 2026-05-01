@@ -1,0 +1,23 @@
+name: google
+display: Google
+icon: google
+category: communication
+version: '1.0'
+description: Google
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://accounts.google.com/o/oauth2/v2/auth
+    token_url: https://oauth2.googleapis.com/token
+    scopes:
+    - read
+    extra_params:
+      access_type: offline
+      prompt: consent
+    token_env_var: GOOGLE_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/google/how-to-register-your-own-google-api-oauth-app
+tool_source:
+  type: mcp
+  server_name: google
+  command: google-mcp-server

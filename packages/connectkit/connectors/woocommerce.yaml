@@ -1,0 +1,34 @@
+name: woocommerce
+display: WooCommerce
+icon: woocomme
+category: e-commerce
+version: '1.0'
+description: WooCommerce
+auth:
+  type: api_key
+  api_key:
+    env_var: WOOCOMMERCE_API_KEY
+  required_fields:
+  - name: username
+    label: User name
+    placeholder: ''
+    input_type: text
+    help_text: Your woocommerce Consumer Key
+    optional: false
+  - name: password
+    label: Password
+    placeholder: ''
+    input_type: text
+    help_text: Your woocommerce Consumer Secret
+    optional: false
+  - name: storeurl
+    label: Domain
+    placeholder: ''
+    input_type: text
+    help_text: The domain of your WooCommerce store
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/woocommerce
+tool_source:
+  type: mcp
+  server_name: woocommerce
+  command: woocommerce-mcp-server

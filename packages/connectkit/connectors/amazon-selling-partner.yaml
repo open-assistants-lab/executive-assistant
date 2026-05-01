@@ -1,0 +1,46 @@
+name: amazon-selling-partner
+display: Amazon Selling Partner
+icon: amazon
+category: dev-tools
+version: '1.0'
+description: Amazon Selling Partner
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.domain}/apps/authorize/consent
+    token_url: https://api.amazon.com/auth/o2/token
+    scopes:
+    - read
+    extra_params:
+      application_id: ${connectionConfig.applicationId}
+    token_env_var: AMAZON-SELLING-PARTNER_ACCESS_TOKEN
+  required_fields:
+  - name: applicationid
+    label: Application ID
+    placeholder: amzn1.sellerapps.app.0bf296b5-36a6-4942-a13e-EXAMPLEfcd28
+    input_type: text
+    help_text: The unique identifier for your Amazon Selling Partner application.
+    optional: false
+  - name: domain
+    label: Authorization Domain
+    placeholder: sellercentral.amazon.com
+    input_type: text
+    help_text: The domain representing the Amazon platform you are integrating with.
+    optional: false
+  - name: subdomain
+    label: Proxy BaseUrl Subdomain
+    placeholder: sellingpartnerapi
+    input_type: text
+    help_text: The subdomain prefix for the Amazon Selling Partner API endpoint.
+    optional: false
+  - name: region
+    label: Proxy BaseUrl Region
+    placeholder: eu
+    input_type: text
+    help_text: The geographical region associated with the Amazon marketplace.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/amazon-selling-partner/how-to-register-your-own-amazon-selling-partner-api-oauth-app
+tool_source:
+  type: mcp
+  server_name: amazon-selling-partner
+  command: amazon-selling-partner-mcp-server

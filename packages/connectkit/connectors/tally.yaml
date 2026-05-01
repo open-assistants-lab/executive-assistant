@@ -1,0 +1,22 @@
+name: tally
+display: Tally
+icon: tally
+category: productivity
+version: '1.0'
+description: Tally
+auth:
+  type: api_key
+  api_key:
+    env_var: TALLY_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: tly-84m**************************56Y
+    input_type: text
+    help_text: Your Tally API key.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/tally
+tool_source:
+  type: mcp
+  server_name: tally
+  command: tally-mcp-server

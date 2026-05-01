@@ -1,0 +1,28 @@
+name: shopify-partner
+display: Shopify Partner
+icon: shopify
+category: e-commerce
+version: '1.0'
+description: Shopify Partner
+auth:
+  type: api_key
+  api_key:
+    env_var: SHOPIFY-PARTNER_API_KEY
+  required_fields:
+  - name: apiKey
+    label: Partner Access Token
+    placeholder: ''
+    input_type: text
+    help_text: The access token for your Shopify Partner account
+    optional: false
+  - name: partnerid
+    label: Partner ID
+    placeholder: ''
+    input_type: text
+    help_text: Your Shopify Partner ID
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/shopify-partner
+tool_source:
+  type: mcp
+  server_name: shopify-partner
+  command: shopify-partner-mcp-server

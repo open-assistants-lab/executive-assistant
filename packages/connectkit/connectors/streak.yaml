@@ -1,0 +1,22 @@
+name: streak
+display: Streak
+icon: streak
+category: crm
+version: '1.0'
+description: Streak
+auth:
+  type: api_key
+  api_key:
+    env_var: STREAK_API_KEY
+  required_fields:
+  - name: username
+    label: API Key
+    placeholder: strk_7SGgswz9ZJrNZp7iJmoAFjwdaym1
+    input_type: text
+    help_text: The API Key for your Streak account
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/streak
+tool_source:
+  type: mcp
+  server_name: streak
+  command: streak-mcp-server

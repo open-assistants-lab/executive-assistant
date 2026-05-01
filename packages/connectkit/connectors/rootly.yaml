@@ -1,0 +1,25 @@
+name: rootly
+display: Rootly
+icon: rootly
+category: dev-tools
+version: '1.0'
+description: Rootly
+auth:
+  type: api_key
+  api_key:
+    env_var: ROOTLY_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: rootly_db86a6••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+    input_type: text
+    help_text: The API key for your Rootly account
+    optional: false
+tool_sources:
+- type: cli
+  command: rootly
+  install: '# See service docs'
+- type: mcp
+  server_name: rootly
+  command: rootly-mcp-server
+setup_guide_url: https://nango.dev/docs/integrations/all/rootly

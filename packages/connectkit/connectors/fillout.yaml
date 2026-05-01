@@ -1,0 +1,26 @@
+name: fillout
+display: Fillout (Oauth)
+icon: fillout
+category: surveys
+version: '1.0'
+description: Fillout (Oauth)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://build.fillout.com/authorize/oauth
+    token_url: https://server.fillout.com/public/oauth/accessToken
+    scopes:
+    - read
+    token_env_var: FILLOUT_ACCESS_TOKEN
+  required_fields:
+  - name: base_url
+    label: ''
+    placeholder: ''
+    input_type: text
+    help_text: ''
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/fillout
+tool_source:
+  type: mcp
+  server_name: fillout
+  command: fillout-mcp-server

@@ -1,0 +1,22 @@
+name: xai
+display: xAI
+icon: xai
+category: productivity
+version: '1.0'
+description: xAI
+auth:
+  type: api_key
+  api_key:
+    env_var: XAI_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: xai-******************************************************
+    input_type: text
+    help_text: The API key for your xAI account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/xai
+tool_source:
+  type: mcp
+  server_name: xai
+  command: xai-mcp-server

@@ -1,0 +1,40 @@
+name: unanet
+display: Unanet
+icon: unanet
+category: crm
+version: '1.0'
+description: Unanet
+auth:
+  type: api_key
+  api_key:
+    env_var: UNANET_API_KEY
+  required_fields:
+  - name: username
+    label: User name
+    placeholder: ''
+    input_type: text
+    help_text: Your Unanet username
+    optional: false
+  - name: password
+    label: Password
+    placeholder: ''
+    input_type: text
+    help_text: Your Unanet password
+    optional: false
+  - name: firmid
+    label: Firm ID
+    placeholder: ''
+    input_type: text
+    help_text: The firm ID of your Unanet instance
+    optional: false
+  - name: apikey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key of your Unanet instance
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/unanet
+tool_source:
+  type: mcp
+  server_name: unanet
+  command: unanet-mcp-server

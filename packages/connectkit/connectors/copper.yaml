@@ -1,0 +1,20 @@
+name: copper
+display: Copper (OAuth)
+icon: copper
+category: crm
+version: '1.0'
+description: Copper (OAuth)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://app.copper.com/oauth/authorize
+    token_url: https://app.copper.com/oauth/token
+    scopes:
+    - developer/v1/all
+    token_env_var: COPPER_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/copper
+tool_source:
+  type: mcp
+  server_name: copper
+  command: copper-mcp-server

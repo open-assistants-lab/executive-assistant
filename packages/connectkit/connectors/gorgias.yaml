@@ -1,0 +1,26 @@
+name: gorgias
+display: Gorgias
+icon: gorgias
+category: e-commerce
+version: '1.0'
+description: Gorgias
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.subdomain}.gorgias.com/oauth/authorize
+    token_url: https://${connectionConfig.subdomain}.gorgias.com/oauth/token
+    scopes:
+    - offline
+    token_env_var: GORGIAS_ACCESS_TOKEN
+  required_fields:
+  - name: subdomain
+    label: Gorgias Domain
+    placeholder: domain
+    input_type: text
+    help_text: The subdomain of your Gorgias account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/gorgias
+tool_source:
+  type: mcp
+  server_name: gorgias
+  command: gorgias-mcp-server

@@ -1,0 +1,24 @@
+name: brex
+display: Brex (OAuth)
+icon: brex
+category: banking
+version: '1.0'
+description: Brex (OAuth)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://accounts-api.brex.com/oauth2/default/v1/authorize
+    token_url: https://accounts-api.brex.com/oauth2/default/v1/token
+    scopes:
+    - openid
+    - offline_access
+    token_env_var: BREX_ACCESS_TOKEN
+  required_fields: []
+tool_sources:
+- type: cli
+  command: brex
+  install: '# See service docs'
+- type: mcp
+  server_name: brex
+  command: brex-mcp-server
+setup_guide_url: https://nango.dev/docs/api-integrations/brex/how-to-register-your-own-brex-oauth-app

@@ -1,0 +1,28 @@
+name: guru
+display: Guru
+icon: guru
+category: knowledge-base
+version: '1.0'
+description: Guru
+auth:
+  type: api_key
+  api_key:
+    env_var: GURU_API_KEY
+  required_fields:
+  - name: username
+    label: User/Collection ID
+    placeholder: ''
+    input_type: text
+    help_text: The user or collection ID of your Guru account
+    optional: false
+  - name: password
+    label: User/Collection Token
+    placeholder: 123e4567-e89b-12d3-a456-426614174000
+    input_type: password
+    help_text: The user or collection token of your Guru account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/guru
+tool_source:
+  type: mcp
+  server_name: guru
+  command: guru-mcp-server

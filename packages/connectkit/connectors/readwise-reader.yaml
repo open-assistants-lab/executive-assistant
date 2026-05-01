@@ -1,0 +1,22 @@
+name: readwise-reader
+display: Readwise Reader
+icon: readwise
+category: productivity
+version: '1.0'
+description: Readwise Reader
+auth:
+  type: api_key
+  api_key:
+    env_var: READWISE-READER_API_KEY
+  required_fields:
+  - name: apiKey
+    label: Access Token
+    placeholder: zCDL1fUOpu4Cg3WMlMl1S7ecKsaBQlfCzw7sbVfc0wBqUJMI56
+    input_type: text
+    help_text: The Access Token for your Readwise account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/readwise-reader
+tool_source:
+  type: mcp
+  server_name: readwise-reader
+  command: readwise-reader-mcp-server

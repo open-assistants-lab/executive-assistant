@@ -1,0 +1,20 @@
+name: keap
+display: Keap
+icon: keap
+category: marketing
+version: '1.0'
+description: Keap
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://accounts.infusionsoft.com/app/oauth/authorize
+    token_url: https://api.infusionsoft.com/token
+    scopes:
+    - read
+    token_env_var: KEAP_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/keap
+tool_source:
+  type: mcp
+  server_name: keap
+  command: keap-mcp-server

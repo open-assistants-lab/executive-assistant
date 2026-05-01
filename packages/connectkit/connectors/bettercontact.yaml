@@ -1,0 +1,22 @@
+name: bettercontact
+display: BetterContact
+icon: betterco
+category: crm
+version: '1.0'
+description: BetterContact
+auth:
+  type: api_key
+  api_key:
+    env_var: BETTERCONTACT_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: f1a9b2c3d4e5f6g7h8i9j0
+    input_type: text
+    help_text: Your BetterContact API key
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/bettercontact
+tool_source:
+  type: mcp
+  server_name: bettercontact
+  command: bettercontact-mcp-server

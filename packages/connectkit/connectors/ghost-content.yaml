@@ -1,0 +1,34 @@
+name: ghost-content
+display: Ghost (Content API)
+icon: ghost
+category: dev-tools
+version: '1.0'
+description: Ghost (Content API)
+auth:
+  type: api_key
+  api_key:
+    env_var: GHOST-CONTENT_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: a1b2c3d4e5f6g7h8i9j0k1l2m3
+    input_type: text
+    help_text: The content API key for your Ghost account
+    optional: false
+  - name: version
+    label: API Version
+    placeholder: v3.0
+    input_type: text
+    help_text: The version of the Ghost Admin API to use
+    optional: false
+  - name: admindomain
+    label: Ghost Admin Domain
+    placeholder: mock.ghost.io
+    input_type: text
+    help_text: The domain of your Ghost Admin which can be different from your main domain
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/ghost-content
+tool_source:
+  type: mcp
+  server_name: ghost-content
+  command: ghost-content-mcp-server

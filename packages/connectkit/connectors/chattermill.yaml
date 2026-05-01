@@ -1,0 +1,28 @@
+name: chattermill
+display: Chattermill
+icon: chatterm
+category: support
+version: '1.0'
+description: Chattermill
+auth:
+  type: api_key
+  api_key:
+    env_var: CHATTERMILL_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Chattermill account
+    optional: false
+  - name: subdomain
+    label: Chattermill subdomain
+    placeholder: app|api|backend
+    input_type: text
+    help_text: The subdomain for your api requests
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/chattermill
+tool_source:
+  type: mcp
+  server_name: chattermill
+  command: chattermill-mcp-server

@@ -1,0 +1,20 @@
+name: hover
+display: Hover
+icon: hover
+category: productivity
+version: '1.0'
+description: Hover
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://hover.to/oauth/authorize
+    token_url: https://hover.to/oauth/token
+    scopes:
+    - read
+    token_env_var: HOVER_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/hover
+tool_source:
+  type: mcp
+  server_name: hover
+  command: hover-mcp-server

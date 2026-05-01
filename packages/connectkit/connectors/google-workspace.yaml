@@ -1,0 +1,69 @@
+# Google Workspace — Gmail, Calendar, Drive, Contacts
+# Uses gws CLI: https://github.com/googleworkspace/gws-cli
+
+name: google-workspace
+display: "Google Workspace"
+icon: google
+category: productivity
+version: "1.0"
+description: "Gmail, Calendar, Drive, and Google Contacts — full Google Workspace access"
+setup_guide_url: "https://developers.google.com/workspace/guides/create-credentials"
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://accounts.google.com/o/oauth2/v2/auth
+    token_url: https://oauth2.googleapis.com/token
+    scopes:
+      - https://www.googleapis.com/auth/gmail.readonly
+      - https://www.googleapis.com/auth/gmail.send
+      - https://www.googleapis.com/auth/calendar.readonly
+      - https://www.googleapis.com/auth/calendar.events
+      - https://www.googleapis.com/auth/drive.readonly
+      - https://www.googleapis.com/auth/contacts.readonly
+    extra_params:
+      access_type: offline
+      prompt: consent
+    token_env_var: GWS_ACCESS_TOKEN
+  required_fields:
+    - name: client_id
+      label: "Client ID"
+      placeholder: "123456789-xxx.apps.googleusercontent.com"
+      input_type: text
+      help_text: "From Google Cloud Console → APIs & Services → Credentials"
+    - name: client_secret
+      label: "Client Secret"
+      placeholder: "GOCSPX-..."
+      input_type: password
+      help_text: "Copy this from the same OAuth 2.0 client in Google Cloud Console"
+tool_source:
+  type: cli
+  command: gws
+  install: npm install -g @googleworkspace/cli
+  env_mapping:
+    access_token: GWS_ACCESS_TOKEN
+tool_descriptions:
+  - name: google_workspace__gmail_messages_list
+    description: "List recent emails from the user's Gmail inbox. Returns message IDs, subject lines, senders, and dates."
+    parameter_descriptions:
+      max_results: "Maximum number of emails to return (default: 10)"
+      query: "Gmail search query (e.g. 'from:example@gmail.com', 'subject:meeting', 'is:unread')"
+  - name: google_workspace__gmail_messages_get
+    description: "Get the full content of a specific email by message ID."
+    parameter_descriptions:
+      id: "The Gmail message ID from gmail_messages_list"
+  - name: google_workspace__gmail_messages_send
+    description: "Send an email via Gmail. Requires the user to have already connected and authorized."
+    parameter_descriptions:
+      to: "Recipient email address"
+      subject: "Email subject line"
+      body: "Email body content (plain text)"
+  - name: google_workspace__calendar_events_list
+    description: "List upcoming events from the user's Google Calendar."
+    parameter_descriptions:
+      max_results: "Maximum number of events (default: 10)"
+      time_min: "Start of time range in ISO 8601 format (e.g. 2026-05-01T00:00:00Z)"
+  - name: google_workspace__drive_files_list
+    description: "List files and folders from the user's Google Drive."
+    parameter_descriptions:
+      query: "Search query to filter files (e.g. 'name contains report')"
+      max_results: "Maximum files to return (default: 20)"

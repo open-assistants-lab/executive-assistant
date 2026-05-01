@@ -1,0 +1,64 @@
+# HubSpot — CRM, marketing, and sales
+# CLI: https://developers.hubspot.com/docs/cms/developer-reference/local-development-cli
+# MCP: https://developers.hubspot.com/docs/api/ai-tools/mcp
+
+name: hubspot
+display: "HubSpot"
+icon: hubspot
+category: crm
+version: "1.0"
+description: "HubSpot CRM, contacts, deals, companies, and marketing"
+setup_guide_url: "https://developers.hubspot.com/docs/api/private-apps"
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://app.hubspot.com/oauth/authorize
+    token_url: https://api.hubapi.com/oauth/v1/token
+    scopes:
+      - crm.objects.contacts.read
+      - crm.objects.contacts.write
+      - crm.objects.deals.read
+      - crm.objects.companies.read
+      - content
+    token_env_var: HUBSPOT_ACCESS_TOKEN
+  required_fields:
+    - name: client_id
+      label: "Client ID"
+      placeholder: "..."
+      input_type: text
+      help_text: "From developers.hubspot.com → your app → Auth"
+    - name: client_secret
+      label: "Client Secret"
+      placeholder: "..."
+      input_type: password
+      help_text: "From the same app Auth settings"
+tool_sources:
+  - type: cli
+    command: hubspot
+    install: npm install -g @hubspot/cli
+    env_mapping:
+      access_token: HUBSPOT_ACCESS_TOKEN
+  - type: mcp
+    server_name: hubspot
+    command: hubspot-mcp-server
+    install: Official HubSpot MCP server
+    env_mapping:
+      access_token: HUBSPOT_ACCESS_TOKEN
+tool_descriptions:
+  - name: hubspot__contacts_list
+    description: "List HubSpot contacts"
+    parameter_descriptions:
+      limit: "Max results (default: 10)"
+  - name: hubspot__contacts_search
+    description: "Search contacts by email, name, or properties"
+    parameter_descriptions:
+      query: "Search query"
+  - name: hubspot__deals_list
+    description: "List HubSpot deals"
+    parameter_descriptions:
+      limit: "Max results (default: 10)"
+      stage: "Filter by deal stage"
+  - name: hubspot__companies_list
+    description: "List HubSpot companies"
+    parameter_descriptions:
+      limit: "Max results (default: 10)"

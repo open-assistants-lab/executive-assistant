@@ -1,0 +1,20 @@
+name: coros
+display: Coros
+icon: coros
+category: sports
+version: '1.0'
+description: Coros
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://open.coros.com/oauth2/authorize
+    token_url: https://open.coros.com/oauth2/accesstoken
+    scopes:
+    - read
+    token_env_var: COROS_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/coros
+tool_source:
+  type: mcp
+  server_name: coros
+  command: coros-mcp-server

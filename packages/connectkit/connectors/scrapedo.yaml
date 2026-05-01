@@ -1,0 +1,22 @@
+name: scrapedo
+display: Scrape.do
+icon: scrapedo
+category: other
+version: '1.0'
+description: Scrape.do
+auth:
+  type: api_key
+  api_key:
+    env_var: SCRAPEDO_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: 3c12d71308a346c41d10b19a2b2ac1ea5cacb53588d
+    input_type: text
+    help_text: The API Token for your Scrape.do account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/scrapedo
+tool_source:
+  type: mcp
+  server_name: scrapedo
+  command: scrapedo-mcp-server

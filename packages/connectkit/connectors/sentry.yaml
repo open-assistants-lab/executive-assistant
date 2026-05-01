@@ -1,0 +1,51 @@
+# Sentry — error tracking and performance
+# CLI: https://docs.sentry.io/product/cli/
+# No official MCP server yet
+
+name: sentry
+display: "Sentry"
+icon: sentry
+category: dev-tools
+version: "1.0"
+description: "Sentry error tracking, issues, releases, and performance"
+setup_guide_url: "https://docs.sentry.io/product/cli/auth-tokens/"
+auth:
+  type: api_key
+  api_key:
+    env_var: SENTRY_AUTH_TOKEN
+  required_fields:
+    - name: api_key
+      label: "Auth Token"
+      placeholder: "sntrys_..."
+      input_type: password
+      help_text: "From sentry.io → Settings → Auth Tokens → Create New Token"
+      optional: true
+    - name: base_url
+      label: "Self-Hosted URL"
+      placeholder: "https://sentry.example.com"
+      input_type: url
+      help_text: "Leave empty for sentry.io. For self-hosted Sentry instances."
+      optional: true
+tool_source:
+  type: cli
+  command: sentry
+  install: npm install -g @sentry/cli
+  env_mapping:
+    api_key: SENTRY_AUTH_TOKEN
+    base_url: SENTRY_URL
+tool_descriptions:
+  - name: sentry__issues_list
+    description: "List recent Sentry issues/errors"
+    parameter_descriptions:
+      project: "Project slug (e.g. 'frontend')"
+      limit: "Max results (default: 20)"
+      status: "Issue status: unresolved, resolved, ignored"
+  - name: sentry__issue_details
+    description: "Get full details of a Sentry issue including stack trace"
+    parameter_descriptions:
+      issue_id: "Issue ID from issues_list"
+  - name: sentry__releases_list
+    description: "List recent releases"
+    parameter_descriptions:
+      project: "Project slug"
+      limit: "Max results (default: 10)"

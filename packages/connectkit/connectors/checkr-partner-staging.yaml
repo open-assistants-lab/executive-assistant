@@ -1,0 +1,26 @@
+name: checkr-partner-staging
+display: Checkr Partner (Staging)
+icon: checkr
+category: legal
+version: '1.0'
+description: Checkr Partner (Staging)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://partners.checkrhq-staging.net/authorize/${connectionConfig.client_id}
+    token_url: https://api.checkr-staging.com/oauth/tokens
+    scopes:
+    - read
+    token_env_var: CHECKR-PARTNER-STAGING_ACCESS_TOKEN
+  required_fields:
+  - name: client_id
+    label: Client ID
+    placeholder: ''
+    input_type: text
+    help_text: The client ID of your Checkr Partner account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/checkr-partner-staging
+tool_source:
+  type: mcp
+  server_name: checkr-partner-staging
+  command: checkr-partner-staging-mcp-server

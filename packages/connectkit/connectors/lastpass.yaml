@@ -1,0 +1,28 @@
+name: lastpass
+display: LastPass
+icon: lastpass
+category: productivity
+version: '1.0'
+description: LastPass
+auth:
+  type: api_key
+  api_key:
+    env_var: LASTPASS_API_KEY
+  required_fields:
+  - name: username
+    label: CID
+    placeholder: ''
+    input_type: text
+    help_text: Your LastPass Account number
+    optional: false
+  - name: password
+    label: Provhash
+    placeholder: ''
+    input_type: password
+    help_text: Your LastPass API key
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/lastpass
+tool_source:
+  type: mcp
+  server_name: lastpass
+  command: lastpass-mcp-server

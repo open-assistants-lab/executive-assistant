@@ -1,0 +1,32 @@
+name: pleo
+display: Pleo
+icon: pleo
+category: payment
+version: '1.0'
+description: Pleo
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.subdomain}.pleo.io/oauth/authorize
+    token_url: https://${connectionConfig.subdomain}.pleo.io/oauth/token
+    scopes:
+    - read
+    token_env_var: PLEO_ACCESS_TOKEN
+  required_fields:
+  - name: subdomain
+    label: OAuth Subdomain
+    placeholder: auth
+    input_type: text
+    help_text: The auth subdomain of your Pleo environment.
+    optional: false
+  - name: apisubdomain
+    label: API Subdomain
+    placeholder: external
+    input_type: text
+    help_text: The API subdomain of your Pleo environment.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/pleo/how-to-register-your-own-pleo-api-oauth-app
+tool_source:
+  type: mcp
+  server_name: pleo
+  command: pleo-mcp-server

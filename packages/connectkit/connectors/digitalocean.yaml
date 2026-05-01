@@ -1,0 +1,23 @@
+name: digitalocean
+display: DigitalOcean
+icon: digitalo
+category: dev-tools
+version: '1.0'
+description: DigitalOcean
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://cloud.digitalocean.com/v1/oauth/authorize
+    token_url: https://cloud.digitalocean.com/v1/oauth/token
+    scopes:
+    - read
+    token_env_var: DIGITALOCEAN_ACCESS_TOKEN
+  required_fields: []
+tool_sources:
+- type: cli
+  command: digitalocean
+  install: '# See service docs'
+- type: mcp
+  server_name: digitalocean
+  command: digitalocean-mcp-server
+setup_guide_url: https://nango.dev/docs/integrations/all/digitalocean

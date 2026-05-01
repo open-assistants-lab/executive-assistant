@@ -1,0 +1,22 @@
+name: crunchbase
+display: Crunchbase
+icon: crunchba
+category: crm
+version: '1.0'
+description: Crunchbase
+auth:
+  type: api_key
+  api_key:
+    env_var: CRUNCHBASE_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: Your Crunchbase API key.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/crunchbase
+tool_source:
+  type: mcp
+  server_name: crunchbase
+  command: crunchbase-mcp-server

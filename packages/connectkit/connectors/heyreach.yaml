@@ -1,0 +1,22 @@
+name: heyreach
+display: HeyReach
+icon: heyreach
+category: social
+version: '1.0'
+description: HeyReach
+auth:
+  type: api_key
+  api_key:
+    env_var: HEYREACH_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: FoVLZoM+nVyMELhqr7vH120O2FS1gZcAG5d2qs1bndg=
+    input_type: text
+    help_text: The API key for your HeyReach account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/heyreach
+tool_source:
+  type: mcp
+  server_name: heyreach
+  command: heyreach-mcp-server

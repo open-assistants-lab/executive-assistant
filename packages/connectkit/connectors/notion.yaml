@@ -1,0 +1,55 @@
+# Notion — knowledge base and docs
+# MCP: https://github.com/makenotion/notion-mcp-server
+
+name: notion
+display: "Notion"
+icon: notion
+category: productivity
+version: "1.0"
+description: "Notion pages, databases, blocks, and search"
+setup_guide_url: "https://developers.notion.com/docs/create-a-notion-integration"
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://api.notion.com/v1/oauth/authorize
+    token_url: https://api.notion.com/v1/oauth/token
+    scopes:
+      - read_content
+      - update_content
+      - insert_content
+    token_env_var: NOTION_API_KEY
+  required_fields:
+    - name: client_id
+      label: "OAuth Client ID"
+      placeholder: "a1b2c3d4-..."
+      input_type: text
+      help_text: "From Notion integrations → your integration → OAuth Domain & URIs"
+    - name: client_secret
+      label: "OAuth Client Secret"
+      placeholder: "secret_..."
+      input_type: password
+      help_text: "From the same OAuth settings page"
+tool_source:
+  type: mcp
+  server_name: notion
+  command: npx @makenotion/notion-mcp-server
+  install: npm install -g @makenotion/notion-mcp-server
+  env_mapping:
+    access_token: NOTION_API_KEY
+tool_descriptions:
+  - name: notion__search
+    description: "Search across all Notion pages and databases"
+    parameter_descriptions:
+      query: "Search query"
+  - name: notion__read_page
+    description: "Read the full content of a Notion page"
+    parameter_descriptions:
+      page_id: "The Notion page ID from a search result or URL"
+  - name: notion__create_page
+    description: "Create a new Notion page"
+    parameter_descriptions:
+      parent_id: "Parent page or database ID"
+      title: "Page title"
+      content: "Page content (markdown or blocks)"
+  - name: notion__list_databases
+    description: "List available Notion databases"

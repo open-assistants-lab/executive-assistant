@@ -1,0 +1,52 @@
+# DeepL — AI-powered language translation
+# CLI: deepl (unofficial CLI), direct API
+# MCP: Community MCP servers available
+
+name: deepl
+display: "DeepL"
+icon: deepl
+category: ai
+version: "1.0"
+description: "DeepL — high-quality machine translation for 30+ languages"
+setup_guide_url: "https://www.deepl.com/pro-api"
+auth:
+  type: api_key
+  api_key:
+    env_var: DEEPL_API_KEY
+  required_fields:
+    - name: api_key
+      label: "API Key"
+      placeholder: "xxxx-xxxx-xxxx-xxxx:fx"
+      input_type: password
+      help_text: "From deepl.com → Account → API Keys"
+    - name: plan
+      label: "Plan Type"
+      placeholder: "pro"
+      input_type: text
+      help_text: "'free' or 'pro' (default: pro)"
+      optional: true
+tool_sources:
+  - type: cli
+    command: deepl
+    install: brew install deepl
+    env_mapping:
+      api_key: DEEPL_API_KEY
+  - type: mcp
+    server_name: deepl
+    command: uvx
+    args:
+      - "deepl-mcp-server"
+    install: uvx deepl-mcp-server
+    env_mapping:
+      api_key: DEEPL_API_KEY
+tool_descriptions:
+  - name: deepl__translate
+    description: "Translate text between languages."
+    parameter_descriptions:
+      text: "Text to translate"
+      target_lang: "Target language code (e.g. EN, DE, FR, JA, ZH)"
+      source_lang: "Optional: source language (auto-detect if omitted)"
+  - name: deepl__languages
+    description: "List supported source and target languages."
+  - name: deepl__usage
+    description: "Check API usage and character limits."

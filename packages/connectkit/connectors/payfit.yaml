@@ -1,0 +1,20 @@
+name: payfit
+display: Payfit
+icon: payfit
+category: hr
+version: '1.0'
+description: Payfit
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://oauth.payfit.com/authorize
+    token_url: https://app.pagerduty.com/oauth/token
+    scopes:
+    - read
+    token_env_var: PAYFIT_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/payfit
+tool_source:
+  type: mcp
+  server_name: payfit
+  command: payfit-mcp-server

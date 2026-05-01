@@ -1,0 +1,43 @@
+# Vercel — deployment and hosting
+# CLI: https://vercel.com/docs/cli
+
+name: vercel
+display: "Vercel"
+icon: vercel
+category: dev-tools
+version: "1.0"
+description: "Vercel deployments, projects, domains, and environment variables"
+setup_guide_url: "https://vercel.com/docs/accounts/create-a-team#create-a-token"
+auth:
+  type: api_key
+  api_key:
+    env_var: VERCEL_TOKEN
+  required_fields:
+    - name: api_key
+      label: "Access Token"
+      placeholder: "..."
+      input_type: password
+      help_text: "From vercel.com/account/tokens → Create Token (Full Account scope)"
+tool_source:
+  type: cli
+  command: vercel
+  install: npm install -g vercel
+  env_mapping:
+    api_key: VERCEL_TOKEN
+tool_descriptions:
+  - name: vercel__deployments_list
+    description: "List recent deployments"
+    parameter_descriptions:
+      limit: "Max results (default: 20)"
+  - name: vercel__projects_list
+    description: "List Vercel projects"
+    parameter_descriptions:
+      limit: "Max results (default: 20)"
+  - name: vercel__env_list
+    description: "List environment variables for a project"
+    parameter_descriptions:
+      project: "Project name"
+  - name: vercel__logs
+    description: "View deployment logs"
+    parameter_descriptions:
+      deployment_id: "Deployment URL or ID"

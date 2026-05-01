@@ -1,0 +1,22 @@
+name: falai
+display: fal.ai
+icon: falai
+category: productivity
+version: '1.0'
+description: fal.ai
+auth:
+  type: api_key
+  api_key:
+    env_var: FALAI_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your fal.ai account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/falai
+tool_source:
+  type: mcp
+  server_name: falai
+  command: falai-mcp-server

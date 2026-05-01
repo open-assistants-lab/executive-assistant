@@ -1,0 +1,22 @@
+name: grain-api-key
+display: Grain (API Key)
+icon: grain
+category: video
+version: '1.0'
+description: Grain (API Key)
+auth:
+  type: api_key
+  api_key:
+    env_var: GRAIN-API-KEY_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The personal access token to your Grain account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/grain-api-key
+tool_source:
+  type: mcp
+  server_name: grain-api-key
+  command: grain-api-key-mcp-server

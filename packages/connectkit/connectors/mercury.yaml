@@ -1,0 +1,20 @@
+name: mercury
+display: Mercury
+icon: mercury
+category: accounting
+version: '1.0'
+description: Mercury
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://oauth2.mercury.com/oauth2/auth
+    token_url: https://oauth2.mercury.com/oauth2/token
+    scopes:
+    - offline_access
+    token_env_var: MERCURY_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/mercury/how-to-register-your-own-mercury-oauth-app
+tool_source:
+  type: mcp
+  server_name: mercury
+  command: mercury-mcp-server

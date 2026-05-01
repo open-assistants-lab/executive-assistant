@@ -1,0 +1,22 @@
+name: greenhouse-harvest
+display: Greenhouse (Harvest API)
+icon: greenhou
+category: ats
+version: '1.0'
+description: Greenhouse (Harvest API)
+auth:
+  type: api_key
+  api_key:
+    env_var: GREENHOUSE-HARVEST_API_KEY
+  required_fields:
+  - name: username
+    label: API key
+    placeholder: ''
+    input_type: password
+    help_text: The API Key of your Greenhouse account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/greenhouse-harvest
+tool_source:
+  type: mcp
+  server_name: greenhouse-harvest
+  command: greenhouse-harvest-mcp-server

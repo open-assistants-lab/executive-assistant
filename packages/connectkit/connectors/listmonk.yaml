@@ -1,0 +1,34 @@
+name: listmonk
+display: Listmonk
+icon: listmonk
+category: marketing
+version: '1.0'
+description: Listmonk
+auth:
+  type: api_key
+  api_key:
+    env_var: LISTMONK_API_KEY
+  required_fields:
+  - name: username
+    label: API User
+    placeholder: ''
+    input_type: text
+    help_text: The API user to your Listmonk account
+    optional: false
+  - name: password
+    label: Token
+    placeholder: ''
+    input_type: password
+    help_text: The token to your Listmonk account
+    optional: false
+  - name: domain
+    label: Domain
+    placeholder: ''
+    input_type: url
+    help_text: The domain of your Listmonk account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/listmonk
+tool_source:
+  type: mcp
+  server_name: listmonk
+  command: listmonk-mcp-server

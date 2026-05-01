@@ -1,0 +1,22 @@
+name: coda
+display: Coda
+icon: coda
+category: knowledge-base
+version: '1.0'
+description: Coda
+auth:
+  type: api_key
+  api_key:
+    env_var: CODA_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Coda account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/coda
+tool_source:
+  type: mcp
+  server_name: coda
+  command: coda-mcp-server

@@ -1,0 +1,21 @@
+name: xero
+display: Xero
+icon: xero
+category: accounting
+version: '1.0'
+description: Xero
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://login.xero.com/identity/connect/authorize
+    token_url: https://identity.xero.com/connect/token
+    scopes:
+    - offline_access
+    - openid
+    token_env_var: XERO_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/api-integrations/xero/how-to-register-your-own-xero-api-oauth-app
+tool_source:
+  type: mcp
+  server_name: xero
+  command: xero-mcp-server

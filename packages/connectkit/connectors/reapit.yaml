@@ -1,0 +1,26 @@
+name: reapit
+display: Reapit Connect
+icon: reapit
+category: crm
+version: '1.0'
+description: Reapit Connect
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://connect.reapit.cloud/authorize
+    token_url: https://connect.reapit.cloud/token
+    scopes:
+    - read
+    token_env_var: REAPIT_ACCESS_TOKEN
+  required_fields:
+  - name: version
+    label: ''
+    placeholder: ''
+    input_type: text
+    help_text: ''
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/reapit/how-to-register-your-own-reapit-oauth-app
+tool_source:
+  type: mcp
+  server_name: reapit
+  command: reapit-mcp-server

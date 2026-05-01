@@ -1,0 +1,22 @@
+name: telegram
+display: Telegram
+icon: telegram
+category: communication
+version: '1.0'
+description: Telegram
+auth:
+  type: api_key
+  api_key:
+    env_var: TELEGRAM_API_KEY
+  required_fields:
+  - name: apiKey
+    label: Bot Token
+    placeholder: 1234567890:ABCdefGHIjklMNOpqrSTUvwxYZ1234567
+    input_type: text
+    help_text: Your Telegram Bot token from @BotFather.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/telegram
+tool_source:
+  type: mcp
+  server_name: telegram
+  command: telegram-mcp-server

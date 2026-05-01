@@ -1,0 +1,61 @@
+# Monday.com — work operating system
+# CLI: Official Monday CLI
+# MCP: https://github.com/mondaycom/mcp
+
+name: monday
+display: "Monday.com"
+icon: monday
+category: productivity
+version: "1.0"
+description: "Monday.com boards, items, updates, and automations"
+setup_guide_url: "https://developer.monday.com/apps/docs/oauth"
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://auth.monday.com/oauth2/authorize
+    token_url: https://auth.monday.com/oauth2/token
+    scopes:
+      - boards:read
+      - boards:write
+    token_env_var: MONDAY_API_TOKEN
+  required_fields:
+    - name: client_id
+      label: "Client ID"
+      placeholder: "..."
+      input_type: text
+      help_text: "From monday.com → Developers → your app"
+    - name: client_secret
+      label: "Client Secret"
+      placeholder: "..."
+      input_type: password
+      help_text: "From the same app page"
+tool_sources:
+  - type: mcp
+    server_name: monday
+    command: npx mondaycom/mcp
+    env_mapping:
+      access_token: MONDAY_API_TOKEN
+  - type: cli
+    command: monday
+    install: npm install -g @mondaydotcom/cli
+    env_mapping:
+      access_token: MONDAY_API_TOKEN
+tool_descriptions:
+  - name: monday__boards_list
+    description: "List all Monday.com boards"
+  - name: monday__items_list
+    description: "List items from a board"
+    parameter_descriptions:
+      board_id: "Board ID"
+      limit: "Max items (default: 50)"
+  - name: monday__item_create
+    description: "Create a new item on a board"
+    parameter_descriptions:
+      board_id: "Board ID"
+      item_name: "Item name/title"
+      group_id: "Group ID (optional)"
+  - name: monday__updates_list
+    description: "List updates from a board"
+    parameter_descriptions:
+      board_id: "Board ID"
+      limit: "Max updates (default: 20)"

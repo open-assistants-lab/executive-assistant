@@ -1,0 +1,25 @@
+name: zapier
+display: Zapier
+icon: zapier
+category: dev-tools
+version: '1.0'
+description: Zapier
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://api.zapier.com/v2/authorize
+    token_url: https://zapier.com/oauth/token
+    scopes:
+    - read
+    extra_params:
+      response_mode: query
+    token_env_var: ZAPIER_ACCESS_TOKEN
+  required_fields: []
+tool_sources:
+- type: cli
+  command: zapier
+  install: '# See service docs'
+- type: mcp
+  server_name: zapier
+  command: zapier-mcp-server
+setup_guide_url: https://nango.dev/docs/api-integrations/zapier/how-to-register-your-own-zapier-oauth-app

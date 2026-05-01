@@ -1,0 +1,20 @@
+name: bill
+display: Bill (Connect API)
+icon: bill
+category: payment
+version: '1.0'
+description: Bill (Connect API)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: ''
+    token_url: https://gateway.prod.bill.com/connect/v3/login
+    scopes:
+    - read
+    token_env_var: BILL_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/bill
+tool_source:
+  type: mcp
+  server_name: bill
+  command: bill-mcp-server

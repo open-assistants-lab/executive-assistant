@@ -1,0 +1,22 @@
+name: torii
+display: Torii
+icon: torii
+category: productivity
+version: '1.0'
+description: Torii
+auth:
+  type: api_key
+  api_key:
+    env_var: TORII_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Torii account
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/torii
+tool_source:
+  type: mcp
+  server_name: torii
+  command: torii-mcp-server

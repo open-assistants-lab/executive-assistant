@@ -1,0 +1,35 @@
+name: practicefusion
+display: PracticeFusion
+icon: practice
+category: other
+version: '1.0'
+description: PracticeFusion
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.baseUrl}/authorize
+    token_url: https://${connectionConfig.baseUrl}/token
+    scopes:
+    - read
+    extra_params:
+      aud: https://${connectionConfig.baseUrl}
+      launch: ${connectionConfig.launch}
+    token_env_var: PRACTICEFUSION_ACCESS_TOKEN
+  required_fields:
+  - name: baseurl
+    label: Base URL
+    placeholder: api.patientfusion.com/fhir/r4/v1/118b460b-8390-4754-8e4a-1dd5ee20f599/
+    input_type: text
+    help_text: The base URL for your Practice authorization server
+    optional: false
+  - name: launch
+    label: ''
+    placeholder: ''
+    input_type: text
+    help_text: ''
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/practicefusion/how-to-register-your-own-practicefusion-api-oauth-app
+tool_source:
+  type: mcp
+  server_name: practicefusion
+  command: practicefusion-mcp-server

@@ -1,0 +1,22 @@
+name: fathom
+display: Fathom
+icon: fathom
+category: communication
+version: '1.0'
+description: Fathom
+auth:
+  type: api_key
+  api_key:
+    env_var: FATHOM_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Fathom account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/fathom
+tool_source:
+  type: mcp
+  server_name: fathom
+  command: fathom-mcp-server

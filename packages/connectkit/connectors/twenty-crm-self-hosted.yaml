@@ -1,0 +1,28 @@
+name: twenty-crm-self-hosted
+display: Twenty CRM (Self Hosted)
+icon: twenty
+category: crm
+version: '1.0'
+description: Twenty CRM (Self Hosted)
+auth:
+  type: api_key
+  api_key:
+    env_var: TWENTY-CRM-SELF-HOSTED_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyMTIxMjEyMS0yNmExLTRkODktYjQ2YS0wNDI0NTViODM3N2YiLCJ0eXBlIjoiQVBJX0tFWSIsIndvcmtzcGFjZUlkIjoiMjEyMTIxMjEtMjZhMS00ZDg5LWI0NmEtMDQyNDU1YjgzNzdmIiwiaWF0IjoxNzMxMzA5MzQwLCJleHAiOjQ4ODQ5MDU3MzksImp0aSI6ImVmZTg4MjcxLTM4OWItNDk5Mi04MjYwLWZjNGIxZmYxYjRiMSJ9.n3tohFIEBBRMsyas_agbh3-KvKXYUnjyhrYzTHYC3vc
+    input_type: text
+    help_text: The API key for your Twenty CRM account
+    optional: false
+  - name: domain
+    label: Twenty CRM domain
+    placeholder: domain
+    input_type: text
+    help_text: The domain of your Twnety CRM instance
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/twenty-crm-self-hosted
+tool_source:
+  type: mcp
+  server_name: twenty-crm-self-hosted
+  command: twenty-crm-self-hosted-mcp-server

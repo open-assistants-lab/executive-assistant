@@ -1,0 +1,22 @@
+name: aimfox
+display: Aimfox
+icon: aimfox
+category: surveys
+version: '1.0'
+description: Aimfox
+auth:
+  type: api_key
+  api_key:
+    env_var: AIMFOX_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: 123e4567-e89b-12d3-a456-426614174000
+    input_type: text
+    help_text: The API Key for your Aimfox account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/aimfox
+tool_source:
+  type: mcp
+  server_name: aimfox
+  command: aimfox-mcp-server

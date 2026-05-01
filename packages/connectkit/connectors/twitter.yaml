@@ -1,0 +1,20 @@
+name: twitter
+display: Twitter (v1)
+icon: twitter
+category: marketing
+version: '1.0'
+description: Twitter (v1)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://api.twitter.com/oauth/authorize
+    token_url: https://api.twitter.com/oauth/access_token
+    scopes:
+    - read
+    token_env_var: TWITTER_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/twitter
+tool_source:
+  type: mcp
+  server_name: twitter
+  command: twitter-mcp-server

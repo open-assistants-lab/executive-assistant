@@ -1,0 +1,22 @@
+name: jumpcloud
+display: JumpCloud
+icon: jumpclou
+category: other
+version: '1.0'
+description: JumpCloud
+auth:
+  type: api_key
+  api_key:
+    env_var: JUMPCLOUD_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: jca_9mK4pL2xR8vN6qW1sT7uY3eA5bC9dF0hG2jM
+    input_type: text
+    help_text: Your JumpCloud API Key.
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/jumpcloud
+tool_source:
+  type: mcp
+  server_name: jumpcloud
+  command: jumpcloud-mcp-server

@@ -1,0 +1,29 @@
+name: mailchimp
+display: Mailchimp
+icon: mailchim
+category: marketing
+version: '1.0'
+description: Mailchimp
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://login.mailchimp.com/oauth2/authorize
+    token_url: https://login.mailchimp.com/oauth2/token
+    scopes:
+    - read
+    token_env_var: MAILCHIMP_ACCESS_TOKEN
+  required_fields:
+  - name: dc
+    label: Data Center
+    placeholder: us6
+    input_type: text
+    help_text: The data center for your account
+    optional: false
+tool_sources:
+- type: cli
+  command: mailchimp
+  install: '# See service docs'
+- type: mcp
+  server_name: mailchimp
+  command: mailchimp-mcp-server
+setup_guide_url: https://nango.dev/docs/integrations/all/mailchimp

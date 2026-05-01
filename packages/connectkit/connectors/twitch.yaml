@@ -1,0 +1,22 @@
+name: twitch
+display: Twitch
+icon: twitch
+category: gaming
+version: '1.0'
+description: Twitch
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://id.twitch.tv/oauth2/authorize
+    token_url: https://id.twitch.tv/oauth2/token
+    scopes:
+    - read
+    extra_params:
+      force_verify: false
+    token_env_var: TWITCH_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/twitch
+tool_source:
+  type: mcp
+  server_name: twitch
+  command: twitch-mcp-server

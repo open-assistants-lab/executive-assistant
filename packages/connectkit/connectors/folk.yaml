@@ -1,0 +1,22 @@
+name: folk
+display: Folk
+icon: folk
+category: crm
+version: '1.0'
+description: Folk
+auth:
+  type: api_key
+  api_key:
+    env_var: FOLK_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: FOLKLrHVSoYB6TaAF39aNGtEpEi3oxuo
+    input_type: text
+    help_text: The API Key for your Folk account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/folk
+tool_source:
+  type: mcp
+  server_name: folk
+  command: folk-mcp-server

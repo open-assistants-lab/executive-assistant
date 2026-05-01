@@ -1,0 +1,20 @@
+name: docusign
+display: DocuSign
+icon: docusign
+category: legal
+version: '1.0'
+description: DocuSign
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://account.docusign.com/oauth/auth
+    token_url: https://account.docusign.com/oauth/token
+    scopes:
+    - read
+    token_env_var: DOCUSIGN_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/docusign
+tool_source:
+  type: mcp
+  server_name: docusign
+  command: docusign-mcp-server

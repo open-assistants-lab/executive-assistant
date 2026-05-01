@@ -1,0 +1,22 @@
+name: reply-io
+display: Reply.io
+icon: reply
+category: marketing
+version: '1.0'
+description: Reply.io
+auth:
+  type: api_key
+  api_key:
+    env_var: REPLY-IO_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: AKp2Bbuy****************
+    input_type: text
+    help_text: The API key for your Reply.io account.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/reply-io
+tool_source:
+  type: mcp
+  server_name: reply-io
+  command: reply-io-mcp-server

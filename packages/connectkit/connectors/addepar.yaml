@@ -1,0 +1,26 @@
+name: addepar
+display: Addepar (OAuth)
+icon: addepar
+category: analytics
+version: '1.0'
+description: Addepar (OAuth)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://id.addepar.com/oauth2/authorize
+    token_url: https://api.addepar.com/public/oauth2/token
+    scopes:
+    - read
+    token_env_var: ADDEPAR_ACCESS_TOKEN
+  required_fields:
+  - name: firmid
+    label: Firm ID
+    placeholder: ''
+    input_type: text
+    help_text: Your Addepar Firm ID
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/addepar
+tool_source:
+  type: mcp
+  server_name: addepar
+  command: addepar-mcp-server

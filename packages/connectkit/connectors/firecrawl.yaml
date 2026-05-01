@@ -1,0 +1,51 @@
+# Firecrawl — web scraping, crawling, and search
+# Cloud: https://docs.firecrawl.dev
+# Self-hosted: https://docs.firecrawl.dev/self-hosting
+# CLI: https://docs.firecrawl.dev/sdks/cli
+
+name: firecrawl
+display: "Firecrawl"
+icon: globe
+category: web
+version: "1.0"
+description: "Web scraping, crawling, search, and AI-powered data extraction"
+setup_guide_url: "https://docs.firecrawl.dev/quickstart"
+auth:
+  type: api_key
+  api_key:
+    env_var: FIRECRAWL_API_KEY
+  required_fields:
+    - name: api_key
+      label: "API Key"
+      placeholder: "fc-..."
+      input_type: password
+      help_text: "Get your API key from https://firecrawl.dev/dashboard. Not required if using self-hosted."
+      optional: true
+    - name: base_url
+      label: "Self-Hosted URL"
+      placeholder: "https://firecrawl.example.com"
+      input_type: url
+      help_text: "Leave empty for Firecrawl Cloud. Fill in for self-hosted instance."
+      optional: true
+tool_source:
+  type: cli
+  command: firecrawl
+  install: npm install -g firecrawl@latest
+  env_mapping:
+    api_key: FIRECRAWL_API_KEY
+    base_url: FIRECRAWL_BASE_URL
+tool_descriptions:
+  - name: firecrawl__scrape_url
+    description: "Scrape a URL and return clean markdown content. Use for reading any webpage. Supports multiple output formats."
+    parameter_descriptions:
+      url: "The full URL to scrape (e.g. https://example.com)"
+      formats: "Output format: markdown, html, rawHtml, links, screenshot, screenshotFull, json, summary. Comma-separated for multiple. Default: markdown"
+      only_main_content: "Extract only main content, removing navigation, footers, and ads. Default: true"
+  - name: firecrawl__search_web
+    description: "Search the web and return results with full page content. More comprehensive than simple search — returns actual page text."
+    parameter_descriptions:
+      query: "Search query string"
+  - name: firecrawl__map_url
+    description: "Discover and list all URLs on a website. Use to find pages on a domain."
+    parameter_descriptions:
+      url: "The base URL to map"

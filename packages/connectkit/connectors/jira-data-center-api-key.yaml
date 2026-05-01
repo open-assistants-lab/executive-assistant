@@ -1,0 +1,28 @@
+name: jira-data-center-api-key
+display: Jira Data Center (API Key)
+icon: jira
+category: productivity
+version: '1.0'
+description: Jira Data Center (API Key)
+auth:
+  type: api_key
+  api_key:
+    env_var: JIRA-DATA-CENTER-API-KEY_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Jira Data Center
+    optional: false
+  - name: baseurl
+    label: Instance Base Url
+    placeholder: https://foobar.atlassian.net
+    input_type: text
+    help_text: The base Url for your Jira Data Center instance
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/jira-data-center-api-key
+tool_source:
+  type: mcp
+  server_name: jira-data-center-api-key
+  command: jira-data-center-api-key-mcp-server

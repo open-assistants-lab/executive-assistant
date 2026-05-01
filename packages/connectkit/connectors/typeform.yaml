@@ -1,0 +1,23 @@
+name: typeform
+display: Typeform
+icon: typeform
+category: surveys
+version: '1.0'
+description: Typeform
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://api.typeform.com/oauth/authorize
+    token_url: https://api.typeform.com/oauth/token
+    scopes:
+    - offline
+    token_env_var: TYPEFORM_ACCESS_TOKEN
+  required_fields: []
+tool_sources:
+- type: cli
+  command: typeform
+  install: '# See service docs'
+- type: mcp
+  server_name: typeform
+  command: typeform-mcp-server
+setup_guide_url: https://nango.dev/docs/integrations/all/typeform

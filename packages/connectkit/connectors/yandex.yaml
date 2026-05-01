@@ -1,0 +1,20 @@
+name: yandex
+display: Yandex
+icon: yandex
+category: social
+version: '1.0'
+description: Yandex
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://oauth.yandex.com/authorize
+    token_url: https://oauth.yandex.com/token
+    scopes:
+    - read
+    token_env_var: YANDEX_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/yandex
+tool_source:
+  type: mcp
+  server_name: yandex
+  command: yandex-mcp-server

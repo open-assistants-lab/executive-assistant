@@ -1,0 +1,22 @@
+name: loops-so
+display: Loops.so
+icon: loops
+category: marketing
+version: '1.0'
+description: Loops.so
+auth:
+  type: api_key
+  api_key:
+    env_var: LOOPS-SO_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: d2d561f5ff80136f69b4b5a31b9fb3c9
+    input_type: text
+    help_text: The API key for your Loops.so account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/loops-so
+tool_source:
+  type: mcp
+  server_name: loops-so
+  command: loops-so-mcp-server

@@ -1,0 +1,20 @@
+name: vimeo
+display: Vimeo (OAuth)
+icon: vimeo
+category: video
+version: '1.0'
+description: Vimeo (OAuth)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://api.vimeo.com/oauth/authorize
+    token_url: https://api.vimeo.com/oauth/access_token
+    scopes:
+    - read
+    token_env_var: VIMEO_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/vimeo
+tool_source:
+  type: mcp
+  server_name: vimeo
+  command: vimeo-mcp-server

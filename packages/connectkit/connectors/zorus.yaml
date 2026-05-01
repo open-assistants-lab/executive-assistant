@@ -1,0 +1,22 @@
+name: zorus
+display: Zorus
+icon: zorus
+category: other
+version: '1.0'
+description: Zorus
+auth:
+  type: api_key
+  api_key:
+    env_var: ZORUS_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: 1_a1b2c3d4-e5f6-7890-abcd-1234567890ab
+    input_type: text
+    help_text: The API token generated from the Zorus Portal.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/zorus
+tool_source:
+  type: mcp
+  server_name: zorus
+  command: zorus-mcp-server

@@ -1,0 +1,34 @@
+name: freshsales
+display: Freshsales
+icon: freshsal
+category: crm
+version: '1.0'
+description: Freshsales
+auth:
+  type: api_key
+  api_key:
+    env_var: FRESHSALES_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: 4oBqA_AzM_G3xbW3TJGvrA
+    input_type: text
+    help_text: The API key for your Freshsales account
+    optional: false
+  - name: bundlealias
+    label: Bundle Alias
+    placeholder: acme.myfreshworks.com/crm/sales
+    input_type: text
+    help_text: The bundle alias for your Freshsales account
+    optional: false
+  - name: subdomain
+    label: ''
+    placeholder: ''
+    input_type: text
+    help_text: ''
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/freshsales
+tool_source:
+  type: mcp
+  server_name: freshsales
+  command: freshsales-mcp-server

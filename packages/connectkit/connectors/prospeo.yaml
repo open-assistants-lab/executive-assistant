@@ -1,0 +1,22 @@
+name: prospeo
+display: Prospeo
+icon: prospeo
+category: crm
+version: '1.0'
+description: Prospeo
+auth:
+  type: api_key
+  api_key:
+    env_var: PROSPEO_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: 65d2be5e227e447d8777d36f934c611c
+    input_type: text
+    help_text: Your Prospeo API Key
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/prospeo
+tool_source:
+  type: mcp
+  server_name: prospeo
+  command: prospeo-mcp-server

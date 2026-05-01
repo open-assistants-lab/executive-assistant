@@ -1,0 +1,34 @@
+name: aws-inspector2
+display: AWS Inspector2
+icon: aws
+category: dev-tools
+version: '1.0'
+description: AWS Inspector2
+auth:
+  type: api_key
+  api_key:
+    env_var: AWS-INSPECTOR2_API_KEY
+  required_fields:
+  - name: username
+    label: AWS Access Key ID
+    placeholder: ''
+    input_type: text
+    help_text: Your Access Key ID.
+    optional: false
+  - name: password
+    label: AWS Secret Access Key
+    placeholder: ''
+    input_type: text
+    help_text: Your Secret Access Key.
+    optional: false
+  - name: region
+    label: Region
+    placeholder: us-east-1
+    input_type: text
+    help_text: The AWS region where Inspector2 is enabled.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/aws-inspector2
+tool_source:
+  type: mcp
+  server_name: aws-inspector2
+  command: aws-inspector2-mcp-server

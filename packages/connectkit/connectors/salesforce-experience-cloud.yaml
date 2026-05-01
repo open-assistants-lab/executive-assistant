@@ -1,0 +1,32 @@
+name: salesforce-experience-cloud
+display: Salesforce Experience Cloud
+icon: salesfor
+category: crm
+version: '1.0'
+description: Salesforce Experience Cloud
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.subdomain}.my.site.com/services/oauth2/authorize
+    token_url: https://${connectionConfig.subdomain}.my.site.com/services/oauth2/token
+    scopes:
+    - offline_access
+    token_env_var: SALESFORCE-EXPERIENCE-CLOUD_ACCESS_TOKEN
+  required_fields:
+  - name: subdomain
+    label: Salesforce Domain
+    placeholder: domain
+    input_type: text
+    help_text: The subdomain of your Salesforce Experience Cloud account
+    optional: false
+  - name: instance_url
+    label: Instance URL
+    placeholder: ''
+    input_type: text
+    help_text: The instance URL of your Salesforce Experience Cloud account
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/salesforce-experience-cloud
+tool_source:
+  type: mcp
+  server_name: salesforce-experience-cloud
+  command: salesforce-experience-cloud-mcp-server

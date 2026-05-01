@@ -1,0 +1,26 @@
+name: jira-data-center
+display: Jira Data Center
+icon: jira
+category: productivity
+version: '1.0'
+description: Jira Data Center
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.endpointURL}/rest/oauth2/latest/authorize
+    token_url: https://${connectionConfig.endpointURL}/rest/oauth2/latest/token
+    scopes:
+    - read
+    token_env_var: JIRA-DATA-CENTER_ACCESS_TOKEN
+  required_fields:
+  - name: endpointurl
+    label: Domain
+    placeholder: foobar.atlassian.net
+    input_type: text
+    help_text: The domain of your Jira Data Center account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/jira-data-center
+tool_source:
+  type: mcp
+  server_name: jira-data-center
+  command: jira-data-center-mcp-server

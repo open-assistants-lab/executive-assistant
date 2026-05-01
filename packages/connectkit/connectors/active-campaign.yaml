@@ -1,0 +1,28 @@
+name: active-campaign
+display: ActiveCampaign
+icon: active
+category: marketing
+version: '1.0'
+description: ActiveCampaign
+auth:
+  type: api_key
+  api_key:
+    env_var: ACTIVE-CAMPAIGN_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: b4f1a7c9d8e56320a9db472fe6c8351f2e0a4d98b7f6c3e5d9a2f4701b3e8d6c3455abbe
+    input_type: text
+    help_text: The API Key for your ActiveCampaign account
+    optional: false
+  - name: hostname
+    label: Hostname
+    placeholder: company.activehosted.com
+    input_type: url
+    help_text: The Hostname for your ActiveCampaign account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/active-campaign
+tool_source:
+  type: mcp
+  server_name: active-campaign
+  command: active-campaign-mcp-server

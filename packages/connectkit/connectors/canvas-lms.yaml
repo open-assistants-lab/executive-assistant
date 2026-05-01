@@ -1,0 +1,26 @@
+name: canvas-lms
+display: Canvas LMS
+icon: canvas
+category: productivity
+version: '1.0'
+description: Canvas LMS
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.hostname}/login/oauth2/auth
+    token_url: https://${connectionConfig.hostname}/login/oauth2/token
+    scopes:
+    - read
+    token_env_var: CANVAS-LMS_ACCESS_TOKEN
+  required_fields:
+  - name: hostname
+    label: Canvas Install URL
+    placeholder: canvas.instructure.com
+    input_type: url
+    help_text: The base URL of your Canvas instance
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/canvas-lms/how-to-register-your-own-canvas-lms-oauth-app
+tool_source:
+  type: mcp
+  server_name: canvas-lms
+  command: canvas-lms-mcp-server

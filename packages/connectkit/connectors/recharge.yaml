@@ -1,0 +1,22 @@
+name: recharge
+display: Recharge
+icon: recharge
+category: e-commerce
+version: '1.0'
+description: Recharge
+auth:
+  type: api_key
+  api_key:
+    env_var: RECHARGE_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: sk_test_1p1_**************************************************
+    input_type: text
+    help_text: The API Token for your Recharge account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/recharge
+tool_source:
+  type: mcp
+  server_name: recharge
+  command: recharge-mcp-server

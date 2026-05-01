@@ -1,0 +1,28 @@
+name: rapidapi
+display: RapidAPI
+icon: rapidapi
+category: dev-tools
+version: '1.0'
+description: RapidAPI
+auth:
+  type: api_key
+  api_key:
+    env_var: RAPIDAPI_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: b7c156af2dmgh5c635305f3744bap168553jsp75193c8367ef
+    input_type: text
+    help_text: The API key for your RapidAPI account
+    optional: false
+  - name: subdomain
+    label: Subdomain
+    placeholder: api-football-v1
+    input_type: text
+    help_text: The subdomain of the Rapid API.
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/rapidapi
+tool_source:
+  type: mcp
+  server_name: rapidapi
+  command: rapidapi-mcp-server

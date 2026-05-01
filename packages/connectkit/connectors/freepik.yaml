@@ -1,0 +1,22 @@
+name: freepik
+display: Freepik
+icon: freepik
+category: other
+version: '1.0'
+description: Freepik
+auth:
+  type: api_key
+  api_key:
+    env_var: FREEPIK_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: FPSXc7b3**********************5b2a
+    input_type: text
+    help_text: The API Key for your Freepik account.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/freepik
+tool_source:
+  type: mcp
+  server_name: freepik
+  command: freepik-mcp-server

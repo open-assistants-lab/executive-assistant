@@ -1,0 +1,28 @@
+name: make
+display: Make
+icon: make
+category: productivity
+version: '1.0'
+description: Make
+auth:
+  type: api_key
+  api_key:
+    env_var: MAKE_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Make account
+    optional: false
+  - name: environmenturl
+    label: Domain
+    placeholder: ''
+    input_type: url
+    help_text: The domain of your Make account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/make
+tool_source:
+  type: mcp
+  server_name: make
+  command: make-mcp-server

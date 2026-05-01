@@ -1,0 +1,22 @@
+name: one-drive-personal
+display: OneDrive Personal
+icon: one
+category: knowledge-base
+version: '1.0'
+description: OneDrive Personal
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize
+    token_url: https://login.microsoftonline.com/consumers/oauth2/v2.0/token
+    scopes:
+    - offline_access
+    extra_params:
+      response_mode: query
+    token_env_var: ONE-DRIVE-PERSONAL_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/one-drive-personal
+tool_source:
+  type: mcp
+  server_name: one-drive-personal
+  command: one-drive-personal-mcp-server

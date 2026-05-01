@@ -1,0 +1,28 @@
+name: mailjet
+display: Mailjet
+icon: mailjet
+category: marketing
+version: '1.0'
+description: Mailjet
+auth:
+  type: api_key
+  api_key:
+    env_var: MAILJET_API_KEY
+  required_fields:
+  - name: username
+    label: API Key
+    placeholder: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6
+    input_type: password
+    help_text: Your Mailjet API Key.
+    optional: false
+  - name: password
+    label: Secret Key
+    placeholder: f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1
+    input_type: password
+    help_text: Your Mailjet Secret Key.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/mailjet
+tool_source:
+  type: mcp
+  server_name: mailjet
+  command: mailjet-mcp-server

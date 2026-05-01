@@ -1,0 +1,28 @@
+name: snipe-it
+display: Snipe-IT
+icon: snipe
+category: productivity
+version: '1.0'
+description: Snipe-IT
+auth:
+  type: api_key
+  api_key:
+    env_var: SNIPE-IT_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: ''
+    input_type: text
+    help_text: Your Snipe-IT API token
+    optional: false
+  - name: hostname
+    label: Domain
+    placeholder: yourcompany
+    input_type: url
+    help_text: Your Snipe-IT hostname (e.g., yourcompany)
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/snipe-it
+tool_source:
+  type: mcp
+  server_name: snipe-it
+  command: snipe-it-mcp-server

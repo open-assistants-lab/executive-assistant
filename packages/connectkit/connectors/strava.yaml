@@ -1,0 +1,22 @@
+name: strava
+display: Strava (Mobile)
+icon: strava
+category: social
+version: '1.0'
+description: Strava (Mobile)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://www.strava.com/oauth/mobile/authorize
+    token_url: https://www.strava.com/api/v3/oauth/token
+    scopes:
+    - read
+    extra_params:
+      approval_prompt: auto
+    token_env_var: STRAVA_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/strava
+tool_source:
+  type: mcp
+  server_name: strava
+  command: strava-mcp-server

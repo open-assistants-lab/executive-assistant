@@ -1,0 +1,28 @@
+name: auth0
+display: Auth0
+icon: auth0
+category: other
+version: '1.0'
+description: Auth0
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.subdomain}.auth0.com/authorize
+    token_url: https://${connectionConfig.subdomain}.auth0.com/oauth/token
+    scopes:
+    - read
+    extra_params:
+      response_mode: query
+    token_env_var: AUTH0_ACCESS_TOKEN
+  required_fields:
+  - name: subdomain
+    label: Auth0 Domain
+    placeholder: domain
+    input_type: text
+    help_text: The subdomain of your Auth0 account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/auth0
+tool_source:
+  type: mcp
+  server_name: auth0
+  command: auth0-mcp-server

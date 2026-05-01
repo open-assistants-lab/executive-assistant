@@ -1,0 +1,22 @@
+name: lumos
+display: Lumos
+icon: lumos
+category: productivity
+version: '1.0'
+description: Lumos
+auth:
+  type: api_key
+  api_key:
+    env_var: LUMOS_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: lsk_example_1234
+    input_type: text
+    help_text: The API token to your Lumos account
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/lumos
+tool_source:
+  type: mcp
+  server_name: lumos
+  command: lumos-mcp-server

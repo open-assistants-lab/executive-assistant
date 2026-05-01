@@ -1,0 +1,26 @@
+name: simpro
+display: simPRO
+icon: simpro
+category: productivity
+version: '1.0'
+description: simPRO
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.build}.simprosuite.com/oauth2/login
+    token_url: https://${connectionConfig.build}.simprosuite.com/oauth2/token
+    scopes:
+    - read
+    token_env_var: SIMPRO_ACCESS_TOKEN
+  required_fields:
+  - name: build
+    label: simPRO Build Name
+    placeholder: yourcompany
+    input_type: text
+    help_text: The subdomain part of your simPRO URL.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/simpro
+tool_source:
+  type: mcp
+  server_name: simpro
+  command: simpro-mcp-server

@@ -1,0 +1,31 @@
+name: bamboohr
+display: BambooHR (OAuth)
+icon: bamboohr
+category: hr
+version: '1.0'
+description: BambooHR (OAuth)
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://${connectionConfig.subdomain}.bamboohr.com/authorize.php
+    token_url: https://${connectionConfig.subdomain}.bamboohr.com/token.php
+    scopes:
+    - read
+    extra_params:
+      request: authorize
+    token_env_var: BAMBOOHR_ACCESS_TOKEN
+  required_fields:
+  - name: subdomain
+    label: Subdomain
+    placeholder: acme
+    input_type: text
+    help_text: The subdomain of your BambooHR account
+    optional: false
+tool_sources:
+- type: cli
+  command: bamboohr
+  install: '# See service docs'
+- type: mcp
+  server_name: bamboohr
+  command: bamboohr-mcp-server
+setup_guide_url: https://nango.dev/docs/api-integrations/bamboohr/how-to-register-your-own-bamboohr-oauth-app

@@ -1,0 +1,25 @@
+name: apify
+display: Apify
+icon: apify
+category: dev-tools
+version: '1.0'
+description: Apify
+auth:
+  type: api_key
+  api_key:
+    env_var: APIFY_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Token
+    placeholder: apify_api_***************************nt4w
+    input_type: text
+    help_text: The API token for your Apify account
+    optional: false
+tool_sources:
+- type: cli
+  command: apify
+  install: '# See service docs'
+- type: mcp
+  server_name: apify
+  command: apify-mcp-server
+setup_guide_url: https://nango.dev/docs/integrations/all/apify

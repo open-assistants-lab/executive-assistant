@@ -1,0 +1,22 @@
+name: quipteams
+display: Quipteams
+icon: quipteam
+category: other
+version: '1.0'
+description: Quipteams
+auth:
+  type: api_key
+  api_key:
+    env_var: QUIPTEAMS_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: Your Quipteams API key.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/quipteams
+tool_source:
+  type: mcp
+  server_name: quipteams
+  command: quipteams-mcp-server

@@ -1,0 +1,16 @@
+name: apple-app-store
+display: Apple App Store
+icon: apple
+category: e-commerce
+version: '1.0'
+description: Apple App Store
+auth:
+  type: api_key
+  api_key:
+    env_var: APPLE-APP-STORE_API_KEY
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/apple-app-store
+tool_source:
+  type: mcp
+  server_name: apple-app-store
+  command: apple-app-store-mcp-server

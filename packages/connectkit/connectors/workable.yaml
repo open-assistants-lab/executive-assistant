@@ -1,0 +1,31 @@
+name: workable
+display: Workable (API Key)
+icon: workable
+category: ats
+version: '1.0'
+description: Workable (API Key)
+auth:
+  type: api_key
+  api_key:
+    env_var: WORKABLE_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Workable account
+    optional: false
+  - name: subdomain
+    label: Workable Domain
+    placeholder: domain
+    input_type: text
+    help_text: The subdomain of your Workable account
+    optional: true
+tool_sources:
+- type: cli
+  command: workable
+  install: '# See service docs'
+- type: mcp
+  server_name: workable
+  command: workable-mcp-server
+setup_guide_url: https://nango.dev/docs/integrations/all/workable

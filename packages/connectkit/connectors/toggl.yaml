@@ -1,0 +1,31 @@
+name: toggl
+display: Toggl Track
+icon: toggl
+category: productivity
+version: '1.0'
+description: Toggl Track
+auth:
+  type: api_key
+  api_key:
+    env_var: TOGGL_API_KEY
+  required_fields:
+  - name: username
+    label: Email or API token
+    placeholder: ''
+    input_type: text
+    help_text: Your Toggl Track account email, or your API token when using token-based Basic Auth.
+    optional: false
+  - name: password
+    label: Password or api_token
+    placeholder: ''
+    input_type: password
+    help_text: Your Toggl Track account password, or the literal text api_token when authenticating with an API token.
+    optional: false
+tool_sources:
+- type: cli
+  command: toggl
+  install: '# See service docs'
+- type: mcp
+  server_name: toggl
+  command: toggl-mcp-server
+setup_guide_url: https://nango.dev/docs/api-integrations/toggl

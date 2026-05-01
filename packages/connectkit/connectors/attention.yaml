@@ -1,0 +1,22 @@
+name: attention
+display: Attention
+icon: attentio
+category: productivity
+version: '1.0'
+description: Attention
+auth:
+  type: api_key
+  api_key:
+    env_var: ATTENTION_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: eyJhbGciOi***.eyJzdWIiOi***.xxxxxxxxxxxx
+    input_type: text
+    help_text: Your Attention API key.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/attention
+tool_source:
+  type: mcp
+  server_name: attention
+  command: attention-mcp-server

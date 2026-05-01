@@ -1,0 +1,22 @@
+name: ordinal
+display: Ordinal
+icon: ordinal
+category: productivity
+version: '1.0'
+description: Ordinal
+auth:
+  type: api_key
+  api_key:
+    env_var: ORDINAL_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ord_*************
+    input_type: text
+    help_text: Your Ordinal API key.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/ordinal
+tool_source:
+  type: mcp
+  server_name: ordinal
+  command: ordinal-mcp-server

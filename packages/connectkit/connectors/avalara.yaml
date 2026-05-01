@@ -1,0 +1,34 @@
+name: avalara
+display: Avalara
+icon: avalara
+category: legal
+version: '1.0'
+description: Avalara
+auth:
+  type: api_key
+  api_key:
+    env_var: AVALARA_API_KEY
+  required_fields:
+  - name: username
+    label: User Name / Account ID
+    placeholder: ''
+    input_type: text
+    help_text: Avalara User Name / Account ID
+    optional: false
+  - name: password
+    label: Avalara Password / License Key
+    placeholder: ''
+    input_type: text
+    help_text: Your Password / License Key
+    optional: false
+  - name: avalaraclient
+    label: Avalara Client
+    placeholder: ''
+    input_type: text
+    help_text: The Avalara client for your Avalara account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/avalara
+tool_source:
+  type: mcp
+  server_name: avalara
+  command: avalara-mcp-server

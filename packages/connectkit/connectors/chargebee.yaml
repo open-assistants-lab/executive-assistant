@@ -1,0 +1,28 @@
+name: chargebee
+display: Chargebee
+icon: chargebe
+category: payment
+version: '1.0'
+description: Chargebee
+auth:
+  type: api_key
+  api_key:
+    env_var: CHARGEBEE_API_KEY
+  required_fields:
+  - name: username
+    label: API Key
+    placeholder: ''
+    input_type: password
+    help_text: The API key for your Chargebee account
+    optional: false
+  - name: subdomain
+    label: Chargebee Domain
+    placeholder: domain
+    input_type: text
+    help_text: The subdomain of your Chargebee account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/chargebee
+tool_source:
+  type: mcp
+  server_name: chargebee
+  command: chargebee-mcp-server

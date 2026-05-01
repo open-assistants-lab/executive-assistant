@@ -1,0 +1,34 @@
+name: evaluagent
+display: EvaluAgent
+icon: evaluage
+category: support
+version: '1.0'
+description: EvaluAgent
+auth:
+  type: api_key
+  api_key:
+    env_var: EVALUAGENT_API_KEY
+  required_fields:
+  - name: username
+    label: Access Key Id
+    placeholder: ''
+    input_type: text
+    help_text: The Access Key ID for your EvaluAgent account
+    optional: false
+  - name: password
+    label: Secret Key
+    placeholder: ''
+    input_type: text
+    help_text: The Secret Key for your EvaluAgent account
+    optional: false
+  - name: region
+    label: Region
+    placeholder: eu
+    input_type: text
+    help_text: The region of your EvaluAgent account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/evaluagent
+tool_source:
+  type: mcp
+  server_name: evaluagent
+  command: evaluagent-mcp-server

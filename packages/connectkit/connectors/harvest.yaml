@@ -1,0 +1,26 @@
+name: harvest
+display: Harvest
+icon: harvest
+category: productivity
+version: '1.0'
+description: Harvest
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://id.getharvest.com/oauth2/authorize
+    token_url: https://id.getharvest.com/api/v2/oauth2/token
+    scopes:
+    - read
+    token_env_var: HARVEST_ACCESS_TOKEN
+  required_fields:
+  - name: appdetails
+    label: App Details
+    placeholder: ''
+    input_type: text
+    help_text: The details of your app
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/harvest
+tool_source:
+  type: mcp
+  server_name: harvest
+  command: harvest-mcp-server

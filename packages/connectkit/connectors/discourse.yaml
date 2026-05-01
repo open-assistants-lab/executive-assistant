@@ -1,0 +1,34 @@
+name: discourse
+display: Discourse
+icon: discours
+category: communication
+version: '1.0'
+description: Discourse
+auth:
+  type: api_key
+  api_key:
+    env_var: DISCOURSE_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Discourse account
+    optional: false
+  - name: defaulthost
+    label: Domain
+    placeholder: ''
+    input_type: url
+    help_text: The domain of your Discourse account
+    optional: false
+  - name: apiusername
+    label: API Username
+    placeholder: ''
+    input_type: text
+    help_text: The API username of your Discourse account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/discourse
+tool_source:
+  type: mcp
+  server_name: discourse
+  command: discourse-mcp-server

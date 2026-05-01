@@ -1,0 +1,22 @@
+name: gamma
+display: Gamma
+icon: gamma
+category: productivity
+version: '1.0'
+description: Gamma
+auth:
+  type: api_key
+  api_key:
+    env_var: GAMMA_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: sk-gamma-xxxxxxxx
+    input_type: text
+    help_text: Your Gamma API key.
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/gamma
+tool_source:
+  type: mcp
+  server_name: gamma
+  command: gamma-mcp-server

@@ -1,0 +1,62 @@
+# Box — enterprise content management
+# CLI: Official Box CLI
+# MCP: https://developer.box.com/guides/ai/mcp-server/
+
+name: box
+display: "Box"
+icon: box
+category: storage
+version: "1.0"
+description: "Box cloud storage, files, folders, and collaboration"
+setup_guide_url: "https://developer.box.com/guides/authentication/oauth2/"
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://account.box.com/api/oauth2/authorize
+    token_url: https://api.box.com/oauth2/token
+    scopes:
+      - root_readwrite
+      - manage_enterprise
+    token_env_var: BOX_ACCESS_TOKEN
+  required_fields:
+    - name: client_id
+      label: "Client ID"
+      placeholder: "..."
+      input_type: text
+      help_text: "From Box Developer Console → your app → Configuration"
+    - name: client_secret
+      label: "Client Secret"
+      placeholder: "..."
+      input_type: password
+      help_text: "From the same app Configuration page"
+    - name: enterprise_id
+      label: "Enterprise ID"
+      placeholder: "..."
+      input_type: text
+      help_text: "From Box Admin Console → Account Settings"
+      optional: true
+tool_sources:
+  - type: mcp
+    server_name: box
+    command: npx @box/box-mcp-server
+    env_mapping:
+      access_token: BOX_ACCESS_TOKEN
+  - type: cli
+    command: box
+    install: npm install -g box-cli
+    env_mapping:
+      access_token: BOX_ACCESS_TOKEN
+tool_descriptions:
+  - name: box__files_list
+    description: "List files and folders in Box"
+    parameter_descriptions:
+      folder_id: "Folder ID (0 for root)"
+      limit: "Max results (default: 20)"
+  - name: box__file_search
+    description: "Search Box files and folders"
+    parameter_descriptions:
+      query: "Search query"
+  - name: box__file_download
+    description: "Download a file from Box"
+    parameter_descriptions:
+      file_id: "File ID"

@@ -1,0 +1,22 @@
+name: workos
+display: WorkOS
+icon: workos
+category: productivity
+version: '1.0'
+description: WorkOS
+auth:
+  type: api_key
+  api_key:
+    env_var: WORKOS_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: sk_test_a2V5XzAxS0cyS********************************************NUSlZ
+    input_type: text
+    help_text: Your WorkOS API key
+    optional: false
+setup_guide_url: https://nango.dev/docs/api-integrations/workos
+tool_source:
+  type: mcp
+  server_name: workos
+  command: workos-mcp-server

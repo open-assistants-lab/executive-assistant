@@ -1,0 +1,28 @@
+name: maxio
+display: Maxio
+icon: maxio
+category: payment
+version: '1.0'
+description: Maxio
+auth:
+  type: api_key
+  api_key:
+    env_var: MAXIO_API_KEY
+  required_fields:
+  - name: username
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: Your Maxio API Key.
+    optional: false
+  - name: hostname
+    label: Hostname
+    placeholder: acme.chargify.com
+    input_type: text
+    help_text: Your Maxio site hostname.
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/maxio
+tool_source:
+  type: mcp
+  server_name: maxio
+  command: maxio-mcp-server

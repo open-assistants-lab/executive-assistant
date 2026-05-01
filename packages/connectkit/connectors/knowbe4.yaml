@@ -1,0 +1,28 @@
+name: knowbe4
+display: KnowBe4 (Reporting)
+icon: knowbe4
+category: support
+version: '1.0'
+description: KnowBe4 (Reporting)
+auth:
+  type: api_key
+  api_key:
+    env_var: KNOWBE4_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your KnowBe4 account
+    optional: false
+  - name: subdomain
+    label: Subdomain
+    placeholder: eu.api
+    input_type: text
+    help_text: The subdomain to your API base URL
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/knowbe4
+tool_source:
+  type: mcp
+  server_name: knowbe4
+  command: knowbe4-mcp-server

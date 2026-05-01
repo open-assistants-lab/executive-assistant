@@ -1,0 +1,31 @@
+name: metabase
+display: Metabase
+icon: metabase
+category: analytics
+version: '1.0'
+description: Metabase
+auth:
+  type: api_key
+  api_key:
+    env_var: METABASE_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Metabase account
+    optional: false
+  - name: domain
+    label: Metabase Domain
+    placeholder: metabase
+    input_type: text
+    help_text: The domain (without the extension) of your Metabase account
+    optional: false
+tool_sources:
+- type: cli
+  command: metabase
+  install: '# See service docs'
+- type: mcp
+  server_name: metabase
+  command: metabase-mcp-server
+setup_guide_url: https://nango.dev/docs/integrations/all/metabase

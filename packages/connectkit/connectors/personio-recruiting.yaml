@@ -1,0 +1,46 @@
+name: personio-recruiting
+display: Personio Recruiting
+icon: personio
+category: hr
+version: '1.0'
+description: Personio Recruiting
+auth:
+  type: api_key
+  api_key:
+    env_var: PERSONIO-RECRUITING_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Pingboard account
+    optional: false
+  - name: companyid
+    label: Company ID
+    placeholder: ''
+    input_type: text
+    help_text: The company ID of your Personio account
+    optional: false
+  - name: company
+    label: Company Name
+    placeholder: ''
+    input_type: text
+    help_text: The company name of your Personio account
+    optional: false
+  - name: partnerid
+    label: Partner ID
+    placeholder: ''
+    input_type: text
+    help_text: The partner ID of your Personio account
+    optional: false
+  - name: appid
+    label: App ID
+    placeholder: ''
+    input_type: text
+    help_text: The app ID of your Personio account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/personio-recruiting
+tool_source:
+  type: mcp
+  server_name: personio-recruiting
+  command: personio-recruiting-mcp-server

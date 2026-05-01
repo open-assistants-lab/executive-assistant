@@ -1,0 +1,28 @@
+name: insightly
+display: Insightly
+icon: insightl
+category: crm
+version: '1.0'
+description: Insightly
+auth:
+  type: api_key
+  api_key:
+    env_var: INSIGHTLY_API_KEY
+  required_fields:
+  - name: username
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: Your Insightly API key
+    optional: false
+  - name: pod
+    label: Insightly Domain
+    placeholder: domain
+    input_type: text
+    help_text: The subdomain of your Insightly account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/insightly
+tool_source:
+  type: mcp
+  server_name: insightly
+  command: insightly-mcp-server

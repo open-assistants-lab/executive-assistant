@@ -1,0 +1,20 @@
+name: gebruder-weiss
+display: Gebrüder Weiss
+icon: gebruder
+category: erp
+version: '1.0'
+description: Gebrüder Weiss
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://my.api.gw-world.com/authorize
+    token_url: https://my.api.gw-world.com/token
+    scopes:
+    - read
+    token_env_var: GEBRUDER-WEISS_ACCESS_TOKEN
+  required_fields: []
+setup_guide_url: https://nango.dev/docs/integrations/all/gebruder-weiss
+tool_source:
+  type: mcp
+  server_name: gebruder-weiss
+  command: gebruder-weiss-mcp-server

@@ -1,0 +1,28 @@
+name: freshservice
+display: Freshservice
+icon: freshser
+category: support
+version: '1.0'
+description: Freshservice
+auth:
+  type: api_key
+  api_key:
+    env_var: FRESHSERVICE_API_KEY
+  required_fields:
+  - name: username
+    label: API key
+    placeholder: ''
+    input_type: password
+    help_text: The API Key of your Freshservice account
+    optional: false
+  - name: subdomain
+    label: Freshservice subdomain
+    placeholder: subdomain
+    input_type: text
+    help_text: The subdomain of your Freshservice account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/freshservice
+tool_source:
+  type: mcp
+  server_name: freshservice
+  command: freshservice-mcp-server

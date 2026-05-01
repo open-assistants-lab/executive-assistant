@@ -1,0 +1,28 @@
+name: expensify
+display: Expensify
+icon: expensif
+category: productivity
+version: '1.0'
+description: Expensify
+auth:
+  type: api_key
+  api_key:
+    env_var: EXPENSIFY_API_KEY
+  required_fields:
+  - name: username
+    label: Partner User ID
+    placeholder: ''
+    input_type: text
+    help_text: Your unique account identifier of Expensify
+    optional: false
+  - name: password
+    label: Partner User Secret
+    placeholder: ''
+    input_type: text
+    help_text: Unique secret for your account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/expensify
+tool_source:
+  type: mcp
+  server_name: expensify
+  command: expensify-mcp-server

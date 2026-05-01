@@ -1,0 +1,34 @@
+name: basecamp
+display: Basecamp
+icon: basecamp
+category: productivity
+version: '1.0'
+description: Basecamp
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://launchpad.37signals.com/authorization/new
+    token_url: https://launchpad.37signals.com/authorization/token
+    scopes:
+    - read
+    extra_params:
+      type: web_server
+    token_env_var: BASECAMP_ACCESS_TOKEN
+  required_fields:
+  - name: appdetails
+    label: App Details
+    placeholder: ''
+    input_type: text
+    help_text: The details of your app
+    optional: false
+  - name: accountid
+    label: Account ID
+    placeholder: '5899981'
+    input_type: text
+    help_text: Your Account ID
+    optional: true
+setup_guide_url: https://nango.dev/docs/integrations/all/basecamp
+tool_source:
+  type: mcp
+  server_name: basecamp
+  command: basecamp-mcp-server

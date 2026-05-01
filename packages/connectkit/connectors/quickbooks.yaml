@@ -1,0 +1,26 @@
+name: quickbooks
+display: Quickbooks
+icon: quickboo
+category: accounting
+version: '1.0'
+description: Quickbooks
+auth:
+  type: oauth2
+  oauth2:
+    authorize_url: https://appcenter.intuit.com/connect/oauth2
+    token_url: https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer
+    scopes:
+    - read
+    token_env_var: QUICKBOOKS_ACCESS_TOKEN
+  required_fields:
+  - name: realmid
+    label: Quickbooks Realm ID
+    placeholder: '9341453474484455'
+    input_type: text
+    help_text: The realmId of your quickbooks company
+    optional: true
+setup_guide_url: https://nango.dev/docs/api-integrations/quickbooks/how-to-register-your-own-quickbooks-api-oauth-app
+tool_source:
+  type: mcp
+  server_name: quickbooks
+  command: quickbooks-mcp-server

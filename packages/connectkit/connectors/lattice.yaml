@@ -1,0 +1,22 @@
+name: lattice
+display: Lattice
+icon: lattice
+category: hr
+version: '1.0'
+description: Lattice
+auth:
+  type: api_key
+  api_key:
+    env_var: LATTICE_API_KEY
+  required_fields:
+  - name: apiKey
+    label: API Key
+    placeholder: ''
+    input_type: text
+    help_text: The API key for your Lattice account
+    optional: false
+setup_guide_url: https://nango.dev/docs/integrations/all/lattice
+tool_source:
+  type: mcp
+  server_name: lattice
+  command: lattice-mcp-server
