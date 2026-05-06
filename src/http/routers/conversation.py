@@ -2,6 +2,7 @@ import json
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from src.app_logging import get_logger, timer
 from src.http.models import MessageRequest, MessageResponse
@@ -15,6 +16,21 @@ from src.storage.messages import get_message_store
 _pending_approvals: dict[str, dict] = {}
 
 router = APIRouter(tags=["conversation"])
+
+
+def _persist_tool_messages(conversation, tool_events: list[dict]) -> None:
+    for event in tool_events:
+        output = event.get("output")
+        if event.get("stage") != "end" or not output:
+            continue
+        conversation.add_message(
+            "tool",
+            str(output),
+            metadata={
+                "tool_name": event.get("tool") or event.get("tool_name") or "unknown",
+                "tool_call_id": event.get("call_id") or event.get("tool_call_id") or "",
+            },
+        )
 
 
 @router.get("/conversation")
@@ -37,12 +53,11 @@ async def get_conversation(user_id: str = "default_user", limit: int = 100, work
 
 
 @router.delete("/conversation")
-async def clear_conversation(user_id: str = "default_user"):
+async def clear_conversation(user_id: str = "default_user", workspace_id: str = "personal"):
     """Clear conversation history."""
-    conversation = get_message_store(user_id)
+    conversation = get_message_store(user_id, workspace_id)
     conversation.clear()
-
-    return {"status": "cleared", "user_id": user_id}
+    return {"status": "cleared", "user_id": user_id, "workspace_id": workspace_id}
 
 
 @router.post("/message", response_model=MessageResponse)
@@ -50,6 +65,7 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
     """Send a message to the agent (SDK-powered)."""
     try:
         user_id = req.user_id or "default_user"
+        workspace_id = getattr(req, "workspace_id", "personal") or "personal"
         msg_content = req.message.strip()
 
         if user_id in _pending_approvals and msg_content.lower() in ("approve", "reject", "edit"):
@@ -65,12 +81,11 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
 
             return MessageResponse(response=f"{tool_name} approved (execution pending).")
 
-        conversation = get_message_store(user_id)
+        conversation = get_message_store(user_id, workspace_id)
         conversation.add_message("user", req.message)
 
         recent_messages = conversation.get_messages_with_summary(50)
         sdk_messages = _messages_from_conversation(recent_messages)
-        # recent_messages already includes the just-added user message
 
         logger = get_logger()
         verbose_data: dict | None = None
@@ -86,6 +101,7 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
                 async for chunk in run_sdk_agent_stream(
                     user_id=user_id,
                     messages=sdk_messages,
+                    workspace_id=workspace_id,
                 ):
                     if chunk.type == "ai_token" and chunk.content:
                         ai_content_parts.append(chunk.content)
@@ -108,6 +124,7 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
                             {
                                 "tool": chunk.tool,
                                 "stage": "end",
+                                "call_id": chunk.call_id,
                                 "output": (chunk.result_preview or "")[:200],
                             }
                         )
@@ -116,6 +133,7 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
                             {
                                 "tool": chunk.tool,
                                 "stage": "end",
+                                "call_id": chunk.call_id,
                                 "output": (chunk.result_preview or "")[:200],
                             }
                         )
@@ -134,27 +152,11 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
                 if not response and ai_content_parts:
                     response = "".join(ai_content_parts)
                 if not response:
-                    if not tool_events:
-                        result_messages = await run_sdk_agent(
-                            user_id=user_id, messages=sdk_messages
-                        )
-                        last_ai = None
-                        for m in reversed(result_messages):
-                            if m.role == "assistant" and m.content:
-                                last_ai = m
-                                break
-                        if last_ai:
-                            response = (
-                                last_ai.content
-                                if isinstance(last_ai.content, str)
-                                else str(last_ai.content)
-                            )
-                        else:
-                            response = "Task completed."
-                    else:
-                        response = "Task completed."
+                    response = "Task completed."
+
+                _persist_tool_messages(conversation, tool_events)
             else:
-                result_messages = await run_sdk_agent(user_id=user_id, messages=sdk_messages)
+                result_messages = await run_sdk_agent(user_id=user_id, messages=sdk_messages, workspace_id=workspace_id)
 
                 tool_contents = []
                 for m in result_messages:
@@ -233,8 +235,9 @@ async def message_stream(req: MessageRequest):
     """Send a message and stream response using SSE (SDK-powered)."""
     try:
         user_id = req.user_id or "default_user"
+        workspace_id = getattr(req, "workspace_id", "personal") or "personal"
 
-        conversation = get_message_store(user_id)
+        conversation = get_message_store(user_id, workspace_id)
         conversation.add_message("user", req.message)
 
         recent_messages = conversation.get_messages_with_summary(50)
@@ -245,11 +248,12 @@ async def message_stream(req: MessageRequest):
         async def generate():
             ai_content_parts: list[str] = []
             tool_metadata_list: list[dict] = []
-            tool_results: list[str] = []
+            tool_results: list[dict] = []
 
             async for chunk in run_sdk_agent_stream(
                 user_id=user_id,
                 messages=sdk_messages,
+                workspace_id=workspace_id,
             ):
                 canonical = chunk.canonical_type
 
@@ -266,7 +270,9 @@ async def message_stream(req: MessageRequest):
                 elif canonical == "tool_result" and chunk.tool:
                     output = (chunk.result_preview or "")[:500]
                     if output:
-                        tool_results.append(output)
+                        tool_results.append(
+                            {"tool_call_id": chunk.call_id or "", "output": output}
+                        )
                         yield f"data: {json.dumps({'type': 'updates', 'data': {'content': output}})}\n\n"
 
                 elif canonical == "reasoning_delta" and chunk.content:
@@ -280,12 +286,16 @@ async def message_stream(req: MessageRequest):
 
             response = "".join(ai_content_parts) if ai_content_parts else ""
             if not response and tool_results:
-                response = "\n".join(tool_results)
+                response = "\n".join(result["output"] for result in tool_results)
             if not response:
                 response = "Task completed."
 
+            result_by_call_id = {
+                result["tool_call_id"]: result["output"] for result in tool_results
+            }
             for tm in tool_metadata_list:
-                conversation.add_message("tool", "", metadata=tm)
+                output = result_by_call_id.get(tm.get("tool_call_id", ""), "")
+                conversation.add_message("tool", output, metadata=tm)
 
             conversation.add_message("assistant", response, metadata={"stream": True})
             logger.info(
@@ -296,3 +306,70 @@ async def message_stream(req: MessageRequest):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class ConversationImportRequest(BaseModel):
+    user_id: str = "default_user"
+    workspace_id: str = "personal"
+    messages: list[dict]  # [{"role": "user", "content": "..."}, ...]
+
+
+@router.post("/conversation/import")
+async def import_conversation(req: ConversationImportRequest):
+    """Bulk-import conversation history without triggering the agent loop.
+
+    Used by evaluation frameworks (LongMemEval) to pre-load session data
+    before asking a single question. Each message is added to the
+    conversation store but NOT sent to the agent.
+    """
+    from src.storage.messages import get_message_store
+
+    conversation = get_message_store(req.user_id, req.workspace_id)
+    for msg in req.messages:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+        if content.strip():
+            meta = msg.get("metadata")
+            conversation.add_message(role, content, metadata=meta)
+    return {"imported": len(req.messages)}
+
+
+@router.post("/conversation/extract-memories")
+async def extract_conversation_memories(user_id: str = "default_user", workspace_id: str = "personal"):
+    """Extract memories from imported conversation history, then consolidate.
+
+    Reads recent messages from the conversation store, runs LLM extraction
+    synchronously, then triggers consolidation to merge/deduplicate.
+    """
+    from src.sdk.middleware_memory import MemoryMiddleware
+    from src.storage.messages import get_message_store
+
+    extraction_result = {"extracted": 0, "error": None}
+    consolidation_result = {"status": "skipped", "detail": {}}
+
+    try:
+        conversation = get_message_store(user_id, workspace_id)
+        recent = conversation.get_recent_messages(count=200)
+        if recent:
+            raw_messages = [
+                f"{m.role}: {m.content[:500]}" for m in recent if m.content.strip()
+            ]
+            if raw_messages:
+                count = MemoryMiddleware.extract_from_messages(
+                    raw_messages, user_id=user_id, workspace_id=workspace_id
+                )
+                extraction_result["extracted"] = count
+    except Exception as e:
+        extraction_result["error"] = str(e)
+
+    try:
+        from src.storage.consolidation import trigger_consolidation
+        consolidation_result = trigger_consolidation(user_id, workspace_id)
+    except Exception as e:
+        consolidation_result = {"status": "error", "message": str(e)}
+
+    return {
+        "status": "completed",
+        "extraction": extraction_result,
+        "consolidation": consolidation_result,
+    }

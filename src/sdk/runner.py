@@ -5,7 +5,7 @@ It handles:
   - Creating LLM provider from config
   - Loading SDK-native tools (no more LangChain adapter)
   - Loading MCP tools via MCPToolBridge
-  - Loading SaaS connector tools via AgentConnectBridge
+  - Loading connector tools via ConnectKitBridge
   - Assembling SDK middlewares (memory, summarization)
   - Converting between WS protocol messages and StreamChunks
   - Thread-safe per-user agent instances
@@ -24,10 +24,11 @@ from src.config import get_settings
 from src.sdk.loop import AgentLoop
 from src.sdk.messages import Message, StreamChunk
 from src.sdk.middleware_memory import MemoryMiddleware
+from src.sdk.middleware_observation import ObservationMiddleware
 from src.sdk.middleware_summarization import SummarizationMiddleware
 from src.sdk.native_tools import get_native_tools
 from src.sdk.providers.factory import create_model_from_config
-from src.sdk.tools import ToolAnnotations, ToolDefinition, ToolResult
+from src.sdk.tools import ToolAnnotations, ToolDefinition
 
 logger = get_logger()
 
@@ -105,18 +106,17 @@ def _get_skills_context(user_id: str) -> str:
         return ""
 
 
-async def create_sdk_loop(user_id: str) -> AgentLoop:
+async def create_sdk_loop(user_id: str, workspace_id: str = "personal") -> AgentLoop:
     """Create an AgentLoop for a user with all wiring.
 
     All tools are now SDK-native (from src.sdk.native_tools).
     MCP tools are discovered and injected via MCPToolBridge.
+    Workspace-scoped memory middleware is injected per workspace.
     No more LangChain adapter needed.
     """
     import time
 
-    # Auto-seed default workspace on first launch
     _seed_default_workspace()
-
     t0 = time.monotonic()
     settings = get_settings()
     model_str = getattr(settings.agent, "model", "ollama:minimax-m2.5")
@@ -141,13 +141,13 @@ async def create_sdk_loop(user_id: str) -> AgentLoop:
         logger.warning("sdk_runner.mcp_failed", {"error": str(e)}, user_id=user_id)
 
     connector_tools: list = []
-    connector_bridge = None
+    connectkit_bridge = None
     try:
-        from agent_connect.bridge import AgentConnectBridge
+        from connectkit.bridge import ConnectKitBridge
 
-        connector_bridge = AgentConnectBridge(user_id=user_id)
-        await connector_bridge.discover()
-        connector_tools = connector_bridge.get_tool_definitions()
+        connectkit_bridge = ConnectKitBridge(user_id=user_id)
+        await connectkit_bridge.discover()
+        connector_tools = connectkit_bridge.get_tool_definitions()
         if connector_tools:
             logger.info(
                 "sdk_runner.connector_tools",
@@ -159,10 +159,8 @@ async def create_sdk_loop(user_id: str) -> AgentLoop:
             "sdk_runner.connector_failed", {"error": str(e)}, user_id=user_id
         )
 
-    # Convert connector dicts to ToolDefinitions
-    connector_tool_defs = _connector_dicts_to_defs(connector_tools)
-
-    all_tools = tools + mcp_tools + connector_tool_defs
+    connectkit_tool_defs = _connector_dicts_to_defs(connector_tools)
+    all_tools = tools + mcp_tools + connectkit_tool_defs
     t3 = time.monotonic()
 
     logger.info("sdk_runner.tools_loaded", {"count": len(all_tools)}, user_id=user_id)
@@ -180,22 +178,26 @@ async def create_sdk_loop(user_id: str) -> AgentLoop:
             )
         )
 
-    middlewares.append(MemoryMiddleware(user_id=user_id))
+    middlewares.append(
+        ObservationMiddleware(user_id=user_id, workspace_id=workspace_id)
+    )
+    middlewares.append(MemoryMiddleware(user_id=user_id, workspace_id=workspace_id))
     t4 = time.monotonic()
 
     loop = AgentLoop(
         provider=provider,
         tools=all_tools,
-        system_prompt=_get_system_prompt(user_id),
+        system_prompt=_get_system_prompt(user_id, workspace_id),
         middlewares=middlewares,
         user_id=user_id,
+        workspace_id=workspace_id,
     )
 
     if mcp_bridge:
         loop._mcp_bridge = mcp_bridge
 
-    if connector_bridge:
-        loop._connector_bridge = connector_bridge
+    if connectkit_bridge:
+        loop._connectkit_bridge = connectkit_bridge
 
     t5 = time.monotonic()
     logger.info(
@@ -214,17 +216,18 @@ async def create_sdk_loop(user_id: str) -> AgentLoop:
     return loop
 
 
-async def get_sdk_loop(user_id: str) -> AgentLoop:
-    """Get or create an AgentLoop for a user (cached)."""
+async def get_sdk_loop(user_id: str, workspace_id: str = "personal") -> AgentLoop:
+    """Get or create an AgentLoop for a user+workspace (cached)."""
+    cache_key = f"{user_id}:{workspace_id}"
     async with _loop_lock:
-        if user_id not in _loop_cache:
-            _loop_cache[user_id] = await create_sdk_loop(user_id)
-            logger.info("sdk_runner.loop_created", {"user_id": user_id}, user_id=user_id)
-        return _loop_cache[user_id]
+        if cache_key not in _loop_cache:
+            _loop_cache[cache_key] = await create_sdk_loop(user_id, workspace_id)
+            logger.info("sdk_runner.loop_created", {"user_id": user_id, "workspace_id": workspace_id}, user_id=user_id)
+        return _loop_cache[cache_key]
 
 
 def _connector_dicts_to_defs(dicts: list[dict]) -> list[ToolDefinition]:
-    """Convert connector tool dicts to SDK ToolDefinition objects.
+    """Convert connectkit tool dicts to SDK ToolDefinition objects.
 
     Connector adapters produce plain dicts (to avoid depending on the EA SDK).
     This function converts them to proper ToolDefinition instances.
@@ -270,8 +273,12 @@ def _messages_from_conversation(messages: list[Any]) -> list[Message]:
             sdk_messages.append(Message.system(content))
             pending_reasoning = None
         elif role == "tool":
-            # Tool metadata is for audit/display, not LLM context
-            continue
+            meta = getattr(m, "metadata", {}) or {}
+            tool_name = meta.get("tool_name") or meta.get("tool") or "unknown"
+            tool_text = str(content or "")[:500]
+            if tool_text:
+                sdk_messages.append(Message.system(f"[Tool: {tool_name}] {tool_text}"))
+            pending_reasoning = None
         elif role == "reasoning":
             pending_reasoning = content or None
         else:
@@ -285,17 +292,19 @@ def _messages_from_conversation(messages: list[Any]) -> list[Message]:
 async def run_sdk_agent(
     user_id: str,
     messages: list[Message],
+    workspace_id: str = "personal",
 ) -> list[Message]:
     """Run the SDK agent loop to completion.
 
     Args:
         user_id: User identifier.
         messages: Conversation history as SDK Messages.
+        workspace_id: Current workspace ID.
 
     Returns:
         Final message list from the agent.
     """
-    loop = await get_sdk_loop(user_id)
+    loop = await get_sdk_loop(user_id, workspace_id)
     result = await loop.run(messages)
     return result
 
@@ -303,7 +312,7 @@ async def run_sdk_agent(
 async def run_sdk_agent_stream(
     user_id: str,
     messages: list[Message],
-    workspace_id: str | None = None,
+    workspace_id: str = "personal",
 ) -> Any:
     """Run the SDK agent loop with streaming.
 
@@ -317,10 +326,9 @@ async def run_sdk_agent_stream(
     Yields:
         StreamChunk events.
     """
-    loop = await get_sdk_loop(user_id)
+    loop = await get_sdk_loop(user_id, workspace_id)
 
-    # Inject workspace context into the first system message if present
-    if workspace_id:
+    if workspace_id and workspace_id != "personal":
         ctx = _get_workspace_context(workspace_id)
         if ctx and messages:
             for i, m in enumerate(messages):
@@ -336,11 +344,12 @@ async def run_sdk_agent_stream(
         yield StreamChunk.error(message=str(e))
 
 
-def reset_sdk_loop(user_id: str = "default_user") -> None:
-    """Reset the SDK agent loop for a user."""
-    if user_id in _loop_cache:
-        del _loop_cache[user_id]
-    logger.info("sdk_runner.loop_reset", {"user_id": user_id}, user_id=user_id)
+def reset_sdk_loop(user_id: str = "default_user", workspace_id: str = "personal") -> None:
+    """Reset the SDK agent loop for a user+workspace."""
+    cache_key = f"{user_id}:{workspace_id}"
+    if cache_key in _loop_cache:
+        del _loop_cache[cache_key]
+    logger.info("sdk_runner.loop_reset", {"user_id": user_id, "workspace_id": workspace_id}, user_id=user_id)
 
 
 def reset_all_sdk_loops() -> None:

@@ -11,7 +11,9 @@ MemoryQueryIntent = Literal[
     "historical_fact",
     "timeline",
     "summary",
+    "preference_profile",
     "search_evidence",
+    "aggregation",
     "unknown",
 ]
 
@@ -99,6 +101,50 @@ CURRENT_PATTERNS = [
     r"\btoday\b",
 ]
 
+PREFERENCE_PATTERNS = [
+    r"\brecommend\b",
+    r"\bsuggest\b",
+    r"\bshould i\b",
+    r"\bwhat (?:kind|type|sort) of\b",
+    r"\bcan you recommend\b",
+    r"\bcan you suggest\b",
+    r"\bdo i like\b",
+    r"\bdo i prefer\b",
+    r"\bwhat do i\b",
+    r"\bwhat.s my favorite\b",
+    r"\bwhat is my favorite\b",
+    r"\bwhat should i\b",
+    r"\badvice\b",
+    r"\btips?\b",
+    r"\bwhat would i\b",
+]
+
+AGGREGATION_PATTERNS = [
+    r"\bhow many\b",
+    r"\bhow much\b",
+    r"\bhow long\b",
+    r"\bhow often\b",
+    r"\bhow many days\b",
+    r"\bhow many times\b",
+    r"\bhow many weeks\b",
+    r"\bhow many hours\b",
+    r"\bhow many different\b",
+    r"\bhow many types\b",
+    r"\btotal\b",
+    r"\baltogether\b",
+    r"\bcombined\b",
+    r"\ball (?:the|my|of)\b",
+    r"\bcount\b",
+    r"\blist all\b",
+    r"\bevery .* (?:i|we|you)\b",
+    r"\bwhat (?:is|was|are|were) the total\b",
+    r"\bover the past\b",
+    r"\bin total\b",
+    r"\boverall\b",
+    r"\bacross all\b",
+    r"\bhow many .* (?:have|did|do) (?:i|we|you)\b",
+]
+
 
 def _matches_any(query: str, patterns: list[str]) -> bool:
     return any(re.search(pattern, query) for pattern in patterns)
@@ -120,7 +166,11 @@ def is_memory_query(query: str) -> bool:
     )
     if "?" not in query_lower and not (has_memory_verbs and has_user_subject):
         return False
-    return has_self_reference or (has_memory_verbs and has_user_subject)
+    return (
+        has_self_reference
+        or (has_memory_verbs and has_user_subject)
+        or ("?" in query_lower and has_user_subject)
+    )
 
 
 def plan_memory_query(query: str) -> MemoryQueryPlan:
@@ -134,16 +184,42 @@ def plan_memory_query(query: str) -> MemoryQueryPlan:
     wants_timeline = _matches_any(query_lower, TIMELINE_PATTERNS)
     wants_historical = _matches_any(query_lower, HISTORICAL_PATTERNS)
     wants_current = _matches_any(query_lower, CURRENT_PATTERNS)
+    wants_preference = _matches_any(query_lower, PREFERENCE_PATTERNS)
+    wants_aggregation = _matches_any(query_lower, AGGREGATION_PATTERNS)
+
+    if wants_preference:
+        return MemoryQueryPlan(
+            intent="preference_profile",
+            needs_current_facts=True,
+            needs_fact_history=True,
+            needs_messages=True,
+            prefer_current=True,
+            max_facts=10,
+            max_history=5,
+            max_messages=6,
+        )
+
+    if wants_aggregation:
+        return MemoryQueryPlan(
+            intent="aggregation",
+            needs_current_facts=False,
+            needs_fact_history=False,
+            needs_messages=True,
+            prefer_current=False,
+            max_facts=0,
+            max_history=0,
+            max_messages=20,
+        )
 
     if explicit_search:
         return MemoryQueryPlan(
             intent="search_evidence",
             needs_current_facts=True,
-            needs_fact_history=wants_timeline or wants_historical,
+            needs_fact_history=True,
             needs_messages=True,
             prefer_current=not wants_historical,
             max_facts=6,
-            max_history=10 if (wants_timeline or wants_historical) else 0,
+            max_history=10 if (wants_timeline or wants_historical) else 4,
             max_messages=8,
         )
 
@@ -163,11 +239,11 @@ def plan_memory_query(query: str) -> MemoryQueryPlan:
         return MemoryQueryPlan(
             intent="summary",
             needs_current_facts=True,
-            needs_fact_history=False,
+            needs_fact_history=True,
             needs_messages=True,
             prefer_current=True,
             max_facts=10,
-            max_history=0,
+            max_history=3,
             max_messages=6,
         )
 
@@ -186,10 +262,10 @@ def plan_memory_query(query: str) -> MemoryQueryPlan:
     return MemoryQueryPlan(
         intent="current_fact",
         needs_current_facts=True,
-        needs_fact_history=False,
+        needs_fact_history=True,
         needs_messages=True,
         prefer_current=True,
         max_facts=6,
-        max_history=0,
+        max_history=3,
         max_messages=4,
     )

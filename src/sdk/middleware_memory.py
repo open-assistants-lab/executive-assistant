@@ -4,6 +4,7 @@ SDK-native implementation: replaces src/middleware/memory.py.
 Uses SDK Middleware base class instead of LangChain AgentMiddleware.
 """
 
+import asyncio
 import json
 import os
 import threading
@@ -197,9 +198,10 @@ class MemoryMiddleware(Middleware):
     SDK-native: extends Middleware instead of LangChain AgentMiddleware.
     """
 
-    def __init__(self, user_id: str | None = None):
+    def __init__(self, user_id: str | None = None, workspace_id: str = "personal"):
         self.user_id = user_id or "default_user"
-        self.memory_store = get_memory_store(self.user_id)
+        self.workspace_id = workspace_id
+        self.memory_store = get_memory_store(self.user_id, workspace_id)
         self._model: Any = None
         self._turn_count = 0
 
@@ -235,13 +237,61 @@ class MemoryMiddleware(Middleware):
         return ""
 
     def _get_relevant_memory_context(self, query: str) -> str:
-        if os.environ.get("MEMORY_QUERY_PLANNER_ENABLED", "false").lower() not in {
-            "1",
-            "true",
-            "yes",
-        }:
+        from src.sdk.memory_planner import is_memory_query
+
+        ranker_enabled = os.environ.get("MEMORY_RANKER_ENABLED", "false").lower() in {
+            "1", "true", "yes",
+        }
+
+        if ranker_enabled:
+            return self._get_ranked_memory_context(query)
+
+        if not is_memory_query(query):
+            return ""
+
+        planner_enabled = os.environ.get("MEMORY_QUERY_PLANNER_ENABLED", "true").lower() not in {
+            "0", "false", "no",
+        }
+        if planner_enabled:
+            return self._get_planner_memory_context(query)
+
+        return self._get_baseline_memory_context(query)
+
+    def _get_ranked_memory_context(self, query: str) -> str:
+        from src.sdk.memory_ranker import (
+            collect_memory_candidates,
+            format_ranked_memory_context,
+            rank_memory_candidates,
+        )
+
+        try:
+            candidates = collect_memory_candidates(self.user_id, query, self.workspace_id)
+            ranked = rank_memory_candidates(query, candidates)
+            result = format_ranked_memory_context(query, ranked)
+            top_sources = [c.source for c in ranked[:5]]
+            top_scores = [c.score for c in ranked[:5]]
+            logger.info(
+                "memory.ranker_context_injected",
+                {
+                    "query": query[:100],
+                    "candidate_count": len(candidates),
+                    "injected_count": len([c for c in ranked if c.score > 0]),
+                    "top_sources": top_sources,
+                    "top_scores": [round(s, 1) for s in top_scores],
+                    "context_chars": len(result),
+                },
+                user_id=self.user_id,
+            )
+            return result
+        except Exception as e:
+            logger.warning(
+                "memory.ranker_failed",
+                {"error": str(e), "query": query[:100]},
+                user_id=self.user_id,
+            )
             return self._get_baseline_memory_context(query)
 
+    def _get_planner_memory_context(self, query: str) -> str:
         plan = plan_memory_query(query)
         if plan.intent == "unknown":
             return ""
@@ -284,7 +334,32 @@ class MemoryMiddleware(Middleware):
                             f"{sd.get('value', memory.action)}{previous_text}"
                         )
 
-            fact_ids = {memory.id for memory in fact_memories}
+            # Graph expansion: traverse connected memories for top facts
+            connected_ids: set[str] = set()
+            connected_memories: list[Any] = []
+            for fact in fact_memories[:3]:
+                try:
+                    neighbors = self.memory_store.traverse_memories(
+                        fact.id, max_depth=1, direction="both"
+                    )
+                    for n in neighbors:
+                        nid = n["node"]["id"]
+                        if nid in connected_ids:
+                            continue
+                        connected_ids.add(nid)
+                        nm = self.memory_store.get_memory(nid)
+                        if nm and not nm.is_superseded:
+                            connected_memories.append(nm)
+                except Exception:
+                    pass
+            if connected_memories:
+                sections.append("### Connected Memories")
+                for memory in connected_memories[:5]:
+                    sections.append(
+                        f"- [{memory.domain}] {memory.trigger}: {memory.action}"
+                    )
+
+            fact_ids = {memory.id for memory in fact_memories} | connected_ids
             memories = [m for m in self.memory_store.search_hybrid(query, limit=8) if m.id not in fact_ids]
             if memories:
                 sections.append("### Learned Memories")
@@ -303,7 +378,7 @@ class MemoryMiddleware(Middleware):
                 from src.sdk.tools_core.memory import _expand_queries
                 from src.storage.messages import get_message_store
 
-                conversation = get_message_store(self.user_id)
+                conversation = get_message_store(self.user_id, self.workspace_id)
                 seen_ids: set[int] = set()
                 message_results = []
                 recency_keywords = [
@@ -384,7 +459,32 @@ class MemoryMiddleware(Middleware):
                         f"{sd.get('value', memory.action)}{previous_text}"
                     )
 
-            fact_ids = {memory.id for memory in fact_memories}
+            # Graph expansion: traverse connected memories for top facts
+            connected_ids_2: set[str] = set()
+            connected_memories_2: list[Any] = []
+            for fact in fact_memories[:3]:
+                try:
+                    neighbors = self.memory_store.traverse_memories(
+                        fact.id, max_depth=1, direction="both"
+                    )
+                    for n in neighbors:
+                        nid = n["node"]["id"]
+                        if nid in connected_ids_2:
+                            continue
+                        connected_ids_2.add(nid)
+                        nm = self.memory_store.get_memory(nid)
+                        if nm and not nm.is_superseded:
+                            connected_memories_2.append(nm)
+                except Exception:
+                    pass
+            if connected_memories_2:
+                sections.append("### Connected Memories")
+                for memory in connected_memories_2[:5]:
+                    sections.append(
+                        f"- [{memory.domain}] {memory.trigger}: {memory.action}"
+                    )
+
+            fact_ids = {memory.id for memory in fact_memories} | connected_ids_2
             memories = [m for m in self.memory_store.search_hybrid(query, limit=8) if m.id not in fact_ids]
             if memories:
                 sections.append("### Learned Memories")
@@ -401,42 +501,38 @@ class MemoryMiddleware(Middleware):
             from src.sdk.tools_core.memory import _expand_queries
             from src.storage.messages import get_message_store
 
-            conversation = get_message_store(self.user_id)
-            seen_ids: set[int] = set()
-            message_results = []
-            recency_keywords = [
-                "current",
-                "latest",
-                "now",
-                "after",
-                "updated",
-                "new",
-                "recently",
-                "last",
-                "today",
-            ]
-            recency_weight = 0.7 if any(kw in query.lower() for kw in recency_keywords) else 0.3
-
-            for expanded_query in _expand_queries(query):
-                for result in conversation.search_hybrid(
-                    expanded_query,
-                    limit=8,
-                    recency_weight=recency_weight,
-                ):
-                    if result.id in seen_ids:
-                        continue
-                    seen_ids.add(result.id)
-                    message_results.append(result)
-
-            message_results.sort(key=lambda r: r.score, reverse=True)
-            if message_results:
+            high_conf_facts = [f for f in fact_memories if f.confidence > 0.6]
+            if len(high_conf_facts) >= 3:
                 sections.append("### Relevant Conversation History")
-                for result in message_results[:8]:
-                    content = result.content.replace("\n", " ")
-                    sections.append(
-                        f"- {result.role} ({result.ts.date()}): {content} "
-                        f"(score: {result.score:.2f})"
-                    )
+                sections.append("(High-confidence facts cover this query; raw messages skipped)")
+            else:
+                conversation = get_message_store(self.user_id, self.workspace_id)
+                seen_ids: set[int] = set()
+                message_results = []
+                recency_keywords = [
+                    "current", "latest", "now", "after", "updated", "new",
+                    "recently", "last", "today",
+                ]
+                recency_weight = 0.7 if any(kw in query.lower() for kw in recency_keywords) else 0.3
+
+                for expanded_query in _expand_queries(query):
+                    for result in conversation.search_hybrid(
+                        expanded_query, limit=8, recency_weight=recency_weight,
+                    ):
+                        if result.id in seen_ids:
+                            continue
+                        seen_ids.add(result.id)
+                        message_results.append(result)
+
+                message_results.sort(key=lambda r: r.score, reverse=True)
+                if message_results:
+                    sections.append("### Relevant Conversation History")
+                    for result in message_results[:8]:
+                        content = result.content.replace("\n", " ")
+                        sections.append(
+                            f"- {result.role} ({result.ts.date()}): {content} "
+                            f"(score: {result.score:.2f})"
+                        )
         except Exception as e:
             logger.debug(
                 "memory.query_messages_failed",
@@ -460,7 +556,51 @@ class MemoryMiddleware(Middleware):
         )
         return "## Relevant Memory Search Results\n" + "\n".join(sections)
 
+    @classmethod
+    def extract_from_messages(cls, messages: list[str], user_id: str, workspace_id: str = "personal") -> int:
+        import threading
+
+        result: dict[str, int] = {"count": 0}
+
+        def _run() -> None:
+            import asyncio as _asyncio
+            loop = _asyncio.new_event_loop()
+            _asyncio.set_event_loop(loop)
+            try:
+                from src.storage.memory import MemoryStore
+                from src.storage.paths import get_paths
+
+                mw = cls.__new__(cls)
+                mw.user_id = user_id
+                mw.workspace_id = workspace_id
+                mw._turn_count = 1
+                paths = get_paths(user_id, workspace_id=workspace_id)
+                mw.memory_store = MemoryStore(
+                    user_id, base_dir=paths.workspace_memory_dir(),
+                    max_chroma_index_gb=0,
+                )
+                mw._extract_with_llm(messages)
+                result["count"] = len(mw.memory_store.list_memories(limit=200))
+            finally:
+                try:
+                    mw.memory_store.db.close()
+                except Exception:
+                    pass
+                loop.close()
+
+        t = threading.Thread(target=_run, daemon=True)
+        t.start()
+        t.join(timeout=120)
+
+        return result["count"]
+
     def _should_extract(self, messages: list[Message]) -> bool:
+        extraction_enabled = os.environ.get("MEMORY_EXTRACTION_ENABLED", "true").lower() in {
+            "1", "true", "yes",
+        }
+        if not extraction_enabled:
+            return False
+
         self._turn_count += 1
 
         if self._turn_count % EXTRACTION_TURN_INTERVAL == 0:
@@ -537,11 +677,16 @@ class MemoryMiddleware(Middleware):
         if len(recent_messages) < 2:
             return None
 
-        threading.Thread(
-            target=self._extract_with_llm,
-            args=(recent_messages,),
-            daemon=True,
-        ).start()
+        # Schedule extraction on the current event loop (async production path)
+        try:
+            asyncio.create_task(self._extract_async(recent_messages))
+        except RuntimeError:
+            # No running event loop — fall back to thread
+            threading.Thread(
+                target=self._extract_with_llm,
+                args=(recent_messages,),
+                daemon=True,
+            ).start()
 
         self._check_and_trigger_consolidation()
 
@@ -563,183 +708,190 @@ class MemoryMiddleware(Middleware):
             self._message_count += 1
 
             if self._message_count >= threshold and self._message_count % threshold == 0:
-                on_conversation_end(self.user_id, threshold)
+                on_conversation_end(self.user_id, threshold, workspace_id=self.workspace_id)
         except Exception:
             pass
 
-    def _extract_with_llm(self, messages: list[str]) -> None:
+    async def _do_extract(self, messages: list[str]) -> None:
+        model = self._get_model()
+        if model is None:
+            return
+
+        conversation = "\n\n".join(messages)
+        prompt = EXTRACTION_PROMPT.format(conversation=conversation)
+
+        extraction_messages = [
+            Message.system("You are a user pattern extraction system. Return only valid JSON."),
+            Message.user(prompt),
+        ]
+
+        from src.sdk.loop import AgentLoop
+
+        loop = AgentLoop(provider=model)
+        result = await loop.run_single(extraction_messages)
+
+        if result is None:
+            return
+
+        content = result.content if isinstance(result.content, str) else str(result.content)
+        if not isinstance(content, str):
+            content = str(content)
+
+        patterns = self._parse_json_response(content)
+        self._store_patterns(messages, patterns)
+
+    async def _extract_async(self, messages: list[str]) -> None:
+        """Async memory extraction for production (runs on current event loop)."""
         try:
-            model = self._get_model()
-            if model is None:
-                return
-
-            conversation = "\n\n".join(messages)
-            prompt = EXTRACTION_PROMPT.format(conversation=conversation)
-
-            extraction_messages = [
-                Message.system("You are a user pattern extraction system. Return only valid JSON."),
-                Message.user(prompt),
-            ]
-
-            import asyncio
-
-            from src.sdk.loop import AgentLoop
-
-            loop = AgentLoop(provider=model)
-
-            # Run in a background thread — create a persistent event loop
-            # that stays alive for subsequent HybridDB operations (ChromaDB
-            # needs an active loop for embedding generation and vector ops).
-            try:
-                asyncio.get_running_loop()
-                raise RuntimeError("Already in event loop, use _extract_in_executor")
-            except RuntimeError:
-                pass
-
-            extraction_loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(extraction_loop)
-            result = extraction_loop.run_until_complete(
-                loop.run_single(extraction_messages)
-            )
-
-            if result is None:
-                return
-
-            content = result.content if isinstance(result.content, str) else str(result.content)
-            if not isinstance(content, str):
-                content = str(content)
-
-            patterns = self._parse_json_response(content)
-
-            is_correction = self._detect_correction_in_messages(messages)
-
-            seen_triggers = set()
-            for pattern in patterns:
-                trigger = pattern.get("trigger", "")
-                action = pattern.get("action", "")
-                domain = pattern.get("domain", "preference")
-                memory_type = pattern.get("memory_type", MEMORY_TYPE_PREFERENCE)
-                confidence = pattern.get("confidence", DEFAULT_CONFIDENCE)
-                structured_data = pattern.get("structured_data", {})
-
-                if not trigger or not action:
-                    continue
-
-                trigger_key = (trigger.lower().strip(), domain.lower().strip())
-                if trigger_key in seen_triggers:
-                    continue
-                seen_triggers.add(trigger_key)
-
-                if memory_type == MEMORY_TYPE_FACT and isinstance(structured_data, dict):
-                    entity = str(structured_data.get("entity") or "user").strip()
-                    attribute = str(structured_data.get("attribute") or "").strip()
-                    value = str(structured_data.get("value") or action).strip()
-                    if attribute and value:
-                        extra = {
-                            k: v
-                            for k, v in structured_data.items()
-                            if k
-                            not in {
-                                "entity",
-                                "attribute",
-                                "value",
-                                "previous_value",
-                                "effective_at",
-                            }
-                        }
-                        mem = self.memory_store.upsert_fact_memory(
-                            entity=entity,
-                            attribute=attribute,
-                            value=value,
-                            domain=domain,
-                            confidence=min(confidence, MAX_CONFIDENCE),
-                            source=SOURCE_LEARNED,
-                            trigger=trigger,
-                            previous_value=structured_data.get("previous_value"),
-                            effective_at=structured_data.get("effective_at"),
-                            extra=extra or None,
-                        )
-                        logger.info(
-                            "memory.fact_upserted",
-                            {
-                                "id": mem.id,
-                                "entity": entity,
-                                "attribute": attribute,
-                                "value": value,
-                                "domain": domain,
-                                "confidence": confidence,
-                            },
-                            user_id=self.user_id,
-                        )
-                        continue
-
-                existing = self.memory_store.search_hybrid(trigger, limit=3)
-                similar = [m for m in existing if m.domain == domain and not m.is_superseded]
-
-                if not similar and memory_type == MEMORY_TYPE_FACT:
-                    domain_memories = self.memory_store.list_memories(
-                        domain=domain,
-                        memory_type=memory_type,
-                        min_confidence=0.5,
-                        limit=10,
-                    )
-                    existing_same = [m for m in domain_memories if not m.is_superseded]
-                    if existing_same:
-                        similar = [existing_same[0]]
-
-                if is_correction and similar:
-                    old_mem = similar[0]
-                    new_mem = self.memory_store.update_memory(
-                        old_mem.id,
-                        new_trigger=trigger,
-                        new_action=action,
-                        new_domain=domain,
-                        new_structured_data=structured_data if structured_data else None,
-                    )
-                    if new_mem:
-                        self.memory_store.supersede_memory(old_mem.id, new_mem.id)
-                        self.memory_store.add_connection(
-                            new_mem.id, old_mem.id, relationship="corrects"
-                        )
-                        logger.info(
-                            "memory.corrected",
-                            {
-                                "old_trigger": old_mem.trigger,
-                                "new_trigger": trigger,
-                                "old_action": old_mem.action,
-                                "new_action": action,
-                            },
-                            user_id=self.user_id,
-                        )
-                else:
-                    self.memory_store.add_memory(
-                        trigger=trigger,
-                        action=action,
-                        confidence=min(confidence, MAX_CONFIDENCE),
-                        domain=domain,
-                        source=SOURCE_LEARNED,
-                        memory_type=memory_type,
-                        structured_data=structured_data if structured_data else None,
-                    )
-
-                    logger.info(
-                        "memory.extracted",
-                        {
-                            "trigger": trigger,
-                            "action": action,
-                            "domain": domain,
-                            "memory_type": memory_type,
-                            "confidence": confidence,
-                        },
-                        user_id=self.user_id,
-                    )
-
+            await self._do_extract(messages)
         except Exception as e:
             logger.warning(
                 "memory.extraction_failed",
                 {"error": str(e)},
                 user_id=self.user_id,
             )
+
+    def _extract_with_llm(self, messages: list[str]) -> None:
+        """Synchronous memory extraction via asyncio.run() — for thread-based use.
+
+        Used by extract_from_messages (classmethod) and as fallback when
+        no event loop is running (CLI mode).
+        """
+        try:
+            asyncio.run(self._do_extract(messages))
+        except Exception as e:
+            logger.warning(
+                "memory.extraction_failed",
+                {"error": str(e)},
+                user_id=self.user_id,
+            )
+
+    def _store_patterns(
+        self, messages: list[str], patterns: list[dict[str, Any]]
+    ) -> None:
+        """Store extracted patterns in memory store (shared sync logic)."""
+        is_correction = self._detect_correction_in_messages(messages)
+
+        seen_triggers = set()
+        for pattern in patterns:
+            trigger = pattern.get("trigger", "")
+            action = pattern.get("action", "")
+            domain = pattern.get("domain", "preference")
+            memory_type = pattern.get("memory_type", MEMORY_TYPE_PREFERENCE)
+            confidence = pattern.get("confidence", DEFAULT_CONFIDENCE)
+            structured_data = pattern.get("structured_data", {})
+
+            if not trigger or not action:
+                continue
+
+            trigger_key = (trigger.lower().strip(), domain.lower().strip())
+            if trigger_key in seen_triggers:
+                continue
+            seen_triggers.add(trigger_key)
+
+            if memory_type == MEMORY_TYPE_FACT and isinstance(structured_data, dict):
+                entity = str(structured_data.get("entity") or "user").strip()
+                attribute = str(structured_data.get("attribute") or "").strip()
+                value = str(structured_data.get("value") or action).strip()
+                if attribute and value:
+                    extra = {
+                        k: v
+                        for k, v in structured_data.items()
+                        if k
+                        not in {
+                            "entity",
+                            "attribute",
+                            "value",
+                            "previous_value",
+                            "effective_at",
+                        }
+                    }
+                    mem = self.memory_store.upsert_fact_memory(
+                        entity=entity,
+                        attribute=attribute,
+                        value=value,
+                        domain=domain,
+                        confidence=min(confidence, MAX_CONFIDENCE),
+                        source=SOURCE_LEARNED,
+                        trigger=trigger,
+                        previous_value=structured_data.get("previous_value"),
+                        effective_at=structured_data.get("effective_at"),
+                        extra=extra or None,
+                    )
+                    logger.info(
+                        "memory.fact_upserted",
+                        {
+                            "id": mem.id,
+                            "entity": entity,
+                            "attribute": attribute,
+                            "value": value,
+                            "domain": domain,
+                            "confidence": confidence,
+                        },
+                        user_id=self.user_id,
+                    )
+                    continue
+
+            existing = self.memory_store.search_hybrid(trigger, limit=3)
+            similar = [m for m in existing if m.domain == domain and not m.is_superseded]
+
+            if not similar and memory_type == MEMORY_TYPE_FACT:
+                domain_memories = self.memory_store.list_memories(
+                    domain=domain,
+                    memory_type=memory_type,
+                    min_confidence=0.5,
+                    limit=10,
+                )
+                existing_same = [m for m in domain_memories if not m.is_superseded]
+                if existing_same:
+                    similar = [existing_same[0]]
+
+            if is_correction and similar:
+                old_mem = similar[0]
+                new_mem = self.memory_store.update_memory(
+                    old_mem.id,
+                    new_trigger=trigger,
+                    new_action=action,
+                    new_domain=domain,
+                    new_structured_data=structured_data if structured_data else None,
+                )
+                if new_mem:
+                    self.memory_store.supersede_memory(old_mem.id, new_mem.id)
+                    self.memory_store.add_connection(
+                        new_mem.id, old_mem.id, relationship="corrects"
+                    )
+                    logger.info(
+                        "memory.corrected",
+                        {
+                            "old_trigger": old_mem.trigger,
+                            "new_trigger": trigger,
+                            "old_action": old_mem.action,
+                            "new_action": action,
+                        },
+                        user_id=self.user_id,
+                    )
+            else:
+                self.memory_store.add_memory(
+                    trigger=trigger,
+                    action=action,
+                    confidence=min(confidence, MAX_CONFIDENCE),
+                    domain=domain,
+                    source=SOURCE_LEARNED,
+                    memory_type=memory_type,
+                    structured_data=structured_data if structured_data else None,
+                )
+
+                logger.info(
+                    "memory.extracted",
+                    {
+                        "trigger": trigger,
+                        "action": action,
+                        "domain": domain,
+                        "memory_type": memory_type,
+                        "confidence": confidence,
+                    },
+                    user_id=self.user_id,
+                )
 
     def _detect_correction_in_messages(self, messages: list[str]) -> bool:
         conversation_text = " ".join(m[-500:] for m in messages if m.strip()).lower()

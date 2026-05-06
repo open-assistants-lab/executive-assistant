@@ -69,16 +69,6 @@ from src.sdk.tools_core.filesystem import (
     files_rename,
     files_write,
 )
-from src.sdk.tools_core.firecrawl import (
-    cancel_crawl,
-    crawl_url,
-    firecrawl_agent,
-    firecrawl_status,
-    get_crawl_status,
-    map_url,
-    scrape_url,
-    search_web,
-)
 from src.sdk.tools_core.mcp import (
     mcp_list,
     mcp_reload,
@@ -86,9 +76,12 @@ from src.sdk.tools_core.mcp import (
 )
 from src.sdk.tools_core.memory import (
     memory_connect,
+    memory_count,
     memory_get_history,
+    memory_get_profile,
     memory_search,
     memory_search_all,
+    memory_search_all_workspaces,
     memory_search_insights,
 )
 from src.sdk.tools_core.shell import shell_execute
@@ -110,11 +103,12 @@ from src.sdk.tools_core.subagent import (
     subagent_update,
 )
 from src.sdk.tools_core.time import time_get
+from src.sdk.tools_core.web import web_fetch, web_search
 from src.sdk.tools_core.workspace import (
     workspace_create,
+    workspace_current,
     workspace_delete,
     workspace_list,
-    workspace_current,
     workspace_switch,
 )
 
@@ -144,17 +138,14 @@ def _register_all() -> None:
     registry.register(memory_get_history)
     registry.register(memory_search)
     registry.register(memory_search_all)
+    registry.register(memory_search_all_workspaces)
     registry.register(memory_search_insights)
     registry.register(memory_connect)
+    registry.register(memory_get_profile)
+    registry.register(memory_count)
 
-    registry.register(scrape_url)
-    registry.register(search_web)
-    registry.register(map_url)
-    registry.register(crawl_url)
-    registry.register(get_crawl_status)
-    registry.register(cancel_crawl)
-    registry.register(firecrawl_status)
-    registry.register(firecrawl_agent)
+    registry.register(web_fetch)
+    registry.register(web_search)
 
     registry.register(browser_open)
     registry.register(browser_snapshot)
@@ -219,9 +210,9 @@ def _register_all() -> None:
     registry.register(skill_create)
     registry.register(sql_write_query)
 
-    # Agent Connect meta-tools
+    # ConnectKit meta-tools
     try:
-        from agent_connect.meta_tools import (
+        from connectkit.meta_tools import (
             connector_connect,
             connector_disconnect,
             connector_health,

@@ -143,6 +143,7 @@ class AgentLoop:
         trace_provider: TraceProvider | None = None,
         run_config: RunConfig | None = None,
         user_id: str | None = None,
+        workspace_id: str | None = None,
     ) -> None:
         self.provider = provider
         self.system_prompt = system_prompt
@@ -155,6 +156,7 @@ class AgentLoop:
         self.trace_provider = trace_provider
         self.run_config = run_config or RunConfig(max_iterations=max_iterations)
         self.user_id = user_id
+        self.workspace_id = workspace_id
 
         self._registry = ToolRegistry()
         if tools:
@@ -241,6 +243,12 @@ class AgentLoop:
                 uid_default = props["user_id"].get("default", "")
                 if current is None or current == "" or current == uid_default:
                     tc = ToolCall(id=tc.id, name=tc.name, arguments={**tc.arguments, "user_id": self.user_id})
+            if "workspace_id" in props:
+                current = tc.arguments.get("workspace_id")
+                ws_default = props["workspace_id"].get("default", "")
+                if current is None or current == "" or current == ws_default:
+                    ws = getattr(self, "workspace_id", "personal")
+                    tc = ToolCall(id=tc.id, name=tc.name, arguments={**tc.arguments, "workspace_id": ws})
 
         try:
             if tool_def._coroutine:
