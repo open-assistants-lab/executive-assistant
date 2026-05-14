@@ -4,13 +4,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import '../../../providers/agent_provider.dart';
+import '../../../providers/workspace_provider.dart';
 import '../../../features/settings/settings_screen.dart';
 
 class ProviderInfo {
   final String id;
   final String name;
   final List<String> models;
-  const ProviderInfo({required this.id, required this.name, required this.models});
+  const ProviderInfo({
+    required this.id,
+    required this.name,
+    required this.models,
+  });
 }
 
 class ModelSwitcher extends ConsumerStatefulWidget {
@@ -40,11 +45,13 @@ class _ModelSwitcherState extends ConsumerState<ModelSwitcher> {
         for (final p in (data['providers'] ?? []) as List) {
           final models = List<String>.from(p['models'] ?? []);
           if (models.isNotEmpty) {
-            list.add(ProviderInfo(
-              id: p['id']?.toString() ?? '',
-              name: p['name']?.toString() ?? p['id']?.toString() ?? '',
-              models: models,
-            ));
+            list.add(
+              ProviderInfo(
+                id: p['id']?.toString() ?? '',
+                name: p['name']?.toString() ?? p['id']?.toString() ?? '',
+                models: models,
+              ),
+            );
           }
         }
         if (mounted) setState(() => _providers = list);
@@ -74,8 +81,7 @@ class _ModelSwitcherState extends ConsumerState<ModelSwitcher> {
     return result;
   }
 
-  String _selectedModelKey() {
-    final selected = ref.read(selectedModelProvider);
+  String _formatModelLabel(String selected) {
     final parts = selected.split(':');
     if (parts.length < 2) return selected;
     final pid = parts[0];
@@ -84,6 +90,18 @@ class _ModelSwitcherState extends ConsumerState<ModelSwitcher> {
     final model = parts.sublist(1).join(':');
     final short = model.length > 12 ? '${model.substring(0, 11)}…' : model;
     return '$provider / $short';
+  }
+
+  String _selectedModelKey() {
+    final workspaceId = ref.read(currentWorkspaceIdProvider);
+    final override = ref.read(workspaceModelOverridesProvider)[workspaceId];
+    final effective = override != null && override.isNotEmpty
+        ? override
+        : ref.read(selectedModelProvider);
+    final prefix = override != null && override.isNotEmpty
+        ? 'Override'
+        : 'Default';
+    return '$prefix: ${_formatModelLabel(effective)}';
   }
 
   void _showPicker() async {
@@ -98,7 +116,11 @@ class _ModelSwitcherState extends ConsumerState<ModelSwitcher> {
       return;
     }
 
-    final selectedModel = ref.read(selectedModelProvider);
+    final workspaceId = ref.read(currentWorkspaceIdProvider);
+    final override = ref.read(workspaceModelOverridesProvider)[workspaceId];
+    final selectedModel = override != null && override.isNotEmpty
+        ? override
+        : ref.read(selectedModelProvider);
     final result = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -107,13 +129,15 @@ class _ModelSwitcherState extends ConsumerState<ModelSwitcher> {
       builder: (_) => _ModelPickerSheet(
         providers: authorized,
         selectedModel: selectedModel,
+        hasOverride: override != null && override.isNotEmpty,
       ),
     );
 
     if (result == null || result == selectedModel) return;
 
-    ref.read(selectedModelProvider.notifier).state = result;
-    ref.read(agentProvider.notifier).updateModel(result);
+    await ref
+        .read(workspaceNotifierProvider.notifier)
+        .setModelOverride(result == '__default__' ? null : result);
 
     final keys = await _loadProviderKeys();
     if (keys.isNotEmpty) {
@@ -121,8 +145,10 @@ class _ModelSwitcherState extends ConsumerState<ModelSwitcher> {
       ref.read(agentProvider.notifier).updateProviderKeys(keys);
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('ea_model', result);
+    if (result != '__default__') {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('ea_last_workspace_model', result);
+    }
   }
 
   @override
@@ -140,31 +166,33 @@ class _ModelSwitcherState extends ConsumerState<ModelSwitcher> {
         height: 28,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
-      color: isDark ? const Color(0x20FFFFFF) : const Color(0x0D000000),
-      borderRadius: BorderRadius.circular(14),
-      border: Border.all(
-        color: hasKeys
-            ? (isDark ? const Color(0x30FFFFFF) : const Color(0x1A000000))
-            : (isDark ? const Color(0x18FFFFFF) : const Color(0x0F000000)),
-      ),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          hasKeys ? _selectedModelKey() : '+ Add model',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
-            color: isDark ? const Color(0xB3FFFFFF) : const Color(0xB3000000),
+          color: isDark ? const Color(0x20FFFFFF) : const Color(0x0D000000),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: hasKeys
+                ? (isDark ? const Color(0x30FFFFFF) : const Color(0x1A000000))
+                : (isDark ? const Color(0x18FFFFFF) : const Color(0x0F000000)),
           ),
         ),
-        const SizedBox(width: 2),
-        Icon(
-          hasKeys ? Icons.expand_more : Icons.add_circle_outline,
-          size: 14,
-          color: isDark ? const Color(0x80FFFFFF) : const Color(0x80000000),
-        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              hasKeys ? _selectedModelKey() : '+ Add model',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: isDark
+                    ? const Color(0xB3FFFFFF)
+                    : const Color(0xB3000000),
+              ),
+            ),
+            const SizedBox(width: 2),
+            Icon(
+              hasKeys ? Icons.expand_more : Icons.add_circle_outline,
+              size: 14,
+              color: isDark ? const Color(0x80FFFFFF) : const Color(0x80000000),
+            ),
           ],
         ),
       ),
@@ -175,15 +203,22 @@ class _ModelSwitcherState extends ConsumerState<ModelSwitcher> {
 class _ModelPickerSheet extends StatelessWidget {
   final List<ProviderInfo> providers;
   final String selectedModel;
+  final bool hasOverride;
 
-  const _ModelPickerSheet({required this.providers, required this.selectedModel});
+  const _ModelPickerSheet({
+    required this.providers,
+    required this.selectedModel,
+    required this.hasOverride,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Container(
-      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.65),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.65,
+      ),
       decoration: BoxDecoration(
         color: theme.scaffoldBackgroundColor,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
@@ -205,11 +240,14 @@ class _ModelPickerSheet extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                const Text('Select Model', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-            const Spacer(),
-            IconButton(
-              icon: const Icon(Icons.settings_outlined, size: 20),
-              onPressed: () {
+                const Text(
+                  'Select Model',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.settings_outlined, size: 20),
+                  onPressed: () {
                     Navigator.pop(context);
                     showModalBottomSheet(
                       context: context,
@@ -228,15 +266,27 @@ class _ModelPickerSheet extends StatelessWidget {
               shrinkWrap: true,
               padding: const EdgeInsets.only(bottom: 32),
               children: [
+                if (hasOverride)
+                  _ModelRow(
+                    value: '__default__',
+                    label: 'Use default model',
+                    isSelected: false,
+                    onTap: () => Navigator.pop(context, '__default__'),
+                  ),
                 for (final p in providers) ...[
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 6,
+                    ),
                     child: Text(
                       p.name,
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.5,
+                        ),
                       ),
                     ),
                   ),

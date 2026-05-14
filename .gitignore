@@ -29,7 +29,8 @@ docker/.env.*.local
 
 # Data directories
 data/
-test/
+/test/
+.worktrees/
 
 # OS
 .DS_Store

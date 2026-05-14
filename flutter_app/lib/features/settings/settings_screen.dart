@@ -49,7 +49,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         if (val != null && val.isNotEmpty) keys[pid] = val;
       }
     }
-    final selectedModel = prefs.getString('ea_model') ?? 'deepseek:deepseek-v4-flash';
+    final selectedModel =
+        prefs.getString('ea_model') ?? 'deepseek:deepseek-v4-flash';
     final parts = selectedModel.split(':');
     final provider = parts.length > 1 ? parts[0] : 'deepseek';
     setState(() {
@@ -62,12 +63,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     });
     // Sync to global state
     ref.read(selectedModelProvider.notifier).state = _selectedModel;
-    ref.read(providerKeysProvider.notifier).state = Map<String, String>.from(_providerKeys);
+    ref.read(providerKeysProvider.notifier).state = Map<String, String>.from(
+      _providerKeys,
+    );
     ref.read(apiClientProvider).model = _selectedModel;
     ref.read(apiClientProvider).apiKey = _apiKey;
-    ref.read(apiClientProvider).providerKeys = _providerKeys.isNotEmpty ? Map<String, String>.from(_providerKeys) : null;
+    ref.read(apiClientProvider).providerKeys = _providerKeys.isNotEmpty
+        ? Map<String, String>.from(_providerKeys)
+        : null;
     ref.read(agentProvider.notifier).updateModel(_selectedModel);
-    ref.read(agentProvider.notifier).updateProviderKeys(Map<String, String>.from(_providerKeys));
+    ref
+        .read(agentProvider.notifier)
+        .updateProviderKeys(Map<String, String>.from(_providerKeys));
   }
 
   Future<void> _save() async {
@@ -79,12 +86,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
     // Sync to global state
     ref.read(selectedModelProvider.notifier).state = _selectedModel;
-    ref.read(providerKeysProvider.notifier).state = Map<String, String>.from(_providerKeys);
+    ref.read(providerKeysProvider.notifier).state = Map<String, String>.from(
+      _providerKeys,
+    );
     ref.read(apiClientProvider).model = _selectedModel;
     ref.read(apiClientProvider).apiKey = _apiKey;
-    ref.read(apiClientProvider).providerKeys = _providerKeys.isNotEmpty ? Map<String, String>.from(_providerKeys) : null;
+    ref.read(apiClientProvider).providerKeys = _providerKeys.isNotEmpty
+        ? Map<String, String>.from(_providerKeys)
+        : null;
     ref.read(agentProvider.notifier).updateModel(_selectedModel);
-    ref.read(agentProvider.notifier).updateProviderKeys(Map<String, String>.from(_providerKeys));
+    ref
+        .read(agentProvider.notifier)
+        .updateProviderKeys(Map<String, String>.from(_providerKeys));
   }
 
   Future<void> _loadModels() async {
@@ -135,11 +148,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _sectionHeader('Server'),
           _tile('Host', _host, Icons.dns_outlined, readOnly: true),
           _tile('Port', '$_port', Icons.numbers_outlined, readOnly: true),
-          _tile('API Key', _apiKey.isEmpty ? 'Not set' : '••••••••',
-              Icons.key_outlined, onTap: _editApiKey),
+          _tile(
+            'API Key',
+            _apiKey.isEmpty ? 'Not set' : '••••••••',
+            Icons.key_outlined,
+            onTap: _editApiKey,
+          ),
           const Divider(height: 32),
 
-          _sectionHeader('Provider & Model'),
+          _sectionHeader('Providers & Default Model'),
           TextField(
             controller: _searchCtrl,
             decoration: const InputDecoration(
@@ -187,7 +204,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const Divider(height: 32),
           _sectionHeader('About'),
           _tile('Version', '0.1.0', Icons.info_outline, readOnly: true),
-          _tile('Model', _selectedModel, Icons.tag, readOnly: true),
+          _tile('Default Model', _selectedModel, Icons.tag, readOnly: true),
           const SizedBox(height: 32),
         ],
       ),
@@ -206,13 +223,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         leading: Icon(
           isActive ? Icons.radio_button_checked : Icons.radio_button_off,
           size: 18,
-          color: isActive
-              ? Theme.of(context).colorScheme.primary
-              : Colors.grey,
+          color: isActive ? Theme.of(context).colorScheme.primary : Colors.grey,
         ),
         title: Text(name, style: const TextStyle(fontSize: 14)),
-        subtitle: Text('${models.length} models',
-            style: const TextStyle(fontSize: 11)),
+        subtitle: Text(
+          '${models.length} models',
+          style: const TextStyle(fontSize: 11),
+        ),
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -232,19 +249,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 4),
-          ...models.map((m) => RadioListTile<String>(
-                title: Text(m, style: const TextStyle(fontSize: 12)),
-                value: m,
-                groupValue: _selectedModel,
-                dense: true,
-                onChanged: (v) {
-                  setState(() {
-                    _selectedModel = v!;
-                    _selectedProvider = pid;
-                  });
-                  _save();
-                },
-              )),
+          ...models.map((m) {
+            final modelValue = '$pid:$m';
+            return RadioListTile<String>(
+              title: Text(m, style: const TextStyle(fontSize: 12)),
+              value: modelValue,
+              groupValue: _selectedModel,
+              dense: true,
+              onChanged: (v) {
+                setState(() {
+                  _selectedModel = v!;
+                  _selectedProvider = pid;
+                });
+                _save();
+              },
+            );
+          }),
         ],
       );
     }).toList();
@@ -253,16 +273,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget _sectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Text(title,
-          style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Theme.of(context).colorScheme.primary)),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      ),
     );
   }
 
-  Widget _tile(String title, String subtitle, IconData icon,
-      {bool readOnly = false, VoidCallback? onTap, Color? color}) {
+  Widget _tile(
+    String title,
+    String subtitle,
+    IconData icon, {
+    bool readOnly = false,
+    VoidCallback? onTap,
+    Color? color,
+  }) {
     return ListTile(
       leading: Icon(icon, color: color),
       title: Text(title),
@@ -289,15 +318,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
-              onPressed: () {
-                setState(() => _apiKey = ctrl.text);
-                _save();
-                Navigator.pop(ctx);
-              },
-              child: const Text('Save')),
+            onPressed: () {
+              setState(() => _apiKey = ctrl.text);
+              _save();
+              Navigator.pop(ctx);
+            },
+            child: const Text('Save'),
+          ),
         ],
       ),
     );
@@ -314,16 +345,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Clear all memory?'),
-        content:
-            const Text('This deletes all conversation history and emails.'),
+        content: const Text(
+          'This deletes all conversation history and emails.',
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx),
-              style: FilledButton.styleFrom(backgroundColor: Colors.red),
-              child: const Text('Delete all')),
+            onPressed: () => Navigator.pop(ctx),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete all'),
+          ),
         ],
       ),
     );

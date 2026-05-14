@@ -50,21 +50,30 @@ class TestWorkspaceModel:
         ws = Workspace(
             id="test", name="Test", description="desc",
             custom_instructions="ci", created_at="a", updated_at="b",
+            model_override="ollama:minimax-m2.7",
         )
         d = ws.to_dict()
         assert d["id"] == "test"
         assert d["name"] == "Test"
         assert d["description"] == "desc"
         assert d["custom_instructions"] == "ci"
+        assert d["model_override"] == "ollama:minimax-m2.7"
 
     def test_workspace_from_dict(self):
         d = {
             "id": "test", "name": "Test", "description": "d",
             "custom_instructions": "c", "created_at": "a", "updated_at": "b",
+            "model_override": "deepseek:deepseek-v4-flash",
         }
         ws = Workspace.from_dict(d)
         assert ws.id == "test"
         assert ws.name == "Test"
+        assert ws.model_override == "deepseek:deepseek-v4-flash"
+
+    def test_workspace_from_dict_defaults_model_override_to_none(self):
+        ws = Workspace.from_dict({"id": "test", "name": "Test"})
+
+        assert ws.model_override is None
 
     def test_workspace_json_roundtrip(self):
         ws = Workspace(
@@ -88,6 +97,7 @@ class TestWorkspaceStorage:
             ws = Workspace(
                 id="test", name="Test", description="d",
                 custom_instructions="c", created_at="a", updated_at="b",
+                model_override="ollama:minimax-m2.7",
             )
             save_workspace(ws, base_path=Path(tmpdir))
             
@@ -95,6 +105,7 @@ class TestWorkspaceStorage:
             assert loaded is not None
             assert loaded.id == "test"
             assert loaded.name == "Test"
+            assert loaded.model_override == "ollama:minimax-m2.7"
 
     def test_load_nonexistent_workspace_returns_none(self):
         with tempfile.TemporaryDirectory() as tmpdir:

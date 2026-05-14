@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../theme/app_theme.dart';
 import '../../../widgets/app_input.dart';
 import '../../../providers/agent_provider.dart';
 import 'model_switcher.dart';
@@ -10,7 +11,8 @@ class ChatInput extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(agentProvider);
-    final isSending = state.status == ChatStatus.streaming ||
+    final isSending =
+        state.status == ChatStatus.streaming ||
         state.status == ChatStatus.awaitingApproval;
 
     return Column(
@@ -28,7 +30,15 @@ class ChatInput extends ConsumerWidget {
               ? () => ref.read(agentProvider.notifier).connect()
               : null,
         ),
-        const ModelSwitcher(),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.cardPadding,
+            8,
+            AppSpacing.cardPadding,
+            12,
+          ),
+          child: Row(children: const [ModelSwitcher(), Spacer()]),
+        ),
       ],
     );
   }

@@ -18,12 +18,12 @@ class ApiClient {
     String? apiKey,
     String? model,
     http.Client? httpClient,
-  })  : _host = host,
-        _userId = userId,
-        _workspaceId = workspaceId,
-        _apiKey = apiKey,
-        _model = model,
-        _httpClient = httpClient ?? http.Client();
+  }) : _host = host,
+       _userId = userId,
+       _workspaceId = workspaceId,
+       _apiKey = apiKey,
+       _model = model,
+       _httpClient = httpClient ?? http.Client();
 
   set workspaceId(String id) => _workspaceId = id;
   set apiKey(String? key) => _apiKey = key;
@@ -35,19 +35,37 @@ class ApiClient {
       'Authorization': 'Bearer $_apiKey',
   };
 
-  Future<http.Response> _get(Uri url) =>
-      _httpClient.get(url, headers: _headers).timeout(const Duration(seconds: 30));
+  Future<http.Response> _get(Uri url) => _httpClient
+      .get(url, headers: _headers)
+      .timeout(const Duration(seconds: 30));
 
-  Future<http.Response> _post(Uri url, {Object? body}) =>
-      _httpClient.post(url, headers: {..._headers, 'Content-Type': 'application/json'}, body: body)
-          .timeout(const Duration(seconds: 30));
+  Future<http.Response> _post(Uri url, {Object? body}) => _httpClient
+      .post(
+        url,
+        headers: {..._headers, 'Content-Type': 'application/json'},
+        body: body,
+      )
+      .timeout(const Duration(seconds: 30));
 
-  Future<http.Response> _put(Uri url, {Object? body}) =>
-      _httpClient.put(url, headers: {..._headers, 'Content-Type': 'application/json'}, body: body)
-          .timeout(const Duration(seconds: 30));
+  Future<http.Response> _put(Uri url, {Object? body}) => _httpClient
+      .put(
+        url,
+        headers: {..._headers, 'Content-Type': 'application/json'},
+        body: body,
+      )
+      .timeout(const Duration(seconds: 30));
 
-  Future<http.Response> _delete(Uri url) =>
-      _httpClient.delete(url, headers: _headers).timeout(const Duration(seconds: 30));
+  Future<http.Response> _patch(Uri url, {Object? body}) => _httpClient
+      .patch(
+        url,
+        headers: {..._headers, 'Content-Type': 'application/json'},
+        body: body,
+      )
+      .timeout(const Duration(seconds: 30));
+
+  Future<http.Response> _delete(Uri url) => _httpClient
+      .delete(url, headers: _headers)
+      .timeout(const Duration(seconds: 30));
 
   String get _baseUrl {
     final host = _host.replaceFirst(RegExp(r'/+$'), '');
@@ -80,9 +98,7 @@ class ApiClient {
   // ─── Memories ───
 
   Future<List<dynamic>> listMemories({String? domain, int limit = 20}) async {
-    final extra = <String, String>{
-      'limit': limit.toString(),
-    };
+    final extra = <String, String>{'limit': limit.toString()};
     if (domain != null) extra['domain'] = domain;
     final response = await _get(Uri.parse(_buildUrl('/memories', extra)));
     return _handleListResponse(response, 'memories');
@@ -174,9 +190,7 @@ class ApiClient {
       'user_id': _userId,
     };
     if (isRead != null) extra['is_read'] = isRead.toString();
-    final response = await _get(
-      Uri.parse(_buildUrl('/emails', extra)),
-    );
+    final response = await _get(Uri.parse(_buildUrl('/emails', extra)));
     final data = await _handleResponse(response);
     return data;
   }
@@ -188,15 +202,16 @@ class ApiClient {
     return _handleResponse(response);
   }
 
-  Future<Map<String, dynamic>> searchEmails(String query, {int limit = 20}) async {
+  Future<Map<String, dynamic>> searchEmails(
+    String query, {
+    int limit = 20,
+  }) async {
     final extra = <String, String>{
       'q': query,
       'limit': limit.toString(),
       'user_id': _userId,
     };
-    final response = await _get(
-      Uri.parse(_buildUrl('/emails/search', extra)),
-    );
+    final response = await _get(Uri.parse(_buildUrl('/emails/search', extra)));
     return _handleResponse(response);
   }
 
@@ -209,16 +224,28 @@ class ApiClient {
 
   // ─── Conversation ───
 
-  Future<List<dynamic>> getConversation({int limit = 20, String workspaceId = 'personal'}) async {
+  Future<List<dynamic>> getConversation({
+    int limit = 20,
+    String workspaceId = 'personal',
+  }) async {
     final extra = <String, String>{
       'limit': limit.toString(),
       'user_id': _userId,
       'workspace_id': workspaceId,
     };
-    final response = await _get(
-      Uri.parse(_buildUrl('/conversation', extra)),
-    );
+    final response = await _get(Uri.parse(_buildUrl('/conversation', extra)));
     return _handleListResponse(response, 'messages');
+  }
+
+  Future<Map<String, dynamic>> updateWorkspaceModelOverride(
+    String workspaceId,
+    String? modelOverride,
+  ) async {
+    final response = await _patch(
+      Uri.parse('$_baseUrl/workspaces/$workspaceId?user_id=$_userId'),
+      body: jsonEncode({'model_override': modelOverride}),
+    );
+    return _handleResponse(response);
   }
 
   /// Send a non-streaming message to the agent.
@@ -230,7 +257,8 @@ class ApiClient {
         'user_id': _userId,
         'workspace_id': _workspaceId,
         if (_model != null) 'model': _model,
-        if (_providerKeys != null && _providerKeys!.isNotEmpty) 'provider_keys': _providerKeys,
+        if (_providerKeys != null && _providerKeys!.isNotEmpty)
+          'provider_keys': _providerKeys,
       }),
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -247,33 +275,37 @@ class ApiClient {
     return CompanionStatus.fromJson(decoded);
   }
 
-  Future<List<CompanionNotification>> getCompanionNotifications({int limit = 50}) async {
+  Future<List<CompanionNotification>> getCompanionNotifications({
+    int limit = 50,
+  }) async {
     final extra = <String, String>{'limit': limit.toString()};
-    final response = await _get(Uri.parse(_buildUrl('/companion/notifications', extra)));
+    final response = await _get(
+      Uri.parse(_buildUrl('/companion/notifications', extra)),
+    );
     final decoded = await _handleResponse(response);
     final list = decoded['notifications'];
     if (list is List) {
-      return list.map((e) => CompanionNotification.fromJson(e as Map<String, dynamic>)).toList();
+      return list
+          .map((e) => CompanionNotification.fromJson(e as Map<String, dynamic>))
+          .toList();
     }
     return [];
   }
 
   Future<void> dismissCompanionNotification(String id) async {
     await _post(
-      Uri.parse('$_baseUrl/companion/notifications/$id/dismiss?user_id=$_userId'),
+      Uri.parse(
+        '$_baseUrl/companion/notifications/$id/dismiss?user_id=$_userId',
+      ),
     );
   }
 
   Future<void> pauseCompanion() async {
-    await _post(
-      Uri.parse('$_baseUrl/companion/pause?user_id=$_userId'),
-    );
+    await _post(Uri.parse('$_baseUrl/companion/pause?user_id=$_userId'));
   }
 
   Future<void> resumeCompanion() async {
-    await _post(
-      Uri.parse('$_baseUrl/companion/resume?user_id=$_userId'),
-    );
+    await _post(Uri.parse('$_baseUrl/companion/resume?user_id=$_userId'));
   }
 
   Future<List<CompanionMemoryFact>> getCompanionMemory() async {
@@ -281,18 +313,21 @@ class ApiClient {
     final decoded = await _handleResponse(response);
     final list = decoded['facts'];
     if (list is List) {
-      return list.map((e) => CompanionMemoryFact.fromJson(e as Map<String, dynamic>)).toList();
+      return list
+          .map((e) => CompanionMemoryFact.fromJson(e as Map<String, dynamic>))
+          .toList();
     }
     return [];
   }
 
   Future<void> deleteCompanionMemory(int id) async {
-    await _delete(
-      Uri.parse('$_baseUrl/companion/memory/$id?user_id=$_userId'),
-    );
+    await _delete(Uri.parse('$_baseUrl/companion/memory/$id?user_id=$_userId'));
   }
 
-  Future<List<dynamic>> _handleListResponse(http.Response response, String key) async {
+  Future<List<dynamic>> _handleListResponse(
+    http.Response response,
+    String key,
+  ) async {
     final decoded = await _handleResponse(response);
     final value = decoded[key];
     return value is List ? value : [];

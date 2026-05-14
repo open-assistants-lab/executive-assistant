@@ -4,12 +4,27 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'agent_provider.dart';
 
-final workspaceScrollPositions = StateProvider<Map<String, double>>((ref) => {});
+final workspaceScrollPositions = StateProvider<Map<String, double>>(
+  (ref) => {},
+);
+final workspaceModelOverridesProvider = StateProvider<Map<String, String?>>(
+  (ref) => {},
+);
 
 final currentWorkspaceIdProvider = StateProvider<String>((ref) => 'personal');
 final currentWorkspaceNameProvider = StateProvider<String>((ref) => 'Personal');
 
-final workspaceListProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+final effectiveModelProvider = Provider<String>((ref) {
+  final workspaceId = ref.watch(currentWorkspaceIdProvider);
+  final overrides = ref.watch(workspaceModelOverridesProvider);
+  final override = overrides[workspaceId];
+  if (override != null && override.isNotEmpty) return override;
+  return ref.watch(selectedModelProvider);
+});
+
+final workspaceListProvider = FutureProvider<List<Map<String, dynamic>>>((
+  ref,
+) async {
   final host = ref.read(hostProvider);
   final userId = ref.read(userIdProvider);
   final url = Uri.parse('http://$host/workspaces?user_id=$userId');
@@ -17,7 +32,14 @@ final workspaceListProvider = FutureProvider<List<Map<String, dynamic>>>((ref) a
     final response = await http.get(url);
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
-      return List<Map<String, dynamic>>.from(data['workspaces'] ?? []);
+      final workspaces = List<Map<String, dynamic>>.from(
+        data['workspaces'] ?? [],
+      );
+      ref.read(workspaceModelOverridesProvider.notifier).state = {
+        for (final ws in workspaces)
+          ws['id']?.toString() ?? '': ws['model_override']?.toString(),
+      }..remove('');
+      return workspaces;
     }
   } catch (_) {}
   return [];
@@ -37,22 +59,51 @@ class WorkspaceNotifier extends StateNotifier<String> {
 
     ref.read(agentProvider.notifier).setWorkspaceId(id);
     ref.read(apiClientProvider).workspaceId = id;
+    _syncEffectiveModel(id);
     ref.read(agentProvider.notifier).clearHistory();
     ref.read(agentProvider.notifier).loadHistory();
   }
 
-  Future<void> createWorkspace(String name, String description, String instructions) async {
+  void _syncEffectiveModel(String workspaceId) {
+    final overrides = ref.read(workspaceModelOverridesProvider);
+    final override = overrides[workspaceId];
+    final model = override != null && override.isNotEmpty
+        ? override
+        : ref.read(selectedModelProvider);
+    ref.read(agentProvider.notifier).updateModel(model);
+  }
+
+  Future<void> setModelOverride(String? modelOverride) async {
+    final workspaceId = ref.read(currentWorkspaceIdProvider);
+    await ref
+        .read(apiClientProvider)
+        .updateWorkspaceModelOverride(workspaceId, modelOverride);
+    ref.read(workspaceModelOverridesProvider.notifier).state = {
+      ...ref.read(workspaceModelOverridesProvider),
+      workspaceId: modelOverride,
+    };
+    _syncEffectiveModel(workspaceId);
+    ref.invalidate(workspaceListProvider);
+  }
+
+  Future<void> createWorkspace(
+    String name,
+    String description,
+    String instructions,
+  ) async {
     final host = ref.read(hostProvider);
     final userId = ref.read(userIdProvider);
     final url = Uri.parse('http://$host/workspaces?user_id=$userId');
     try {
-      final response = await http.post(url,
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-        'name': name,
-        'description': description,
-        'instructions': instructions,
-      }));
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'name': name,
+          'description': description,
+          'instructions': instructions,
+        }),
+      );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final id = data['id']?.toString() ?? '';
@@ -76,5 +127,5 @@ class WorkspaceNotifier extends StateNotifier<String> {
 
 final workspaceNotifierProvider =
     StateNotifierProvider<WorkspaceNotifier, String>((ref) {
-  return WorkspaceNotifier(ref);
-});
+      return WorkspaceNotifier(ref);
+    });
