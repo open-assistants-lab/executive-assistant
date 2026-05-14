@@ -1,0 +1,608 @@
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/message.dart';
+import '../services/ws_client.dart';
+import '../services/api_client.dart';
+
+enum ChatStatus { idle, streaming, error, awaitingApproval, disconnected }
+
+final selectedModelProvider = StateProvider<String>((ref) => 'deepseek:deepseek-v4-flash');
+final providerKeysProvider = StateProvider<Map<String, String>>((ref) => {});
+
+class ChatState {
+  final List<ChatMessage> messages;
+  final ChatStatus status;
+  final String? error;
+  final String streamingText;
+  final String reasoningText;
+  final List<ToolCallDisplay> activeToolCalls;
+  final Map<String, ToolCallDisplay> pendingApprovals;
+  final String sessionId;
+  final bool connected;
+  final Set<String> deliveredMessageIds;
+
+  static const _errorSentinel = Object();
+
+  const ChatState({
+    this.messages = const [],
+    this.status = ChatStatus.disconnected,
+    this.error,
+    this.streamingText = '',
+    this.reasoningText = '',
+    this.activeToolCalls = const [],
+    this.pendingApprovals = const {},
+    this.sessionId = '',
+    this.connected = false,
+    this.deliveredMessageIds = const {},
+  });
+
+  ChatState copyWith({
+    List<ChatMessage>? messages,
+    ChatStatus? status,
+    Object? error = _errorSentinel,
+    String? streamingText,
+    String? reasoningText,
+    List<ToolCallDisplay>? activeToolCalls,
+    Map<String, ToolCallDisplay>? pendingApprovals,
+    String? sessionId,
+    bool? connected,
+    Set<String>? deliveredMessageIds,
+  }) {
+    return ChatState(
+      messages: messages ?? this.messages,
+      status: status ?? this.status,
+      error: identical(error, _errorSentinel)
+          ? this.error
+          : error as String?,
+      streamingText: streamingText ?? this.streamingText,
+      reasoningText: reasoningText ?? this.reasoningText,
+      activeToolCalls: activeToolCalls ?? this.activeToolCalls,
+      pendingApprovals: pendingApprovals ?? this.pendingApprovals,
+      sessionId: sessionId ?? this.sessionId,
+      connected: connected ?? this.connected,
+      deliveredMessageIds: deliveredMessageIds ?? this.deliveredMessageIds,
+    );
+  }
+}
+
+class AgentNotifier extends StateNotifier<ChatState> {
+  final WsClient _wsClient;
+  final ApiClient _apiClient;
+  StreamSubscription? _statusSubscription;
+  StreamSubscription? _messageSubscription;
+  bool _disposed = false;
+  bool _loadingHistory = false;
+  final List<WsMessage> _bufferedMessages = [];
+  String _workspaceId = 'personal';
+  final Map<String, StringBuffer> _toolInputAccum = {};
+  final Set<String> _seenContentHashes = {};
+
+  AgentNotifier(this._wsClient, this._apiClient) : super(const ChatState()) {
+    _statusSubscription = _wsClient.status.listen(_onStatusChange);
+    _messageSubscription = _wsClient.messages.listen(_onMessage);
+  }
+
+  void setWorkspaceId(String id) {
+    _workspaceId = id;
+  }
+
+  void connect() {
+    _wsClient.connect();
+  }
+
+  Future<void> loadHistory({int limit = 100}) async {
+    try {
+      final apiMessages = await _apiClient.getConversation(
+        limit: limit,
+        workspaceId: _workspaceId,
+      );
+      final now = DateTime.now();
+      var idx = 0;
+      final chatMessages = <ChatMessage>[];
+      for (final msg in apiMessages.whereType<Map>()) {
+        final role = msg['role']?.toString();
+        if (role == null) {
+          // Skip messages without a role field — can't classify them
+          continue;
+        }
+        final content = msg['content']?.toString() ?? '';
+        final meta = msg['metadata'];
+        final metadata = meta is Map<String, dynamic> ? meta : <String, dynamic>{};
+
+        if (content.trim().isEmpty && role != 'tool') continue;
+
+        // Deduplicate by content hash to catch messages stored multiple times
+        final contentHash = '$role:$content';
+        if (_seenContentHashes.contains(contentHash)) continue;
+        _seenContentHashes.add(contentHash);
+
+        final ts = msg['timestamp']?.toString();
+        final parsed = ts != null ? DateTime.tryParse(ts) : null;
+        final timestamp = parsed ?? now.subtract(Duration(minutes: idx));
+
+        String displayRole = role == 'summary' ? 'system' : role;
+        String displayContent = content;
+
+        if (displayRole == 'tool') {
+          displayRole = 'tool';
+          final toolName = metadata['tool_name']?.toString() ?? '';
+          displayContent = toolName.isNotEmpty ? toolName : 'unknown tool';
+        } else if (displayRole == 'reasoning') {
+          displayRole = 'reasoning';
+        }
+
+        chatMessages.add(ChatMessage(
+          id: 'hist_$idx',
+          role: displayRole,
+          content: displayContent,
+          timestamp: timestamp,
+          metadata: metadata,
+        ));
+        idx++;
+      }
+
+      if (_disposed) return;
+      if (chatMessages.isNotEmpty) {
+        final currentIds = state.messages.map((m) => m.id).toSet();
+        final newMessages = chatMessages.where((m) => !currentIds.contains(m.id)).toList();
+        if (newMessages.isNotEmpty) {
+          newMessages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+          final allMessages = [...state.messages, ...newMessages];
+          allMessages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+          final historyIds = chatMessages.map((m) => m.id).toSet();
+          state = state.copyWith(
+            messages: allMessages,
+            deliveredMessageIds: historyIds,
+          );
+        }
+      }
+    } catch (e, stack) {
+      debugPrint('[AgentNotifier] Failed to load history: $e\n$stack');
+    }
+  }
+
+  Future<void> _loadHistorySafely() async {
+    try {
+      await loadHistory();
+    } catch (e) {
+      if (_disposed) return;
+      state = state.copyWith(
+        error: 'Failed to load conversation history',
+      );
+    } finally {
+      _loadingHistory = false;
+      if (!_disposed) {
+        final buffered = List<WsMessage>.from(_bufferedMessages);
+        _bufferedMessages.clear();
+        for (final msg in buffered) {
+          _onMessage(msg);
+        }
+      }
+    }
+  }
+
+  void sendMessage(String content) {
+    if (content.trim().isEmpty) return;
+
+    if (!state.connected) {
+      state = state.copyWith(
+        status: ChatStatus.error,
+        error: 'Not connected. Tap the cloud icon or banner to reconnect.',
+      );
+      return;
+    }
+
+    final userMsg = ChatMessage(
+      id: 'user_${DateTime.now().millisecondsSinceEpoch}',
+      role: 'user',
+      content: content,
+      timestamp: DateTime.now(),
+    );
+
+    state = state.copyWith(
+      messages: [...state.messages, userMsg],
+      status: ChatStatus.streaming,
+      streamingText: '',
+      activeToolCalls: [],
+      error: null,
+    );
+
+    _wsClient.sendMessage(content, workspaceId: _workspaceId);
+  }
+
+  void updateModel(String model) {
+    _wsClient.model = model;
+    _apiClient.model = model;
+  }
+
+  void updateProviderKeys(Map<String, String> keys) {
+    _wsClient.providerKeys = keys;
+    _apiClient.providerKeys = keys;
+  }
+
+  void approveToolCall(String callId) {
+    _wsClient.approveToolCall(callId);
+    final updated = Map<String, ToolCallDisplay>.from(state.pendingApprovals);
+    updated.remove(callId);
+    state = state.copyWith(
+      pendingApprovals: updated,
+      status: ChatStatus.streaming,
+    );
+  }
+
+  void rejectToolCall(String callId, {String reason = ''}) {
+    _wsClient.rejectToolCall(callId, reason: reason);
+    final updated = Map<String, ToolCallDisplay>.from(state.pendingApprovals);
+    updated.remove(callId);
+    state = state.copyWith(
+      pendingApprovals: updated,
+      status: updated.isEmpty ? ChatStatus.idle : ChatStatus.awaitingApproval,
+    );
+  }
+
+  void cancelExecution() {
+    _wsClient.cancel();
+    state = state.copyWith(
+      status: state.connected ? ChatStatus.idle : ChatStatus.disconnected,
+    );
+  }
+
+  void clearError() {
+    state = state.copyWith(error: null);
+  }
+
+  void clearHistory() {
+    _seenContentHashes.clear();
+    state = state.copyWith(messages: [], streamingText: '', activeToolCalls: []);
+  }
+
+  void updateHost(String host) {
+    _wsClient.updateHost(host);
+    _apiClient.updateHost(host);
+    _wsClient.disconnect();
+    _wsClient.connect();
+  }
+
+  void updateUserId(String userId) {
+    _wsClient.updateUserId(userId);
+    _apiClient.updateUserId(userId);
+    _wsClient.disconnect();
+    _wsClient.connect();
+  }
+
+  String _extractTextContent(dynamic content) {
+    if (content is String) return content;
+    if (content is List) {
+      return content
+          .whereType<Map>()
+          .where((m) => m['type'] == 'text')
+          .map((m) => m['text']?.toString() ?? '')
+          .join();
+    }
+    debugPrint('[AgentNotifier] Unexpected text_delta content type: ${content.runtimeType}');
+    return '';
+  }
+
+  Map<String, dynamic> _safeArgs(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return {};
+  }
+
+  void _onMessage(WsMessage msg) {
+    if (_disposed) return;
+    if (_loadingHistory) {
+      _bufferedMessages.add(msg);
+      return;
+    }
+    final type = msg.type;
+    // Helper: canonical type for block-structured events.
+    final canonical = _canonicalType(type);
+
+    // --- Text blocks (backward-compat + block-structured) ---
+    if (canonical == 'text_delta' || type == 'ai_token') {
+      state = state.copyWith(
+        streamingText:
+            state.streamingText + _extractTextContent(msg['content']),
+        status: ChatStatus.streaming,
+      );
+      return;
+    }
+    if (canonical == 'text_start') return;
+    if (canonical == 'text_end') return;
+
+    // --- Reasoning blocks ---
+    if (canonical == 'reasoning_delta' || type == 'reasoning') {
+      state = state.copyWith(
+        reasoningText: state.reasoningText + (msg['content']?.toString() ?? ''),
+        status: ChatStatus.streaming,
+      );
+      return;
+    }
+    if (canonical == 'reasoning_start') return;
+    if (canonical == 'reasoning_end') return;
+
+    // --- Tool input blocks ---
+    if (canonical == 'tool_input_start' || type == 'tool_start') {
+      final callId = msg['call_id']?.toString() ?? '';
+      final tool = msg['tool']?.toString() ?? '';
+      final args = _safeArgs(msg['args']);
+      final tc = ToolCallDisplay(callId: callId, toolName: tool, args: args);
+      state = state.copyWith(
+        activeToolCalls: [...state.activeToolCalls, tc],
+        status: ChatStatus.streaming,
+      );
+      return;
+    }
+    if (canonical == 'tool_call') {
+      final callId = msg['call_id']?.toString() ?? '';
+      final tool = msg['tool']?.toString() ?? '';
+      final args = _safeArgs(msg['args']);
+      _upsertActiveTool(callId: callId, toolName: tool, args: args);
+      return;
+    }
+    if (canonical == 'tool_input_delta') {
+      final callId = msg['call_id']?.toString() ?? '';
+      final delta = msg['content']?.toString() ?? msg['args_delta']?.toString() ?? '';
+      if (callId.isNotEmpty && delta.isNotEmpty) {
+        _toolInputAccum.putIfAbsent(callId, () => StringBuffer());
+        _toolInputAccum[callId]!.write(delta);
+      }
+      return;
+    }
+    if (canonical == 'tool_input_end') {
+      final callId = msg['call_id']?.toString() ?? '';
+      final accumulated = _toolInputAccum.remove(callId);
+      if (accumulated != null && accumulated.isNotEmpty && callId.isNotEmpty) {
+        final parsed = _safeArgs(tryParseJson(accumulated.toString()));
+        _upsertActiveToolByCallId(callId, parsed);
+      }
+      return;
+    }
+
+    // --- Tool result / end ---
+    if (canonical == 'tool_result' || type == 'tool_end') {
+      final callId = msg['call_id']?.toString() ?? '';
+      final preview = msg['result_preview']?.toString() ?? '';
+      final updated = state.activeToolCalls.map((tc) {
+        if (tc.callId == callId) return tc.copyWith(resultPreview: preview);
+        return tc;
+      }).toList();
+      state = state.copyWith(activeToolCalls: updated);
+      return;
+    }
+
+    // --- HITL interrupt ---
+    if (type == 'interrupt') {
+      final callId = msg['call_id']?.toString() ?? '';
+      final tool = msg['tool']?.toString() ?? '';
+      final args = _safeArgs(msg['args']);
+      final pending = Map<String, ToolCallDisplay>.from(state.pendingApprovals);
+      pending[callId] = ToolCallDisplay(
+        callId: callId,
+        toolName: tool,
+        args: args,
+        isPending: true,
+      );
+      state = state.copyWith(
+        pendingApprovals: pending,
+        status: ChatStatus.awaitingApproval,
+      );
+      return;
+    }
+
+    // --- Usage events ---
+    if (canonical == 'usage') {
+      // TODO(phase-14): Track session token/cost estimates.
+      // final usage = msg['usage'] as Map<String, dynamic>?;
+      return;
+    }
+
+    // --- Completion ---
+    if (type == 'done') {
+      final messageId = msg['message_id']?.toString() ?? '';
+      if (messageId.isNotEmpty && state.deliveredMessageIds.contains(messageId)) {
+        return;
+      }
+      final updatedIds = Set<String>.from(state.deliveredMessageIds);
+      if (messageId.isNotEmpty) updatedIds.add(messageId);
+
+      final response = msg['response']?.toString() ?? '';
+      final finalText = state.streamingText;
+      final content = finalText.isNotEmpty
+          ? finalText
+          : response.isNotEmpty
+              ? response
+              : '(done)';
+      final now = DateTime.now();
+
+      // Collect tool messages as separate entries, before the assistant response
+      final toolMessages = state.activeToolCalls.map((tc) {
+        return ChatMessage(
+          id: 'tool_${now.millisecondsSinceEpoch}_${tc.callId}',
+          role: 'tool',
+          content: tc.toolName,
+          metadata: {
+            'tool_name': tc.toolName,
+            'call_id': tc.callId,
+            'args': tc.args,
+            'result_preview': tc.resultPreview ?? '',
+          },
+          timestamp: now.subtract(const Duration(milliseconds: 1)),
+        );
+      }).toList();
+
+      final assistantMsg = ChatMessage(
+        id: 'ai_${now.millisecondsSinceEpoch}',
+        role: 'assistant',
+        content: content,
+        timestamp: now,
+      );
+      state = state.copyWith(
+        messages: [...state.messages, ...toolMessages, assistantMsg],
+        status: ChatStatus.idle,
+        streamingText: '',
+        reasoningText: '',
+        activeToolCalls: [],
+        deliveredMessageIds: updatedIds,
+      );
+      _toolInputAccum.clear();
+      return;
+    }
+
+    // --- Error ---
+    if (type == 'error') {
+      state = state.copyWith(
+        status: ChatStatus.error,
+        error: msg['message']?.toString() ?? 'Unknown error',
+        streamingText: '',
+      );
+      return;
+    }
+
+    // --- Heartbeat ---
+    if (type == 'pong') return;
+    if (type == 'middleware') return;
+
+    // --- Unknown type — silently ignore for forward compatibility.
+    // If you need to debug unknown events, add a logger here.
+  }
+
+  /// Map WS event type to its canonical form (handles backward-compat aliases).
+  String _canonicalType(String type) {
+    return const {
+      'ai_token': 'text_delta',
+      'tool_start': 'tool_input_start',
+      'tool_end': 'tool_result',
+      'reasoning': 'reasoning_delta',
+    }[type] ?? type;
+  }
+
+  void _upsertActiveTool({
+    required String callId,
+    required String toolName,
+    required Map<String, dynamic> args,
+  }) {
+    final existing = state.activeToolCalls
+        .indexWhere((tc) => tc.callId == callId);
+    if (existing >= 0) {
+      final updated = List<ToolCallDisplay>.from(state.activeToolCalls);
+      updated[existing] = ToolCallDisplay(
+        callId: callId,
+        toolName: toolName,
+        args: args,
+        resultPreview: updated[existing].resultPreview,
+      );
+      state = state.copyWith(activeToolCalls: updated);
+    } else {
+      state = state.copyWith(
+        activeToolCalls: [
+          ...state.activeToolCalls,
+          ToolCallDisplay(callId: callId, toolName: toolName, args: args),
+        ],
+        status: ChatStatus.streaming,
+      );
+    }
+  }
+
+  void _upsertActiveToolByCallId(String callId, Map<String, dynamic> args) {
+    final idx = state.activeToolCalls.indexWhere((tc) => tc.callId == callId);
+    if (idx >= 0) {
+      final updated = List<ToolCallDisplay>.from(state.activeToolCalls);
+      updated[idx] = updated[idx].copyWith(args: args);
+      state = state.copyWith(activeToolCalls: updated);
+    }
+  }
+
+  void _onStatusChange(ConnectionStatus wsStatus) {
+    if (_disposed) return;
+    if (wsStatus == ConnectionStatus.connected) {
+      final currentStatus = state.status;
+      state = state.copyWith(
+        connected: true,
+        status: currentStatus == ChatStatus.streaming ||
+                currentStatus == ChatStatus.awaitingApproval
+            ? currentStatus
+            : ChatStatus.idle,
+        error: null,
+      );
+      if (state.messages.isEmpty) {
+        state = state.copyWith(streamingText: '');
+        _loadingHistory = true;
+        _loadHistorySafely();
+      }
+    } else if (wsStatus == ConnectionStatus.disconnected) {
+      final wasStreaming = state.status == ChatStatus.streaming;
+      if (wasStreaming && state.streamingText.isNotEmpty) {
+        final partialMsg = ChatMessage(
+          id: 'ai_partial_${DateTime.now().millisecondsSinceEpoch}',
+          role: 'assistant',
+          content: state.streamingText,
+          timestamp: DateTime.now(),
+        );
+        state = state.copyWith(
+          messages: [...state.messages, partialMsg],
+          status: ChatStatus.disconnected,
+          error: 'Connection lost — tap to reconnect',
+          streamingText: '',
+          activeToolCalls: [],
+          connected: false,
+        );
+      } else {
+        state = state.copyWith(
+          status: ChatStatus.disconnected,
+          connected: false,
+        );
+      }
+    } else if (wsStatus == ConnectionStatus.connecting) {
+      state = state.copyWith(connected: false, error: null);
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _statusSubscription?.cancel();
+    _messageSubscription?.cancel();
+    super.dispose();
+  }
+}
+
+final hostProvider = StateProvider<String>((ref) => '127.0.0.1:8080');
+final userIdProvider = StateProvider<String>((ref) => 'default_user');
+
+final wsClientProvider = Provider<WsClient>((ref) {
+  final client = WsClient(
+    host: ref.watch(hostProvider),
+    userId: ref.watch(userIdProvider),
+  );
+  ref.onDispose(() => client.dispose());
+  return client;
+});
+
+final apiClientProvider = Provider<ApiClient>((ref) {
+  return ApiClient(
+    host: ref.watch(hostProvider),
+    userId: ref.watch(userIdProvider),
+  );
+});
+
+final agentProvider = StateNotifierProvider<AgentNotifier, ChatState>((ref) {
+  return AgentNotifier(
+    ref.watch(wsClientProvider),
+    ref.watch(apiClientProvider),
+  );
+});
+
+Map<String, dynamic> tryParseJson(String raw) {
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is Map<String, dynamic>) return decoded;
+    if (decoded is Map) return Map<String, dynamic>.from(decoded);
+    return {};
+  } catch (_) {
+    return {};
+  }
+}

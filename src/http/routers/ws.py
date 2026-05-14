@@ -318,7 +318,6 @@ async def ws_conversation(websocket: WebSocket):
             t3 = time.monotonic()
 
             sdk_messages = _messages_from_conversation(recent_messages)
-            sdk_messages.append(Message.user(content))
 
             t4 = time.monotonic()
             logger.info(
