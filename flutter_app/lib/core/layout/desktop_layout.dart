@@ -21,9 +21,24 @@ import '../../core/widgets/ea_widgets.dart';
 import '../../core/motion/motion.dart';
 
 enum DesktopSidebarItem {
-  email(icon: Icons.mail_outlined, activeIcon: Icons.mail, label: 'Email', path: '/email'),
-  workspace(icon: Icons.folder_outlined, activeIcon: Icons.folder, label: 'Workspace', path: '/workspace'),
-  settings(icon: Icons.settings_outlined, activeIcon: Icons.settings, label: 'Settings', path: '/settings');
+  email(
+    icon: Icons.mail_outlined,
+    activeIcon: Icons.mail,
+    label: 'Email',
+    path: '/email',
+  ),
+  workspace(
+    icon: Icons.folder_outlined,
+    activeIcon: Icons.folder,
+    label: 'Workspace',
+    path: '/workspace',
+  ),
+  settings(
+    icon: Icons.settings_outlined,
+    activeIcon: Icons.settings,
+    label: 'Settings',
+    path: '/settings',
+  );
   // companion(icon: ...), memory(icon: ...), skills(icon: ...), subagents(icon: ...) — hidden
 
   final IconData icon;
@@ -31,10 +46,17 @@ enum DesktopSidebarItem {
   final String label;
   final String path;
 
-  const DesktopSidebarItem({required this.icon, required this.activeIcon, required this.label, required this.path});
+  const DesktopSidebarItem({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+    required this.path,
+  });
 }
 
-final desktopSidebarProvider = StateProvider<DesktopSidebarItem>((ref) => DesktopSidebarItem.workspace);
+final desktopSidebarProvider = StateProvider<DesktopSidebarItem>(
+  (ref) => DesktopSidebarItem.workspace,
+);
 
 class DesktopLayout extends ConsumerWidget {
   final Widget child;
@@ -54,13 +76,15 @@ class DesktopLayout extends ConsumerWidget {
               final remainingWidth = totalWidth - sidebarWidth - dividerCount;
               final chatPanelWidth = remainingWidth * 0.6;
               final contentWidth = remainingWidth * 0.4;
-              return Row(children: [
-                const _Sidebar(width: sidebarWidth),
-                Container(width: 1, color: AppColors.divider),
-                SizedBox(width: chatPanelWidth, child: const _ChatPanel()),
-                Container(width: 1, color: AppColors.divider),
-                SizedBox(width: contentWidth, child: child),
-              ]);
+              return Row(
+                children: [
+                  const _Sidebar(width: sidebarWidth),
+                  Container(width: 1, color: AppColors.divider),
+                  SizedBox(width: chatPanelWidth, child: const _ChatPanel()),
+                  Container(width: 1, color: AppColors.divider),
+                  SizedBox(width: contentWidth, child: child),
+                ],
+              );
             },
           ),
           const CompanionToastOverlay(),
@@ -82,73 +106,127 @@ class _Sidebar extends ConsumerWidget {
     return Container(
       width: width,
       color: AppColors.background,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const CompanionPulse(),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: AppSearchField(hint: 'Search chats...'),
-        ),
-        const SizedBox(height: 10),
-        const Divider(height: 1),
-        Expanded(
-          child: workspaces.when(
-            data: (list) => list.isEmpty
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: InkWell(
-                        onTap: () => _showCreateDialog(context, ref),
-                        borderRadius: BorderRadius.circular(8),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Column(mainAxisSize: MainAxisSize.min, children: [
-                            Icon(Icons.add, size: 24, color: AppColors.textDim),
-                            const SizedBox(height: 4),
-                            Text('New workspace', style: AppTypography.caption.copyWith(color: AppColors.textDim)),
-                          ]),
-                        ),
-                      ),
-                    ),
-                  )
-                : ListView(
-                    padding: const EdgeInsets.only(top: 4),
-                    children: [
-                      EaMotion.tapPulse(context,
-                        ListTile(
-                          dense: true,
-                          leading: Icon(Icons.add, size: 16, color: AppColors.textDim),
-                          title: Text('New workspace', style: AppTypography.caption.copyWith(color: AppColors.textDim)),
-                          onTap: () => _showCreateDialog(context, ref),
-                        ),
-                      ),
-                      const Divider(height: 1),
-                      ...list.map((ws) {
-                        final id = ws['id']?.toString() ?? '';
-                        final name = ws['name']?.toString() ?? '';
-                        final isActive = currentId == id;
-                        return Container(
-                          decoration: isActive ? const BoxDecoration(border: Border(left: BorderSide(color: AppColors.accent, width: 3))) : null,
-                          child: ListTile(
-                            dense: true,
-                            contentPadding: const EdgeInsets.only(left: 16, right: 8),
-                            visualDensity: VisualDensity.compact,
-                            title: Text(name, style: AppTypography.body.copyWith(fontSize: 13, fontWeight: isActive ? FontWeight.w600 : FontWeight.w400, color: isActive ? AppColors.textPrimary : AppColors.textSecondary)),
-                            selected: isActive,
-                            selectedTileColor: AppColors.accent.withAlpha(15),
-                            onTap: () => ref.read(chatTabNotifierProvider.notifier).openWorkspace(id, name),
-                        ),
-                      );
-                    }),
-                  ],
-                ),
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const CompanionPulse(),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: AppSearchField(hint: 'Search chats...'),
           ),
-        ),
-        const Divider(height: 1),
-        _SidebarItem(item: DesktopSidebarItem.settings, selected: false, onTap: () => _showSettings(context)),
-        const SizedBox(height: 8),
-      ]),
+          const SizedBox(height: 10),
+          const Divider(height: 1),
+          Expanded(
+            child: workspaces.when(
+              data: (list) => list.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: InkWell(
+                          onTap: () => _showCreateDialog(context, ref),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.add,
+                                  size: 24,
+                                  color: AppColors.textDim,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'New workspace',
+                                  style: AppTypography.caption.copyWith(
+                                    color: AppColors.textDim,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                  : ListView(
+                      padding: const EdgeInsets.only(top: 4),
+                      children: [
+                        EaMotion.tapPulse(
+                          context,
+                          ListTile(
+                            dense: true,
+                            leading: Icon(
+                              Icons.add,
+                              size: 16,
+                              color: AppColors.textDim,
+                            ),
+                            title: Text(
+                              'New workspace',
+                              style: AppTypography.caption.copyWith(
+                                color: AppColors.textDim,
+                              ),
+                            ),
+                            onTap: () => _showCreateDialog(context, ref),
+                          ),
+                        ),
+                        const Divider(height: 1),
+                        ...list.map((ws) {
+                          final id = ws['id']?.toString() ?? '';
+                          final name = ws['name']?.toString() ?? '';
+                          final isActive = currentId == id;
+                          return Container(
+                            decoration: isActive
+                                ? const BoxDecoration(
+                                    border: Border(
+                                      left: BorderSide(
+                                        color: AppColors.accent,
+                                        width: 3,
+                                      ),
+                                    ),
+                                  )
+                                : null,
+                            child: ListTile(
+                              dense: true,
+                              contentPadding: const EdgeInsets.only(
+                                left: 16,
+                                right: 8,
+                              ),
+                              visualDensity: VisualDensity.compact,
+                              title: Text(
+                                name,
+                                style: AppTypography.body.copyWith(
+                                  fontSize: 13,
+                                  fontWeight: isActive
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                  color: isActive
+                                      ? AppColors.textPrimary
+                                      : AppColors.textSecondary,
+                                ),
+                              ),
+                              selected: isActive,
+                              selectedTileColor: AppColors.accent.withAlpha(15),
+                              onTap: () => ref
+                                  .read(chatTabNotifierProvider.notifier)
+                                  .openWorkspace(id, name),
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+              loading: () => const SizedBox.shrink(),
+              error: (_, __) => const SizedBox.shrink(),
+            ),
+          ),
+          const Divider(height: 1),
+          _SidebarItem(
+            item: DesktopSidebarItem.settings,
+            selected: false,
+            onTap: () => _showSettings(context),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
     );
   }
 
@@ -160,15 +238,23 @@ class _Sidebar extends ConsumerWidget {
         title: const Text('New Workspace'),
         content: TextField(
           controller: nameCtrl,
-          decoration: const InputDecoration(hintText: 'Workspace name', border: OutlineInputBorder()),
+          decoration: const InputDecoration(
+            hintText: 'Workspace name',
+            border: OutlineInputBorder(),
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () {
               final name = nameCtrl.text.trim();
               if (name.isNotEmpty) {
-                ref.read(workspaceNotifierProvider.notifier).createWorkspace(name, '', '');
+                ref
+                    .read(workspaceNotifierProvider.notifier)
+                    .createWorkspace(name, '', '');
                 Navigator.pop(ctx);
               }
             },
@@ -193,7 +279,11 @@ class _SidebarItem extends StatelessWidget {
   final DesktopSidebarItem item;
   final bool selected;
   final VoidCallback onTap;
-  const _SidebarItem({required this.item, required this.selected, required this.onTap});
+  const _SidebarItem({
+    required this.item,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -206,12 +296,30 @@ class _SidebarItem extends StatelessWidget {
           height: 40,
           margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: selected ? BoxDecoration(color: AppColors.accentLight, borderRadius: BorderRadius.circular(AppRadius.chip)) : null,
-          child: Row(children: [
-            Icon(selected ? item.activeIcon : item.icon, size: 20, color: selected ? AppColors.accent : AppColors.textSecondary),
-            const SizedBox(width: 10),
-            Text(item.label, style: AppTypography.body.copyWith(fontSize: 13, color: selected ? AppColors.accent : AppColors.textSecondary, fontWeight: selected ? FontWeight.w600 : FontWeight.w400)),
-          ]),
+          decoration: selected
+              ? BoxDecoration(
+                  color: AppColors.accentLight,
+                  borderRadius: BorderRadius.circular(AppRadius.chip),
+                )
+              : null,
+          child: Row(
+            children: [
+              Icon(
+                selected ? item.activeIcon : item.icon,
+                size: 20,
+                color: selected ? AppColors.accent : AppColors.textSecondary,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                item.label,
+                style: AppTypography.body.copyWith(
+                  fontSize: 13,
+                  color: selected ? AppColors.accent : AppColors.textSecondary,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -242,36 +350,47 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
     final maxExtent = _scrollController.position.maxScrollExtent;
     if (maxExtent <= 0) return;
     final ws = ref.read(activeChatTabProvider);
-    final offset = _scrollController.offset;
+    final offset = _scrollController.position.extentAfter <= 2
+        ? double.infinity
+        : _scrollController.offset;
     ref.read(workspaceScrollPositions.notifier).state = {
       ...ref.read(workspaceScrollPositions),
       ws: offset,
     };
-    debugPrint('[SCROLL-SAVE _ChatPanel] ws=$ws offset=${offset.toStringAsFixed(0)} max=$maxExtent');
+    debugPrint(
+      '[SCROLL-SAVE _ChatPanel] ws=$ws offset=${offset.toStringAsFixed(0)} max=$maxExtent',
+    );
   }
 
   Future<void> _restoreScrollPosition(String workspaceId) async {
     _restoringScroll = true;
     final saved = ref.read(workspaceScrollPositions)[workspaceId];
-    debugPrint('[SCROLL-RESTORE _ChatPanel] ws=$workspaceId saved=$saved mounted=$mounted');
+    debugPrint(
+      '[SCROLL-RESTORE _ChatPanel] ws=$workspaceId saved=$saved mounted=$mounted',
+    );
     if (saved != null && mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !_scrollController.hasClients) {
-          debugPrint('[SCROLL-RESTORE _ChatPanel] FAIL: mounted=$mounted hasClients=${_scrollController.hasClients}');
+          debugPrint(
+            '[SCROLL-RESTORE _ChatPanel] FAIL: mounted=$mounted hasClients=${_scrollController.hasClients}',
+          );
           _restoringScroll = false;
           return;
         }
         final max = _scrollController.position.maxScrollExtent;
-        debugPrint('[SCROLL-RESTORE _ChatPanel] jumping to ${saved.clamp(0, max)} max=$max');
+        final target = saved.isInfinite ? max : saved.clamp(0, max).toDouble();
+        debugPrint('[SCROLL-RESTORE _ChatPanel] jumping to $target max=$max');
         if (max > 0) {
-          _scrollController.jumpTo(saved.clamp(0, max));
+          _scrollController.jumpTo(target);
         }
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _restoringScroll = false;
         });
       });
     } else {
-      debugPrint('[SCROLL-RESTORE _ChatPanel] no saved position, scrolling to bottom');
+      debugPrint(
+        '[SCROLL-RESTORE _ChatPanel] no saved position, scrolling to bottom',
+      );
       _restoringScroll = false;
       _scrollToBottom();
     }
@@ -304,19 +423,33 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
         // Explicitly save the leaving workspace's scroll position RIGHT NOW,
         // before switchWorkspace's clearHistory corrupts the ListView and resets offset to 0.
         if (_scrollController.hasClients) {
+          final positions = ref.read(workspaceScrollPositions);
+          final existing = positions[prev];
+          final offset =
+              _scrollController.position.extentAfter <= 2 ||
+                  existing?.isInfinite == true
+              ? double.infinity
+              : _scrollController.offset;
           ref.read(workspaceScrollPositions.notifier).state = {
-            ...ref.read(workspaceScrollPositions),
-            prev: _scrollController.offset,
+            ...positions,
+            prev: offset,
           };
-          debugPrint('[SCROLL-SAVE-EXPLICIT] leaving=$prev offset=${_scrollController.offset}');
+          debugPrint('[SCROLL-SAVE-EXPLICIT] leaving=$prev offset=$offset');
         }
         _restoringScroll = true;
       }
       _activeWorkspace = next;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _activeWorkspace == next) {
+          _restoreScrollPosition(next);
+        }
+      });
     });
 
     ref.listen<ChatState>(agentProvider, (prev, next) {
-      if (next.messages.isNotEmpty && prev?.messages.isEmpty == true && next.status == ChatStatus.idle) {
+      if (next.messages.isNotEmpty &&
+          prev?.messages.isEmpty == true &&
+          next.status == ChatStatus.idle) {
         _restoreScrollPosition(_activeWorkspace);
         return;
       }
@@ -327,62 +460,91 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
 
     return Container(
       color: AppColors.background,
-      child: Column(children: [
-        SizedBox(
-          height: 40,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: [
-              const SizedBox(width: 8),
-              ...tabs.entries.map((e) {
-                final isActive = e.key == activeTab;
-                return GestureDetector(
-                  onTap: () {
-                    if (!isActive) {
-                      ref.read(chatTabNotifierProvider.notifier).openWorkspace(e.key, e.value);
-                    }
-                  },
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        decoration: BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(
-                              color: isActive ? AppColors.accent : Colors.transparent,
-                              width: 2,
+      child: Column(
+        children: [
+          SizedBox(
+            height: 40,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                const SizedBox(width: 8),
+                ...tabs.entries.map((e) {
+                  final isActive = e.key == activeTab;
+                  return GestureDetector(
+                    onTap: () {
+                      if (!isActive) {
+                        ref
+                            .read(chatTabNotifierProvider.notifier)
+                            .openWorkspace(e.key, e.value);
+                      }
+                    },
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(
+                                color: isActive
+                                    ? AppColors.accent
+                                    : Colors.transparent,
+                                width: 2,
+                              ),
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              e.value.isNotEmpty ? e.value : e.key,
+                              style: AppTypography.body.copyWith(
+                                fontSize: 12,
+                                fontWeight: isActive
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                                color: isActive
+                                    ? AppColors.textPrimary
+                                    : AppColors.textDim,
+                              ),
                             ),
                           ),
                         ),
-                        child: Center(
-                          child: Text(e.value.isNotEmpty ? e.value : e.key, style: AppTypography.body.copyWith(
-                            fontSize: 12,
-                            fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                            color: isActive ? AppColors.textPrimary : AppColors.textDim,
-                          )),
-                        ),
-                      ),
-                      if (tabs.length > 1)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: InkWell(
-                            onTap: () => ref.read(chatTabNotifierProvider.notifier).closeTab(e.key),
-                            child: Icon(Icons.close, size: 10, color: AppColors.textDim),
+                        if (tabs.length > 1)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: InkWell(
+                              onTap: () => ref
+                                  .read(chatTabNotifierProvider.notifier)
+                                  .closeTab(e.key),
+                              child: Icon(
+                                Icons.close,
+                                size: 10,
+                                color: AppColors.textDim,
+                              ),
+                            ),
                           ),
-                        ),
-                    ],
-                  ),
-                );
-              }),
-              const SizedBox(width: 8),
-            ],
+                      ],
+                    ),
+                  );
+                }),
+                const SizedBox(width: 8),
+              ],
+            ),
           ),
-        ),
-        ConnectionBanner(connected: state.connected, isDisconnected: state.status == ChatStatus.disconnected, onReconnect: () => ref.read(agentProvider.notifier).connect()),
-        Expanded(child: _PanelMessageList(state: state, scrollController: _scrollController)),
-        if (state.status == ChatStatus.error && state.error != null) ErrorBar(error: state.error!),
-        const ChatInput(),
-      ]),
+          ConnectionBanner(
+            connected: state.connected,
+            isDisconnected: state.status == ChatStatus.disconnected,
+            onReconnect: () => ref.read(agentProvider.notifier).connect(),
+          ),
+          Expanded(
+            child: _PanelMessageList(
+              state: state,
+              scrollController: _scrollController,
+            ),
+          ),
+          if (state.status == ChatStatus.error && state.error != null)
+            ErrorBar(error: state.error!),
+          const ChatInput(),
+        ],
+      ),
     );
   }
 }
@@ -390,7 +552,10 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
 class _PanelMessageList extends ConsumerWidget {
   final ChatState state;
   final ScrollController scrollController;
-  const _PanelMessageList({required this.state, required this.scrollController});
+  const _PanelMessageList({
+    required this.state,
+    required this.scrollController,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -398,28 +563,39 @@ class _PanelMessageList extends ConsumerWidget {
     for (final msg in state.messages) {
       items.add(MessageBubble(message: msg));
     }
-    if (state.status == ChatStatus.streaming && state.streamingText.isNotEmpty) {
+    if (state.status == ChatStatus.streaming &&
+        state.streamingText.isNotEmpty) {
       items.add(StreamingBubble(text: state.streamingText));
     }
     for (final tc in state.activeToolCalls) {
       items.add(ToolCallCard(toolCall: tc));
     }
     if (state.messages.isNotEmpty) {
-      items.insert(0, CompanionContextPill(
-        activeWorkspaceId: ref.watch(activeChatTabProvider),
-      ));
+      items.insert(
+        0,
+        CompanionContextPill(
+          activeWorkspaceId: ref.watch(activeChatTabProvider),
+        ),
+      );
     }
     if (items.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.screenEdge),
-          child: Text('Ask anything...', style: AppTypography.body.copyWith(color: AppColors.textDim)),
+          child: Text(
+            'Ask anything...',
+            style: AppTypography.body.copyWith(color: AppColors.textDim),
+          ),
         ),
       );
     }
     return ListView(
+      key: const ValueKey('desktop-chat-message-list'),
       controller: scrollController,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.cardPadding, vertical: AppSpacing.itemGap),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.cardPadding,
+        vertical: AppSpacing.itemGap,
+      ),
       children: items,
     );
   }

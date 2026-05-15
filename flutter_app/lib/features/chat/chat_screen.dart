@@ -37,9 +37,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (!_scrollController.hasClients) return;
     if (_scrollController.position.maxScrollExtent <= 0) return;
     final ws = ref.read(currentWorkspaceIdProvider);
+    final offset = _scrollController.position.extentAfter <= 2
+        ? double.infinity
+        : _scrollController.offset;
     ref.read(workspaceScrollPositions.notifier).state = {
       ...ref.read(workspaceScrollPositions),
-      ws: _scrollController.offset,
+      ws: offset,
     };
   }
 
@@ -57,8 +60,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           return;
         }
         final max = _scrollController.position.maxScrollExtent;
+        final target = saved.isInfinite ? max : saved.clamp(0, max).toDouble();
         if (max > 0) {
-          _scrollController.jumpTo(saved.clamp(0, max));
+          _scrollController.jumpTo(target);
         }
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _restoringScroll = false;
@@ -86,9 +90,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => ApprovalSheet(
-        pendingApprovals: pending,
-      ),
+      builder: (_) => ApprovalSheet(pendingApprovals: pending),
     );
     _sheetShowing = false;
   }
@@ -107,7 +109,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     ref.listen<ChatState>(agentProvider, (prev, next) {
       if (!mounted) return;
-      if (next.messages.isNotEmpty && prev?.messages.isEmpty == true && next.status == ChatStatus.idle) {
+      if (next.messages.isNotEmpty &&
+          prev?.messages.isEmpty == true &&
+          next.status == ChatStatus.idle) {
         _restoreScrollPosition(wsId);
         return;
       }
@@ -121,17 +125,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
     });
 
+    ref.listen<String>(currentWorkspaceIdProvider, (prev, next) {
+      if (prev == next) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _restoreScrollPosition(next);
+        }
+      });
+    });
+
     final isConnected = state.connected;
     final statusIcon = isConnected
         ? Icons.cloud_done
         : state.status == ChatStatus.disconnected
-            ? Icons.cloud_off
-            : Icons.cloud_sync;
+        ? Icons.cloud_off
+        : Icons.cloud_sync;
     final statusColor = isConnected
         ? AppColors.success
         : state.status == ChatStatus.disconnected
-            ? AppColors.danger
-            : AppColors.warning;
+        ? AppColors.danger
+        : AppColors.warning;
 
     return Scaffold(
       appBar: AppBar(
@@ -148,11 +161,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         children: [
           ConnectionBanner(
             connected: isConnected,
-            isDisconnected:
-                state.status == ChatStatus.disconnected,
+            isDisconnected: state.status == ChatStatus.disconnected,
             onReconnect: _connect,
           ),
-          Expanded(child: _MessageList(state: state, scrollController: _scrollController)),
+          Expanded(
+            child: _MessageList(
+              state: state,
+              scrollController: _scrollController,
+            ),
+          ),
           if (state.status == ChatStatus.error && state.error != null)
             ErrorBar(error: state.error!),
           const ChatInput(),
@@ -189,6 +206,10 @@ class _MessageList extends StatelessWidget {
       if (tc.resultPreview == null) {
         items.add(ToolCallCard(toolCall: tc));
       }
+    }
+
+    if (items.isEmpty && state.loadingHistory) {
+      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
     }
 
     if (items.isEmpty) {

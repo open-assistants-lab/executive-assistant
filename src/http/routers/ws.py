@@ -18,8 +18,12 @@ import uuid
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from src.app_logging import get_logger
+from src.config.settings import get_settings
+from src.http.auth import verify_key
 from src.http.ws_protocol import (
     ApproveMessage,
+    AuthMessage,
+    AuthOkMessage,
     CancelMessage,
     DoneMessage,
     EditAndApproveMessage,
@@ -49,9 +53,15 @@ async def _run_agent_stream(
     conversation,
     session_id: str = "",
     pending_ref: list | None = None,
+    workspace_id: str = "personal",
+    model: str | None = None,
+    provider_keys: dict[str, str] | None = None,
 ) -> None:
     """Run the agent streaming loop and handle all chunk types."""
     import uuid as _uuid
+
+    def _with_workspace(payload: dict) -> dict:
+        return {**payload, "workspace_id": workspace_id}
 
     ai_content_parts: list[str] = []
     reasoning_parts: list[str] = []
@@ -61,19 +71,22 @@ async def _run_agent_stream(
         async for chunk in run_sdk_agent_stream(
             user_id=user_id,
             messages=sdk_messages,
+            workspace_id=workspace_id,
+            model=model,
+            provider_keys=provider_keys,
         ):
             canonical = chunk.canonical_type
             is_compat_alias = chunk.type != canonical
 
             if canonical == "text_delta" and chunk.content and not is_compat_alias:
                 ai_content_parts.append(chunk.content)
-                await websocket.send_json(chunk.to_ws_message())
+                await websocket.send_json(_with_workspace(chunk.to_ws_message()))
 
             elif canonical == "text_start" and not is_compat_alias:
-                await websocket.send_json(chunk.to_ws_message())
+                await websocket.send_json(_with_workspace(chunk.to_ws_message()))
 
             elif canonical == "text_end" and not is_compat_alias:
-                await websocket.send_json(chunk.to_ws_message())
+                await websocket.send_json(_with_workspace(chunk.to_ws_message()))
 
             elif canonical == "tool_input_start" and not is_compat_alias:
                 tool_name = chunk.tool or "unknown"
@@ -81,23 +94,23 @@ async def _run_agent_stream(
                 tool_metadata_list.append(
                     {"tool_name": tool_name, "tool_call_id": call_id}
                 )
-                await websocket.send_json(chunk.to_ws_message())
+                await websocket.send_json(_with_workspace(chunk.to_ws_message()))
 
             elif canonical == "tool_input_delta":
-                await websocket.send_json(chunk.to_ws_message())
+                await websocket.send_json(_with_workspace(chunk.to_ws_message()))
 
             elif canonical == "tool_input_end":
-                await websocket.send_json(chunk.to_ws_message())
+                await websocket.send_json(_with_workspace(chunk.to_ws_message()))
 
             elif canonical == "reasoning_start" and not is_compat_alias:
-                await websocket.send_json(chunk.to_ws_message())
+                await websocket.send_json(_with_workspace(chunk.to_ws_message()))
 
             elif canonical == "reasoning_delta" and not is_compat_alias:
                 reasoning_parts.append(chunk.content or "")
-                await websocket.send_json(chunk.to_ws_message())
+                await websocket.send_json(_with_workspace(chunk.to_ws_message()))
 
             elif canonical == "reasoning_end" and not is_compat_alias:
-                await websocket.send_json(chunk.to_ws_message())
+                await websocket.send_json(_with_workspace(chunk.to_ws_message()))
 
             elif canonical == "tool_result" or chunk.type == "tool_result":
                 tool_name = chunk.tool or "unknown"
@@ -110,7 +123,7 @@ async def _run_agent_stream(
                         tool=tool_name,
                         call_id=call_id,
                         result_preview=result_preview[:500],
-                    ).model_dump()
+                    ).model_dump() | {"workspace_id": workspace_id}
                 )
 
             elif chunk.type == "interrupt":
@@ -120,7 +133,7 @@ async def _run_agent_stream(
                         "call_id": chunk.call_id or "unknown",
                         "args": chunk.args or {},
                     }
-                await websocket.send_json(chunk.to_ws_message())
+                await websocket.send_json(_with_workspace(chunk.to_ws_message()))
 
             elif chunk.type == "done":
                 response = (
@@ -130,32 +143,42 @@ async def _run_agent_stream(
                 reasoning_content = "".join(reasoning_parts) if reasoning_parts else None
 
                 for tm in tool_metadata_list:
-                    conversation.add_message("tool", "", metadata=tm)
+                    conversation.add_message(
+                        "tool", "", metadata={**tm, "workspace_id": workspace_id}
+                    )
 
                 if reasoning_content:
                     conversation.add_message(
-                        "reasoning", reasoning_content, metadata={"session_id": session_id}
+                        "reasoning",
+                        reasoning_content,
+                        metadata={"session_id": session_id, "workspace_id": workspace_id},
                     )
 
-                conversation.add_message(
+                msg_id = conversation.add_message(
                     "assistant",
                     response,
-                    metadata={"stream": True, "session_id": session_id},
+                    metadata={
+                        "stream": True,
+                        "session_id": session_id,
+                        "workspace_id": workspace_id,
+                    },
                 )
 
                 await websocket.send_json(
                     DoneMessage(
                         response=response,
+                        message_id=str(msg_id),
                         tool_calls=[
                             {"tool": tm["tool_name"], "call_id": tm["tool_call_id"]}
                             for tm in tool_metadata_list
                         ],
-                    ).model_dump()
+                    ).model_dump() | {"workspace_id": workspace_id}
                 )
 
             elif chunk.type == "error":
                 await websocket.send_json(
                     ErrorMessage(message=str(chunk.content), code="AGENT_ERROR").model_dump()
+                    | {"workspace_id": workspace_id}
                 )
 
     except Exception as e:
@@ -200,6 +223,38 @@ async def ws_conversation(websocket: WebSocket):
     """
     await websocket.accept()
 
+    # ── API key auth (first message after connect) ─────────────────────────
+    settings = get_settings()
+    needs_auth = bool(settings.auth.api_key)
+
+    # Check if this is a localhost WebSocket (bypass solo auth)
+    if needs_auth and settings.auth.solo_bypass:
+        client = websocket.client if hasattr(websocket, "client") else None
+        if client and client.host in ("127.0.0.1", "::1", "localhost"):
+            needs_auth = False
+
+    if needs_auth:
+        raw = await websocket.receive_text()
+        try:
+            data = json.loads(raw)
+            auth_msg = AuthMessage.model_validate(data)
+        except (json.JSONDecodeError, ValueError):
+            await websocket.send_json(
+                ErrorMessage(message="Authentication required", code="AUTH_FAILED").model_dump()
+            )
+            await websocket.close()
+            return
+
+        if not verify_key(auth_msg.api_key):
+            await websocket.send_json(
+                ErrorMessage(message="Invalid API key", code="AUTH_FAILED").model_dump()
+            )
+            await websocket.close()
+            return
+
+        await websocket.send_json(AuthOkMessage().model_dump())
+    # ── End auth ──────────────────────────────────────────────────────────
+
     session_id = str(uuid.uuid4())[:8]
     user_id = "default_user"
     workspace_id = "personal"
@@ -240,7 +295,7 @@ async def ws_conversation(websocket: WebSocket):
                 if pending_container[0]:
                     tool_name = pending_container[0].get("tool", "unknown")
                     args = pending_container[0].get("args", {})
-                    loop = await get_sdk_loop(user_id)
+                    loop = await get_sdk_loop(user_id, workspace_id)
                     args_key = (tool_name, json.dumps(args, sort_keys=True))
                     loop._approved_tools.add(args_key)
                     pending_container[0] = None
@@ -288,6 +343,8 @@ async def ws_conversation(websocket: WebSocket):
             user_id = getattr(msg, "user_id", user_id) or user_id
             workspace_id = getattr(msg, "workspace_id", workspace_id) or workspace_id
             verbose = getattr(msg, "verbose", verbose)
+            msg_model: str | None = getattr(msg, "model", None)
+            msg_provider_keys: dict[str, str] | None = getattr(msg, "provider_keys", None)
 
             if not hasattr(msg, "content"):
                 continue
@@ -299,10 +356,10 @@ async def ws_conversation(websocket: WebSocket):
             if pending_container[0] and content.strip().lower() in ("approve", "yes", "accept"):
                 tool_name = pending_container[0].get("tool", "unknown")
                 args = pending_container[0].get("args", {})
-                loop = await get_sdk_loop(user_id)
+                loop = await get_sdk_loop(user_id, workspace_id)
                 args_key = (tool_name, json.dumps(args, sort_keys=True))
                 loop._approved_tools.add(args_key)
-                conversation.add_message("user", content)
+                conversation.add_message("user", content, metadata={"workspace_id": workspace_id})
                 pending_container[0] = None
                 # Fall through to normal agent run — agent will retry the tool
 
@@ -311,7 +368,7 @@ async def ws_conversation(websocket: WebSocket):
 
             t1 = time.monotonic()
 
-            conversation.add_message("user", content)
+            conversation.add_message("user", content, metadata={"workspace_id": workspace_id})
             t2 = time.monotonic()
 
             recent_messages = conversation.get_messages_with_summary(50)
@@ -336,9 +393,9 @@ async def ws_conversation(websocket: WebSocket):
 
             await _run_agent_stream(
                 websocket, user_id, sdk_messages, conversation, session_id,
-                pending_ref=pending_container,
+                pending_ref=pending_container, workspace_id=workspace_id,
+                model=msg_model, provider_keys=msg_provider_keys,
             )
-
             # After stream finishes: if a tool was interrupted, wait for approval
             while pending_container[0] is not None:
                 tool_name = pending_container[0].get("tool", "unknown")
@@ -354,7 +411,7 @@ async def ws_conversation(websocket: WebSocket):
                     continue
                 msg_type = data.get("type", "")
                 if msg_type in ("approve_tool", "approve"):
-                    loop = await get_sdk_loop(user_id)
+                    loop = await get_sdk_loop(user_id, workspace_id)
                     args_key = (tool_name, json.dumps(args, sort_keys=True))
                     loop._approved_tools.add(args_key)
                     pending_container[0] = None
@@ -365,7 +422,8 @@ async def ws_conversation(websocket: WebSocket):
                     retry_msgs.append(Message.user(f"approve: please proceed with {tool_name}"))
                     await _run_agent_stream(
                         websocket, user_id, retry_msgs, conversation, session_id,
-                        pending_ref=pending_container,
+                        pending_ref=pending_container, workspace_id=workspace_id,
+                        model=msg_model, provider_keys=msg_provider_keys,
                     )
                 elif msg_type in ("reject_tool", "reject"):
                     pending_container[0] = None

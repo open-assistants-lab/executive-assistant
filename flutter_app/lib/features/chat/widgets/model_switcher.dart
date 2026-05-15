@@ -34,8 +34,30 @@ class _ModelSwitcherState extends ConsumerState<ModelSwitcher> {
     _loadProviders();
   }
 
+  Future<void> _hydrateSavedModelSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    final keys = <String, String>{};
+    for (final key in prefs.getKeys()) {
+      if (!key.startsWith('ea_key_')) continue;
+      final providerId = key.substring(7);
+      final value = prefs.getString(key);
+      if (value != null && value.isNotEmpty) keys[providerId] = value;
+    }
+    final savedModel = prefs.getString('ea_model');
+    if (!mounted) return;
+    if (keys.isNotEmpty) {
+      ref.read(providerKeysProvider.notifier).state = keys;
+      ref.read(agentProvider.notifier).updateProviderKeys(keys);
+    }
+    if (savedModel != null && savedModel.isNotEmpty) {
+      ref.read(selectedModelProvider.notifier).state = savedModel;
+      ref.read(agentProvider.notifier).updateModel(savedModel);
+    }
+  }
+
   Future<void> _loadProviders() async {
     try {
+      await _hydrateSavedModelSettings();
       final host = ref.read(hostProvider);
       final url = Uri.parse('http://$host/models');
       final resp = await http.get(url);
@@ -88,8 +110,7 @@ class _ModelSwitcherState extends ConsumerState<ModelSwitcher> {
     final p = _providers.where((p) => p.id == pid).firstOrNull;
     final provider = p?.name ?? pid;
     final model = parts.sublist(1).join(':');
-    final short = model.length > 12 ? '${model.substring(0, 11)}…' : model;
-    return '$provider / $short';
+    return '$provider / $model';
   }
 
   String _selectedModelKey() {
@@ -98,10 +119,7 @@ class _ModelSwitcherState extends ConsumerState<ModelSwitcher> {
     final effective = override != null && override.isNotEmpty
         ? override
         : ref.read(selectedModelProvider);
-    final prefix = override != null && override.isNotEmpty
-        ? 'Override'
-        : 'Default';
-    return '$prefix: ${_formatModelLabel(effective)}';
+    return _formatModelLabel(effective);
   }
 
   void _showPicker() async {

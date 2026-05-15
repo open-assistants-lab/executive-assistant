@@ -8,7 +8,9 @@ import '../services/api_client.dart';
 
 enum ChatStatus { idle, streaming, error, awaitingApproval, disconnected }
 
-final selectedModelProvider = StateProvider<String>((ref) => 'deepseek:deepseek-v4-flash');
+final selectedModelProvider = StateProvider<String>(
+  (ref) => 'deepseek:deepseek-v4-flash',
+);
 final providerKeysProvider = StateProvider<Map<String, String>>((ref) => {});
 
 class ChatState {
@@ -22,6 +24,7 @@ class ChatState {
   final String sessionId;
   final bool connected;
   final Set<String> deliveredMessageIds;
+  final bool loadingHistory;
 
   static const _errorSentinel = Object();
 
@@ -36,6 +39,7 @@ class ChatState {
     this.sessionId = '',
     this.connected = false,
     this.deliveredMessageIds = const {},
+    this.loadingHistory = false,
   });
 
   ChatState copyWith({
@@ -49,13 +53,12 @@ class ChatState {
     String? sessionId,
     bool? connected,
     Set<String>? deliveredMessageIds,
+    bool? loadingHistory,
   }) {
     return ChatState(
       messages: messages ?? this.messages,
       status: status ?? this.status,
-      error: identical(error, _errorSentinel)
-          ? this.error
-          : error as String?,
+      error: identical(error, _errorSentinel) ? this.error : error as String?,
       streamingText: streamingText ?? this.streamingText,
       reasoningText: reasoningText ?? this.reasoningText,
       activeToolCalls: activeToolCalls ?? this.activeToolCalls,
@@ -63,6 +66,7 @@ class ChatState {
       sessionId: sessionId ?? this.sessionId,
       connected: connected ?? this.connected,
       deliveredMessageIds: deliveredMessageIds ?? this.deliveredMessageIds,
+      loadingHistory: loadingHistory ?? this.loadingHistory,
     );
   }
 }
@@ -76,6 +80,8 @@ class AgentNotifier extends StateNotifier<ChatState> {
   bool _loadingHistory = false;
   final List<WsMessage> _bufferedMessages = [];
   String _workspaceId = 'personal';
+  String? _activeStreamWorkspaceId;
+  final Map<String, ChatState> _workspaceStates = {};
   final Map<String, StringBuffer> _toolInputAccum = {};
   final Set<String> _seenContentHashes = {};
 
@@ -85,7 +91,36 @@ class AgentNotifier extends StateNotifier<ChatState> {
   }
 
   void setWorkspaceId(String id) {
+    _workspaceStates[_workspaceId] = state;
     _workspaceId = id;
+    final saved = _workspaceStates[id];
+    if (saved != null) {
+      state = saved;
+    }
+  }
+
+  bool hasWorkspaceState(String id) => _workspaceStates.containsKey(id);
+
+  void _setState(ChatState next) {
+    state = next;
+    _workspaceStates[_workspaceId] = next;
+  }
+
+  void _flushStreamingTextToMessage() {
+    final content = state.streamingText;
+    if (content.trim().isEmpty) return;
+    final assistantMsg = ChatMessage(
+      id: 'ai_segment_${DateTime.now().microsecondsSinceEpoch}',
+      role: 'assistant',
+      content: content,
+      timestamp: DateTime.now(),
+    );
+    _setState(
+      state.copyWith(
+        messages: [...state.messages, assistantMsg],
+        streamingText: '',
+      ),
+    );
   }
 
   void connect() {
@@ -109,7 +144,9 @@ class AgentNotifier extends StateNotifier<ChatState> {
         }
         final content = msg['content']?.toString() ?? '';
         final meta = msg['metadata'];
-        final metadata = meta is Map<String, dynamic> ? meta : <String, dynamic>{};
+        final metadata = meta is Map<String, dynamic>
+            ? meta
+            : <String, dynamic>{};
 
         if (content.trim().isEmpty && role != 'tool') continue;
 
@@ -133,30 +170,39 @@ class AgentNotifier extends StateNotifier<ChatState> {
           displayRole = 'reasoning';
         }
 
-        chatMessages.add(ChatMessage(
-          id: 'hist_$idx',
-          role: displayRole,
-          content: displayContent,
-          timestamp: timestamp,
-          metadata: metadata,
-        ));
+        chatMessages.add(
+          ChatMessage(
+            id: 'hist_$idx',
+            role: displayRole,
+            content: displayContent,
+            timestamp: timestamp,
+            metadata: metadata,
+          ),
+        );
         idx++;
       }
 
       if (_disposed) return;
       if (chatMessages.isNotEmpty) {
         final currentIds = state.messages.map((m) => m.id).toSet();
-        final newMessages = chatMessages.where((m) => !currentIds.contains(m.id)).toList();
+        final newMessages = chatMessages
+            .where((m) => !currentIds.contains(m.id))
+            .toList();
         if (newMessages.isNotEmpty) {
           newMessages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
           final allMessages = [...state.messages, ...newMessages];
           allMessages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
           final historyIds = chatMessages.map((m) => m.id).toSet();
-          state = state.copyWith(
-            messages: allMessages,
-            deliveredMessageIds: historyIds,
+          _setState(
+            state.copyWith(
+              messages: allMessages,
+              deliveredMessageIds: historyIds,
+              loadingHistory: false,
+            ),
           );
         }
+      } else {
+        _setState(state.copyWith(loadingHistory: false));
       }
     } catch (e, stack) {
       debugPrint('[AgentNotifier] Failed to load history: $e\n$stack');
@@ -168,12 +214,11 @@ class AgentNotifier extends StateNotifier<ChatState> {
       await loadHistory();
     } catch (e) {
       if (_disposed) return;
-      state = state.copyWith(
-        error: 'Failed to load conversation history',
-      );
+      _setState(state.copyWith(error: 'Failed to load conversation history'));
     } finally {
       _loadingHistory = false;
       if (!_disposed) {
+        _setState(state.copyWith(loadingHistory: false));
         final buffered = List<WsMessage>.from(_bufferedMessages);
         _bufferedMessages.clear();
         for (final msg in buffered) {
@@ -187,9 +232,11 @@ class AgentNotifier extends StateNotifier<ChatState> {
     if (content.trim().isEmpty) return;
 
     if (!state.connected) {
-      state = state.copyWith(
-        status: ChatStatus.error,
-        error: 'Not connected. Tap the cloud icon or banner to reconnect.',
+      _setState(
+        state.copyWith(
+          status: ChatStatus.error,
+          error: 'Not connected. Tap the cloud icon or banner to reconnect.',
+        ),
       );
       return;
     }
@@ -201,14 +248,18 @@ class AgentNotifier extends StateNotifier<ChatState> {
       timestamp: DateTime.now(),
     );
 
-    state = state.copyWith(
-      messages: [...state.messages, userMsg],
-      status: ChatStatus.streaming,
-      streamingText: '',
-      activeToolCalls: [],
-      error: null,
+    _setState(
+      state.copyWith(
+        messages: [...state.messages, userMsg],
+        status: ChatStatus.streaming,
+        streamingText: '',
+        activeToolCalls: [],
+        error: null,
+        loadingHistory: false,
+      ),
     );
 
+    _activeStreamWorkspaceId = _workspaceId;
     _wsClient.sendMessage(content, workspaceId: _workspaceId);
   }
 
@@ -226,9 +277,8 @@ class AgentNotifier extends StateNotifier<ChatState> {
     _wsClient.approveToolCall(callId);
     final updated = Map<String, ToolCallDisplay>.from(state.pendingApprovals);
     updated.remove(callId);
-    state = state.copyWith(
-      pendingApprovals: updated,
-      status: ChatStatus.streaming,
+    _setState(
+      state.copyWith(pendingApprovals: updated, status: ChatStatus.streaming),
     );
   }
 
@@ -236,26 +286,39 @@ class AgentNotifier extends StateNotifier<ChatState> {
     _wsClient.rejectToolCall(callId, reason: reason);
     final updated = Map<String, ToolCallDisplay>.from(state.pendingApprovals);
     updated.remove(callId);
-    state = state.copyWith(
-      pendingApprovals: updated,
-      status: updated.isEmpty ? ChatStatus.idle : ChatStatus.awaitingApproval,
+    _setState(
+      state.copyWith(
+        pendingApprovals: updated,
+        status: updated.isEmpty ? ChatStatus.idle : ChatStatus.awaitingApproval,
+      ),
     );
   }
 
   void cancelExecution() {
     _wsClient.cancel();
-    state = state.copyWith(
-      status: state.connected ? ChatStatus.idle : ChatStatus.disconnected,
+    _setState(
+      state.copyWith(
+        status: state.connected ? ChatStatus.idle : ChatStatus.disconnected,
+      ),
     );
   }
 
   void clearError() {
-    state = state.copyWith(error: null);
+    _setState(state.copyWith(error: null));
   }
 
-  void clearHistory() {
+  void clearHistory({bool loading = false}) {
     _seenContentHashes.clear();
-    state = state.copyWith(messages: [], streamingText: '', activeToolCalls: []);
+    _setState(
+      state.copyWith(
+        messages: [],
+        streamingText: '',
+        reasoningText: '',
+        activeToolCalls: [],
+        status: state.connected ? ChatStatus.idle : ChatStatus.disconnected,
+        loadingHistory: loading,
+      ),
+    );
   }
 
   void updateHost(String host) {
@@ -281,7 +344,9 @@ class AgentNotifier extends StateNotifier<ChatState> {
           .map((m) => m['text']?.toString() ?? '')
           .join();
     }
-    debugPrint('[AgentNotifier] Unexpected text_delta content type: ${content.runtimeType}');
+    debugPrint(
+      '[AgentNotifier] Unexpected text_delta content type: ${content.runtimeType}',
+    );
     return '';
   }
 
@@ -293,6 +358,16 @@ class AgentNotifier extends StateNotifier<ChatState> {
 
   void _onMessage(WsMessage msg) {
     if (_disposed) return;
+    final eventWorkspaceId = msg['workspace_id']?.toString();
+    final streamWorkspaceId = eventWorkspaceId?.isNotEmpty == true
+        ? eventWorkspaceId
+        : _activeStreamWorkspaceId;
+    if (streamWorkspaceId != null && streamWorkspaceId != _workspaceId) {
+      if (msg.type == 'done' || msg.type == 'error') {
+        _activeStreamWorkspaceId = null;
+      }
+      return;
+    }
     if (_loadingHistory) {
       _bufferedMessages.add(msg);
       return;
@@ -303,10 +378,12 @@ class AgentNotifier extends StateNotifier<ChatState> {
 
     // --- Text blocks (backward-compat + block-structured) ---
     if (canonical == 'text_delta' || type == 'ai_token') {
-      state = state.copyWith(
-        streamingText:
-            state.streamingText + _extractTextContent(msg['content']),
-        status: ChatStatus.streaming,
+      _setState(
+        state.copyWith(
+          streamingText:
+              state.streamingText + _extractTextContent(msg['content']),
+          status: ChatStatus.streaming,
+        ),
       );
       return;
     }
@@ -315,9 +392,12 @@ class AgentNotifier extends StateNotifier<ChatState> {
 
     // --- Reasoning blocks ---
     if (canonical == 'reasoning_delta' || type == 'reasoning') {
-      state = state.copyWith(
-        reasoningText: state.reasoningText + (msg['content']?.toString() ?? ''),
-        status: ChatStatus.streaming,
+      _setState(
+        state.copyWith(
+          reasoningText:
+              state.reasoningText + (msg['content']?.toString() ?? ''),
+          status: ChatStatus.streaming,
+        ),
       );
       return;
     }
@@ -326,13 +406,16 @@ class AgentNotifier extends StateNotifier<ChatState> {
 
     // --- Tool input blocks ---
     if (canonical == 'tool_input_start' || type == 'tool_start') {
+      _flushStreamingTextToMessage();
       final callId = msg['call_id']?.toString() ?? '';
       final tool = msg['tool']?.toString() ?? '';
       final args = _safeArgs(msg['args']);
       final tc = ToolCallDisplay(callId: callId, toolName: tool, args: args);
-      state = state.copyWith(
-        activeToolCalls: [...state.activeToolCalls, tc],
-        status: ChatStatus.streaming,
+      _setState(
+        state.copyWith(
+          activeToolCalls: [...state.activeToolCalls, tc],
+          status: ChatStatus.streaming,
+        ),
       );
       return;
     }
@@ -345,7 +428,8 @@ class AgentNotifier extends StateNotifier<ChatState> {
     }
     if (canonical == 'tool_input_delta') {
       final callId = msg['call_id']?.toString() ?? '';
-      final delta = msg['content']?.toString() ?? msg['args_delta']?.toString() ?? '';
+      final delta =
+          msg['content']?.toString() ?? msg['args_delta']?.toString() ?? '';
       if (callId.isNotEmpty && delta.isNotEmpty) {
         _toolInputAccum.putIfAbsent(callId, () => StringBuffer());
         _toolInputAccum[callId]!.write(delta);
@@ -370,7 +454,7 @@ class AgentNotifier extends StateNotifier<ChatState> {
         if (tc.callId == callId) return tc.copyWith(resultPreview: preview);
         return tc;
       }).toList();
-      state = state.copyWith(activeToolCalls: updated);
+      _setState(state.copyWith(activeToolCalls: updated));
       return;
     }
 
@@ -386,9 +470,11 @@ class AgentNotifier extends StateNotifier<ChatState> {
         args: args,
         isPending: true,
       );
-      state = state.copyWith(
-        pendingApprovals: pending,
-        status: ChatStatus.awaitingApproval,
+      _setState(
+        state.copyWith(
+          pendingApprovals: pending,
+          status: ChatStatus.awaitingApproval,
+        ),
       );
       return;
     }
@@ -403,7 +489,8 @@ class AgentNotifier extends StateNotifier<ChatState> {
     // --- Completion ---
     if (type == 'done') {
       final messageId = msg['message_id']?.toString() ?? '';
-      if (messageId.isNotEmpty && state.deliveredMessageIds.contains(messageId)) {
+      if (messageId.isNotEmpty &&
+          state.deliveredMessageIds.contains(messageId)) {
         return;
       }
       final updatedIds = Set<String>.from(state.deliveredMessageIds);
@@ -414,8 +501,8 @@ class AgentNotifier extends StateNotifier<ChatState> {
       final content = finalText.isNotEmpty
           ? finalText
           : response.isNotEmpty
-              ? response
-              : '(done)';
+          ? response
+          : '(done)';
       final now = DateTime.now();
 
       // Collect tool messages as separate entries, before the assistant response
@@ -440,25 +527,33 @@ class AgentNotifier extends StateNotifier<ChatState> {
         content: content,
         timestamp: now,
       );
-      state = state.copyWith(
-        messages: [...state.messages, ...toolMessages, assistantMsg],
-        status: ChatStatus.idle,
-        streamingText: '',
-        reasoningText: '',
-        activeToolCalls: [],
-        deliveredMessageIds: updatedIds,
+      _setState(
+        state.copyWith(
+          messages: [...state.messages, ...toolMessages, assistantMsg],
+          status: ChatStatus.idle,
+          streamingText: '',
+          reasoningText: '',
+          activeToolCalls: [],
+          deliveredMessageIds: updatedIds,
+          loadingHistory: false,
+        ),
       );
       _toolInputAccum.clear();
+      _activeStreamWorkspaceId = null;
       return;
     }
 
     // --- Error ---
     if (type == 'error') {
-      state = state.copyWith(
-        status: ChatStatus.error,
-        error: msg['message']?.toString() ?? 'Unknown error',
-        streamingText: '',
+      _setState(
+        state.copyWith(
+          status: ChatStatus.error,
+          error: msg['message']?.toString() ?? 'Unknown error',
+          streamingText: '',
+          loadingHistory: false,
+        ),
       );
+      _activeStreamWorkspaceId = null;
       return;
     }
 
@@ -473,11 +568,12 @@ class AgentNotifier extends StateNotifier<ChatState> {
   /// Map WS event type to its canonical form (handles backward-compat aliases).
   String _canonicalType(String type) {
     return const {
-      'ai_token': 'text_delta',
-      'tool_start': 'tool_input_start',
-      'tool_end': 'tool_result',
-      'reasoning': 'reasoning_delta',
-    }[type] ?? type;
+          'ai_token': 'text_delta',
+          'tool_start': 'tool_input_start',
+          'tool_end': 'tool_result',
+          'reasoning': 'reasoning_delta',
+        }[type] ??
+        type;
   }
 
   void _upsertActiveTool({
@@ -485,8 +581,9 @@ class AgentNotifier extends StateNotifier<ChatState> {
     required String toolName,
     required Map<String, dynamic> args,
   }) {
-    final existing = state.activeToolCalls
-        .indexWhere((tc) => tc.callId == callId);
+    final existing = state.activeToolCalls.indexWhere(
+      (tc) => tc.callId == callId,
+    );
     if (existing >= 0) {
       final updated = List<ToolCallDisplay>.from(state.activeToolCalls);
       updated[existing] = ToolCallDisplay(
@@ -495,14 +592,16 @@ class AgentNotifier extends StateNotifier<ChatState> {
         args: args,
         resultPreview: updated[existing].resultPreview,
       );
-      state = state.copyWith(activeToolCalls: updated);
+      _setState(state.copyWith(activeToolCalls: updated));
     } else {
-      state = state.copyWith(
-        activeToolCalls: [
-          ...state.activeToolCalls,
-          ToolCallDisplay(callId: callId, toolName: toolName, args: args),
-        ],
-        status: ChatStatus.streaming,
+      _setState(
+        state.copyWith(
+          activeToolCalls: [
+            ...state.activeToolCalls,
+            ToolCallDisplay(callId: callId, toolName: toolName, args: args),
+          ],
+          status: ChatStatus.streaming,
+        ),
       );
     }
   }
@@ -512,7 +611,7 @@ class AgentNotifier extends StateNotifier<ChatState> {
     if (idx >= 0) {
       final updated = List<ToolCallDisplay>.from(state.activeToolCalls);
       updated[idx] = updated[idx].copyWith(args: args);
-      state = state.copyWith(activeToolCalls: updated);
+      _setState(state.copyWith(activeToolCalls: updated));
     }
   }
 
@@ -520,17 +619,22 @@ class AgentNotifier extends StateNotifier<ChatState> {
     if (_disposed) return;
     if (wsStatus == ConnectionStatus.connected) {
       final currentStatus = state.status;
-      state = state.copyWith(
-        connected: true,
-        status: currentStatus == ChatStatus.streaming ||
-                currentStatus == ChatStatus.awaitingApproval
-            ? currentStatus
-            : ChatStatus.idle,
-        error: null,
+      _setState(
+        state.copyWith(
+          connected: true,
+          status:
+              currentStatus == ChatStatus.streaming ||
+                  currentStatus == ChatStatus.awaitingApproval
+              ? currentStatus
+              : ChatStatus.idle,
+          error: null,
+          loadingHistory: false,
+        ),
       );
       if (state.messages.isEmpty) {
-        state = state.copyWith(streamingText: '');
+        _setState(state.copyWith(streamingText: ''));
         _loadingHistory = true;
+        _setState(state.copyWith(loadingHistory: true));
         _loadHistorySafely();
       }
     } else if (wsStatus == ConnectionStatus.disconnected) {
@@ -542,22 +646,23 @@ class AgentNotifier extends StateNotifier<ChatState> {
           content: state.streamingText,
           timestamp: DateTime.now(),
         );
-        state = state.copyWith(
-          messages: [...state.messages, partialMsg],
-          status: ChatStatus.disconnected,
-          error: 'Connection lost — tap to reconnect',
-          streamingText: '',
-          activeToolCalls: [],
-          connected: false,
+        _setState(
+          state.copyWith(
+            messages: [...state.messages, partialMsg],
+            status: ChatStatus.disconnected,
+            error: 'Connection lost — tap to reconnect',
+            streamingText: '',
+            activeToolCalls: [],
+            connected: false,
+          ),
         );
       } else {
-        state = state.copyWith(
-          status: ChatStatus.disconnected,
-          connected: false,
+        _setState(
+          state.copyWith(status: ChatStatus.disconnected, connected: false),
         );
       }
     } else if (wsStatus == ConnectionStatus.connecting) {
-      state = state.copyWith(connected: false, error: null);
+      _setState(state.copyWith(connected: false, error: null));
     }
   }
 

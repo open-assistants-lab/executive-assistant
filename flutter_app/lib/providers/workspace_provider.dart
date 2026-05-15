@@ -60,8 +60,10 @@ class WorkspaceNotifier extends StateNotifier<String> {
     ref.read(agentProvider.notifier).setWorkspaceId(id);
     ref.read(apiClientProvider).workspaceId = id;
     _syncEffectiveModel(id);
-    ref.read(agentProvider.notifier).clearHistory();
-    ref.read(agentProvider.notifier).loadHistory();
+    if (!ref.read(agentProvider.notifier).hasWorkspaceState(id)) {
+      ref.read(agentProvider.notifier).clearHistory(loading: true);
+      ref.read(agentProvider.notifier).loadHistory();
+    }
   }
 
   void _syncEffectiveModel(String workspaceId) {
