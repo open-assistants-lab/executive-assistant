@@ -1,7 +1,8 @@
 """Skill registry — unified storage for all skills.
 
-System skills (src/skills/) are seeded to ~/Executive Assistant/Skills/ on first run.
-After seeding, system and user skills live in the same directory and are treated identically.
+Bundled seed skills (src/skills_seed/) are seeded to the user's skills directory on first
+run. After seeding, all skills live in user or workspace directories. Workspace skills
+override user skills by name.
 """
 
 import threading
@@ -14,17 +15,23 @@ _registries: dict[str, "SkillRegistry"] = {}
 _lock = threading.Lock()
 
 
-def get_skill_registry(user_id: str = "default_user") -> "SkillRegistry":
-    """Get or create a cached SkillRegistry for a user.
+def get_skill_registry(
+    user_id: str = "default_user", workspace_id: str = "personal"
+) -> "SkillRegistry":
+    """Get or create a cached SkillRegistry for a user+workspace pair.
 
     All code should use this factory instead of constructing SkillRegistry
-    directly, to ensure a single cached instance per user.
+    directly, to ensure a single cached instance per (user_id, workspace_id).
     """
     uid = user_id or "default_user"
+    wid = workspace_id or "personal"
+    cache_key = f"{uid}:{wid}"
     with _lock:
-        if uid not in _registries:
-            _registries[uid] = SkillRegistry(user_id=user_id)
-        return _registries[uid]
+        if cache_key not in _registries:
+            _registries[cache_key] = SkillRegistry(
+                user_id=uid, workspace_id=wid
+            )
+        return _registries[cache_key]
 
 
 def reset_skill_registries() -> None:
@@ -34,35 +41,46 @@ def reset_skill_registries() -> None:
 
 
 class SkillRegistry:
-    """Registry for all skills (system + user) in one unified location.
+    """Registry for skills across user and workspace scopes.
 
-    On first run, system skills are seeded from src/skills/ to
-    the user's skills directory (~/Executive Assistant/Skills/).
-    After seeding, all skills live in the same place and are treated identically.
+    Workspace skills override user skills by name.
+    On first run, bundled seed skills are seeded from src/skills_seed/ to
+    the user's skills directory.
     """
 
     def __init__(
         self,
         skills_dir: str | Path | None = None,
+        workspace_skills_dir: str | Path | None = None,
         user_id: str | None = None,
+        workspace_id: str = "personal",
     ):
         from src.storage.paths import DataPaths
 
-        paths = DataPaths(user_id=user_id)
+        paths = DataPaths(user_id=user_id, workspace_id=workspace_id)
+        self.workspace_id = workspace_id
+
         self.skills_dir = Path(skills_dir) if skills_dir else paths.skills_dir()
         self.storage = SkillStorage(self.skills_dir)
+
+        if workspace_skills_dir:
+            self.workspace_skills_dir = Path(workspace_skills_dir)
+        else:
+            self.workspace_skills_dir = paths.workspace_skills_dir()
+
+        self.ws_storage = SkillStorage(self.workspace_skills_dir)
         self._loaded_skills: set[str] = set()
         self._seeded = False
 
     def _seed_system_skills(self) -> None:
-        """Copy system skills to user skills directory on first run."""
+        """Copy bundled seed skills to user skills directory on first run."""
         if self._seeded:
             return
         self._seeded = True
 
         import shutil
 
-        system_src = Path("src/skills")
+        system_src = Path("src/skills_seed")
         if not system_src.exists():
             return
 
@@ -88,14 +106,49 @@ class SkillRegistry:
         return list(self._loaded_skills)
 
     def get_all_skills(self) -> list[Skill]:
-        """Get all available skills."""
+        """Get all available skills, merged (workspace overrides user by name)."""
         self._seed_system_skills()
-        return self.storage.load_skills()
+        user_skills = {s["name"]: s for s in self.storage.load_skills()}
+
+        for s in user_skills.values():
+            if "metadata" not in s:
+                s["metadata"] = {}
+            s["metadata"]["scope"] = "user"
+            s["metadata"]["workspace_id"] = ""
+
+        ws_skills_raw = self.ws_storage.load_skills()
+        ws_skills = {}
+        for s in ws_skills_raw:
+            if "metadata" not in s:
+                s["metadata"] = {}
+            s["metadata"]["scope"] = "workspace"
+            s["metadata"]["workspace_id"] = self.workspace_id
+            ws_skills[s["name"]] = s
+
+        merged = {**user_skills, **ws_skills}
+        return list(merged.values())
 
     def get_skill(self, skill_name: str) -> Skill | None:
-        """Get a specific skill by name."""
+        """Get a specific skill by name (workspace overrides user)."""
         self._seed_system_skills()
-        return self.storage.load_skill(skill_name)
+
+        ws_skill = self.ws_storage.load_skill(skill_name)
+        if ws_skill:
+            if "metadata" not in ws_skill:
+                ws_skill["metadata"] = {}
+            ws_skill["metadata"]["scope"] = "workspace"
+            ws_skill["metadata"]["workspace_id"] = self.workspace_id
+            return ws_skill
+
+        user_skill = self.storage.load_skill(skill_name)
+        if user_skill:
+            if "metadata" not in user_skill:
+                user_skill["metadata"] = {}
+            user_skill["metadata"]["scope"] = "user"
+            user_skill["metadata"]["workspace_id"] = ""
+            return user_skill
+
+        return None
 
     def list_skills(self) -> list[str]:
         """List all available skill names."""
@@ -114,9 +167,19 @@ class SkillRegistry:
             or query_lower in s.get("content", "").lower()
         ]
 
-    def get_skill_descriptions(self) -> list[str]:
-        """Get formatted skill descriptions for system prompt."""
+    def get_skill_descriptions(self, include_disabled: bool = False) -> list[str]:
+        """Get formatted skill descriptions for system prompt.
+
+        Args:
+            include_disabled: If True, include skills with disable_model_invocation.
+                              If False, exclude them from the agent's discovery list.
+        """
         from src.skills.models import skill_to_system_prompt_entry
 
         skills = self.get_all_skills()
+        if not include_disabled:
+            skills = [
+                s for s in skills
+                if s.get("metadata", {}).get("disable_model_invocation", "").lower() not in ("true", "1", "yes")
+            ]
         return [skill_to_system_prompt_entry(s) for s in skills]
