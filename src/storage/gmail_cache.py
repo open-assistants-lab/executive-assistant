@@ -10,17 +10,19 @@ Store path: data/users/{user_id}/gmail_cache/
 
 import json
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from src.app_logging import get_logger
+from src.config import get_settings
 from src.sdk.hybrid_db import HybridDB, SearchMode
 from src.storage.paths import get_paths
 
 logger = get_logger()
 
 TABLE = "emails"
-_JSON_FIELDS = {"labels", "headers", "to_addr"}
+_JSON_FIELDS = {"labels", "headers", "to_addr", "attachments"}
 _LIST_FIELDS = {"to_addr", "labels"}
 
 
@@ -39,6 +41,7 @@ class EmailResult:
     ts: int
     labels: list[str]
     headers: dict[str, str]
+    attachments: list[dict] = field(default_factory=list)
     _score: float = 0.0
 
 
@@ -83,7 +86,11 @@ class GmailCache:
         base_path = get_paths(user_id).gmail_cache()
         base_path.mkdir(parents=True, exist_ok=True)
 
-        self.db = HybridDB(str(base_path))
+        settings = get_settings()
+        self.db = HybridDB(
+            str(base_path),
+            max_chroma_index_gb=settings.memory.messages.max_chroma_index_gb,
+        )
         self.db.create_table(
             TABLE,
             {
@@ -97,8 +104,14 @@ class GmailCache:
                 "ts": "INTEGER",
                 "labels": "JSON",
                 "headers": "JSON",
+                "attachments": "JSON",
             },
         )
+        # Migration: add attachments column if not present
+        try:
+            self.db.add_column(TABLE, "attachments", "JSON")
+        except Exception:
+            pass  # already exists
 
     # -- CRUD --
 
@@ -122,6 +135,7 @@ class GmailCache:
             "ts": _serialize(email.get("ts"), "ts"),
             "labels": _serialize(email.get("labels"), "labels"),
             "headers": _serialize(email.get("headers"), "headers"),
+            "attachments": _serialize(email.get("attachments"), "attachments"),
         }
 
         if existing:
@@ -215,6 +229,55 @@ class GmailCache:
         )
         return [self._row_to_result(r) for r in rows]
 
+    # -- Attachments --
+
+    def download_attachment(
+        self, message_id: str, filename: str, output_dir: str | None = None
+    ) -> str | None:
+        """Download a specific attachment from a Gmail message via gws CLI.
+
+        Returns the path to the downloaded file, or None on failure.
+        """
+        attachment_id = None
+        email = self.get_by_message_id(message_id)
+        if email and email.attachments:
+            for a in email.attachments:
+                if a.get("filename") == filename:
+                    attachment_id = a.get("attachmentId")
+                    break
+
+        if not attachment_id:
+            # Try fetching fresh
+            email_dict = _fetch_one_email(message_id, message_id, fetch_body=True)
+            if email_dict:
+                for a in email_dict.get("attachments", []):
+                    if a.get("filename") == filename:
+                        attachment_id = a.get("attachmentId")
+                        break
+
+        if not attachment_id:
+            logger.warning("gmail_attachment_not_found", {"message_id": message_id, "filename": filename})
+            return None
+
+        out_dir = Path(output_dir) if output_dir else get_paths(self.user_id).gmail_cache() / "attachments" / message_id
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / filename
+
+        cmd = [
+            "gws", "gmail", "users", "messages", "attachments", "get",
+            "--params", json.dumps({"userId": "me", "messageId": message_id, "id": attachment_id}),
+            "--output", str(out_path),
+        ]
+
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            if result.returncode == 0 and out_path.exists():
+                return str(out_path)
+        except Exception as e:
+            logger.error("gmail_attachment_download_error", {"error": str(e)})
+
+        return None
+
     # -- Helpers --
 
     def clear(self) -> None:
@@ -243,6 +306,7 @@ class GmailCache:
             ts=_deserialize(row.get("ts"), "ts"),
             labels=_deserialize(row.get("labels"), "labels"),
             headers=_deserialize(row.get("headers"), "headers"),
+            attachments=_deserialize(row.get("attachments"), "attachments"),
             _score=score,
         )
 
@@ -395,6 +459,9 @@ def _fetch_one_email(
     # Labels
     labels = data.get("labelIds", [])
 
+    # Attachments
+    attachments = _extract_attachments(payload) if fetch_body else []
+
     # Headers we care about
     important_headers = {}
     for key in ["List-Unsubscribe", "List-Unsubscribe-Post", "Message-ID", "In-Reply-To", "References"]:
@@ -413,6 +480,7 @@ def _fetch_one_email(
         "ts": ts,
         "labels": labels,
         "headers": important_headers,
+        "attachments": attachments,
     }
 
 
@@ -466,6 +534,27 @@ def _strip_html(html: str) -> str:
     text = re.sub(r"&gt;", ">", text)
     text = re.sub(r"\n\s*\n", "\n\n", text)
     return text.strip()
+
+
+def _extract_attachments(payload: dict) -> list[dict]:
+    """Extract attachment metadata from a Gmail message payload."""
+    attachments: list[dict] = []
+
+    def walk(part):
+        filename = part.get("filename", "").strip()
+        if filename:
+            body_info = part.get("body", {})
+            attachments.append({
+                "filename": filename,
+                "mimeType": part.get("mimeType", ""),
+                "size": body_info.get("size", 0),
+                "attachmentId": body_info.get("attachmentId", ""),
+            })
+        for p in part.get("parts", []):
+            walk(p)
+
+    walk(payload)
+    return attachments
 
 
 def _parse_date_to_ts(date_str: str) -> int:

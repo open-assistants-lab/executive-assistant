@@ -9,11 +9,22 @@ Two deployment modes:
 See PLAN.md and ARCHITECTURE.md for design rationale.
 """
 
+import re
 from pathlib import Path
 
 from src.config import get_settings
 
 DEFAULT_USER_ID = "default_user"
+_PATH_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def _validate_path_id(value: str, field: str) -> str:
+    """Validate a path segment used as an application identifier."""
+    if not value or not _PATH_ID_RE.fullmatch(value):
+        raise ValueError(
+            f"Invalid {field}: must contain only letters, numbers, underscores, and hyphens"
+        )
+    return value
 
 
 class DataPaths:
@@ -37,16 +48,20 @@ class DataPaths:
         settings = get_settings()
         self.deployment = deployment or settings.deployment
         self.base = Path(data_path or settings.data_path or "data")
-        self.user_id = user_id or DEFAULT_USER_ID
+        self.user_id = _validate_path_id(user_id or DEFAULT_USER_ID, "user_id")
         self.team_id = team_id
-        self.workspace_id = workspace_id or "personal"
+        self.workspace_id = _validate_path_id(workspace_id or "personal", "workspace_id")
         self.base.mkdir(parents=True, exist_ok=True)
 
     # -- Per-user base directory --
 
     def _user_base(self) -> Path:
         """Base directory for the current user: data/users/{user_id}/"""
-        p = self.base / "users" / self.user_id
+        users_base = (self.base / "users").resolve()
+        p = (users_base / self.user_id).resolve()
+        if p == users_base or not p.is_relative_to(users_base):
+            raise ValueError(f"Invalid user_id escapes user root: {self.user_id!r}")
+        users_base.mkdir(parents=True, exist_ok=True)
         p.mkdir(parents=True, exist_ok=True)
         return p
 
@@ -95,7 +110,12 @@ class DataPaths:
         return p
 
     def _workspace_dir(self) -> Path:
-        p = self._workspaces_base() / self.workspace_id
+        base = self._workspaces_base().resolve()
+        p = (base / self.workspace_id).resolve()
+        if p == base or not p.is_relative_to(base):
+            raise ValueError(
+                f"Invalid workspace_id escapes workspace root: {self.workspace_id!r}"
+            )
         p.mkdir(parents=True, exist_ok=True)
         return p
 
@@ -162,6 +182,17 @@ class DataPaths:
         p = self._user_base() / "subagents" / "agent_defs"
         p.mkdir(parents=True, exist_ok=True)
         return p
+
+    def companion_dir(self) -> Path:
+        p = self._user_base() / "companion"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    def companion_notifications_db(self) -> Path:
+        return self.companion_dir() / "notifications.db"
+
+    def companion_memory_db(self) -> Path:
+        return self.companion_dir() / "memory.db"
 
     def work_queue_db(self) -> Path:
         return self.subagents_dir() / "work_queue.db"
@@ -302,7 +333,7 @@ class DataPaths:
         return self.base / "jobs_results.db"
 
 
-_paths_cache: dict[str, DataPaths] = {}
+_paths_cache: dict[tuple[str, str], DataPaths] = {}
 
 
 def get_paths(
@@ -316,9 +347,9 @@ def get_paths(
     In team mode: user_id comes from auth (JWT), team_id from config.
     workspace_id is NOT part of the cache key — it changes per session.
     """
-    uid = user_id or DEFAULT_USER_ID
+    uid = _validate_path_id(user_id or DEFAULT_USER_ID, "user_id")
     tid = team_id  # None for solo mode
-    cache_key = f"{uid}:{tid or ''}"
+    cache_key = (uid, tid or "")
 
     if cache_key not in _paths_cache:
         _paths_cache[cache_key] = DataPaths(user_id=uid, team_id=tid)

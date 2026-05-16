@@ -7,10 +7,12 @@ Two-layer memory architecture:
 Domain wrapper over HybridDB that adds:
 - Confidence boost on access / confidence decay
 - Supersession logic
-- Connections graph (linked_to)
+- Connections graph (native _graph_nodes + _graph_edges)
+- Graph traversal + search_graph() bridge
 - Working/long-term memory tiers
 - Progressive disclosure (compact/summary/full)
 - Session tracking
+- Structured facts: indexed memory_facts table for 20-50x faster entity/attribute/value lookup
 """
 
 import hashlib
@@ -22,13 +24,15 @@ from pathlib import Path
 from typing import Any
 
 from src.app_logging import get_logger
+from src.config import get_settings
 from src.sdk.hybrid_db import HybridDB, SearchMode
 from src.storage.paths import get_paths
 
 logger = get_logger()
 
-DEFAULT_CONFIDENCE = 0.2
+DEFAULT_CONFIDENCE = 0.4
 MAX_CONFIDENCE = 0.7
+INITIAL_LEARNED_CONFIDENCE_CAP = MAX_CONFIDENCE
 MIN_CONFIDENCE_DELETE = 0.1
 CONFIDENCE_BOOST_ON_ACCESS = 0.05
 MAX_CONFIDENCE_BOOST_FROM_ACCESS = 0.3
@@ -119,7 +123,7 @@ class MemoryStore:
         └── vectors/ # ChromaDB (memories + insights collections)
     """
 
-    def __init__(self, user_id: str, base_dir: Path | str | None = None):
+    def __init__(self, user_id: str, base_dir: Path | str | None = None, *, max_chroma_index_gb: int | None = None):
         self.user_id = user_id
         if base_dir is not None:
             base_path = Path(base_dir)
@@ -127,7 +131,13 @@ class MemoryStore:
             base_path = get_paths(user_id).memory_dir()
         base_path.mkdir(parents=True, exist_ok=True)
 
-        self.db = HybridDB(str(base_path))
+        settings = get_settings()
+        self.db = HybridDB(
+            str(base_path),
+            max_chroma_index_gb=max_chroma_index_gb
+            if max_chroma_index_gb is not None
+            else settings.memory.messages.max_chroma_index_gb,
+        )
         self._init_tables()
 
     def _init_tables(self) -> None:
@@ -157,6 +167,11 @@ class MemoryStore:
             },
         )
 
+        self.db.register_entity_node(
+            "memories", type="memory", id_column="id",
+            label_template="memory: {id}"
+        )
+
         self.db.create_table(
             "insights",
             {
@@ -182,6 +197,34 @@ class MemoryStore:
                 "summary": "LONGTEXT",
             },
         )
+
+        self.db.create_table(
+            "memory_facts",
+            {
+                "id": "TEXT PRIMARY KEY",
+                "fact_key": "TEXT NOT NULL",
+                "entity": "TEXT NOT NULL",
+                "attribute": "TEXT NOT NULL",
+                "value": "TEXT NOT NULL",
+                "previous_value": "TEXT",
+                "memory_id": "TEXT NOT NULL",
+                "scope": "TEXT",
+                "project_id": "TEXT",
+                "updated_at": "TEXT NOT NULL",
+            },
+        )
+
+        fact_indexes = [
+            "CREATE INDEX IF NOT EXISTS idx_facts_key ON memory_facts(fact_key)",
+            "CREATE INDEX IF NOT EXISTS idx_facts_key_updated ON memory_facts(fact_key, updated_at)",
+            "CREATE INDEX IF NOT EXISTS idx_facts_entity ON memory_facts(entity)",
+            "CREATE INDEX IF NOT EXISTS idx_facts_attribute ON memory_facts(attribute)",
+            "CREATE INDEX IF NOT EXISTS idx_facts_value ON memory_facts(value)",
+            "CREATE INDEX IF NOT EXISTS idx_facts_memory ON memory_facts(memory_id)",
+        ]
+        with self.db._connect() as cur:
+            for idx_sql in fact_indexes:
+                cur.execute(idx_sql)
 
     def _generate_id(self, trigger: str, action: str) -> str:
         content = f"{trigger}:{action}"
@@ -273,7 +316,7 @@ class MemoryStore:
             ]
         )
 
-    def _row_to_memory(self, row: dict) -> Memory:
+    def _row_to_memory(self, row: dict[str, Any]) -> Memory:
         connections = self._parse_connections(row.get("linked_to", "[]"))
         structured_raw = row.get("structured_data", "{}")
         if isinstance(structured_raw, str):
@@ -317,7 +360,7 @@ class MemoryStore:
             last_accessed_at=last_accessed_at,
         )
 
-    def _row_to_insight(self, row: dict) -> Insight:
+    def _row_to_insight(self, row: dict[str, Any]) -> Insight:
         return Insight(
             id=row["id"],
             summary=row["summary"],
@@ -336,14 +379,28 @@ class MemoryStore:
         now = datetime.now(UTC).isoformat()
         thirty_days_ago = (datetime.now(UTC) - timedelta(days=30)).isoformat()
 
+        # Learned non-fact memories: standard decay
         rows = self.db.query(
             "memories",
-            where="updated_at < ? AND source = 'learned' AND is_superseded = 0",
+            where="updated_at < ? AND source = 'learned' "
+                  "AND memory_type != 'fact' AND is_superseded = 0",
             params=(thirty_days_ago,),
             limit=10000,
         )
         for row in rows:
             new_conf = max(0.2, row["confidence"] - 0.1)
+            self.db.update("memories", row["id"], {"confidence": new_conf, "updated_at": now})
+
+        # Fact memories: gentler decay (1/3 rate) to preserve factual knowledge
+        fact_rows = self.db.query(
+            "memories",
+            where="updated_at < ? AND source = 'learned' "
+                  "AND memory_type = 'fact' AND is_superseded = 0",
+            params=(thirty_days_ago,),
+            limit=10000,
+        )
+        for row in fact_rows:
+            new_conf = max(0.5, row["confidence"] - 0.03)
             self.db.update("memories", row["id"], {"confidence": new_conf, "updated_at": now})
 
         delete_rows = self.db.query(
@@ -354,6 +411,12 @@ class MemoryStore:
         )
         for row in delete_rows:
             self.db.delete("memories", row["id"])
+
+    def _confidence_cap(self, source: str) -> float:
+        return INITIAL_LEARNED_CONFIDENCE_CAP if source == SOURCE_LEARNED else 1.0
+
+    def _cap_initial_confidence(self, confidence: float, source: str) -> float:
+        return min(confidence, self._confidence_cap(source))
 
     def _boost_access(self, memory_id: str) -> None:
         row = self.db.get("memories", memory_id)
@@ -369,6 +432,7 @@ class MemoryStore:
                     row["confidence"] + CONFIDENCE_BOOST_ON_ACCESS,
                     MAX_CONFIDENCE + MAX_CONFIDENCE_BOOST_FROM_ACCESS,
                 ),
+                "importance": min(10.0, (row.get("importance", 5.0) or 5.0) + 0.05),
                 "last_accessed_at": now,
                 "updated_at": now,
             },
@@ -389,7 +453,6 @@ class MemoryStore:
         project_id: str | None = None,
         connections: list[Connection] | None = None,
     ) -> Memory:
-        self.maybe_decay_confidence()
         domain = self._normalize_domain(domain)
         now = datetime.now(UTC).isoformat()
         memory_id = self._generate_id(trigger, action)
@@ -422,13 +485,12 @@ class MemoryStore:
 
         if existing:
             if is_update:
-                cap = MAX_CONFIDENCE if source == SOURCE_LEARNED else 1.0
                 self.db.update(
                     "memories",
                     memory_id,
                     {
                         "action": action,
-                        "confidence": min(cap, existing["confidence"] + 0.1),
+                        "confidence": min(self._confidence_cap(source), existing["confidence"] + 0.1),
                         "observations": (existing["observations"] or 0) + 1,
                         "updated_at": now,
                         "is_superseded": False,
@@ -440,12 +502,11 @@ class MemoryStore:
                 )
                 effective_id = memory_id
             else:
-                cap = MAX_CONFIDENCE if source == SOURCE_LEARNED else 1.0
                 self.db.update(
                     "memories",
                     memory_id,
                     {
-                        "confidence": min(cap, existing["confidence"] + 0.05),
+                        "confidence": min(self._confidence_cap(source), existing["confidence"] + 0.05),
                         "observations": (existing["observations"] or 0) + 1,
                         "updated_at": now,
                         "structured_data": sd_json,
@@ -471,27 +532,21 @@ class MemoryStore:
                         "updated_at": now,
                     },
                 )
-                initial_confidence = min(
-                    confidence, MAX_CONFIDENCE if source == SOURCE_LEARNED else 1.0
-                )
+                initial_confidence = self._cap_initial_confidence(confidence, source)
                 self.db.insert(
                     "memories",
                     {**base, "id": new_id, "confidence": initial_confidence},
                 )
                 effective_id = new_id
             else:
-                initial_confidence = min(
-                    confidence, MAX_CONFIDENCE if source == SOURCE_LEARNED else 1.0
-                )
+                initial_confidence = self._cap_initial_confidence(confidence, source)
                 self.db.insert(
                     "memories",
                     {**base, "id": memory_id, "confidence": initial_confidence},
                 )
                 effective_id = memory_id
         else:
-            initial_confidence = min(
-                confidence, MAX_CONFIDENCE if source == SOURCE_LEARNED else 1.0
-            )
+            initial_confidence = self._cap_initial_confidence(confidence, source)
             self.db.insert(
                 "memories",
                 {**base, "id": memory_id, "confidence": initial_confidence},
@@ -510,6 +565,22 @@ class MemoryStore:
         scope: str = SCOPE_GLOBAL,
     ) -> Memory | None:
         fact_key = self._fact_key(entity, attribute, scope)
+        fact_rows = self.db.query(
+            "memory_facts",
+            where="fact_key = ? AND scope = ?",
+            params=(fact_key, scope),
+            order_by="updated_at DESC",
+            limit=1,
+        )
+        if fact_rows:
+            memory = self.get_memory(fact_rows[0]["memory_id"])
+            if memory and not memory.is_superseded:
+                return memory
+        logger.warning(
+            "memory_facts.lookup_fallback",
+            {"fact_key": fact_key, "scope": scope},
+            user_id=self.user_id,
+        )
         rows = self.db.query(
             "memories",
             where="memory_type = ? AND is_superseded = 0 AND scope = ?",
@@ -522,6 +593,57 @@ class MemoryStore:
             if memory.structured_data.get("fact_key") == fact_key:
                 return memory
         return None
+
+    def _upsert_fact_row(
+        self,
+        fact_id: str,
+        fact_key: str,
+        entity: str,
+        attribute: str,
+        value: str,
+        memory_id: str,
+        *,
+        scope: str = SCOPE_GLOBAL,
+        project_id: str | None = None,
+        previous_value: str | None = None,
+    ) -> None:
+        now = datetime.now(UTC).isoformat()
+        existing_rows = self.db.query(
+            "memory_facts",
+            where="fact_key = ?",
+            params=(fact_key,),
+            limit=1,
+        )
+        if existing_rows:
+            self.db.update(
+                "memory_facts",
+                existing_rows[0]["id"],
+                {
+                    "value": value,
+                    "previous_value": previous_value or existing_rows[0].get("value"),
+                    "memory_id": memory_id,
+                    "scope": scope,
+                    "project_id": project_id,
+                    "updated_at": now,
+                },
+            )
+        else:
+            self.db.insert(
+                "memory_facts",
+                {
+                    "id": fact_id,
+                    "fact_key": fact_key,
+                    "entity": entity,
+                    "attribute": attribute,
+                    "value": value,
+                    "previous_value": previous_value,
+                    "memory_id": memory_id,
+                    "scope": scope,
+                    "project_id": project_id,
+                    "updated_at": now,
+                },
+                sync=False,
+            )
 
     def upsert_fact_memory(
         self,
@@ -573,6 +695,17 @@ class MemoryStore:
             )
             if updated is None:
                 raise RuntimeError(f"Failed to update fact memory: {old_memory.id}")
+            self._upsert_fact_row(
+                fact_id=self._generate_fact_id(scope, entity, attribute, value),
+                fact_key=fact_key,
+                entity=entity,
+                attribute=attribute,
+                value=value,
+                memory_id=old_memory.id,
+                scope=scope,
+                project_id=project_id,
+                previous_value=old_value,
+            )
             return updated
 
         now = datetime.now(UTC).isoformat()
@@ -620,6 +753,18 @@ class MemoryStore:
             },
         )
 
+        self._upsert_fact_row(
+            fact_id=memory_id,
+            fact_key=fact_key,
+            entity=entity,
+            attribute=attribute,
+            value=value,
+            memory_id=memory_id,
+            scope=scope,
+            project_id=project_id,
+            previous_value=previous_value or old_value,
+        )
+
         if old_memory:
             old_structured = dict(old_memory.structured_data)
             old_structured["current"] = False
@@ -640,13 +785,59 @@ class MemoryStore:
             raise RuntimeError(f"Failed to create fact memory: {memory_id}")
         return result
 
-    def find_facts_for_query(
+    def search_facts(self, query: str, limit: int = 8) -> list[Memory]:
+        results: list[Memory] = []
+        fact_rows = self.db.search_all(
+            "memory_facts",
+            query,
+            limit=limit,
+            fts_weight=1.0,
+        )
+        if not fact_rows:
+            return self._find_facts_fallback(query, limit, include_superseded=False)
+        seen: set[str] = set()
+        for row in fact_rows:
+            memory_id = row["memory_id"]
+            if memory_id in seen:
+                continue
+            memory = self.get_memory(memory_id)
+            if memory is None or memory.is_superseded:
+                continue
+            seen.add(memory_id)
+            results.append(memory)
+            if len(results) >= limit:
+                break
+        for memory in results:
+            self._boost_access(memory.id)
+        return results
+
+    def get_fact_history(self, fact_key: str, limit: int = 20) -> list[Memory]:
+        fact_rows = self.db.query(
+            "memory_facts",
+            where="fact_key = ?",
+            params=(fact_key,),
+            order_by="updated_at DESC",
+            limit=limit,
+        )
+        results: list[Memory] = []
+        seen: set[str] = set()
+        for row in fact_rows:
+            memory = self.get_memory(row["memory_id"])
+            if memory is None or memory.id in seen:
+                continue
+            seen.add(memory.id)
+            results.append(memory)
+        results.sort(key=lambda m: getattr(m, "updated_at", datetime.min))
+        for memory in results:
+            self._boost_access(memory.id)
+        return results
+
+    def _find_facts_fallback(
         self,
         query: str,
         limit: int = 8,
         include_superseded: bool = False,
     ) -> list[Memory]:
-        """Return exact structured facts likely relevant to a user query."""
         query_lower = query.lower()
         query_terms = set(re.findall(r"[a-z0-9]+", query_lower))
         query_aliases = self._fact_query_aliases(query)
@@ -687,6 +878,17 @@ class MemoryStore:
             self._boost_access(memory.id)
         return results
 
+    def find_facts_for_query(
+        self,
+        query: str,
+        limit: int = 8,
+        include_superseded: bool = False,
+    ) -> list[Memory]:
+        """Return exact structured facts likely relevant to a user query."""
+        if include_superseded:
+            return self._find_facts_fallback(query, limit, include_superseded=True)
+        return self.search_facts(query, limit=limit)
+
     def find_fact_history_for_query(self, query: str, limit: int = 12) -> list[Memory]:
         """Return current and superseded structured facts for temporal/update questions."""
         current_facts = self.find_facts_for_query(query, limit=limit, include_superseded=False)
@@ -695,10 +897,8 @@ class MemoryStore:
         }
 
         if not fact_keys:
-            candidate_facts = self.find_facts_for_query(
-                query,
-                limit=max(limit, 20),
-                include_superseded=True,
+            candidate_facts = self._find_facts_fallback(
+                query, limit=max(limit, 20), include_superseded=True
             )
             fact_keys = {
                 fact.structured_data.get("fact_key") for fact in candidate_facts if fact.structured_data
@@ -707,42 +907,122 @@ class MemoryStore:
         if not fact_keys:
             return []
 
-        rows = self.db.query(
-            "memories",
-            where="memory_type = ?",
-            params=(MEMORY_TYPE_FACT,),
-            order_by="updated_at DESC",
-            limit=2000,
-        )
-
         history: list[Memory] = []
         seen_ids: set[str] = set()
-        for row in rows:
-            memory = self._row_to_memory(row)
-            if memory.id in seen_ids:
+        for fk in fact_keys:
+            fk_rows = self.db.query(
+                "memory_facts",
+                where="fact_key = ?",
+                params=(fk,),
+                order_by="updated_at DESC",
+                limit=limit * 2,
+            )
+            if not fk_rows:
                 continue
-            if memory.structured_data.get("fact_key") not in fact_keys:
-                continue
-            seen_ids.add(memory.id)
-            history.append(memory)
+            for row in fk_rows:
+                memory = self.get_memory(row["memory_id"])
+                if memory is None or memory.id in seen_ids:
+                    continue
+                seen_ids.add(memory.id)
+                history.append(memory)
 
-        history.sort(key=lambda m: (m.structured_data.get("effective_at") or m.updated_at.isoformat()))
+        if not history:
+            rows = self.db.query(
+                "memories",
+                where="memory_type = ?",
+                params=(MEMORY_TYPE_FACT,),
+                order_by="updated_at DESC",
+                limit=2000,
+            )
+            for row in rows:
+                memory = self._row_to_memory(row)
+                if memory.id in seen_ids:
+                    continue
+                if memory.structured_data.get("fact_key") not in fact_keys:
+                    continue
+                seen_ids.add(memory.id)
+                history.append(memory)
+
+        history.sort(key=lambda m: (getattr(m, "structured_data", {}).get("effective_at") or m.updated_at.isoformat()))
         for memory in history[:limit]:
             self._boost_access(memory.id)
         return history[:limit]
 
     def reconcile_vectors(self, limit: int = 100) -> int:
-        reconciled = 0
-        rows = self.db.query("memories", where="is_superseded = 0", limit=limit)
-        for row in rows:
-            r = self.db.reconcile("memories")
-            reconciled += r.get("missing_added", 0)
-            break
+        result = self.db.reconcile("memories")
+        reconciled = int(result.get("missing_added", 0))
         if reconciled > 0:
             logger.info("memory.reconciled", {"reconciled": reconciled}, user_id=self.user_id)
         return reconciled
 
+    def migrate_structured_facts(self) -> dict[str, int]:
+        """Extract structured_data JSON from existing fact memories into memory_facts rows."""
+        migrated = 0
+        skipped = 0
+        now = datetime.now(UTC).isoformat()
+        rows = self.db.query(
+            "memories",
+            where="memory_type = ?",
+            params=(MEMORY_TYPE_FACT,),
+            limit=100_000,
+        )
+        for r in rows:
+            try:
+                sd_raw = r.get("structured_data", "{}")
+                if isinstance(sd_raw, str):
+                    sd = json.loads(sd_raw) if sd_raw.strip() else {}
+                elif isinstance(sd_raw, dict):
+                    sd = sd_raw
+                else:
+                    sd = {}
+            except (json.JSONDecodeError, TypeError):
+                sd = {}
+
+            entity = str(sd.get("entity", "")).strip()
+            attribute = str(sd.get("attribute", "")).strip()
+            value = str(sd.get("value", "")).strip()
+            if not attribute or not value:
+                skipped += 1
+                continue
+
+            scope = sd.get("scope", SCOPE_GLOBAL)
+            fact_key = self._fact_key(entity, attribute, scope)
+            fact_id = self._generate_fact_id(scope, entity, attribute, value)
+            previous_value = sd.get("previous_value")
+
+            existing = self.db.get("memory_facts", fact_id)
+            if existing:
+                skipped += 1
+                continue
+
+            updated_at = r.get("updated_at", str(now))
+            try:
+                self.db.insert(
+                    "memory_facts",
+                    {
+                        "id": fact_id,
+                        "fact_key": fact_key,
+                        "entity": entity,
+                        "attribute": attribute,
+                        "value": value,
+                        "previous_value": str(previous_value) if previous_value else None,
+                        "memory_id": r["id"],
+                        "scope": scope,
+                        "project_id": r.get("project_id"),
+                        "updated_at": updated_at,
+                    },
+                    sync=False,
+                )
+                migrated += 1
+            except Exception:
+                skipped += 1
+
+        msg = {"migrated": migrated, "skipped": skipped}
+        logger.info("memory_facts.migrated", msg, user_id=self.user_id)
+        return msg
+
     def add_memories_batch(self, memories: list[dict[str, Any]]) -> list[Memory]:
+        self.maybe_decay_confidence()
         results = []
         for mem_data in memories:
             trigger = mem_data.get("trigger", "")
@@ -751,11 +1031,10 @@ class MemoryStore:
                 continue
             domain = self._normalize_domain(mem_data.get("domain", "preference"))
             memory_id = self._generate_id(trigger, action)
-            confidence = min(
-                mem_data.get("confidence", DEFAULT_CONFIDENCE),
-                MAX_CONFIDENCE if mem_data.get("source", SOURCE_LEARNED) == SOURCE_LEARNED else 1.0,
-            )
             source = mem_data.get("source", SOURCE_LEARNED)
+            confidence = self._cap_initial_confidence(
+                mem_data.get("confidence", DEFAULT_CONFIDENCE), source
+            )
             memory_type = mem_data.get("memory_type", MEMORY_TYPE_PREFERENCE)
             importance = mem_data.get("importance", 5.0)
             structured_data = json.dumps(mem_data.get("structured_data", {}))
@@ -906,7 +1185,7 @@ class MemoryStore:
             "memories",
             where=where,
             params=tuple(params),
-            order_by="confidence DESC, updated_at DESC",
+            order_by="importance DESC, confidence DESC, updated_at DESC",
             limit=limit,
         )
         return [self._row_to_memory(r) for r in rows]
@@ -920,11 +1199,34 @@ class MemoryStore:
     def remove_memory(self, memory_id: str) -> bool:
         return self.db.delete("memories", memory_id)
 
+    def clear_all(self) -> int:
+        rows = self.db.query("memories", limit=100000)
+        if not rows:
+            return 0
+        longtext_columns = self.db._get_longtext_columns("memories")
+        now = datetime.now(UTC).isoformat()
+        with self.db._connect() as cur:
+            for row in rows:
+                row_id = row["id"]
+                cur.execute("DELETE FROM memories WHERE id = ?", (row_id,))
+                for col in longtext_columns:
+                    cur.execute(
+                        "INSERT INTO _journal (app_table, row_id, column_name, op, created_at) "
+                        "VALUES (?, ?, ?, 'delete', ?)",
+                        ("memories", row_id, col, now),
+                    )
+                cur.execute(
+                    "INSERT INTO _journal (app_table, row_id, op, created_at) "
+                    "VALUES (?, ?, 'row_delete', ?)",
+                    ("memories", row_id, now),
+                )
+        self.db._process_journal()
+        return len(rows)
+
     def search_fts(self, query: str, limit: int = 10) -> list[Memory]:
         if not query.strip():
             return []
-        results = self.db.search("memories", "trigger", query, mode=SearchMode.KEYWORD, limit=limit)
-        results += self.db.search("memories", "action", query, mode=SearchMode.KEYWORD, limit=limit)
+        results = self.db.search_all("memories", query, fts_weight=1.0, limit=limit * 2)
         seen = set()
         unique = []
         for r in results:
@@ -941,7 +1243,7 @@ class MemoryStore:
         results = self.db.search_all("memories", query, limit=limit)
         memories = []
         for r in results:
-            mem = self.get_memory(r["id"]) if isinstance(r.get("id"), str) else None
+            mem = self._row_to_memory(r) if isinstance(r.get("id"), str) else None
             if mem and not mem.is_superseded:
                 memories.append(mem)
         for m in memories:
@@ -986,8 +1288,8 @@ class MemoryStore:
             mid = r.get("id")
             if mid and mid not in seen:
                 seen.add(mid)
-                mem = self.get_memory(mid)
-                if mem:
+                mem = self._row_to_memory(r)
+                if not mem.is_superseded:
                     combined.append((r.get("_score", 0), mem))
 
         combined.sort(key=lambda x: x[0], reverse=True)
@@ -1011,6 +1313,10 @@ class MemoryStore:
         row = self.db.get("memories", memory_id)
         if not row:
             return
+        target = self.db.get("memories", target_id)
+        if not target:
+            return
+
         connections = self._parse_connections(row.get("linked_to", "[]"))
         existing_targets = {c.target_id for c in connections}
         if target_id not in existing_targets:
@@ -1026,6 +1332,12 @@ class MemoryStore:
                 },
             )
 
+        if not self.db.get_node(memory_id):
+            self.db.add_node(memory_id, label=f"memory: {memory_id}", type="memory")
+        if not self.db.get_node(target_id):
+            self.db.add_node(target_id, label=f"memory: {target_id}", type="memory")
+        self.db.add_edge(None, memory_id, target_id, type=relationship, weight=strength)
+
     def remove_connection(self, memory_id: str, target_id: str) -> None:
         row = self.db.get("memories", memory_id)
         if not row:
@@ -1040,12 +1352,41 @@ class MemoryStore:
                 "updated_at": datetime.now(UTC).isoformat(),
             },
         )
+        for e in self.db.get_edges(source_id=memory_id, target_id=target_id):
+            self.db.delete_edge(e["id"])
 
     def get_connections(self, memory_id: str) -> list[Connection]:
+        if self.db.get_node(memory_id):
+            neighbors = self.db.neighbors(memory_id)
+            return [
+                Connection(
+                    target_id=n["node"]["id"],
+                    relationship=n["edge"]["type"],
+                    strength=n["edge"]["weight"],
+                )
+                for n in neighbors
+            ]
         row = self.db.get("memories", memory_id)
         if not row:
             return []
         return self._parse_connections(row.get("linked_to", "[]"))
+
+    def traverse_memories(
+        self, memory_id: str, max_depth: int = 3, direction: str = "out"
+    ) -> list[dict[str, Any]]:
+        return self.db.traverse(memory_id, max_depth=max_depth, direction=direction)
+
+    def search_graph(
+        self, query: str, hop_expansion: int = 2, limit: int = 10
+    ) -> list[dict[str, Any]]:
+        return self.db.search_graph(query, hop_expansion=hop_expansion, limit=limit)
+
+    def get_central_memories(self) -> list[tuple[str, float]]:
+        ranks = self.db.pagerank()
+        return sorted(ranks.items(), key=lambda x: x[1], reverse=True)[:20]
+
+    def detect_memory_communities(self) -> list[set[str]]:
+        return self.db.community_detect()
 
     def mark_consolidated(self, memory_ids: list[str]) -> None:
         if not memory_ids:
@@ -1059,6 +1400,105 @@ class MemoryStore:
                     "updated_at": datetime.now(UTC).isoformat(),
                 },
             )
+
+    def consolidate_domain(
+        self, domain: str, min_similarity: float = 0.85, dry_run: bool = False
+    ) -> dict[str, int]:
+        """Merge semantically similar memories within a domain.
+
+        Groups memories by ChromaDB similarity and supersedes near-duplicates,
+        keeping the highest-confidence representative for each group.
+
+        Args:
+            domain: Domain to consolidate (e.g., 'preference', 'workflow')
+            min_similarity: Embedding similarity threshold for grouping (0-1)
+            dry_run: If True, return group counts without modifying storage
+
+        Returns:
+            dict with 'groups_found', 'memories_in_groups', 'merged' counts
+        """
+        memories = self.list_memories(domain=domain, limit=500)
+        if len(memories) < 2:
+            return {"groups_found": 0, "memories_in_groups": 0, "merged": 0}
+
+        clusters: dict[int, set[int]] = {}
+        id_to_idx = {m.id: i for i, m in enumerate(memories)}
+
+        for i, mem in enumerate(memories):
+            if mem.is_superseded:
+                continue
+            try:
+                similar = self.find_similar(mem.id, limit=6)
+            except Exception:
+                continue
+            for sim in similar:
+                if sim.id == mem.id or sim.is_superseded:
+                    continue
+                j = id_to_idx.get(sim.id)
+                if j is None:
+                    continue
+                # Heuristic: similar if found via vector search (find_similar uses semantic)
+                if i not in clusters:
+                    clusters[i] = {i}
+                clusters[i].add(j)
+
+        if not clusters:
+            return {"groups_found": 0, "memories_in_groups": 0, "merged": 0}
+
+        merged_count = 0
+        group_count = 0
+        total_in_groups = 0
+        seen: set[int] = set()
+
+        for root_idx, group_idxs in sorted(clusters.items()):
+            group_idxs = group_idxs - seen
+            if len(group_idxs) < 2:
+                continue
+            seen.update(group_idxs)
+            group_count += 1
+            total_in_groups += len(group_idxs)
+
+            group_mems = [memories[i] for i in group_idxs]
+            group_mems.sort(key=lambda m: (-m.confidence, -m.observations))
+            keep = group_mems[0]
+
+            if dry_run:
+                merged_count += len(group_mems) - 1
+                continue
+
+            now = datetime.now(UTC).isoformat()
+            for m in group_mems[1:]:
+                self.db.update(
+                    "memories",
+                    m.id,
+                    {
+                        "is_superseded": True,
+                        "superseded_by": keep.id,
+                        "updated_at": now,
+                    },
+                )
+                merged_count += 1
+
+            observations = sum(m.observations for m in group_mems)
+            self.db.update(
+                "memories",
+                keep.id,
+                {
+                    "observations": observations,
+                    "consolidated": True,
+                    "updated_at": now,
+                },
+            )
+            for m in group_mems[1:]:
+                self.add_connection(
+                    keep.id, m.id, relationship="merged_from", strength=0.5
+                )
+
+        return {
+            "groups_found": group_count,
+            "memories_in_groups": total_in_groups,
+            "merged": merged_count,
+        }
 
     def get_insights(
         self, insight_id: str | None = None, limit: int = 10
@@ -1178,6 +1618,7 @@ class MemoryStore:
         messages_limit: int = 5,
         insights_limit: int = 3,
         user_id: str | None = None,
+        workspace_id: str = "personal",
     ) -> dict[str, list[Any]]:
         results: dict[str, list[Any]] = {
             "memories": [],
@@ -1195,7 +1636,7 @@ class MemoryStore:
             try:
                 from src.storage.messages import get_message_store
 
-                conv_store = get_message_store(user_id)
+                conv_store = get_message_store(user_id, workspace_id)
                 message_results = conv_store.search_hybrid(query, limit=messages_limit)
                 results["messages"] = [
                     {"id": m.id, "content": m.content, "role": m.role, "score": m.score}
@@ -1207,12 +1648,14 @@ class MemoryStore:
         return results
 
     def get_compact_context(self, max_memories: int = 5) -> str:
+        import heapq
+
         memories = self.list_working_memories(min_confidence=0.3, limit=max_memories * 2)
         if not memories:
             return ""
         by_domain: dict[str, int] = {}
         top_memories: list[str] = []
-        for m in sorted(memories, key=lambda x: (-x.confidence, -x.observations))[:max_memories]:
+        for m in heapq.nlargest(max_memories, memories, key=lambda x: (x.confidence, x.observations)):
             by_domain[m.domain] = by_domain.get(m.domain, 0) + 1
             source_marker = "★" if m.source == SOURCE_EXPLICIT else ""
             top_memories.append(f"{m.trigger}: {m.action}{source_marker}")
@@ -1343,7 +1786,8 @@ class MemoryStore:
 
     def get_stats(self) -> dict[str, Any]:
         total = self.db.count("memories")
-        rows_by_domain = self.db.query("memories", limit=10000)
+        active_total = self.db.count("memories", where="is_superseded = 0")
+        rows_by_domain = self.db.query("memories", where="is_superseded = 0", limit=10000)
         by_domain: dict[str, int] = {}
         by_type: dict[str, int] = {}
         by_source: dict[str, int] = {}
@@ -1361,14 +1805,14 @@ class MemoryStore:
             by_scope[sc] = by_scope.get(sc, 0) + 1
             if r.get("consolidated"):
                 consolidated += 1
-            if not r.get("is_superseded"):
-                confidences.append(r.get("confidence", 0))
+            confidences.append(r.get("confidence", 0))
 
         insights_count = self.db.count("insights")
         avg_conf = sum(confidences) / len(confidences) if confidences else 0
 
         return {
             "total": total,
+            "active_total": active_total,
             "by_domain": by_domain,
             "by_type": by_type,
             "by_source": by_source,
@@ -1393,13 +1837,23 @@ class MemoryStore:
         return count
 
 
+_MEMORY_STORE_CACHE_MAX = 128
 _memory_store_cache: dict[str, MemoryStore] = {}
 
 
-def get_memory_store(user_id: str) -> MemoryStore:
-    if user_id not in _memory_store_cache:
-        _memory_store_cache[user_id] = MemoryStore(user_id)
-    return _memory_store_cache[user_id]
+def clear_memory_store_cache() -> None:
+    _memory_store_cache.clear()
+
+
+def get_memory_store(user_id: str, workspace_id: str = "personal") -> MemoryStore:
+    key = f"{user_id}:{workspace_id}"
+    if key not in _memory_store_cache:
+        while len(_memory_store_cache) >= _MEMORY_STORE_CACHE_MAX:
+            oldest_key = next(iter(_memory_store_cache))
+            _memory_store_cache.pop(oldest_key, None)
+        paths = get_paths(user_id, workspace_id=workspace_id)
+        _memory_store_cache[key] = MemoryStore(user_id, base_dir=paths.workspace_memory_dir())
+    return _memory_store_cache[key]
 
 
 __all__ = [
@@ -1419,8 +1873,10 @@ __all__ = [
     "CONNECTION_RELATIONSHIPS",
     "DEFAULT_CONFIDENCE",
     "MAX_CONFIDENCE",
+    "INITIAL_LEARNED_CONFIDENCE_CAP",
     "MIN_CONFIDENCE_DELETE",
     "MEMORY_DETAIL_COMPACT",
     "MEMORY_DETAIL_SUMMARY",
     "MEMORY_DETAIL_FULL",
+    "clear_memory_store_cache",
 ]

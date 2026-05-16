@@ -1,6 +1,6 @@
 # Executive Assistant
 
-A general purpose executive assistant agent built with LangChain and LangGraph, with multi-channel support (HTTP, CLI).
+A general purpose executive assistant agent with multi-channel support (HTTP, CLI) powered by a custom agent SDK.
 
 ## Features
 
@@ -9,9 +9,8 @@ A general purpose executive assistant agent built with LangChain and LangGraph, 
 | Feature | Description |
 |---------|-------------|
 | **AI Chat** | Conversational AI with context awareness |
-| **Agent Pooling** | Per-user agent pool for concurrent requests with reusable thread context |
+| **Agent Pooling** | Per-user agent pool for concurrent requests with reusable context |
 | **Memory** | Persistent conversation history with SQLite + ChromaDB (semantic + keyword search) |
-| **Checkpoints** | LangGraph checkpoint for conversation state persistence |
 | **Skills** | Extensible skill system with progressive disclosure |
 | **MCP Integration** | Dynamic Model Context Protocol server tools per user |
 | **Subagents** | Create and manage specialized subagents with custom skills/tools |
@@ -66,9 +65,10 @@ curl -X POST http://localhost:8080/message \
 - `subagent_invoke` - Execute task asynchronously (schedule now)
 - `subagent_list` - List all subagents
 - `subagent_progress` - Get task status and results
-- `subagent_validate` - Validate subagent config
-- `subagent_batch` - Invoke multiple subagents in parallel
-- `subagent_schedule` - Schedule one-off or recurring tasks
+- `subagent_update` - Amend existing subagent config
+- `subagent_instruct` - Send course-correction to running subagent
+- `subagent_cancel` - Cancel a running/pending task
+- `subagent_delete` - Delete subagent and cancel tasks
 
 **Subagent Folder Structure:**
 ```
@@ -217,7 +217,6 @@ The memory system is inspired by [claude-mem](https://github.com/thedotmack/clau
 |-----------|------------|
 | **Message Storage** | SQLite with FTS5 (full-text search) |
 | **Semantic Search** | ChromaDB (vector database) |
-| **Checkpoints** | LangGraph SQLite checkpointer |
 | **Pattern** | Progressive disclosure (3-layer workflow) |
 
 ### Storage Layout
@@ -227,9 +226,8 @@ data/users/{user_id}/
 ├── memory/
 │   ├── memory.db     # SQLite (memories + insights)
 │   └── vectors/      # ChromaDB vectors
-├── messages/
-│   └── messages.db  # Conversation history
-└── checkpoints/     # LangGraph checkpoints
+└── messages/
+    └── messages.db  # Conversation history
 ```
 
 ### Memory Types
@@ -414,11 +412,11 @@ uv run mypy src/
 
 ## Architecture
 
-- **Agent**: LangChain `create_agent()` with tool calling
-- **Concurrency**: Per-user `AgentPool` reusing agent instances and thread IDs
-- **Middleware**: SkillMiddleware, SummarizationMiddleware (with failure detection), HumanInTheLifeMiddleware
-- **Storage**: SQLite (messages), ChromaDB (vectors), LangGraph (checkpoints)
-- **LLM Providers**: Ollama/Ollama Cloud, OpenAI, Anthropic
+- **Agent**: Custom SDK `AgentLoop` (ReAct) with tool calling
+- **Concurrency**: Per-user agent pool with streaming support
+- **Middleware**: SkillMiddleware, MemoryMiddleware, SummarizationMiddleware, ProgressMiddleware, InstructionMiddleware
+- **Storage**: SQLite (messages), ChromaDB (vectors)
+- **LLM Providers**: Ollama/Ollama Cloud, OpenAI, Anthropic, Gemini
 
 ## Acknowledgments
 
@@ -426,7 +424,7 @@ This project builds on ideas and research from several projects in the AI agent 
 
 | Project | Contribution |
 |---------|-------------|
-| [LangChain](https://github.com/langchain-ai/langchain) & [LangGraph](https://github.com/langchain-ai/langgraph) | Original agent framework. Executive Assistant started on LangChain/LangGraph before migrating to a custom SDK. LangGraph's checkpointing and graph-based agent orchestration informed the architecture. |
+| [LangChain](https://github.com/langchain-ai/langchain) & [LangGraph](https://github.com/langchain-ai/langgraph) | Original agent framework. Executive Assistant started on LangChain/LangGraph before migrating to a custom SDK in Phase 8. |
 | [claude-mem](https://github.com/thedotmack/claude-mem) | Progressive disclosure pattern for memory retrieval (3-layer workflow: list → load → full). Our skill system and memory context injection follow this token-efficient approach. [claude-mem.ai](https://claude-mem.ai/) |
 | [Claude Code](https://code.claude.com) | Auto-memory and insights system. Claude Code's approach to accumulating build commands, debugging insights, architecture notes, and code preferences across sessions directly inspired our MemoryStore's confidence-boosted recall and consolidation system. See [Claude Code Memory docs](https://code.claude.com/docs/en/memory). |
 | [ASMR](https://github.com/supermemoryai/supermemory) | Agentic Search and Memory Retrieval from the Supermemory team. Demonstrated that replacing simple vector search with agentic retrieval achieves ~99% on LongMemEval, validating the hybrid (keyword + vector + field) search approach used in our MemoryStore. [Blog post](https://supermemory.ai/blog/we-broke-the-frontier-in-agent-memory-introducing-99-sota-memory-system/) |

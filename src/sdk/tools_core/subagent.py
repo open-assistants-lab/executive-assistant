@@ -28,6 +28,7 @@ logger = get_logger()
 def subagent_create(
     name: str,
     user_id: str,
+    workspace_id: str = "personal",
     description: str = "",
     model: str | None = None,
     tools: list[str] | None = None,
@@ -43,6 +44,7 @@ def subagent_create(
     Args:
         name: Unique name for the subagent (alphanumeric, hyphens, underscores)
         user_id: The user ID (required)
+        workspace_id: Workspace ID (defaults to current workspace)
         description: What this subagent does (shown to LLM for routing)
         model: Model to use (e.g., 'anthropic:claude-sonnet-4-20250514')
         tools: List of tool names to allow (None = all native tools)
@@ -81,7 +83,7 @@ def subagent_create(
 
     from src.sdk.coordinator import get_coordinator
 
-    coordinator = get_coordinator(user_id)
+    coordinator = get_coordinator(user_id, workspace_id)
 
     existing = coordinator.load_def(name)
     if existing is not None:
@@ -114,6 +116,7 @@ subagent_create.annotations = ToolAnnotations(title="Create Subagent", destructi
 def subagent_update(
     name: str,
     user_id: str,
+    workspace_id: str = "personal",
     model: str | None = None,
     description: str | None = None,
     tools: list[str] | None = None,
@@ -129,6 +132,7 @@ def subagent_update(
     Args:
         name: Subagent name to update
         user_id: The user ID (required)
+        workspace_id: Workspace ID (defaults to current workspace)
         model: New model override
         description: New description
         tools: New tool allowlist (replaces entirely)
@@ -144,7 +148,7 @@ def subagent_update(
     """
     from src.sdk.coordinator import get_coordinator
 
-    coordinator = get_coordinator(user_id)
+    coordinator = get_coordinator(user_id, workspace_id)
     existing = coordinator.load_def(name)
     if existing is None:
         return f"Error: Subagent '{name}' not found."
@@ -199,6 +203,7 @@ def subagent_invoke(
     agent_name: str,
     task: str,
     user_id: str,
+    workspace_id: str = "personal",
     parent_id: str | None = None,
 ) -> str:
     """Invoke a subagent to execute a task. Returns task ID immediately.
@@ -211,6 +216,7 @@ def subagent_invoke(
         agent_name: Name of the subagent to invoke
         task: Task description/prompt
         user_id: The user ID (required)
+        workspace_id: Workspace ID (defaults to current workspace)
         parent_id: Correlation ID to group related tasks
 
     Returns:
@@ -218,7 +224,7 @@ def subagent_invoke(
     """
     from src.sdk.coordinator import get_coordinator
 
-    coordinator = get_coordinator(user_id)
+    coordinator = get_coordinator(user_id, workspace_id)
 
     existing = coordinator.load_def(agent_name)
     if existing is None:
@@ -249,18 +255,19 @@ subagent_invoke.annotations = ToolAnnotations(title="Invoke Subagent", open_worl
 
 
 @tool
-def subagent_list(user_id: str) -> str:
+def subagent_list(user_id: str, workspace_id: str = "personal") -> str:
     """List all subagents for the user and their active tasks.
 
     Args:
         user_id: The user ID (required)
+        workspace_id: Workspace ID (defaults to current workspace)
 
     Returns:
         List of subagents with their configs and active tasks
     """
     from src.sdk.coordinator import get_coordinator
 
-    coordinator = get_coordinator(user_id)
+    coordinator = get_coordinator(user_id, workspace_id)
 
     try:
         asyncio.get_running_loop()
@@ -309,6 +316,7 @@ def subagent_progress(
     task_id: str | None = None,
     parent_id: str | None = None,
     user_id: str = "default_user",
+    workspace_id: str = "personal",
 ) -> str:
     """Check progress/status of subagent tasks.
 
@@ -316,13 +324,14 @@ def subagent_progress(
         task_id: Specific task ID to check
         parent_id: Filter tasks by parent correlation ID
         user_id: The user ID (required)
+        workspace_id: Workspace ID (defaults to current workspace)
 
     Returns:
         Task status and progress information
     """
     from src.sdk.coordinator import get_coordinator
 
-    coordinator = get_coordinator(user_id)
+    coordinator = get_coordinator(user_id, workspace_id)
     import concurrent.futures
 
     if task_id:
@@ -411,6 +420,7 @@ def subagent_instruct(
     task_id: str,
     message: str,
     user_id: str,
+    workspace_id: str = "personal",
 ) -> str:
     """Send a course-correction instruction to a running subagent.
 
@@ -420,13 +430,14 @@ def subagent_instruct(
         task_id: The task ID to instruct
         message: The instruction message to inject
         user_id: The user ID (required)
+        workspace_id: Workspace ID (defaults to current workspace)
 
     Returns:
         Confirmation message
     """
     from src.sdk.coordinator import get_coordinator
 
-    coordinator = get_coordinator(user_id)
+    coordinator = get_coordinator(user_id, workspace_id)
 
     async def _instruct() -> bool | None:
         db = await coordinator._get_db()
@@ -459,7 +470,7 @@ subagent_instruct.annotations = ToolAnnotations(title="Instruct Subagent")
 
 
 @tool
-def subagent_cancel(task_id: str, user_id: str) -> str:
+def subagent_cancel(task_id: str, user_id: str, workspace_id: str = "personal") -> str:
     """Cancel a running or pending subagent task.
 
     Sets cancel_requested flag. The subagent's InstructionMiddleware will
@@ -468,13 +479,14 @@ def subagent_cancel(task_id: str, user_id: str) -> str:
     Args:
         task_id: The task ID to cancel
         user_id: The user ID (required)
+        workspace_id: Workspace ID (defaults to current workspace)
 
     Returns:
         Cancellation confirmation
     """
     from src.sdk.coordinator import get_coordinator
 
-    coordinator = get_coordinator(user_id)
+    coordinator = get_coordinator(user_id, workspace_id)
 
     async def _cancel() -> bool:
         return await coordinator.cancel(task_id)
@@ -497,19 +509,20 @@ subagent_cancel.annotations = ToolAnnotations(title="Cancel Subagent", destructi
 
 
 @tool
-def subagent_delete(name: str, user_id: str) -> str:
+def subagent_delete(name: str, user_id: str, workspace_id: str = "personal") -> str:
     """Delete a subagent definition and cancel any running tasks.
 
     Args:
         name: Subagent name to delete
         user_id: The user ID (required)
+        workspace_id: Workspace ID (defaults to current workspace)
 
     Returns:
         Deletion confirmation
     """
     from src.sdk.coordinator import get_coordinator
 
-    coordinator = get_coordinator(user_id)
+    coordinator = get_coordinator(user_id, workspace_id)
 
     async def _delete() -> bool:
         return await coordinator.delete(name)

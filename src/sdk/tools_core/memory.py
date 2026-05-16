@@ -1,15 +1,40 @@
 """Memory tools — SDK-native implementation."""
 
+import re
 from datetime import date, timedelta
 from typing import Any
 
 from src.app_logging import get_logger
 from src.sdk.memory_planner import plan_memory_query
 from src.sdk.tools import ToolAnnotations, tool
-from src.storage.memory import Memory, get_memory_store
+from src.storage.memory import get_memory_store
 from src.storage.messages import SearchResult, get_message_store
 
 logger = get_logger()
+
+
+# ── memcore factory ──────────────────────────────────────────────────────────
+
+_memcore_cache: dict[str, Any] = {}
+
+
+def _get_memory_core(user_id: str, workspace_id: str = "personal"):
+    """Get or create a cached MemoryCore instance for the given user/workspace.
+
+    Uses the SAME HybridDB path as MessageStore so messages imported
+    via /conversation/import are immediately searchable.
+    """
+    from memcore.backends.hybrid import HybridBackend
+    from memcore.core import MemoryCore
+
+    from src.storage.paths import get_paths
+
+    cache_key = f"{user_id}:memcore"
+    if cache_key not in _memcore_cache:
+        paths = get_paths(user_id)
+        conv_path = str(paths.conversation_dir())
+        _memcore_cache[cache_key] = MemoryCore(backend=HybridBackend(path=conv_path))
+    return _memcore_cache[cache_key]
 
 
 def _expand_queries(query: str) -> list[str]:
@@ -335,239 +360,161 @@ memory_get_history.annotations = ToolAnnotations(
 )
 
 
+def _generate_hyde_query(query: str, user_id: str) -> str | None:
+    """Generate a hypothetical answer to bridge the question-declarative gap.
+
+    Uses one LLM call (bounded). The hypothetical answer embeds closer to
+    real declarative data than the original question does.
+
+    HyDE: Precise Zero-Shot Dense Retrieval without Relevance Labels
+    Gao et al., 2022 (arXiv:2212.10496)
+    """
+    if len(query.strip()) < 5:
+        return None
+
+    try:
+        import asyncio
+
+        from src.sdk.messages import Message
+        from src.sdk.providers.factory import create_model_from_config
+
+        provider = create_model_from_config()
+        prompt = (
+            f"A user asked: '{query}'\n\n"
+            "Write a short hypothetical answer to this question as if you were the user. "
+            "Include specific details and numbers if the question asks for them. "
+            "Write in first person. Example: Q='How many cats do I have?' → "
+            "'I have two cats named Mochi and Tofu. They are both indoor cats.'\n\n"
+            "Hypothetical answer:"
+        )
+
+        async def _call():
+            resp = await provider.chat([Message.user(prompt)])
+            return resp.content.strip() if resp.content else None
+
+        return asyncio.run(_call())
+    except Exception:
+        return None
+
+
+def _content_similarity(a: str, b: str) -> float:
+    """Jaccard similarity between two content strings (word-level)."""
+    wa = set(a.split())
+    wb = set(b.split())
+    if not wa or not wb:
+        return 0.0
+    return len(wa & wb) / len(wa | wb)
+
+
 @tool
 def memory_search(
     query: str,
     user_id: str = "default_user",
     workspace_id: str = "personal",
+    limit: int = 5,
 ) -> str:
-    """Search through conversation history using keyword + semantic search.
+    """Search conversation history — semantic + keyword, raw verbatim output.
 
-    This is the most comprehensive search - combines exact keyword matching
-    with semantic similarity for better results. Automatically generates
-    query variants to improve recall across different phrasings.
+    Returns raw conversation snippets matched to your query. Results are
+    deduplicated by session (max 1 result per conversation). No fact
+    extraction or summarization — you get exactly what was said.
 
-    Use this when user asks about specific topics from past conversations.
+    Use this for: finding specific facts from past conversations, counting
+    items mentioned across sessions, checking what was discussed.
 
     Args:
-        query: Query to search for
+        query: What to search for
         user_id: User identifier
         workspace_id: Workspace ID (defaults to current workspace)
+        limit: Max results (default 20)
 
     Returns:
-        Search results
+        Search results as formatted conversation snippets
     """
-    conversation = get_message_store(user_id, workspace_id)
-    memory_store = get_memory_store(user_id, workspace_id)
-    plan = plan_memory_query(query)
-    is_aggregation = plan.intent == "aggregation"
+    core = _get_memory_core(user_id, workspace_id)
 
-    fact_limit = plan.max_facts if plan.intent != "unknown" else 5
-    fact_results = memory_store.find_facts_for_query(query, limit=fact_limit)
-    temporal_results = (
-        memory_store.find_fact_history_for_query(query, limit=plan.max_history)
-        if plan.needs_fact_history
-        else []
-    )
+    # Counting questions need wider session coverage to find all items
+    # across different conversations. Single-fact questions can be tighter.
+    is_counting = query.lower().startswith("how many") or "total" in query.lower()
+    effective_limit = max(limit, 30 if is_counting else 10)
 
-    # Graph-guided expansion: traverse connected memories for top facts
-    connected_memories: list[Memory] = []
-    connected_ids: set[str] = {m.id for m in fact_results}
-    for fact in fact_results[:3]:
-        try:
-            neighbors = memory_store.traverse_memories(
-                fact.id, max_depth=1, direction="both"
-            )
-            for n in neighbors:
-                neighbor_id = n["node"]["id"]
-                if neighbor_id in connected_ids:
-                    continue
-                connected_ids.add(neighbor_id)
-                neighbor_mem = memory_store.get_memory(neighbor_id)
-                if neighbor_mem and not neighbor_mem.is_superseded:
-                    edge = n["edge"]
-                    boost = 1.0 + edge.get("weight", 1.0) * 0.15
-                    neighbor_mem._graph_boost = boost
-                    neighbor_mem._connected_via = fact.id
-                    connected_memories.append(neighbor_mem)
-        except Exception:
-            pass
+    results = core.search(query, limit=effective_limit * 6)  # fetch wide for session diversity
 
-    search_limit = 100 if is_aggregation else 8
-    result_limit = 50 if is_aggregation else 10
+    # Filter: only user messages contain original information.
+    # Assistant/tool messages are previous answers/echo that create recursion.
+    results = [r for r in results if r.memory.role == "user"]
 
-    queries = _expand_queries(query)
-    seen_ids: set[int | str] = set()
-    all_results: list[SearchResult] = []
-    cross_workspace_used: list[str] = []
+    # Filter out echo: pure questions (end with ?, no answer content).
+    # These match query keywords but contain no information to extract.
+    # Keep messages that start like questions but contain data after (e.g., "How to train? I run 3x/wk.")
+    # Filter out prompt echo: messages whose text heavily overlaps with the
+    # current query. These are the user's own question being stored and re-found.
+    # Uses word overlap, not punctuation — handles "Did I ask about X?" naturally.
+    query_words = set(query.lower().split())
+    filtered = []
+    for r in results:
+        content_stripped = r.memory.content.strip().lower()
+        result_words = set(content_stripped.split())
+        query_overlap = len(query_words & result_words) / max(len(query_words), 1)
 
-    recency_keywords = ["current", "latest", "now", "after", "updated", "new",
-                         "recently", "last", "nowadays", "these days"]
-    recency_boost = any(kw in query.lower() for kw in recency_keywords)
+        # High overlap with query → echo, skip. But keep if it contains numbers
+        # or proper nouns that indicate it's not just the question.
+        has_data = bool(re.findall(r"\d+|[A-Z][a-z]{2,}", r.memory.content))
+        if query_overlap > 0.7 and not has_data:
+            continue
 
-    # Search current workspace even when facts are strong; facts summarize durable state,
-    # while messages preserve context and supporting evidence.
-    for q in queries:
-        results = conversation.search_hybrid(
-            q, limit=search_limit,
-            recency_weight=0.7 if recency_boost else 0.3,
-        )
-        for r in results:
-            if r.id not in seen_ids:
-                seen_ids.add(r.id)
-                all_results.append(r)
+        # Skip near-duplicate content
+        if len(filtered) >= 1 and _content_similarity(
+            content_stripped, filtered[-1].memory.content.lower()
+        ) > 0.8:
+            continue
 
-    # Auto-expand to all workspaces if results are weak
-    if len(all_results) < 5:
-        cross_workspace_used, cross_results = _search_all_workspaces(
-            query, user_id, queries, primary_ws=workspace_id,
-            search_limit=search_limit, recency_weight=0.3,
-        )
-        for r, ws_id in cross_results:
-            rkey = f"xw:{ws_id}:{r.id}"
-            if rkey not in seen_ids:
-                seen_ids.add(rkey)
-                r.score *= 0.95  # slight penalty for non-primary workspace
-                setattr(r, "_workspace", ws_id)
-                all_results.append(r)
+        filtered.append(r)
+        if len(filtered) >= effective_limit:
+            break
 
-    all_results.sort(key=lambda r: r.score, reverse=True)
-    all_results = all_results[:result_limit]
+    if not filtered and results:
+        filtered = results[:effective_limit]
 
-    _mempalace_boost(all_results, query)
+    results = filtered
 
-    all_results.sort(key=lambda r: r.score, reverse=True)
-    all_results = all_results[:result_limit]
-
-    if not fact_results and not temporal_results and not all_results:
-        fallback = _get_history_fallback(query, conversation)
-        if fallback:
-            return fallback
+    if not results:
         return f"No messages found for '{query}'"
 
-    output = ""
-    if fact_results:
-        current_facts = [m for m in fact_results if not m.is_superseded]
-        superseded_facts = [m for m in fact_results if m.is_superseded]
+    output = (
+        f"## Search Results: '{query}'\n"
+        f"Found {len(results)} messages. Ordered by relevance (higher score = better match).\n\n"
+    )
+    for i, r in enumerate(results, 1):
+        content = r.memory.content[:300]
+        if len(r.memory.content) > 300:
+            content += "..."
+        ts_str = r.memory.ts.strftime("%Y-%m-%d") if r.memory.ts else "?"
+        score = r.score
+        role = r.memory.role or "?"
+        sid = r.memory.session_id or ""
+        ws = r.memory.workspace_id or ""
 
-        facts_to_show = current_facts + superseded_facts
-        active_count = len(current_facts)
-        output += f"Found {active_count} active facts"
-        if superseded_facts:
-            output += f" (plus {len(superseded_facts)} outdated)"
-        output += ":\n"
+        meta = f"[{role}] {ts_str} score={score:.4f}"
+        if ws:
+            meta += f" ws={ws}"
+        if sid:
+            meta += f" sid={sid[:12]}"
 
-        for m in facts_to_show:
-            sd = m.structured_data
-            previous = sd.get("previous_value")
-            previous_text = f" (previous: {previous})" if previous else ""
-            superseded_marker = "[OUTDATED] " if m.is_superseded else ""
+        output += f"---\n{meta}\n{content}\n"
 
-            replaced = ""
-            if m.is_superseded:
-                for cur in current_facts:
-                    csd = cur.structured_data
-                    if (csd.get("entity") == sd.get("entity") and
-                        csd.get("attribute") == sd.get("attribute")):
-                        replaced = f" → replaced by: {csd.get('value', 'unknown')}"
-                        break
-
-            output += (
-                f"- {superseded_marker}"
-                f"{sd.get('entity', 'user')}.{sd.get('attribute', m.trigger)} = "
-                f"{sd.get('value', m.action)}{previous_text}"
-                f"{replaced} "
-                f"(conf: {min(m.confidence, 1.0):.0%})\n"
-            )
-
-    if temporal_results:
-        output += f"Found {len(temporal_results)} temporal/update facts:\n"
-        for m in temporal_results:
-            sd = m.structured_data
-            status = "current" if not m.is_superseded else "superseded"
-            effective_at = sd.get("effective_at") or m.updated_at.date().isoformat()
-            previous = sd.get("previous_value")
-            previous_text = f"; previous={previous}" if previous else ""
-            output += (
-                f"- {effective_at} [{status}] "
-                f"{sd.get('entity', 'user')}.{sd.get('attribute', m.trigger)} = "
-                f"{sd.get('value', m.action)}{previous_text}\n"
-            )
-
-    if connected_memories:
-        output += f"Found {len(connected_memories)} connected memories:\n"
-        for m in connected_memories[:5]:
-            boost_tag = f" [related via:{m._connected_via[:8]}]" if hasattr(m, "_connected_via") else ""
-            output += (
-                f"- [{m.domain}] {m.trigger}: {m.action}{boost_tag}"
-                f" (conf: {min(m.confidence, 1.0):.0%})\n"
-            )
-
-    msg_ids = [r.id for r in all_results]
-    session_ids = _fetch_session_ids(conversation, msg_ids)
-    session_groups = _group_results_by_session(all_results, session_ids)
-
-    has_grouped_sessions = any(sid for sid, _, _ in session_groups)
-    if has_grouped_sessions:
-        output += f"Found {len(session_groups)} sessions"
-        if cross_workspace_used:
-            output += f" (searched workspaces: {workspace_id}, {', '.join(cross_workspace_used)})"
-        output += ":\n\n"
-
-    if is_aggregation:
-        count_output = _compute_aggregation_count(all_results, query, conversation)
-        if count_output:
-            output += count_output
-            return output  # aggregation: skip raw data, return just the count
-        output += "(aggregation — count all distinct items below)\n\n"
-
-    if has_grouped_sessions:
-        for i, (sid, count, entries) in enumerate(session_groups[:30], 1):
-            ws_tag = (
-                f"[{getattr(entries[0], '_workspace', workspace_id)}] "
-                if hasattr(entries[0], "_workspace")
-                else ""
-            )
-            sid_label = f"sid={sid[:16]}" if sid else f"msg#{entries[0].id}"
-            preview = entries[0].content[:250]
-            output += f"{i}. {ws_tag}{sid_label} ({count} msgs): {preview}\n"
-        if len(session_groups) > 30:
-            output += f"\n... ({len(session_groups)} sessions total, top 30 shown)\n"
-    else:
-        output += f"Found {len(all_results)} conversation matches"
-        if cross_workspace_used:
-            output += f" (searched: {workspace_id}, {', '.join(cross_workspace_used)})"
-        output += ":\n"
-        if is_aggregation:
-            output += "(aggregation query — count all distinct items across these results)\n\n"
-            for i, r in enumerate(all_results[:30], 1):
-                ws_tag = f"[{getattr(r, '_workspace', workspace_id)}] " if hasattr(r, '_workspace') else ""
-                output += f"{i}. {ws_tag}[{r.role}] {r.content[:250]}\n"
-            if len(all_results) > 30:
-                output += f"\n... ({len(all_results)} total, top 30 shown)\n"
-        else:
-            for r in all_results:
-                ws_tag = f" [{getattr(r, '_workspace', '')}]" if hasattr(r, '_workspace') else ""
-                output += f"- {r.role} ({r.ts.date()}){ws_tag}: {r.content} (score: {r.score:.2f})\n"
-
-    try:
-        from src.storage.observation import get_observation_store
-
-        obs_store = get_observation_store(user_id, workspace_id)
-        obs_results = obs_store.search_observations(query, limit=5)
-        if obs_results:
-            output += f"\nFound {len(obs_results)} observations:\n"
-            for o in obs_results:
-                output += f"[{o['priority']}] {o.get('observation_ts', '')[:10]}: {o['content']}\n"
-        refl_results = obs_store.search_reflections(query, limit=2)
-        if refl_results:
-            output += f"\nFound {len(refl_results)} reflections:\n"
-            for reflection in refl_results:
-                output += reflection["content"][:200] + "\n"
-    except Exception:
-        pass
-
+    output += (
+        "\n---\n"
+        "INSTRUCTIONS: Read the above messages and extract the answer. "
+        "If counting, count each distinct item across ALL results. "
+        "Give only the final answer — do NOT repeat the search results."
+    )
     return output
+
+
+memory_search.annotations = ToolAnnotations(
+    title="Search Conversation History", read_only=True, idempotent=True
+)
 
 
 def _mempalace_boost(results: list[SearchResult], query: str) -> None:
@@ -837,6 +784,8 @@ def memory_search_all(
             role = m.get("role", "?")
             content = m.get("content", "")
             score = m.get("score", 0)
+            if role in ("tool", "system"):
+                continue
             parts.append(f"- {role}: {content} (score: {score:.2f})")
 
     if (
@@ -890,7 +839,7 @@ def memory_search_all_workspaces(
     for q in queries:
         results = conversation.search_hybrid(q, limit=search_limit, recency_weight=0.3)
         for r in results:
-            if r.id not in seen_ids:
+            if r.id not in seen_ids and r.role not in ("tool", "system"):
                 seen_ids.add(r.id)
                 all_results.append(r)
 
@@ -901,7 +850,7 @@ def memory_search_all_workspaces(
     )
     for r, ws_id in cross_results:
         rkey = f"xw:{ws_id}:{r.id}"
-        if rkey not in seen_ids:
+        if rkey not in seen_ids and r.role not in ("tool", "system"):
             seen_ids.add(rkey)
             setattr(r, "_workspace", ws_id)
             all_results.append(r)
@@ -914,7 +863,7 @@ def memory_search_all_workspaces(
     output += f"Found {len(all_results)} matches:\n\n"
     for i, r in enumerate(all_results[:30], 1):
         ws = getattr(r, "_workspace", workspace_id)
-        output += f"{i}. [{ws}] [{r.role}] {r.content[:200]}\n"
+        output += f"{i}. [{ws}] [{r.role}] {r.content[:500]}\n"
     if len(all_results) > 30:
         output += f"\n... ({len(all_results)} total, 30 shown)\n"
 

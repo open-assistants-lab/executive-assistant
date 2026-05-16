@@ -11,10 +11,10 @@ from openai import AsyncOpenAI
 
 
 class Judge:
-    """Judge that compares agent answers to expected answers using GPT-4o.
+    """Judge that compares agent answers to expected answers.
 
-    This follows the official LongMemEval evaluation which uses GPT-4o as judge
-    to determine if the agent's answer is correct.
+    Uses GPT-4o by default. Set JUDGE_MODEL env var to override
+    (e.g., JUDGE_MODEL=ollama-cloud:gpt-oss:20b-cloud).
     """
 
     SYSTEM_PROMPT = """You are an expert judge evaluating the accuracy of answers to questions.
@@ -51,12 +51,23 @@ Evaluate whether the predicted answer is correct. Consider:
 
 Respond in the specified JSON format."""
 
-    def __init__(self, model: str = "gpt-4o-mini"):
-        self.model = model
-        self.client = AsyncOpenAI(
-            api_key=os.environ.get("OPENAI_API_KEY"),
-            organization=os.environ.get("OPENAI_ORGANIZATION"),
-        )
+    def __init__(self, model: str | None = None):
+        judge_model = model or os.environ.get("JUDGE_MODEL", "openai/gpt-4o-mini")
+        self.model = judge_model
+        self._provider: str = "openai"
+        self._sdk_provider: Any = None
+
+        if judge_model.startswith("ollama") or judge_model.startswith("deepseek"):
+            from src.sdk.providers.factory import create_model_from_config
+
+            self._provider = "sdk"
+            self._sdk_provider = create_model_from_config(judge_model)
+        else:
+            self._provider = "openai"
+            self.client = AsyncOpenAI(
+                api_key=os.environ.get("OPENAI_API_KEY"),
+                organization=os.environ.get("OPENAI_ORGANIZATION"),
+            )
 
     async def evaluate(
         self,
@@ -80,17 +91,26 @@ Respond in the specified JSON format."""
             predicted_answer=predicted_answer,
         )
 
-        response = await self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": self.SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.0,
-        )
+        if self._provider == "sdk" and self._sdk_provider:
+            from src.sdk.messages import Message
 
-        result_text = response.choices[0].message.content or ""
+            messages = [
+                Message.system(self.SYSTEM_PROMPT),
+                Message.user(user_prompt + "\n\nRespond with ONLY: {\"is_correct\": true|false, \"reasoning\": \"...\"}"),
+            ]
+            result = await self._sdk_provider.chat(messages)
+            result_text = result.content if result and result.content else ""
+        else:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": self.SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt},
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.0,
+            )
+            result_text = response.choices[0].message.content or ""
 
         import json
 

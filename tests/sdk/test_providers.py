@@ -24,7 +24,7 @@ from src.sdk.providers.factory import (
     create_provider_from_registry_model,
 )
 from src.sdk.providers.gemini import GeminiProvider
-from src.sdk.providers.ollama import OllamaCloud, OllamaLocal
+from src.sdk.providers.ollama import OllamaCloud
 from src.sdk.providers.openai import OpenAIProvider
 from src.sdk.tools import tool
 
@@ -49,7 +49,7 @@ def tool_defs():
 
 class TestLLMProviderInterface:
     def test_provider_classes_has_all_types(self):
-        expected = {"ollama", "openai", "openai-compatible", "anthropic", "gemini"}
+        expected = {"openai", "openai-compatible", "anthropic", "gemini"}
         assert set(_PROVIDER_CLASSES.keys()) == expected
 
     def test_env_key_map_covers_major_providers(self):
@@ -65,76 +65,21 @@ class TestLLMProviderInterface:
 # ─── Ollama Provider Tests ───
 
 
-class TestOllamaLocalProvider:
+class TestLocalCompatibleProvider:
     def test_default_config(self):
-        p = OllamaLocal()
-        assert p.provider_id == "ollama"
-        assert p.base_url == "http://localhost:11434/v1"
-        assert p.model == "minimax-m2.5"
-        assert p.api_key is None
+        """MERGED: OllamaLocal merged into OpenAIProvider. Test need openai SDK mock pattern."""
+        p = OpenAIProvider(base_url="http://localhost:11434/v1")
+        assert p.provider_id == "openai"
 
     def test_custom_base_url(self):
-        p = OllamaLocal(base_url="http://myserver:11434/v1")
-        assert p.base_url == "http://myserver:11434/v1"
-
-    def test_payload_format(self):
-        p = OllamaLocal()
-        msgs = [Message.system("You are helpful."), Message.user("Hello")]
-        payload = p._build_payload(msgs, None, "minimax-m2.5")
-        assert payload["model"] == "minimax-m2.5"
-        assert len(payload["messages"]) == 2
-        assert payload["stream"] is False
-
-    def test_payload_with_tools(self, tool_defs):
-        p = OllamaLocal()
-        msgs = [Message.user("What time is it?")]
-        payload = p._build_payload(msgs, tool_defs, "minimax-m2.5")
-        assert "tools" in payload
-        assert payload["tools"][0]["function"]["name"] == "time_get"
-
-    def test_parse_response_with_tool_calls(self):
-        p = OllamaLocal()
-        data = {
-            "choices": [
-                {
-                    "message": {
-                        "role": "assistant",
-                        "content": "",
-                        "tool_calls": [
-                            {
-                                "id": "call_1",
-                                "type": "function",
-                                "function": {
-                                    "name": "time_get",
-                                    "arguments": '{"user_id": "test"}',
-                                },
-                            }
-                        ],
-                    }
-                }
-            ]
-        }
-        msg = p._parse_response(data)
-        assert msg.role == "assistant"
-        assert len(msg.tool_calls) == 1
-        assert msg.tool_calls[0].name == "time_get"
-
-    def test_parse_response_text_only(self):
-        p = OllamaLocal()
-        data = {"choices": [{"message": {"role": "assistant", "content": "Hello!"}}]}
-        msg = p._parse_response(data)
-        assert msg.role == "assistant"
-        assert msg.content == "Hello!"
-
-    def test_count_tokens_returns_positive(self):
-        p = OllamaLocal()
-        assert p.count_tokens("hello world") > 0
+        p = OpenAIProvider(base_url="http://myserver:11434/v1")
+        assert p.provider_id == "openai"
 
     def test_get_model_info_returns_defaults(self):
-        p = OllamaLocal()
-        info = p.get_model_info("llama3.2")
-        assert info.provider_id == "ollama"
-        assert info.id == "llama3.2"
+        p = OpenAIProvider()
+        info = p.get_model_info("foo")
+        assert info.provider_id == "openai"
+        assert info.id == "foo"
 
 
 class TestOllamaCloudProvider:
@@ -192,6 +137,15 @@ class TestOllamaCloudProvider:
         p = OllamaCloud(api_key="test-key")
         chunks = p._parse_chunk({"message": {"content": "Done"}, "done": True}, {})
         assert any(c.type == "done" for c in chunks)
+
+    def test_native_chunk_done_with_content_emits_text_delta_first(self):
+        p = OllamaCloud(api_key="test-key")
+        chunks = p._parse_chunk({"message": {"content": "Done"}, "done": True}, {})
+
+        text = next(c for c in chunks if c.canonical_type == "text_delta")
+        done = next(c for c in chunks if c.type == "done")
+        assert text.content == "Done"
+        assert chunks.index(text) < chunks.index(done)
 
     def test_native_chunk_token(self):
         p = OllamaCloud(api_key="test-key")
@@ -455,14 +409,16 @@ class TestProviderFactory:
         assert model == "minimax-m2.5"
 
     def test_create_ollama_provider(self):
-        p = create_provider("ollama", model="llama3.2")
-        assert isinstance(p, OllamaLocal)
-        assert p.model == "llama3.2"
+        with patch.dict("os.environ", {"OLLAMA_BASE_URL": "", "OLLAMA_API_KEY": ""}):
+            p = create_provider("ollama", model="llama3.2")
+            assert isinstance(p, OpenAIProvider)
+            assert p.model == "llama3.2"
 
     def test_create_ollama_cloud_provider(self):
         p = create_provider("ollama-cloud", model="minimax-m2.5", api_key="test")
         assert isinstance(p, OpenAIProvider)
         assert p.model == "minimax-m2.5"
+        assert str(p._client.base_url) == "https://ollama.com/v1/"
 
     def test_create_openai_provider(self):
         p = create_provider("openai", model="gpt-4o", api_key="sk-test")
@@ -510,7 +466,7 @@ class TestProviderFactory:
             with patch("src.config.get_settings") as mock_settings:
                 mock_settings.return_value.agent.model = "ollama:minimax-m2.5"
                 p = create_model_from_config("ollama:minimax-m2.5")
-                assert isinstance(p, OllamaLocal)
+                assert isinstance(p, OpenAIProvider)
 
     def test_create_model_from_config_ollama_does_not_auto_switch_to_cloud(self):
         with patch.dict(
@@ -518,14 +474,25 @@ class TestProviderFactory:
             {"OLLAMA_BASE_URL": "https://ollama.com", "OLLAMA_API_KEY": "test"},
         ):
             p = create_model_from_config("ollama/minimax-m2.5")
-            assert isinstance(p, OllamaLocal)
-            assert p.base_url == "http://localhost:11434/v1"
+            # ollama.com → OllamaCloud (native protocol)
+            assert isinstance(p, OllamaCloud)
 
     def test_create_model_from_config_explicit_ollama_cloud(self):
         with patch.dict("os.environ", {"OLLAMA_API_KEY": "test"}):
             p = create_model_from_config("ollama-cloud/minimax-m2.5")
             assert isinstance(p, OpenAIProvider)
-            assert p.model == "minimax-m2.5"
+            assert str(p._client.base_url) == "https://ollama.com/v1/"
+
+    def test_create_model_from_config_explicit_ollama_cloud_colon_model(self):
+        with patch.dict(
+            "os.environ",
+            {"OLLAMA_BASE_URL": "https://ollama.com", "OLLAMA_API_KEY": "test"},
+        ):
+            p = create_model_from_config("ollama-cloud:deepseek-v4-flash:cloud")
+
+        assert isinstance(p, OpenAIProvider)
+        assert p.model == "deepseek-v4-flash:cloud"
+        assert str(p._client.base_url) == "https://ollama.com/v1/"
 
     def test_create_provider_from_registry_model_uses_models_dev_provider(self):
         with patch.dict("os.environ", {"OLLAMA_API_KEY": "test"}):
@@ -723,31 +690,43 @@ class TestGeminiUsageExtraction:
         assert usage_events[0].usage.output_tokens == 40
 
 
-class TestOllamaLocalUsageExtraction:
+class TestOpenAIProviderUsageExtraction:
     def test_parse_response_extracts_usage(self):
-        p = OllamaLocal()
-        data = {
-            "choices": [{"message": {"role": "assistant", "content": "Hi"}}],
-            "usage": {"prompt_tokens": 80, "completion_tokens": 30},
-        }
-        msg = p._parse_response(data)
+        from unittest.mock import MagicMock
+        p = OpenAIProvider()
+        choice = MagicMock()
+        choice.message = MagicMock(role="assistant", content="Hi")
+        response = MagicMock()
+        response.choices = [choice]
+        response.usage = MagicMock(prompt_tokens=80, completion_tokens=30)
+        msg = p._parse_response(response)
         assert msg.usage is not None
         assert msg.usage.input_tokens == 80
         assert msg.usage.output_tokens == 30
 
     def test_parse_response_no_usage(self):
-        p = OllamaLocal()
-        data = {"choices": [{"message": {"role": "assistant", "content": "Hi"}}]}
-        msg = p._parse_response(data)
+        from unittest.mock import MagicMock
+        p = OpenAIProvider()
+        choice = MagicMock()
+        choice.message = MagicMock(role="assistant", content="Hi")
+        response = MagicMock()
+        response.choices = [choice]
+        response.usage = None
+        msg = p._parse_response(response)
         assert msg.usage is None
 
     def test_stream_chunk_extracts_usage(self):
-        p = OllamaLocal()
-        data = {
-            "choices": [{"delta": {"content": "Hi"}, "finish_reason": "stop"}],
-            "usage": {"prompt_tokens": 80, "completion_tokens": 30},
-        }
-        events = p._parse_stream_chunk(data, {})
+        from unittest.mock import MagicMock
+        p = OpenAIProvider()
+        delta = MagicMock()
+        delta.content = "Hi"
+        choice = MagicMock()
+        choice.delta = delta
+        choice.finish_reason = "stop"
+        chunk = MagicMock()
+        chunk.choices = [choice]
+        chunk.usage = MagicMock(prompt_tokens=80, completion_tokens=30)
+        events = p._parse_stream_chunk(chunk, {})
         usage_events = [e for e in events if e.type == "usage"]
         assert len(usage_events) == 1
         assert usage_events[0].usage.input_tokens == 80

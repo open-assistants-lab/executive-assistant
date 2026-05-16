@@ -1,0 +1,143 @@
+from src.sdk import runner
+from src.sdk.messages import Message
+from src.skills import registry as skills_registry
+
+
+class FakeRegistry:
+    def __init__(self, skills):
+        self._skills = skills
+
+    def get_all_skills(self):
+        return self._skills
+
+
+def test_get_skills_context_uses_workspace_registry(monkeypatch):
+    calls = []
+
+    def fake_get_skill_registry(**kwargs):
+        calls.append(kwargs)
+        return FakeRegistry([
+            {
+                "name": "project-helper",
+                "description": "Project-specific instructions.",
+                "content": "FULL CONTENT SHOULD NOT BE INCLUDED",
+                "metadata": {"scope": "workspace"},
+            }
+        ])
+
+    monkeypatch.setattr(skills_registry, "get_skill_registry", fake_get_skill_registry)
+
+    context = runner._get_skills_context("u", "ws1")
+
+    assert calls == [{"user_id": "u", "workspace_id": "ws1"}]
+    assert "project-helper" in context
+    assert "Project-specific instructions." in context
+    assert "FULL CONTENT SHOULD NOT BE INCLUDED" not in context
+    assert "scope" not in context.lower()
+    assert "(workspace)" not in context.lower()
+
+
+def test_get_system_prompt_passes_workspace_id_to_skills_context(monkeypatch):
+    calls = []
+
+    def fake_get_skill_registry(**kwargs):
+        calls.append(kwargs)
+        return FakeRegistry([
+            {"name": "ws-skill", "description": "Skill from ws1.", "metadata": {}}
+        ])
+
+    monkeypatch.setattr(skills_registry, "get_skill_registry", fake_get_skill_registry)
+
+    prompt = runner._get_system_prompt("u", "ws1")
+
+    assert calls == [{"user_id": "u", "workspace_id": "ws1"}]
+    assert "ws-skill" in prompt
+
+
+def test_get_skills_context_excludes_disabled_skills(monkeypatch):
+    def fake_get_skill_registry(**kwargs):
+        return FakeRegistry([
+            {"name": "visible", "description": "Visible skill.", "metadata": {}},
+            {
+                "name": "disabled-true",
+                "description": "Disabled true.",
+                "metadata": {"disable_model_invocation": "true"},
+            },
+            {
+                "name": "disabled-one",
+                "description": "Disabled one.",
+                "metadata": {"disable_model_invocation": "1"},
+            },
+            {
+                "name": "disabled-yes",
+                "description": "Disabled yes.",
+                "metadata": {"disable_model_invocation": "yes"},
+            },
+        ])
+
+    monkeypatch.setattr(skills_registry, "get_skill_registry", fake_get_skill_registry)
+
+    context = runner._get_skills_context("u")
+
+    assert "visible" in context
+    assert "disabled-true" not in context
+    assert "disabled-one" not in context
+    assert "disabled-yes" not in context
+
+
+async def test_run_sdk_agent_stream_does_not_mutate_system_message(monkeypatch):
+    recorded = []
+
+    class FakeLoop:
+        async def run_stream(self, messages):
+            recorded.extend(messages)
+            if False:
+                yield None
+
+    async def fake_get_sdk_loop(*args, **kwargs):
+        return FakeLoop()
+
+    monkeypatch.setattr(runner, "get_sdk_loop", fake_get_sdk_loop)
+    monkeypatch.setattr(
+        runner,
+        "_get_workspace_context",
+        lambda workspace_id: "\n\n## Current Workspace: X",
+    )
+
+    chunks = runner.run_sdk_agent_stream(
+        user_id="u",
+        messages=[Message.system("base")],
+        workspace_id="ws1",
+    )
+    async for _ in chunks:
+        pass
+
+    assert recorded[0].content == "base"
+
+
+def test_reset_sdk_loop_removes_all_model_specific_workspace_loops(monkeypatch):
+    runner._loop_cache.clear()
+    runner._loop_cache["u:ws:default"] = object()
+    runner._loop_cache["u:ws:openai:gpt-4.1"] = object()
+    runner._loop_cache["u:other:default"] = object()
+    runner._loop_cache["other:ws:default"] = object()
+
+    monkeypatch.setattr("src.storage.memory.clear_memory_store_cache", lambda: None)
+
+    runner.reset_sdk_loop("u", "ws")
+
+    assert set(runner._loop_cache) == {"u:other:default", "other:ws:default"}
+
+
+def test_reset_user_sdk_loops_removes_all_workspaces_for_user(monkeypatch):
+    runner._loop_cache.clear()
+    runner._loop_cache["u:ws:default"] = object()
+    runner._loop_cache["u:ws:openai:gpt-4.1"] = object()
+    runner._loop_cache["u:other:default"] = object()
+    runner._loop_cache["other:ws:default"] = object()
+
+    monkeypatch.setattr("src.storage.memory.clear_memory_store_cache", lambda: None)
+
+    runner.reset_user_sdk_loops("u")
+
+    assert set(runner._loop_cache) == {"other:ws:default"}

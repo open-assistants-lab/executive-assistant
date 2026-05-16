@@ -131,13 +131,20 @@ EXTRACTION_PROMPT = """You are a user information extraction system. Extract fac
 
 For **fact** type memories, include structured fields:
 ```json
-{{"entity": "user", "attribute": "property name", "value": "the exact value", "previous_value": "optional old value", "effective_at": "optional date/time"}}
+{{"entity": "user", "attribute": "property name", "value": "the exact value OR a JSON array for multiple items", "previous_value": "optional old value", "effective_at": "optional date/time"}}
+```
+
+When the user mentions multiple items belonging to the same category (list, collection, batch), use a JSON array for `value`:
+```json
+{{"entity": "user", "attribute": "category", "value": ["item1", "item2", "item3"]}}
 ```
 
 Examples:
 - User says "My name is Jordan Mitchell" → trigger="user's name", action="Jordan Mitchell", structured_data={{"entity":"user","attribute":"name","value":"Jordan Mitchell"}}
 - User says "I moved to Denver" → trigger="user's location", action="Denver", structured_data={{"entity":"user","attribute":"location","value":"Denver"}}
 - User says "My new manager is Tom, not Karen" → trigger="user's manager", action="Tom", structured_data={{"entity":"user","attribute":"manager","value":"Tom","previous_value":"Karen"}}
+- User says "I've completed Revell F-15 Eagle and Tamiya Spitfire model kits" → trigger="hobby progress", action="Revell F-15 Eagle, Tamiya Spitfire", structured_data={{"entity":"user","attribute":"completed_model_kits","value":["Revell F-15 Eagle","Tamiya 1/48 Spitfire Mk.V"]}}
+- User says "I bought boots, a jacket, and jeans" → trigger="shopping trip", action="boots, jacket, jeans", structured_data={{"entity":"user","attribute":"recent_purchases","value":["boots","jacket","jeans"]}}
 
 For **workflow** type memories, include steps:
 ```json
@@ -189,6 +196,12 @@ EXTRACTION_SCHEMA = {
 }
 
 
+def _hash_pattern(trigger: str, action: str, domain: str, structured_data: Any) -> str:
+    import hashlib
+    raw = f"{trigger}|{action}|{domain}|{json.dumps(structured_data or {}, sort_keys=True)}"
+    return hashlib.md5(raw.encode()).hexdigest()
+
+
 class MemoryMiddleware(Middleware):
     """Middleware that extracts and injects learned memories.
 
@@ -237,25 +250,34 @@ class MemoryMiddleware(Middleware):
         return ""
 
     def _get_relevant_memory_context(self, query: str) -> str:
-        from src.sdk.memory_planner import is_memory_query
+        """Inject raw verbatim conversation snippets from memcore.
 
-        ranker_enabled = os.environ.get("MEMORY_RANKER_ENABLED", "false").lower() in {
-            "1", "true", "yes",
-        }
-
-        if ranker_enabled:
-            return self._get_ranked_memory_context(query)
-
-        if not is_memory_query(query):
+        Replaces the old fact-based context injection with raw text that
+        the LLM can read naturally. No structured facts, no graph traversal,
+        no temporal history — just what was actually said.
+        """
+        if not query or len(query.strip()) < 3:
             return ""
 
-        planner_enabled = os.environ.get("MEMORY_QUERY_PLANNER_ENABLED", "true").lower() not in {
-            "0", "false", "no",
-        }
-        if planner_enabled:
-            return self._get_planner_memory_context(query)
+        try:
+            from src.sdk.tools_core.memory import _get_memory_core
 
-        return self._get_baseline_memory_context(query)
+            core = _get_memory_core(self.user_id, self.workspace_id)
+            results = core.search(query, limit=5)
+
+            if not results:
+                return ""
+
+            context = "## Relevant Conversation History\n"
+            for r in results:
+                content = r.memory.content[:300]
+                if len(r.memory.content) > 300:
+                    content += "..."
+                context += f"- [{r.memory.role}] {content}\n"
+
+            return context
+        except Exception:
+            return ""
 
     def _get_ranked_memory_context(self, query: str) -> str:
         from src.sdk.memory_ranker import (
@@ -624,15 +646,11 @@ class MemoryMiddleware(Middleware):
         return False
 
     def before_agent(self, state: AgentState) -> dict[str, Any] | None:
-        memory_context = self.memory_store.get_memory_context(detail_level=MEMORY_DETAIL_SUMMARY)
         query = self._latest_user_query(state.messages)
         query_context = self._get_relevant_memory_context(query)
 
-        contexts = [context for context in (memory_context, query_context) if context]
-        if not contexts:
+        if not query_context:
             return None
-
-        combined_context = "\n\n".join(contexts)
 
         current_messages = state.messages
 
@@ -645,15 +663,15 @@ class MemoryMiddleware(Middleware):
         if system_idx is not None:
             sys_msg = current_messages[system_idx]
             content = self._get_message_content(sys_msg)
-            if combined_context not in content:
-                updated_content = content + "\n\n" + combined_context
+            if query_context not in content:
+                updated_content = content + "\n\n" + query_context
                 current_messages[system_idx] = Message.system(updated_content)
         else:
-            current_messages.insert(0, Message.system(combined_context))
+            current_messages.insert(0, Message.system(query_context))
 
         logger.debug(
             "memory.injected",
-            {"context_length": len(combined_context), "query_context": bool(query_context)},
+            {"context_length": len(query_context), "query_context": True},
             user_id=self.user_id,
         )
 
@@ -672,7 +690,7 @@ class MemoryMiddleware(Middleware):
             role = msg.role
             content = self._get_message_content(msg)
             if content:
-                recent_messages.append(f"{role}: {content[:500]}")
+                recent_messages.append(f"{role}: {content[:2000]}")
 
         if len(recent_messages) < 2:
             return None
@@ -772,7 +790,7 @@ class MemoryMiddleware(Middleware):
         """Store extracted patterns in memory store (shared sync logic)."""
         is_correction = self._detect_correction_in_messages(messages)
 
-        seen_triggers = set()
+        seen_hashes = set()
         for pattern in patterns:
             trigger = pattern.get("trigger", "")
             action = pattern.get("action", "")
@@ -784,15 +802,19 @@ class MemoryMiddleware(Middleware):
             if not trigger or not action:
                 continue
 
-            trigger_key = (trigger.lower().strip(), domain.lower().strip())
-            if trigger_key in seen_triggers:
+            content_hash = _hash_pattern(trigger, action, domain, structured_data)
+            if content_hash in seen_hashes:
                 continue
-            seen_triggers.add(trigger_key)
+            seen_hashes.add(content_hash)
 
             if memory_type == MEMORY_TYPE_FACT and isinstance(structured_data, dict):
                 entity = str(structured_data.get("entity") or "user").strip()
                 attribute = str(structured_data.get("attribute") or "").strip()
-                value = str(structured_data.get("value") or action).strip()
+                raw_value = structured_data.get("value") or action
+                if isinstance(raw_value, list):
+                    value = json.dumps(raw_value)
+                else:
+                    value = str(raw_value).strip()
                 if attribute and value:
                     extra = {
                         k: v

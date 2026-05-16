@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS work_queue (
     id TEXT PRIMARY KEY,
     parent_id TEXT,
     user_id TEXT NOT NULL,
+    workspace_id TEXT NOT NULL DEFAULT 'personal',
     agent_name TEXT NOT NULL,
     task TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending',
@@ -39,6 +40,7 @@ CREATE TABLE IF NOT EXISTS work_queue (
 
 CREATE INDEX IF NOT EXISTS idx_wq_user_status ON work_queue(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_wq_parent ON work_queue(parent_id);
+CREATE INDEX IF NOT EXISTS idx_wq_workspace ON work_queue(workspace_id, status);
 """
 
 
@@ -53,8 +55,9 @@ def _task_id() -> str:
 class WorkQueueDB:
     """Async SQLite work queue for subagent coordination."""
 
-    def __init__(self, user_id: str):
+    def __init__(self, user_id: str, workspace_id: str = "personal"):
         self.user_id = user_id
+        self.workspace_id = workspace_id
         self._db: aiosqlite.Connection | None = None
         self._db_path = str(get_paths(user_id).work_queue_db())
 
@@ -84,12 +87,13 @@ class WorkQueueDB:
         now = _now()
         await db.execute(
             """INSERT INTO work_queue
-            (id, parent_id, user_id, agent_name, task, status, progress, config, instructions, cancel_requested, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (id, parent_id, user_id, workspace_id, agent_name, task, status, progress, config, instructions, cancel_requested, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 task_id,
                 parent_id,
                 self.user_id,
+                self.workspace_id,
                 agent_name,
                 task,
                 TaskStatus.PENDING.value,
@@ -248,7 +252,8 @@ class WorkQueueDB:
 _db_cache: dict[str, WorkQueueDB] = {}
 
 
-async def get_work_queue(user_id: str) -> WorkQueueDB:
-    if user_id not in _db_cache:
-        _db_cache[user_id] = WorkQueueDB(user_id)
-    return _db_cache[user_id]
+async def get_work_queue(user_id: str, workspace_id: str = "personal") -> WorkQueueDB:
+    key = f"{user_id}:{workspace_id}"
+    if key not in _db_cache:
+        _db_cache[key] = WorkQueueDB(user_id, workspace_id)
+    return _db_cache[key]

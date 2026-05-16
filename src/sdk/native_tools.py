@@ -74,19 +74,11 @@ from src.sdk.tools_core.mcp import (
     mcp_reload,
     mcp_tools,
 )
-from src.sdk.tools_core.memory import (
-    memory_connect,
-    memory_count,
-    memory_get_history,
-    memory_get_profile,
-    memory_search,
-    memory_search_all,
-    memory_search_all_workspaces,
-    memory_search_insights,
-)
+from src.sdk.tools_core.memory import memory_search
 from src.sdk.tools_core.shell import shell_execute
 from src.sdk.tools_core.skills import (
     skill_create,
+    skill_delete,
     skills_list,
     skills_load,
     skills_search,
@@ -135,14 +127,12 @@ def _register_all() -> None:
     registry.register(files_versions_delete)
     registry.register(files_versions_clean)
 
-    registry.register(memory_get_history)
+    # registry.register(memory_get_history)  # disabled: uses old store
     registry.register(memory_search)
-    registry.register(memory_search_all)
-    registry.register(memory_search_all_workspaces)
-    registry.register(memory_search_insights)
-    registry.register(memory_connect)
-    registry.register(memory_get_profile)
-    registry.register(memory_count)
+    # registry.register(memory_search_all)
+    # registry.register(memory_search_all_workspaces)
+    # registry.register(memory_search_insights)
+    # registry.register(memory_count)
 
     registry.register(web_fetch)
     registry.register(web_search)
@@ -208,6 +198,7 @@ def _register_all() -> None:
     registry.register(skills_search)
     registry.register(skills_load)
     registry.register(skill_create)
+    registry.register(skill_delete)
     registry.register(sql_write_query)
 
     # ConnectKit meta-tools

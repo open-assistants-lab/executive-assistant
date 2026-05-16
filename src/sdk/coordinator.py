@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import shutil
 from typing import Any
 
 import yaml
@@ -25,7 +24,6 @@ from src.sdk.subagent_models import (
     AgentDef,
     SubagentResult,
     TaskCancelledError,
-    TaskStatus,
 )
 from src.sdk.work_queue import WorkQueueDB, get_work_queue
 from src.skills import get_skill_registry
@@ -47,7 +45,7 @@ def _build_tools_for_subagent(agent_def: AgentDef) -> list[Any]:
     return [tool_map[n] for n in final if n in tool_map]
 
 
-def _build_system_prompt(agent_def: AgentDef, user_id: str) -> str:
+def _build_system_prompt(agent_def: AgentDef, user_id: str, workspace_id: str = "personal") -> str:
     parts: list[str] = []
 
     if agent_def.system_prompt:
@@ -56,6 +54,17 @@ def _build_system_prompt(agent_def: AgentDef, user_id: str) -> str:
         parts.append(f"You are {agent_def.name}, a specialized subagent.")
         if agent_def.description:
             parts.append(agent_def.description)
+
+    # Inject workspace context for workspace-scoped subagents
+    try:
+        from src.sdk.workspace_models import load_workspace
+        ws = load_workspace(workspace_id)
+        if ws and ws.id != "personal":
+            parts.append(f"\n## Current Workspace: {ws.name}")
+            if ws.custom_instructions:
+                parts.append(ws.custom_instructions)
+    except Exception:
+        pass
 
     skill_registry = get_skill_registry(user_id=user_id)
     for skill_name in agent_def.skills:
@@ -98,16 +107,17 @@ def _extract_output(messages: list[Message], max_chars: int = DEFAULT_MAX_OUTPUT
 class SubagentCoordinator:
     """Creates, invokes, and supervises subagents via work_queue."""
 
-    def __init__(self, user_id: str):
+    def __init__(self, user_id: str, workspace_id: str = "personal"):
         self.user_id = user_id
+        self.workspace_id = workspace_id
         self.settings = get_settings()
-        self.base_path = get_paths(user_id).subagents_dir()
+        self.base_path = get_paths(user_id, workspace_id=workspace_id).workspace_subagents_dir()
         self.base_path.mkdir(parents=True, exist_ok=True)
         self._db: WorkQueueDB | None = None
 
     async def _get_db(self) -> WorkQueueDB:
         if self._db is None:
-            self._db = await get_work_queue(self.user_id)
+            self._db = await get_work_queue(self.user_id, self.workspace_id)
         return self._db
 
     async def create(self, agent_def: AgentDef) -> AgentDef:
@@ -192,7 +202,7 @@ class SubagentCoordinator:
         provider = create_model_from_config(model_str)
 
         tools = _build_tools_for_subagent(agent_def)
-        system_prompt = _build_system_prompt(agent_def, self.user_id)
+        system_prompt = _build_system_prompt(agent_def, self.user_id, self.workspace_id)
 
         run_config = RunConfig(
             max_llm_calls=agent_def.max_llm_calls,
@@ -268,59 +278,62 @@ class SubagentCoordinator:
 
     async def list_defs(self) -> list[AgentDef]:
         defs: list[AgentDef] = []
-        if not self.base_path.exists():
-            return defs
-        for d in self.base_path.iterdir():
-            if d.is_dir() and (d / "config.yaml").exists():
-                agent_def = self.load_def(d.name)
-                if agent_def:
-                    defs.append(agent_def)
+        seen: set[str] = set()
+
+        # 1. Workspace-scoped subagents
+        if self.base_path.exists():
+            for d in self.base_path.iterdir():
+                if d.is_dir() and (d / "config.yaml").exists():
+                    agent_def = self.load_def(d.name)
+                    if agent_def:
+                        defs.append(agent_def)
+                        seen.add(d.name)
+
+        # 2. User-global fallback
+        try:
+            from src.storage.paths import DataPaths
+            global_dir = DataPaths(user_id=self.user_id).global_subagents_dir()
+            if global_dir.exists():
+                for d in global_dir.iterdir():
+                    if d.is_dir() and d.name not in seen and (d / "config.yaml").exists():
+                        data = yaml.safe_load((d / "config.yaml").read_text()) or {}
+                        data.setdefault("disallowed_tools", list(DEFAULT_DISALLOWED_TOOLS))
+                        defs.append(AgentDef(**data))
+        except Exception:
+            pass
+
         return defs
 
-    async def delete(self, name: str) -> bool:
-        agent_path = self.base_path / name
-        if not agent_path.exists():
-            return False
-
-        active = await self._get_db()
-        tasks = await active.check_progress()
-        for t in tasks:
-            if t.get("agent_name") == name and t.get("status") in (
-                TaskStatus.PENDING.value,
-                TaskStatus.RUNNING.value,
-            ):
-                await active.request_cancel(t["id"])
-
-        shutil.rmtree(agent_path, ignore_errors=True)
-
-        logger.info(
-            "subagent.deleted",
-            {"name": name},
-            user_id=self.user_id,
-        )
-        return True
-
     def load_def(self, name: str) -> AgentDef | None:
+        # 1. Workspace-scoped
         config_path = self.base_path / name / "config.yaml"
-        if not config_path.exists():
-            return None
+        if config_path.exists():
+            try:
+                data = yaml.safe_load(config_path.read_text()) or {}
+                data.setdefault("disallowed_tools", list(DEFAULT_DISALLOWED_TOOLS))
+                return AgentDef(**data)
+            except Exception as e:
+                logger.warning("subagent.load_failed", {"name": name, "error": str(e)}, user_id=self.user_id)
+
+        # 2. User-global fallback
         try:
-            data = yaml.safe_load(config_path.read_text()) or {}
-            data.setdefault("disallowed_tools", list(DEFAULT_DISALLOWED_TOOLS))
-            return AgentDef(**data)
+            from src.storage.paths import DataPaths
+            global_path = DataPaths(user_id=self.user_id).global_subagents_dir() / name / "config.yaml"
+            if global_path.exists():
+                data = yaml.safe_load(global_path.read_text()) or {}
+                data.setdefault("disallowed_tools", list(DEFAULT_DISALLOWED_TOOLS))
+                return AgentDef(**data)
         except Exception as e:
-            logger.warning(
-                "subagent.load_failed",
-                {"name": name, "error": str(e)},
-                user_id=self.user_id,
-            )
-            return None
+            logger.warning("subagent.load_failed", {"name": name, "error": str(e)}, user_id=self.user_id)
+
+        return None
 
 
 _coordinators: dict[str, SubagentCoordinator] = {}
 
 
-def get_coordinator(user_id: str) -> SubagentCoordinator:
-    if user_id not in _coordinators:
-        _coordinators[user_id] = SubagentCoordinator(user_id)
-    return _coordinators[user_id]
+def get_coordinator(user_id: str, workspace_id: str = "personal") -> SubagentCoordinator:
+    key = f"{user_id}:{workspace_id}"
+    if key not in _coordinators:
+        _coordinators[key] = SubagentCoordinator(user_id, workspace_id)
+    return _coordinators[key]

@@ -34,7 +34,7 @@ async def call_agent(message: str, user_id: str = "test_subagent") -> dict:
 async def test_subagent_create():
     results = []
     tests = [
-        ("Create research subagent", "Create a subagent named 'researcher' with deep-research skill"),
+        ("Create research subagent", "Create a subagent named 'researcher' with skill-creator skill"),
         ("Create coding subagent", "Create a coding subagent named 'coder' that helps with programming"),
     ]
     for name, query in tests:
@@ -51,7 +51,7 @@ async def test_subagent_create():
 
 async def test_subagent_invoke():
     results = []
-    await call_agent("Create a subagent named 'quick-test' with search_web and files_read tools")
+    await call_agent("Create a subagent named 'quick-test' with web_search and files_read tools")
     await asyncio.sleep(1)
     tests = [
         ("Invoke subagent", "Invoke subagent 'quick-test' to search for AI news"),
@@ -179,8 +179,8 @@ async def test_skills_list():
 async def test_skills_load():
     results = []
     tests = [
-        ("Load planning skill", "Load the planning-with-files skill"),
-        ("Load deep-research skill", "Load the deep-research skill"),
+        ("Load skill creator", "Load the skill-creator skill"),
+        ("Load skill creator", "Load the skill-creator skill"),
         ("Load skill creator", "Load the skill-creator skill"),
     ]
     for name, query in tests:
@@ -216,8 +216,8 @@ async def test_skill_create():
 async def test_subagent_with_skills():
     results = []
     tests = [
-        ("Create with deep-research", "Create a research subagent named 'market-research' with deep-research skill"),
-        ("Create with planning", "Create a planning subagent with planning-with-files skill"),
+        ("Create with skill-creator", "Create a subagent named 'tool-builder' with skill-creator skill"),
+        ("Create with skill-creator", "Create a subagent with skill-creator skill"),
     ]
     for name, query in tests:
         start = time.time()

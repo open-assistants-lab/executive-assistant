@@ -1,27 +1,29 @@
-import json
-import shutil
-
-from fastapi import APIRouter, HTTPException
+"""Subagent management API for Flutter client — workspace-scoped."""
+from fastapi import APIRouter, HTTPException, Query
 
 router = APIRouter(prefix="/subagents", tags=["subagents"])
 
 
 @router.get("")
-async def list_subagents(user_id: str = "default_user"):
-    """List all subagents."""
-    from src.subagent.manager import get_subagent_manager
+async def list_subagents(
+    user_id: str = Query("default_user"),
+    workspace_id: str = Query("personal"),
+):
+    from src.sdk.coordinator import get_coordinator
 
-    manager = get_subagent_manager(user_id)
-    subagents = manager.list_all()
+    coordinator = get_coordinator(user_id, workspace_id)
+    defs = await coordinator.list_defs()
 
     return {
         "subagents": [
             {
-                "name": s["name"],
-                "description": s.get("description", ""),
+                "name": d.name,
+                "description": d.description or "",
+                "model": d.model,
+                "tools": d.tools,
                 "is_system": False,
             }
-            for s in subagents
+            for d in defs
         ]
     }
 
@@ -29,114 +31,139 @@ async def list_subagents(user_id: str = "default_user"):
 @router.post("")
 async def create_subagent(
     name: str,
-    description: str = "",
-    model: str | None = None,
-    skills: list[str] | None = None,
-    tools: list[str] | None = None,
-    system_prompt: str | None = None,
-    user_id: str = "default_user",
+    user_id: str = Query("default_user"),
+    workspace_id: str = Query("personal"),
+    description: str = Query(""),
+    model: str | None = Query(None),
+    skills: str | None = Query(None),
+    tools: str | None = Query(None),
+    system_prompt: str | None = Query(None),
+    mcp_config: str | None = Query(None),
+    max_llm_calls: int = Query(50),
+    cost_limit_usd: float = Query(1.0),
+    timeout_seconds: int = Query(300),
 ):
-    """Create a new subagent."""
-    from src.subagent.manager import get_subagent_manager
+    from src.sdk.coordinator import get_coordinator
+    from src.sdk.subagent_models import AgentDef
 
-    manager = get_subagent_manager(user_id)
-    subagent, result = manager.create(
+    tool_list: list[str] | None = None
+    if tools:
+        tool_list = [t.strip() for t in tools.split(",") if t.strip()]
+
+    skill_list: list[str] = []
+    if skills:
+        skill_list = [s.strip() for s in skills.split(",") if s.strip()]
+
+    mcp_dict = None
+    if mcp_config:
+        import json as _json
+        try:
+            mcp_dict = _json.loads(mcp_config)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid MCP config JSON")
+
+    agent_def = AgentDef(
         name=name,
-        model=model,
         description=description,
-        skills=skills,
-        tools=tools,
+        model=model,
         system_prompt=system_prompt,
+        tools=tool_list,
+        skills=skill_list,
+        max_llm_calls=max_llm_calls,
+        cost_limit_usd=cost_limit_usd,
+        timeout_seconds=timeout_seconds,
+        mcp_config=mcp_dict,
     )
 
-    if subagent is None:
-        raise HTTPException(status_code=400, detail=result.get("errors", "Validation failed"))
+    coordinator = get_coordinator(user_id, workspace_id)
 
-    return {"status": "created", "name": name}
+    existing = coordinator.load_def(name)
+    if existing is not None:
+        raise HTTPException(status_code=400, detail=f"Subagent '{name}' already exists.")
+
+    await coordinator.create(agent_def)
+    return {"status": "created", "name": name, "workspace_id": workspace_id}
 
 
 @router.delete("/{subagent_name}")
-async def delete_subagent(subagent_name: str, user_id: str = "default_user"):
-    """Delete a subagent."""
-    from src.subagent.manager import get_subagent_manager
+async def delete_subagent(
+    subagent_name: str,
+    user_id: str = Query("default_user"),
+    workspace_id: str = Query("personal"),
+):
+    import shutil
 
-    manager = get_subagent_manager(user_id)
-    subagent_path = manager.base_path / subagent_name
-    if subagent_path.exists():
-        shutil.rmtree(subagent_path)
+    from src.sdk.coordinator import get_coordinator
 
-    return {"status": "deleted", "name": subagent_name}
+    coordinator = get_coordinator(user_id, workspace_id)
+    agent_def = coordinator.load_def(subagent_name)
+    if agent_def is None:
+        raise HTTPException(status_code=404, detail=f"Subagent '{subagent_name}' not found.")
+
+    agent_path = coordinator.base_path / subagent_name
+    if agent_path.exists():
+        shutil.rmtree(agent_path)
+
+    return {"status": "deleted", "name": subagent_name, "workspace_id": workspace_id}
 
 
 @router.get("/jobs")
-async def list_subagent_jobs(user_id: str = "default_user"):
-    """List all subagent jobs (scheduled, running, completed, failed)."""
-    from src.subagent.scheduler import list_jobs
+async def list_subagent_jobs(
+    user_id: str = Query("default_user"),
+    workspace_id: str = Query("personal"),
+):
+    from src.sdk.coordinator import get_coordinator
 
-    jobs = list_jobs(user_id)
-    return {"jobs": jobs}
+    coordinator = get_coordinator(user_id, workspace_id)
+    tasks = await coordinator.check_progress()
+    return {"jobs": [{"id": t["id"], "status": t["status"], "agent_name": t["agent_name"]} for t in tasks]}
 
 
 @router.get("/jobs/{job_id}")
-async def get_subagent_job(job_id: str):
-    """Get status of a specific subagent job."""
-    from src.subagent.scheduler import get_job_status
+async def get_subagent_job(
+    job_id: str,
+    user_id: str = Query("default_user"),
+    workspace_id: str = Query("personal"),
+):
+    from src.sdk.coordinator import get_coordinator
 
-    status = get_job_status(job_id)
-    if status is None:
+    coordinator = get_coordinator(user_id, workspace_id)
+    result = await coordinator.get_result(job_id)
+    if result is None:
+        tasks = await coordinator.check_progress()
+        for t in tasks:
+            if t["id"] == job_id:
+                return {"job": t}
         return {"error": "Job not found"}, 404
-    return {"job": status}
+    return {"job": {"id": job_id, "output": result.output, "success": result.success}}
 
 
 @router.post("/invoke")
 async def invoke_subagent(
     name: str,
     task: str,
-    user_id: str = "default_user",
+    user_id: str = Query("default_user"),
+    workspace_id: str = Query("personal"),
 ):
-    """Invoke a subagent to execute a task (async)."""
     from src.sdk.tools_core.subagent import subagent_invoke
 
-    result = await subagent_invoke.ainvoke({"user_id": user_id, "name": name, "task": task})
+    result = await subagent_invoke.ainvoke({
+        "user_id": user_id,
+        "workspace_id": workspace_id,
+        "agent_name": name,
+        "task": task,
+    })
     return {"result": str(result)}
 
 
-@router.post("/batch")
-async def batch_invoke_subagents(
-    tasks: list[dict[str, str]],
-    user_id: str = "default_user",
+@router.post("/{task_id}/cancel")
+async def cancel_subagent_job(
+    task_id: str,
+    user_id: str = Query("default_user"),
+    workspace_id: str = Query("personal"),
 ):
-    """Batch invoke multiple subagents."""
-    from src.sdk.tools_core.subagent import subagent_batch
+    from src.sdk.coordinator import get_coordinator
 
-    result = await subagent_batch.ainvoke({"user_id": user_id, "tasks": json.dumps(tasks)})
-    return {"result": str(result)}
-
-
-@router.post("/schedule")
-async def schedule_subagent(
-    name: str,
-    task: str,
-    run_at: str | None = None,
-    cron: str | None = None,
-    user_id: str = "default_user",
-):
-    """Schedule a subagent task (one-time or recurring)."""
-    from src.sdk.tools_core.subagent import subagent_schedule
-
-    args = {"user_id": user_id, "name": name, "task": task}
-    if run_at is not None:
-        args["run_at"] = run_at
-    if cron is not None:
-        args["cron"] = cron
-    result = await subagent_schedule.ainvoke(args)
-    return {"result": str(result)}
-
-
-@router.delete("/jobs/{job_id}")
-async def cancel_subagent_job(job_id: str, user_id: str = "default_user"):
-    """Cancel a scheduled subagent job."""
-    from src.sdk.tools_core.subagent import subagent_schedule_cancel
-
-    result = await subagent_schedule_cancel.ainvoke({"user_id": user_id, "job_id": job_id})
-    return {"result": str(result)}
+    coordinator = get_coordinator(user_id, workspace_id)
+    await coordinator.cancel(task_id)
+    return {"status": "cancelled", "task_id": task_id}

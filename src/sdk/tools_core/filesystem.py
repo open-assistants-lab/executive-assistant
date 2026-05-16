@@ -10,6 +10,7 @@ from src.storage.paths import get_paths
 logger = get_logger()
 
 _current_user_id: ContextVar[str] = ContextVar("current_user_id", default="default_user")
+_current_workspace_id: ContextVar[str] = ContextVar("current_workspace_id", default="personal")
 
 
 def set_user_id(user_id: str) -> None:
@@ -20,17 +21,20 @@ def get_user_id() -> str:
     return _current_user_id.get()
 
 
-def _resolve_path(path: str | None, user_id: str) -> Path:
+def set_workspace_id(workspace_id: str) -> None:
+    _current_workspace_id.set(workspace_id)
+
+
+def _resolve_path(path: str | None, user_id: str, workspace_id: str = "personal") -> Path:
     if user_id == "default_user":
         user_id = _current_user_id.get()
 
-    root_path = get_paths(user_id).workspace_dir()
-    root_path = root_path.resolve()
+    paths = get_paths(user_id, workspace_id=workspace_id)
+    root_path = paths.workspace_files_dir().resolve()
 
     if path is None:
         return root_path
 
-    # In shared workspace mode, allow absolute paths that resolve inside the workspace
     from src.config import get_settings
     if get_settings().filesystem.workspace_root:
         if path.startswith("/"):
@@ -43,11 +47,11 @@ def _resolve_path(path: str | None, user_id: str) -> Path:
     if path.startswith("/"):
         raise ValueError(f"Use relative paths only. Path: {path}")
 
-    is_skills_path = str(get_paths(user_id).skills_dir()) in path or path.startswith(
+    is_skills_path = str(paths.skills_dir()) in path or path.startswith(
         "data/private/skills/"
     )
     if is_skills_path:
-        expected_prefix = str(get_paths(user_id).skills_dir()) + "/"
+        expected_prefix = str(paths.skills_dir()) + "/"
         if not (str(Path.cwd() / path).resolve()).startswith(
             expected_prefix
         ) and not path.startswith(expected_prefix):
@@ -62,18 +66,19 @@ def _resolve_path(path: str | None, user_id: str) -> Path:
 
 
 @tool
-def files_list(path: str = ".", user_id: str = "default_user") -> str:
+def files_list(path: str = ".", user_id: str = "default_user", workspace_id: str = "personal") -> str:
     """List files in a directory.
 
     Args:
         path: Directory path relative to user files (default: current dir)
         user_id: User identifier
+        workspace_id: Workspace ID (defaults to current workspace)
 
     Returns:
         Formatted list of files and directories
     """
     try:
-        target = _resolve_path(path, user_id)
+        target = _resolve_path(path, user_id, workspace_id)
 
         if not target.exists():
             return f"Directory not found: {path}"
@@ -100,7 +105,7 @@ files_list.annotations = ToolAnnotations(title="List Files", read_only=True, ide
 
 
 @tool
-def files_read(path: str, offset: int = 0, limit: int = 100, user_id: str = "default_user") -> str:
+def files_read(path: str, offset: int = 0, limit: int = 100, user_id: str = "default_user", workspace_id: str = "personal") -> str:
     """Read file content.
 
     Args:
@@ -108,12 +113,13 @@ def files_read(path: str, offset: int = 0, limit: int = 100, user_id: str = "def
         offset: Line number to start from (default: 0)
         limit: Maximum number of lines to read (default: 100)
         user_id: User identifier
+        workspace_id: Workspace ID (defaults to current workspace)
 
     Returns:
         File content or error message
     """
     try:
-        target = _resolve_path(path, user_id)
+        target = _resolve_path(path, user_id, workspace_id)
 
         if not target.exists():
             return f"File not found: {path}"
@@ -137,19 +143,20 @@ files_read.annotations = ToolAnnotations(title="Read File", read_only=True, idem
 
 
 @tool
-def files_write(path: str, content: str, user_id: str = "default_user") -> str:
+def files_write(path: str, content: str, user_id: str = "default_user", workspace_id: str = "personal") -> str:
     """Write content to a file (creates or overwrites).
 
     Args:
         path: File path relative to user files
         content: Content to write
         user_id: User identifier
+        workspace_id: Workspace ID (defaults to current workspace)
 
     Returns:
         Success or error message
     """
     try:
-        target = _resolve_path(path, user_id)
+        target = _resolve_path(path, user_id, workspace_id)
 
         old_content = None
         if target.exists() and target.is_file():
@@ -158,7 +165,7 @@ def files_write(path: str, content: str, user_id: str = "default_user") -> str:
                 try:
                     from src.sdk.tools_core.file_versioning import capture_version
 
-                    capture_version(user_id, path, content)
+                    capture_version(user_id, path, content, workspace_id)
                 except Exception as e:
                     logger.error(
                         "version_check_error", {"path": path, "error": str(e)}, user_id=user_id
@@ -180,7 +187,7 @@ files_write.annotations = ToolAnnotations(title="Write File", destructive=True)
 
 
 @tool
-def files_edit(path: str, old: str, new: str, user_id: str = "default_user") -> str:
+def files_edit(path: str, old: str, new: str, user_id: str = "default_user", workspace_id: str = "personal") -> str:
     """Edit a file by replacing text.
 
     Args:
@@ -188,12 +195,13 @@ def files_edit(path: str, old: str, new: str, user_id: str = "default_user") -> 
         old: Text to replace
         new: Replacement text
         user_id: User identifier
+        workspace_id: Workspace ID (defaults to current workspace)
 
     Returns:
         Success or error message
     """
     try:
-        target = _resolve_path(path, user_id)
+        target = _resolve_path(path, user_id, workspace_id)
 
         if not target.exists():
             return f"File not found: {path}"
@@ -225,7 +233,7 @@ files_edit.annotations = ToolAnnotations(title="Edit File", destructive=True)
 
 
 @tool
-def files_delete(path: str, user_id: str = "default_user") -> str:
+def files_delete(path: str, user_id: str = "default_user", workspace_id: str = "personal") -> str:
     """Delete a file.
 
     NOTE: This tool requires human approval before execution.
@@ -233,12 +241,13 @@ def files_delete(path: str, user_id: str = "default_user") -> str:
     Args:
         path: File path relative to user files
         user_id: User identifier
+        workspace_id: Workspace ID (defaults to current workspace)
 
     Returns:
         Success or error message
     """
     try:
-        target = _resolve_path(path, user_id)
+        target = _resolve_path(path, user_id, workspace_id)
 
         if not target.exists():
             return f"File not found: {path}"
@@ -261,18 +270,19 @@ files_delete.annotations = ToolAnnotations(title="Delete File", destructive=True
 
 
 @tool
-def files_mkdir(path: str, user_id: str = "default_user") -> str:
+def files_mkdir(path: str, user_id: str = "default_user", workspace_id: str = "personal") -> str:
     """Create a directory.
 
     Args:
         path: Directory path relative to user files
         user_id: User identifier
+        workspace_id: Workspace ID (defaults to current workspace)
 
     Returns:
         Success or error message
     """
     try:
-        target = _resolve_path(path, user_id)
+        target = _resolve_path(path, user_id, workspace_id)
 
         if target.exists():
             return f"Path already exists: {path}"
@@ -290,19 +300,20 @@ files_mkdir.annotations = ToolAnnotations(title="Create Directory")
 
 
 @tool
-def files_rename(path: str, new_name: str, user_id: str = "default_user") -> str:
+def files_rename(path: str, new_name: str, user_id: str = "default_user", workspace_id: str = "personal") -> str:
     """Rename a file or directory.
 
     Args:
         path: Current path relative to user files
         new_name: New name for the file or directory
         user_id: User identifier
+        workspace_id: Workspace ID (defaults to current workspace)
 
     Returns:
         Success or error message
     """
     try:
-        target = _resolve_path(path, user_id)
+        target = _resolve_path(path, user_id, workspace_id)
 
         if not target.exists():
             return f"Path not found: {path}"
@@ -312,7 +323,7 @@ def files_rename(path: str, new_name: str, user_id: str = "default_user") -> str
 
         new_path = target.parent / new_name
 
-        root_path = get_paths(user_id).workspace_dir().resolve()
+        root_path = get_paths(user_id, workspace_id=workspace_id).workspace_files_dir().resolve()
         if not new_path.resolve().is_relative_to(root_path):
             return f"Invalid name: '{new_name}' resolves outside user directory."
 

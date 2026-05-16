@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
 
-from src.sdk.tools import ToolAnnotations, tool
+from src.sdk.tools import tool
 from src.sdk.workspace_models import (
     Workspace,
-    WORKSPACE_DEFAULT,
-    list_workspaces as _list_ws,
     load_workspace,
     save_workspace,
+)
+from src.sdk.workspace_models import (
     delete_workspace as _delete_ws,
+)
+from src.sdk.workspace_models import (
+    list_workspaces as _list_ws,
 )
 
 _CURRENT_WORKSPACES: dict[str, str] = {}
@@ -98,6 +100,12 @@ def workspace_switch(name: str, user_id: str = "default_user") -> str:
 
     _CURRENT_WORKSPACES[user_id] = ws.id
 
+    try:
+        from src.sdk.runner import reset_sdk_loop
+        reset_sdk_loop(user_id, ws.id)
+    except Exception:
+        pass
+
     info = f"Switched to workspace: {ws.name}"
     if ws.custom_instructions:
         info += f"\nInstructions: {ws.custom_instructions}"
@@ -110,7 +118,7 @@ def workspace_current(user_id: str = "default_user") -> str:
     ws_id = _get_current_workspace(user_id)
     ws = load_workspace(ws_id)
     if ws is None:
-        return f"Current workspace: Personal (default)"
+        return "Current workspace: Personal (default)"
     return (
         f"Current workspace: {ws.name} (id: {ws.id})\n"
         f"Description: {ws.description or '(none)'}\n"

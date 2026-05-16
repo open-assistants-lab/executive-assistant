@@ -326,14 +326,14 @@ class TestSkillsTools:
         from src.sdk.tools_core.skills import skills_list
 
         result = skills_list.invoke({"user_id": "test_contract_skills"})
-        assert "deep-research" in result or "skill" in result.lower()
+        assert "skill-creator" in result or "skill" in result.lower()
 
     def test_skills_search_finds_matching_skills(self):
         from src.sdk.tools_core.skills import skills_search
 
-        result = skills_search.invoke({"query": "research", "user_id": "test_contract_skills"})
+        result = skills_search.invoke({"query": "skill", "user_id": "test_contract_skills"})
         assert isinstance(str(result), str)
-        assert "deep-research" in result or "research" in result.lower()
+        assert "skill-creator" in result or "skill" in result.lower()
 
     def test_skills_search_no_match(self):
         from src.sdk.tools_core.skills import skills_search
@@ -359,9 +359,9 @@ class TestSkillsTools:
         from src.sdk.tools_core.skills import skills_load
 
         result = skills_load.invoke(
-            {"skill_name": "deep-research", "user_id": "test_contract_skills"}
+            {"skill_name": "skill-creator", "user_id": "test_contract_skills"}
         )
-        assert "# deep-research" in result or "deep-research" in result
+        assert "# skill-creator" in result or "skill-creator" in result
 
     def test_skills_load_not_found(self):
         from src.sdk.tools_core.skills import skills_load

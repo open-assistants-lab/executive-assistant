@@ -60,6 +60,7 @@ async def create_workspace(req: CreateWorkspaceRequest):
     dp.workspace_files_dir()
     dp.workspace_memory_dir()
     dp.workspace_subagents_dir()
+    dp.workspace_skills_dir()
 
     save_workspace(ws)
     return {"id": ws.id, "name": ws.name, "model_override": ws.model_override}

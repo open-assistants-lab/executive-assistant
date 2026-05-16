@@ -10,9 +10,10 @@ from src.storage.paths import get_paths
 class FileCache:
     """Track which files are cached/downloaded."""
 
-    def __init__(self, user_id: str):
+    def __init__(self, user_id: str, workspace_id: str = "personal"):
         self.user_id = user_id
-        self.cache_file = get_paths(user_id).workspace_cache()
+        self.workspace_id = workspace_id
+        self.cache_file = get_paths(user_id, workspace_id=workspace_id).workspace_cache()
         self._cache: dict[str, dict[str, Any]] = {}
         self._load()
 
@@ -53,10 +54,10 @@ class FileCache:
     def get_all(self, workspace_path: str | None = None) -> dict[str, dict[str, Any]]:
         """Get all sync status with has_update flag."""
         result = {}
-        user_workspace = get_paths(self.user_id).workspace_dir()
+        workspace_root = get_paths(self.user_id, workspace_id=self.workspace_id).workspace_files_dir()
 
         for path, data in self._cache.items():
-            file_path = user_workspace / path
+            file_path = workspace_root / path
             server_modified = str(file_path.stat().st_mtime) if file_path.exists() else ""
             current_version = data.get("server_modified", "")
 
@@ -76,7 +77,6 @@ class FileCache:
         existing = self._cache.get(path, {})
         last_synced = existing.get("synced_at")
 
-        # If never synced or server version changed, mark for re-download
         if last_synced is None or existing.get("server_modified") != server_modified:
             self._cache[path] = {
                 "status": "downloaded",
@@ -95,5 +95,5 @@ class FileCache:
         ]
 
 
-def get_file_cache(user_id: str) -> FileCache:
-    return FileCache(user_id)
+def get_file_cache(user_id: str, workspace_id: str = "personal") -> FileCache:
+    return FileCache(user_id, workspace_id)

@@ -31,15 +31,15 @@ async def list_workspace_json(user_id: str = "default_user", workspace_id: str =
 
 
 @router.get("/workspace/read/{path:path}")
-async def read_workspace_file(path: str, user_id: str = "default_user"):
-    """Read file - auto-mark as downloaded."""
+async def read_workspace_file(path: str, user_id: str = "default_user", workspace_id: str = "personal"):
     from src.http.workspace_cache import get_file_cache
     from src.sdk.tools_core.filesystem import files_read
 
     result = files_read.invoke({"path": path, "user_id": user_id})
 
-    file_cache = get_file_cache(user_id)
-    workspace_path = get_paths(user_id).workspace_dir() / path
+    file_cache = get_file_cache(user_id, workspace_id)
+    workspace_root = get_paths(user_id, workspace_id=workspace_id).workspace_files_dir()
+    workspace_path = workspace_root / path
     server_modified = str(workspace_path.stat().st_mtime) if workspace_path.exists() else ""
 
     file_cache.update_sync(path, server_modified)
@@ -84,40 +84,36 @@ async def delete_workspace_file(path: str, user_id: str = "default_user"):
 
 
 @router.get("/sync/status")
-async def get_sync_status(user_id: str = "default_user"):
-    """Get sync status for all files."""
+async def get_sync_status(user_id: str = "default_user", workspace_id: str = "personal"):
     from src.http.workspace_cache import get_file_cache
 
-    cache = get_file_cache(user_id)
+    cache = get_file_cache(user_id, workspace_id)
     return {"status": cache.get_all()}
 
 
 @router.post("/sync/pin/{path:path}")
-async def pin_file(path: str, user_id: str = "default_user"):
-    """Pin a file (keep downloaded)."""
+async def pin_file(path: str, user_id: str = "default_user", workspace_id: str = "personal"):
     from src.http.workspace_cache import get_file_cache
 
-    cache = get_file_cache(user_id)
+    cache = get_file_cache(user_id, workspace_id)
     cache.mark_pinned(path)
     return {"status": "pinned", "path": path}
 
 
 @router.delete("/sync/pin/{path:path}")
-async def unpin_file(path: str, user_id: str = "default_user"):
-    """Unpin a file (remove from keep downloaded)."""
+async def unpin_file(path: str, user_id: str = "default_user", workspace_id: str = "personal"):
     from src.http.workspace_cache import get_file_cache
 
-    cache = get_file_cache(user_id)
+    cache = get_file_cache(user_id, workspace_id)
     cache.mark_cloud_only(path)
     return {"status": "cloud_only", "path": path}
 
 
 @router.post("/sync/download/{path:path}")
-async def mark_downloaded(path: str, user_id: str = "default_user"):
-    """Mark a file as downloaded."""
+async def mark_downloaded(path: str, user_id: str = "default_user", workspace_id: str = "personal"):
     from src.http.workspace_cache import get_file_cache
 
-    cache = get_file_cache(user_id)
+    cache = get_file_cache(user_id, workspace_id)
     cache.mark_downloaded(path)
     return {"status": "downloaded", "path": path}
 

@@ -51,8 +51,8 @@ def _get_shell_config():
     }
 
 
-def _get_root_path(user_id: str) -> Path:
-    root = get_paths(user_id).workspace_dir()
+def _get_root_path(user_id: str, workspace_id: str = "personal") -> Path:
+    root = get_paths(user_id, workspace_id=workspace_id).workspace_files_dir()
     root.mkdir(parents=True, exist_ok=True)
     return root
 
@@ -89,12 +89,13 @@ def _validate_command(command: str) -> str | None:
 
 
 @tool
-def shell_execute(command: str, user_id: str = "default_user") -> str:
+def shell_execute(command: str, user_id: str = "default_user", workspace_id: str = "personal") -> str:
     """Run a shell command.
 
     Args:
         command: Command to execute
         user_id: User identifier
+        workspace_id: Workspace ID (defaults to current workspace)
 
     Returns:
         Command output or error message
@@ -112,7 +113,7 @@ def shell_execute(command: str, user_id: str = "default_user") -> str:
             config = _get_shell_config()
             return f"Command not allowed: {cmd_base}. Allowed: {', '.join(sorted(config['allowed_commands']))}"
 
-        root_path = _get_root_path(user_id)
+        root_path = _get_root_path(user_id, workspace_id)
         config = _get_shell_config()
 
         result = subprocess.run(

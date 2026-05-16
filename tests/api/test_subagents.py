@@ -41,7 +41,7 @@ class TestSubagentV1Invocations:
     def test_update_subagent(self, client, test_user_id):
         r = client.patch(
             "/subagents/nonexistent_agent",
-            json={"allowed_tools": ["search_web"]},
+            json={"allowed_tools": ["web_search"]},
             params={"user_id": test_user_id},
         )
         assert r.status_code in (200, 404)

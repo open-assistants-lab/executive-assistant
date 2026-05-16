@@ -134,17 +134,22 @@ class LongMemEvalAdapter:
     ) -> list[dict[str, Any]]:
         """Search and return results with session_id from metadata.
 
-        Returns list of dicts with: session_id, content, score, ts, role.
+        Returns at most `limit` results, each from a distinct session.
+        Fetch 3× the limit from hybrid search, then deduplicate by session_id,
+        keeping the highest-scoring result per session. This prevents one large
+        session from flooding the top-K with multiple paragraphs about the same topic,
+        ensuring every relevant session gets a retrieval slot.
         """
-        results = self.store.search_hybrid(
+        raw_results = self.store.search_hybrid(
             query=query,
-            limit=limit,
+            limit=limit * 3,
             fts_weight=fts_weight,
             recency_weight=recency_weight,
         )
 
+        seen_sessions: set[str] = set()
         enriched = []
-        for r in results:
+        for r in raw_results:
             row = self.store.db.get("messages", r.id)
             sid = None
             if row and row.get("metadata"):
@@ -155,6 +160,9 @@ class LongMemEvalAdapter:
                     except (json.JSONDecodeError, TypeError):
                         meta = {}
                 sid = meta.get("session_id") if isinstance(meta, dict) else None
+            if not sid or sid in seen_sessions:
+                continue
+            seen_sessions.add(sid)
             enriched.append({
                 "session_id": sid,
                 "content": r.content,
@@ -162,6 +170,9 @@ class LongMemEvalAdapter:
                 "ts": r.ts.isoformat() if hasattr(r.ts, "isoformat") else str(r.ts),
                 "role": r.role,
             })
+            if len(enriched) >= limit:
+                break
+
         return enriched
 
     def verify_injection(self) -> dict[str, Any]:

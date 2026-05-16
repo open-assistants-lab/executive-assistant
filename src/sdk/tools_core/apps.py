@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from src.app_logging import get_logger
+from src.config import get_settings
 from src.sdk.hybrid_db import HybridDB, SearchMode, _hash_embedding
 from src.sdk.tools import ToolAnnotations, tool
 from src.storage.paths import get_paths
@@ -98,6 +99,7 @@ def _get_db(app_name: str, user_id: str) -> HybridDB:
         _dbs[key] = HybridDB(
             str(app_path),
             embedding_model_name=EMBEDDING_MODEL,
+            max_chroma_index_gb=get_settings().memory.messages.max_chroma_index_gb,
         )
     return _dbs[key]
 

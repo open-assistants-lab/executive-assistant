@@ -13,10 +13,10 @@ Executive Assistant is a multi-channel AI assistant (CLI, HTTP) with long-term m
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    LangGraph Agent                        │
+│                    SDK Agent Loop (ReAct)                  │
 │  ┌─────────────────────────────────────────────────┐   │
-│  │  Tools: get_conversation_history               │   │
-│  │        search_conversation_hybrid               │   │
+│  │  Tools: memory_get_history, memory_search      │   │
+│  │        filesystem, shell, web, email, etc.      │   │
 │  └─────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -115,26 +115,11 @@ uv run ea cli
 uv run ea http
 ```
 
-## Usage
-
-### CLI
-
-```bash
-uv run ea cli
-```
-
-### HTTP API
-
-```bash
-uv run ea http
-```
-
 ## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `MESSAGES_PATH` | `data/users/{user_id}/.conversation/messages.db` | SQLite DB path |
-| `CHECKPOINT_RETENTION_DAYS` | `0` | Checkpoint retention (0=no checkpoints) |
 
 ## Benchmarks
 
@@ -159,10 +144,13 @@ See `docs/benchmarks/` for detailed benchmarks:
 
 ```
 src/
-├── storage/
-│   └── conversation.py     # Main storage implementation
-├── tools/
-│   └── progressive_disclosure.py  # Search tools
-├── cli/main.py            # CLI interface
-└── http/main.py          # HTTP API
+├── sdk/
+│   ├── loop.py              # AgentLoop (ReAct)
+│   ├── tools_core/          # SDK-native tool implementations
+│   │   ├── memory.py        # Memory tools
+│   │   ├── filesystem.py    # Filesystem tools
+│   │   └── ...
+│   └── providers/           # LLM providers
+├── cli/main.py              # CLI interface
+└── http/main.py             # HTTP API
 ```

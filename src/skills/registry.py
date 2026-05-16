@@ -8,10 +8,10 @@ override user skills by name.
 import threading
 from pathlib import Path
 
-from src.skills.models import Skill
+from src.skills.models import Skill, _is_valid_skill_name
 from src.skills.storage import SkillStorage
 
-_registries: dict[str, "SkillRegistry"] = {}
+_registries: dict[tuple[str, str], "SkillRegistry"] = {}
 _lock = threading.Lock()
 
 
@@ -25,7 +25,7 @@ def get_skill_registry(
     """
     uid = user_id or "default_user"
     wid = workspace_id or "personal"
-    cache_key = f"{uid}:{wid}"
+    cache_key = (uid, wid)
     with _lock:
         if cache_key not in _registries:
             _registries[cache_key] = SkillRegistry(
@@ -80,8 +80,14 @@ class SkillRegistry:
 
         import shutil
 
+        seed_marker = self.skills_dir / ".skills_seeded"
+        if seed_marker.exists():
+            return
+
         system_src = Path("src/skills_seed")
         if not system_src.exists():
+            self.skills_dir.mkdir(parents=True, exist_ok=True)
+            seed_marker.write_text("", encoding="utf-8")
             return
 
         self.skills_dir.mkdir(parents=True, exist_ok=True)
@@ -92,6 +98,8 @@ class SkillRegistry:
             dest = self.skills_dir / item.name
             if not dest.exists():
                 shutil.copytree(item, dest)
+
+        seed_marker.write_text("", encoding="utf-8")
 
     def reload(self) -> None:
         """Reload all skills (clear cache, re-seed system skills)."""
@@ -130,6 +138,9 @@ class SkillRegistry:
 
     def get_skill(self, skill_name: str) -> Skill | None:
         """Get a specific skill by name (workspace overrides user)."""
+        if not _is_valid_skill_name(skill_name):
+            return None
+
         self._seed_system_skills()
 
         ws_skill = self.ws_storage.load_skill(skill_name)

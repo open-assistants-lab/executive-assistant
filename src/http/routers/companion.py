@@ -1,0 +1,88 @@
+"""Companion HTTP endpoints for managing the companion scheduler and notifications."""
+
+from fastapi import APIRouter, HTTPException, Query
+
+from src.app_logging import get_logger
+from src.sdk.companion_scheduler import get_companion_scheduler
+from src.sdk.tools_core.companion_db import CompanionMemoryDB, CompanionNotificationDB
+
+router = APIRouter(prefix="/companion", tags=["companion"])
+logger = get_logger()
+
+
+@router.get("/notifications")
+async def list_notifications(
+    user_id: str = Query("default_user"),
+    limit: int = Query(50, ge=1, le=200),
+    include_dismissed: bool = Query(False),
+):
+    db = CompanionNotificationDB(user_id)
+    try:
+        notifs = await db.list(limit=limit, include_dismissed=include_dismissed)
+        return {"notifications": notifs}
+    finally:
+        await db.close()
+
+
+@router.post("/notifications/{notif_id}/dismiss")
+async def dismiss_notification(
+    notif_id: str,
+    user_id: str = Query("default_user"),
+):
+    db = CompanionNotificationDB(user_id)
+    try:
+        ok = await db.dismiss(notif_id)
+        if not ok:
+            raise HTTPException(status_code=404, detail="Notification not found")
+        return {"status": "dismissed"}
+    finally:
+        await db.close()
+
+
+@router.post("/pause")
+async def pause_companion(user_id: str = Query("default_user")):
+    scheduler = get_companion_scheduler(user_id)
+    await scheduler.pause()
+    return {"status": "paused"}
+
+
+@router.post("/resume")
+async def resume_companion(user_id: str = Query("default_user")):
+    scheduler = get_companion_scheduler(user_id)
+    await scheduler.resume()
+    return {"status": "resumed"}
+
+
+@router.get("/status")
+async def companion_status(user_id: str = Query("default_user")):
+    scheduler = get_companion_scheduler(user_id)
+    return {
+        "running": scheduler.is_running,
+        "paused": scheduler.is_paused,
+        "last_check": scheduler.last_check,
+    }
+
+
+@router.get("/memory")
+async def list_companion_memory(user_id: str = Query("default_user")):
+    db = CompanionMemoryDB(user_id)
+    try:
+        facts = await db.list_all()
+        return {"facts": facts}
+    finally:
+        await db.close()
+
+
+@router.delete("/memory/{mem_id}")
+async def delete_companion_memory(
+    mem_id: int,
+    user_id: str = Query("default_user"),
+):
+    db = CompanionMemoryDB(user_id)
+    try:
+        ok = await db.delete(mem_id)
+        if not ok:
+            raise HTTPException(status_code=404, detail="Memory fact not found")
+        return {"status": "deleted"}
+    finally:
+        await db.close()

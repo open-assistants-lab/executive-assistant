@@ -383,10 +383,10 @@ class AgentLoop:
                 Message.tool_result(tool_call_id=tc.id, content=blocked_result, name=tc.name)
             )
             yield StreamChunk.tool_result_event(
-                tool=tc.name, call_id=tc.id, result_preview=blocked_result[:500]
+                tool=tc.name, call_id=tc.id,                 result_preview=blocked_result[:2000]
             )
             yield StreamChunk.tool_end(
-                tool=tc.name, call_id=tc.id, result_preview=blocked_result[:500]
+                tool=tc.name, call_id=tc.id, result_preview=blocked_result[:2000]
             )
             return
 
@@ -419,7 +419,7 @@ class AgentLoop:
                 name=tc.name,
             )
         )
-        preview = result_content[:500] if result_content else ""
+        preview = result_content[:2000] if result_content else ""
         yield StreamChunk.tool_result_event(tool=tc.name, call_id=tc.id, result_preview=preview)
         yield StreamChunk.tool_end(tool=tc.name, call_id=tc.id, result_preview=preview)
 
@@ -869,6 +869,16 @@ class AgentLoop:
                 tool_calls=stream_tool_calls,
                 reasoning=reasoning_content,
             )
+
+            # When the model uses interleaved reasoning (deepseek, kimi, etc.),
+            # ensure the streaming pipeline correctly captures it. If reasoning
+            # wasn't accumulated from stream events, fall back to the provider's
+            # last known reasoning.
+            if stream_tool_calls and not reasoning_content:
+                provider_reasoning = getattr(self.provider, "_last_reasoning", None)
+                if provider_reasoning:
+                    assistant_msg.reasoning = provider_reasoning
+
             state.add_message(assistant_msg)
 
             if not stream_tool_calls:
@@ -923,10 +933,10 @@ class AgentLoop:
                     )
                 )
                 yield StreamChunk.tool_result_event(
-                    tool=tc.name, call_id=tc.id, result_preview=interrupt_result[:500]
+                    tool=tc.name, call_id=tc.id, result_preview=interrupt_result[:2000]
                 )
                 yield StreamChunk.tool_end(
-                    tool=tc.name, call_id=tc.id, result_preview=interrupt_result[:500]
+                    tool=tc.name, call_id=tc.id, result_preview=interrupt_result[:2000]
                 )
 
             # Execute parallel-safe tools concurrently, emit events as they complete
@@ -964,6 +974,7 @@ class AgentLoop:
         We skip alias input chunks here since we emit our own aliases below.
         """
         canonical = chunk.canonical_type
+        # Provider-specific handling for chunk types that need special processing
         if chunk.type != canonical:
             return
 
@@ -1003,6 +1014,11 @@ class AgentLoop:
             yield StreamChunk.tool_input_delta(call_id=chunk.call_id or "", content=chunk.content)
 
         elif canonical == "tool_input_end":
+            if chunk.call_id and chunk.tool:
+                for entry in tool_calls_map.values():
+                    if entry["id"] == chunk.call_id:
+                        entry["name"] = chunk.tool
+                        break
             yield StreamChunk.tool_input_end(call_id=chunk.call_id or "", tool=chunk.tool or "")
 
         elif canonical == "reasoning_delta":

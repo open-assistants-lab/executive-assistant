@@ -6,7 +6,7 @@ Public API:
     AgentState - agent loop state
     LLMProvider, ModelInfo, ModelCost - provider base types
     create_provider, create_model_from_config - factory functions
-    OllamaLocal, OllamaCloud - Ollama providers
+    OllamaCloud - Ollama Cloud provider (native /api/chat)
     OpenAIProvider, AnthropicProvider, GeminiProvider - other providers
     AgentLoop, Interrupt, RunConfig, CostTracker, Usage - agent loop
     Middleware - middleware base class
@@ -45,7 +45,7 @@ from src.sdk.middleware_progress import ProgressMiddleware
 from src.sdk.middleware_summarization import SummarizationMiddleware
 from src.sdk.providers.base import LLMProvider, ModelCost, ModelInfo
 from src.sdk.providers.factory import create_model_from_config, create_provider
-from src.sdk.providers.ollama import OllamaCloud, OllamaLocal
+from src.sdk.providers.ollama import OllamaCloud
 from src.sdk.registry import get_model_info, get_provider, list_models, list_providers, refresh
 from src.sdk.state import AgentState
 from src.sdk.subagent_models import (
@@ -84,7 +84,6 @@ __all__ = [
     "ModelCost",
     "create_provider",
     "create_model_from_config",
-    "OllamaLocal",
     "OllamaCloud",
     "get_model_info",
     "list_models",

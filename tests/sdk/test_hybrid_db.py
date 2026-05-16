@@ -1,16 +1,23 @@
 """Tests for HybridDB: SQLite + FTS5 + ChromaDB with self-healing journal."""
 
 import hashlib
-import json
+import os
 import shutil
+import struct
 import tempfile
 from pathlib import Path
+from unittest import mock
 
 import pytest
 
-from src.sdk.hybrid_db import EmbeddingModelError, HybridDB, SearchMode, _sanitize_fts_query
-
-EMBEDDING_DIM = 384
+from src.sdk.hybrid_db import (
+    _CHROMA_INDEX_MAX_ELEMENTS,
+    _CHROMA_INDEX_MAX_M0,
+    EMBEDDING_DIM,
+    HybridDB,
+    SearchMode,
+    _sanitize_fts_query,
+)
 
 
 def _mock_embedding(text: str) -> list[float]:
@@ -98,6 +105,11 @@ class TestCreateTable:
         assert "_journal" not in tables
         assert "_schema" not in tables
 
+    def test_list_tables_excludes_fts_shadow_tables(self, db):
+        db.create_table("contacts", {"name": "TEXT", "notes": "LONGTEXT"})
+
+        assert db.list_tables() == ["contacts"]
+
     def test_all_types(self, db):
         db.create_table(
             "all_types",
@@ -122,6 +134,21 @@ class TestCreateTable:
         db.create_table("dup", {"name": "TEXT"})
         db.create_table("dup", {"name": "TEXT"})
         assert "dup" in db.list_tables()
+
+    def test_create_table_checks_autoincrement_once_for_text_columns(self, db):
+        with mock.patch.object(
+            db, "_has_autoincrement_id", wraps=db._has_autoincrement_id
+        ) as mock_has_id:
+            db.create_table(
+                "many_texts",
+                {
+                    "title": "TEXT",
+                    "body": "LONGTEXT",
+                    "notes": "LONGTEXT",
+                },
+            )
+
+        assert mock_has_id.call_count == 1
 
 
 class TestCRUD:
@@ -155,6 +182,33 @@ class TestCRUD:
         )
         assert len(ids) == 3
         assert all(iid > 0 for iid in ids)
+
+    def test_insert_batch_uses_single_timestamp_for_journal_entries(self, db_with_contacts):
+        with mock.patch("src.sdk.hybrid_db._now_iso", return_value="2026-01-01T00:00:00+00:00") as now:
+            db_with_contacts.insert_batch(
+                "contacts",
+                [
+                    {"first_name": "Alice", "company": "Acme", "notes": "VIP"},
+                    {"first_name": "Bob", "company": "Beta", "notes": "New"},
+                ],
+                sync=False,
+            )
+
+        assert now.call_count == 1
+
+    def test_insert_can_skip_selected_longtext_journal_columns(self, db_with_contacts):
+        db_with_contacts.insert(
+            "contacts",
+            {"first_name": "Alice", "company": "Acme", "notes": "VIP"},
+            sync=False,
+            skip_journal_columns={"notes"},
+        )
+
+        rows = db_with_contacts.raw_query(
+            "SELECT column_name, op FROM _journal WHERE app_table = 'contacts' ORDER BY id"
+        )
+
+        assert {row["column_name"] for row in rows if row["op"] == "add"} == {"company"}
 
     def test_update(self, db_with_contacts):
         row_id = db_with_contacts.insert(
@@ -207,7 +261,7 @@ class TestCRUD:
 
 class TestInsertSync:
     def test_sync_false_defers_chroma(self, db_with_contacts):
-        row_id = db_with_contacts.insert(
+        db_with_contacts.insert(
             "contacts",
             {
                 "first_name": "Alice",
@@ -232,6 +286,17 @@ class TestSchemaOperations:
         db_with_contacts.add_column("contacts", "bio", "LONGTEXT")
         schema = db_with_contacts.get_schema("contacts")
         assert schema["bio"] == "LONGTEXT"
+
+    def test_drop_and_rename_longtext_with_chroma_disabled_do_not_log_chroma_errors(self, tmp_dir):
+        db = HybridDB(tmp_dir, embedding_fn=_mock_embedding, max_chroma_index_gb=0)
+        db.create_table("docs", {"title": "TEXT", "body": "LONGTEXT"})
+
+        with mock.patch("src.sdk.hybrid_db.logger") as mock_logger:
+            db.rename_column("docs", "body", "content")
+            db.drop_column("docs", "content")
+
+        logged_events = [call.args[0] for call in mock_logger.warning.call_args_list if call.args]
+        assert "hybriddb.rename_chroma_failed" not in logged_events
 
     def test_drop_column(self, db_with_contacts):
         db_with_contacts.insert("contacts", {"first_name": "Alice", "clv": 100.0})
@@ -382,6 +447,17 @@ class TestHealthAndReconcile:
         assert "missing_added" in result
         assert "metadata_updated" in result
 
+    def test_reconcile_batches_missing_row_metadata(self, db_with_contacts):
+        db_with_contacts.insert("contacts", {"first_name": "Alice", "notes": "test"})
+        collection = db_with_contacts._get_collection("contacts_notes")
+        collection.delete(ids=["1"])
+
+        with mock.patch.object(db_with_contacts, "get", wraps=db_with_contacts.get) as mock_get:
+            result = db_with_contacts.reconcile("contacts")
+
+        assert result["missing_added"] == 1
+        assert mock_get.call_count == 0
+
 
 class TestMetadataStrategy:
     def test_text_in_metadata(self, db_with_contacts):
@@ -512,7 +588,7 @@ class TestMemorySchema:
                 "confidence": "REAL",
             },
         )
-        row_id = db.insert(
+        db.insert(
             "insights",
             {
                 "id": "i1",
@@ -533,3 +609,255 @@ class TestAutoIncrement:
         id3 = db_with_contacts.insert("contacts", {"first_name": "C"})
         assert id3 > id1
         assert id3 > id2
+
+
+class TestHnswHeaderCorrupt:
+    def test_valid_header(self, tmp_dir):
+        header_path = os.path.join(tmp_dir, "header.bin")
+        link_path = os.path.join(tmp_dir, "link_lists.bin")
+        header_data = bytearray(72)
+        struct.pack_into("Q", header_data, 0, 0)
+        struct.pack_into("Q", header_data, 8, 100000)
+        struct.pack_into("Q", header_data, 16, 50000)
+        struct.pack_into("Q", header_data, 24, EMBEDDING_DIM * 4)
+        struct.pack_into("Q", header_data, 32, 0)
+        struct.pack_into("Q", header_data, 40, 0)
+        struct.pack_into("I", header_data, 48, 16)
+        struct.pack_into("I", header_data, 52, 32)
+        struct.pack_into("I", header_data, 56, 32)
+        with open(header_path, "wb") as f:
+            f.write(header_data)
+        assert HybridDB._is_hnsw_header_corrupt(header_path, link_path) is False
+
+    def test_index_health_logs_when_link_file_exceeds_max_size(self, tmp_dir):
+        db = HybridDB(tmp_dir, embedding_fn=_mock_embedding, max_chroma_index_gb=1)
+        segment = Path(tmp_dir) / "vectors" / "segment"
+        segment.mkdir()
+        header_path = segment / "header.bin"
+        link_path = segment / "link_lists.bin"
+        header_data = bytearray(72)
+        struct.pack_into("Q", header_data, 8, 100000)
+        struct.pack_into("Q", header_data, 24, EMBEDDING_DIM * 4)
+        struct.pack_into("I", header_data, 56, 32)
+        header_path.write_bytes(header_data)
+        with open(link_path, "wb") as f:
+            f.truncate(1024**3 + 1)
+
+        with mock.patch("src.sdk.hybrid_db.logger") as mock_logger:
+            db._check_index_health()
+
+        mock_logger.error.assert_called()
+
+    def test_corrupt_max_elements_zero(self, tmp_dir):
+        header_path = os.path.join(tmp_dir, "header.bin")
+        link_path = os.path.join(tmp_dir, "link_lists.bin")
+        header_data = bytearray(72)
+        struct.pack_into("Q", header_data, 8, 0)
+        with open(header_path, "wb") as f:
+            f.write(header_data)
+        assert HybridDB._is_hnsw_header_corrupt(header_path, link_path) is True
+
+    def test_corrupt_max_elements_too_large(self, tmp_dir):
+        header_path = os.path.join(tmp_dir, "header.bin")
+        link_path = os.path.join(tmp_dir, "link_lists.bin")
+        header_data = bytearray(72)
+        struct.pack_into("Q", header_data, 8, _CHROMA_INDEX_MAX_ELEMENTS + 1)
+        struct.pack_into("Q", header_data, 24, EMBEDDING_DIM * 4)
+        struct.pack_into("I", header_data, 56, 32)
+        with open(header_path, "wb") as f:
+            f.write(header_data)
+        assert HybridDB._is_hnsw_header_corrupt(header_path, link_path) is True
+
+    def test_corrupt_size_data_per_element(self, tmp_dir):
+        header_path = os.path.join(tmp_dir, "header.bin")
+        link_path = os.path.join(tmp_dir, "link_lists.bin")
+        header_data = bytearray(72)
+        struct.pack_into("Q", header_data, 8, 100000)
+        struct.pack_into("Q", header_data, 24, 999)
+        struct.pack_into("I", header_data, 56, 32)
+        with open(header_path, "wb") as f:
+            f.write(header_data)
+        assert HybridDB._is_hnsw_header_corrupt(header_path, link_path) is True
+
+    def test_corrupt_max_neighbors_too_large(self, tmp_dir):
+        header_path = os.path.join(tmp_dir, "header.bin")
+        link_path = os.path.join(tmp_dir, "link_lists.bin")
+        header_data = bytearray(72)
+        struct.pack_into("Q", header_data, 8, 100000)
+        struct.pack_into("Q", header_data, 24, EMBEDDING_DIM * 4)
+        struct.pack_into("I", header_data, 56, _CHROMA_INDEX_MAX_M0 + 1)
+        with open(header_path, "wb") as f:
+            f.write(header_data)
+        assert HybridDB._is_hnsw_header_corrupt(header_path, link_path) is True
+
+    def test_missing_file(self, tmp_dir):
+        header_path = os.path.join(tmp_dir, "nonexistent.bin")
+        link_path = os.path.join(tmp_dir, "nonexistent2.bin")
+        assert HybridDB._is_hnsw_header_corrupt(header_path, link_path) is True
+
+    def test_short_file(self, tmp_dir):
+        header_path = os.path.join(tmp_dir, "header.bin")
+        link_path = os.path.join(tmp_dir, "link_lists.bin")
+        with open(header_path, "wb") as f:
+            f.write(b"\x00" * 10)
+        assert HybridDB._is_hnsw_header_corrupt(header_path, link_path) is True
+
+
+class TestIndexHealthCheck:
+    def test_healthy_index_passes(self, tmp_dir):
+        db = HybridDB(
+            tmp_dir,
+            embedding_fn=_mock_embedding,
+            max_chroma_index_gb=5,
+        )
+        db.create_table(
+            "test",
+            {"name": "TEXT", "notes": "LONGTEXT"},
+        )
+        db.insert("test", {"name": "x", "notes": "some content"})
+        db.process_journal()
+        db.close()
+
+        db2 = HybridDB(
+            tmp_dir,
+            embedding_fn=_mock_embedding,
+            max_chroma_index_gb=5,
+        )
+        assert db2._chroma is not None
+        db2.close()
+
+    def test_corrupt_header_logs_error(self, tmp_dir):
+        db = HybridDB(
+            tmp_dir,
+            embedding_fn=_mock_embedding,
+            max_chroma_index_gb=5,
+        )
+        db.create_table(
+            "test",
+            {"name": "TEXT", "notes": "LONGTEXT"},
+        )
+        db.insert("test", {"name": "x", "notes": "some content"})
+        db.process_journal()
+        db.close()
+
+        seg_dir = None
+        vector_dir = Path(tmp_dir) / "vectors"
+        for d in vector_dir.iterdir():
+            if d.is_dir() and (d / "header.bin").exists():
+                seg_dir = d
+                break
+        assert seg_dir is not None, "No HNSW segment found"
+
+        header_file = seg_dir / "header.bin"
+        os.rename(str(header_file), str(header_file) + ".orig")
+        corrupt = bytearray(72)
+        struct.pack_into("Q", corrupt, 8, _CHROMA_INDEX_MAX_ELEMENTS + 1)
+        with open(str(header_file), "wb") as f:
+            f.write(corrupt)
+
+        with mock.patch("src.sdk.hybrid_db.logger") as mock_logger:
+            db2 = HybridDB(
+                tmp_dir,
+                embedding_fn=_mock_embedding,
+                max_chroma_index_gb=5,
+            )
+            mock_logger.error.assert_any_call(
+                mock.ANY, mock.ANY, user_id="system",
+            )
+            db2.close()
+
+        os.rename(str(header_file) + ".orig", str(header_file))
+
+    def test_size_bloat_logs_error(self, tmp_dir):
+        db = HybridDB(
+            tmp_dir,
+            embedding_fn=_mock_embedding,
+            max_chroma_index_gb=1,
+        )
+        db.create_table(
+            "test",
+            {"name": "TEXT", "notes": "LONGTEXT"},
+        )
+        db.insert("test", {"name": "x", "notes": "some content"})
+        db.process_journal()
+        db.close()
+
+        original_stat = os.stat
+
+        def _patched_stat(path, *args, **kwargs):
+            result = original_stat(path, *args, **kwargs)
+            p = str(path) if isinstance(path, os.PathLike) else path
+            if isinstance(p, str) and "link_lists.bin" in p:
+                return mock.MagicMock(
+                    st_size=3 * 1024**3,
+                    st_blocks=3 * 1024**3 // 512,
+                    st_mode=result.st_mode,
+                    st_ino=result.st_ino,
+                    st_dev=result.st_dev,
+                    st_nlink=result.st_nlink,
+                    st_uid=result.st_uid,
+                    st_gid=result.st_gid,
+                    st_atime=result.st_atime,
+                    st_mtime=result.st_mtime,
+                    st_ctime=result.st_ctime,
+                )
+            return result
+
+        with mock.patch("os.stat", side_effect=_patched_stat):
+            with mock.patch("src.sdk.hybrid_db.logger") as mock_logger:
+                db2 = HybridDB(
+                    tmp_dir,
+                    embedding_fn=_mock_embedding,
+                    max_chroma_index_gb=1,
+                )
+                mock_logger.error.assert_any_call(
+                    mock.ANY, mock.ANY, user_id="system",
+                )
+                db2.close()
+
+    def test_force_rebuild_creates_new_index(self, tmp_dir):
+        db = HybridDB(
+            tmp_dir,
+            embedding_fn=_mock_embedding,
+            max_chroma_index_gb=5,
+        )
+        db.create_table(
+            "test",
+            {"name": "TEXT", "notes": "LONGTEXT"},
+        )
+        db.insert("test", {"name": "x", "notes": "hello world"})
+        db.process_journal()
+        db.close()
+
+        db2 = HybridDB(
+            tmp_dir,
+            embedding_fn=_mock_embedding,
+            max_chroma_index_gb=5,
+        )
+        result = db2.force_rebuild_chroma_index()
+        assert result["status"] == "rebuilt"
+        assert result["vectors_copied"] > 0
+
+        results = db2.search("test", "notes", "hello world")
+        assert len(results) >= 1
+        db2.close()
+
+    def test_disabled_health_check(self, tmp_dir):
+        db = HybridDB(
+            tmp_dir,
+            embedding_fn=_mock_embedding,
+            max_chroma_index_gb=0,
+        )
+        db.close()
+
+    def test_health_check_no_segments(self, tmp_dir):
+        vectors_dir = Path(tmp_dir) / "vectors"
+        vectors_dir.mkdir(parents=True, exist_ok=True)
+
+        db = HybridDB(
+            tmp_dir,
+            embedding_fn=_mock_embedding,
+            max_chroma_index_gb=5,
+        )
+        assert db._chroma is not None
+        db.close()

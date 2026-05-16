@@ -121,6 +121,8 @@ class Message(BaseModel):
             msg["tool_calls"] = [tc.to_openai() for tc in self.tool_calls]
         if self.role == "tool" and self.tool_call_id:
             msg["tool_call_id"] = self.tool_call_id
+        if self.role == "assistant" and self.reasoning:
+            msg["reasoning_content"] = self.reasoning
         return msg
 
     def to_ollama(self) -> dict:
@@ -145,11 +147,12 @@ class Message(BaseModel):
     def from_openai(cls, data: dict) -> Message:
         role = data["role"]
         content = data.get("content", "")
+        reasoning = data.get("reasoning_content")
         tool_calls: list[ToolCall] = []
         if role == "assistant" and "tool_calls" in data:
             tool_calls = [ToolCall.from_openai(tc) for tc in data["tool_calls"]]
         tool_call_id = data.get("tool_call_id")
-        return cls(role=role, content=content, tool_calls=tool_calls, tool_call_id=tool_call_id)
+        return cls(role=role, content=content, tool_calls=tool_calls, tool_call_id=tool_call_id, reasoning=reasoning)
 
     def to_anthropic(self) -> dict:
         if self.role == "system":

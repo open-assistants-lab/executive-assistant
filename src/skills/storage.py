@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from src.skills.models import Skill, parse_skill_file
+from src.skills.models import Skill, _is_valid_skill_name, parse_skill_file
 
 
 class SkillStorage:
@@ -32,8 +32,16 @@ class SkillStorage:
         return skills
 
     def load_skill(self, skill_name: str) -> Skill | None:
+        if not _is_valid_skill_name(skill_name):
+            return None
+
         skill_dir = self.base_dir / skill_name
         skill_file = skill_dir / "SKILL.md"
+
+        base_dir = self.base_dir.resolve()
+        resolved = skill_file.resolve()
+        if not resolved.is_relative_to(base_dir):
+            return None
 
         return parse_skill_file(skill_file)
 
@@ -43,9 +51,9 @@ class SkillStorage:
 
 
 class SystemSkillStorage(SkillStorage):
-    """Storage for system skills."""
+    """Storage for bundled seed skills."""
 
-    def __init__(self, base_dir: str | Path = "src/skills"):
+    def __init__(self, base_dir: str | Path = "src/skills_seed"):
         super().__init__(base_dir)
 
 

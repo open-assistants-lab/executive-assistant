@@ -19,7 +19,6 @@ uv pip install -e ".[dev]"      # Development tools
 
 ### Running the Application
 ```bash
-uv run ea cli        # Start CLI (with streaming support)
 uv run ea http      # Start HTTP server (with SSE streaming)
 ```
 

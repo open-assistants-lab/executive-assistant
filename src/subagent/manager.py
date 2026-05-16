@@ -98,7 +98,7 @@ class SubagentManager:
 
 {description or "You are helpful and autonomous."}
 
-You have access to tools and skills as configured. Always use the planning-with-files skill for multi-step tasks to track your progress.
+You have access to tools and skills as configured.
 """
         config_dict_clean["system_prompt"] = system_prompt
 
@@ -325,30 +325,15 @@ You have access to tools and skills as configured. Always use the planning-with-
         """Build system prompt with skills injected."""
         registry = get_skill_registry(user_id=self.user_id)
 
-        planning_skill = registry.get_skill("planning-with-files")
-        planning_content = planning_skill["content"] if planning_skill else ""
-
         skills_content = ""
         for skill_name in config.skills:
-            if skill_name != "planning-with-files":
-                skill = registry.get_skill(skill_name)
-                if skill:
-                    skills_content += f"\n\n## {skill_name}\n{skill['content']}"
+            skill = registry.get_skill(skill_name)
+            if skill:
+                skills_content += f"\n\n## {skill_name}\n{skill['content']}"
 
         custom_prompt = config.system_prompt + "\n\n" if config.system_prompt else ""
 
-        system_prompt = f"""{custom_prompt}## Planning Skill (REQUIRED)
-{planning_content}
-
-{skills_content}
-
-## Important
-You MUST use the planning skill for ANY task that requires multiple steps.
-Create a plan in `planning/{{task_name}}/task_plan.md` before executing.
-Update `progress.md` after each step.
-The main agent will track your progress via these files.
-"""
-
+        system_prompt = f"{custom_prompt}{skills_content}"
         return system_prompt
 
     def _load_mcp_tools(self, subagent_path: Path) -> list:

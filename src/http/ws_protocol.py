@@ -20,6 +20,8 @@ Backward-compatible messages are preserved:
 - AiTokenMessage, ToolStartMessage, ToolEndMessage, ReasoningMessage
 """
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 # ─── Client → Server Messages ───
@@ -32,6 +34,16 @@ class UserMessage(BaseModel):
     content: str
     user_id: str = "default_user"
     verbose: bool = False
+    workspace_id: str = "personal"
+    model: str | None = None
+    provider_keys: dict[str, str] | None = None
+
+
+class AuthMessage(BaseModel):
+    """Client sends API key for authentication (first message after WS connect)."""
+
+    type: Literal["auth"] = "auth"
+    api_key: str
 
 
 class ApproveMessage(BaseModel):
@@ -216,11 +228,20 @@ class ReasoningMessage(BaseModel):
 
 
 class DoneMessage(BaseModel):
-    """Agent execution complete."""
+    """Agent execution completed."""
 
     type: str = "done"
     response: str = ""
-    tool_calls: list[dict] = Field(default_factory=list)
+    message_id: str = ""
+    total_llm_calls: int = 0
+    cost_usd: float = 0.0
+    tools_called: list[str] = []
+
+
+class AuthOkMessage(BaseModel):
+    """API key accepted, client may now send messages."""
+
+    type: Literal["auth_ok"] = "auth_ok"
 
 
 class ErrorMessage(BaseModel):

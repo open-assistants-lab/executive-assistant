@@ -57,7 +57,7 @@ QUERIES_PER_PERSONA = {
     "p19": ["Team time check - what time works?", "What skills help with collaboration?"],
     "p20": ["Time? Don't log this.", "List files privately."],
     "p21": ["time", "skills"],
-    "p22": ["Search web for Python asyncio and summarize", "Create subagent named researcher with search_web tool"],
+    "p22": ["Search web for Python asyncio and summarize", "Create subagent named researcher with web_search tool"],
     "p23": ["Time in Invalid/Timezone?", "Search with regex /*bad[*/"],
     "p24": ["What time is it? Remember my timezone.", "Files I mentioned before?"],
     "p25": ["What time is it?", "What skills do I have?"],

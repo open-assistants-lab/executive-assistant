@@ -16,26 +16,46 @@ class TestSkillsEndpoints:
         data = r.json()
         if data["skills"]:
             skill = data["skills"][0]
-            for key in ("name", "description", "is_system"):
+            for key in (
+                "name",
+                "description",
+                "scope",
+                "workspace_id",
+                "is_loaded",
+                "disable_model_invocation",
+            ):
                 assert key in skill
 
     def test_create_skill(self, client, test_user_id):
         r = client.post(
             "/skills",
-            params={
-                "name": "test_skill_api",
+            json={
+                "name": "test-skill-api",
                 "description": "A test skill",
                 "content": "# Test Skill\nThis is a test.",
+                "scope": "user",
+            },
+            params={
                 "user_id": test_user_id,
             },
         )
         assert r.status_code == 200
         data = r.json()
-        assert data["status"] == "created"
-        assert data["name"] == "test_skill_api"
+        assert data["name"] == "test-skill-api"
+        assert data["scope"] == "user"
 
     def test_delete_skill(self, client, test_user_id):
-        r = client.delete("/skills/test_skill_api", params={"user_id": test_user_id})
+        client.post(
+            "/skills",
+            json={
+                "name": "test-skill-api",
+                "description": "A test skill",
+                "content": "# Test Skill\nThis is a test.",
+                "scope": "user",
+            },
+            params={"user_id": test_user_id},
+        )
+        r = client.delete("/skills/test-skill-api", params={"user_id": test_user_id})
         assert r.status_code == 200
         data = r.json()
         assert data["status"] == "deleted"

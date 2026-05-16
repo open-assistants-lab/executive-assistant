@@ -1,0 +1,18 @@
+[project]
+name = "memcore"
+version = "0.1.0"
+description = "Zero-LLM memory for AI agents — dual-backend (ChromaDB baseline, HybridDB enhanced)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "chromadb>=0.5.0",
+    "sentence-transformers>=2.0.0",
+    "numpy>=1.24.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+hybrid = ["hybriddb>=0.1.0"]
+
+[project.scripts]
+memcore-bench = "memcore.benchmarks.longmemeval.eval:main"

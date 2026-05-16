@@ -11,21 +11,22 @@ from src.storage.paths import get_paths
 logger = get_logger()
 
 
-def _get_root_path(user_id: str) -> Path:
-    return get_paths(user_id).workspace_dir()
+def _get_root_path(user_id: str, workspace_id: str = "personal") -> Path:
+    return get_paths(user_id, workspace_id=workspace_id).workspace_files_dir()
 
 
-def _resolve_path(path: str | None, user_id: str) -> Path:
-    root = _get_root_path(user_id).resolve()
+def _resolve_path(path: str | None, user_id: str, workspace_id: str = "personal") -> Path:
+    root = _get_root_path(user_id, workspace_id).resolve()
 
     if path is None:
         return root
 
-    is_skills_path = str(get_paths(user_id).skills_dir()) in path or path.startswith(
+    paths = get_paths(user_id, workspace_id=workspace_id)
+    is_skills_path = str(paths.skills_dir()) in path or path.startswith(
         "data/private/skills/"
     )
     if is_skills_path:
-        expected_prefix = str(get_paths(user_id).skills_dir()) + "/"
+        expected_prefix = str(paths.skills_dir()) + "/"
         if not (str(Path.cwd() / path).resolve()).startswith(
             expected_prefix
         ) and not path.startswith(expected_prefix):
@@ -41,20 +42,21 @@ def _resolve_path(path: str | None, user_id: str) -> Path:
 
 
 @tool
-def files_glob_search(pattern: str = "**/*", path: str = ".", user_id: str = "default_user") -> str:
+def files_glob_search(pattern: str = "**/*", path: str = ".", user_id: str = "default_user", workspace_id: str = "personal") -> str:
     """Search for files matching a glob pattern.
 
     Args:
         pattern: Glob pattern (e.g., "*.py", "**/*.txt")
         path: Directory to search in (default: current dir)
         user_id: User identifier
+        workspace_id: Workspace ID (defaults to current workspace)
 
     Returns:
         List of matching files
     """
     try:
-        root = _get_root_path(user_id)
-        target = _resolve_path(path, user_id)
+        root = _get_root_path(user_id, workspace_id)
+        target = _resolve_path(path, user_id, workspace_id)
 
         if not target.exists():
             return f"Directory not found: {path}"
@@ -93,6 +95,7 @@ def files_grep_search(
     include: str | None = None,
     count: bool = False,
     user_id: str = "default_user",
+    workspace_id: str = "personal",
 ) -> str:
     """Search file contents using regex.
 
@@ -102,13 +105,14 @@ def files_grep_search(
         include: File pattern to filter (e.g., "*.py", "*.txt")
         count: If True, return only count of matches
         user_id: User identifier
+        workspace_id: Workspace ID (defaults to current workspace)
 
     Returns:
         Matching lines with context
     """
     try:
-        root = _get_root_path(user_id)
-        target = _resolve_path(path, user_id)
+        root = _get_root_path(user_id, workspace_id)
+        target = _resolve_path(path, user_id, workspace_id)
 
         if not target.exists():
             return f"Directory not found: {path}"

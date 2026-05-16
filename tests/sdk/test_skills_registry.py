@@ -78,3 +78,44 @@ def test_get_skill_registry_cached_by_user_and_workspace():
     assert r1 is r2
     assert r1 is not r3
     assert r1 is not r4
+
+
+def test_get_skill_registry_uses_tuple_cache_keys():
+    """Factory cache keys keep user/workspace identity structurally separate."""
+    from src.skills import registry as skills_registry
+
+    reset_skill_registries()
+
+    r1 = get_skill_registry(user_id="a", workspace_id="b")
+    r2 = get_skill_registry(user_id="a-b", workspace_id="personal")
+
+    assert r1 is not r2
+    assert set(skills_registry._registries) == {("a", "b"), ("a-b", "personal")}
+
+
+def test_seeded_skill_deleted_after_reload_is_not_reseeded(tmp_path, monkeypatch):
+    """Seed marker makes seeded skills normal user skills after first seed."""
+    seed_root = tmp_path / "src" / "skills_seed"
+    seeded = seed_root / "seeded-skill"
+    seeded.mkdir(parents=True)
+    (seeded / "SKILL.md").write_text("""---
+name: seeded-skill
+description: Seeded Skill
+---
+Seeded body
+""", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    user_dir = tmp_path / "user-skills"
+    workspace_dir = tmp_path / "workspace-skills"
+    registry = SkillRegistry(skills_dir=user_dir, workspace_skills_dir=workspace_dir)
+
+    assert "seeded-skill" in registry.list_skills()
+    assert (user_dir / ".skills_seeded").exists()
+
+    import shutil
+
+    shutil.rmtree(user_dir / "seeded-skill")
+    registry.reload()
+
+    assert "seeded-skill" not in registry.list_skills()

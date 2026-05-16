@@ -387,6 +387,36 @@ class TestAgentLoopStreaming:
         types = [c.type for c in chunks]
         assert "done" in types
 
+    async def test_stream_tool_name_can_arrive_on_end(self):
+        """OpenAI-compatible streams may emit tool name after the start chunk."""
+        provider = MockProvider()
+        provider.set_stream_events(
+            [
+                [
+                    StreamChunk.tool_input_start(tool="", call_id="c1"),
+                    StreamChunk.tool_input_delta(call_id="c1", content='{"text": "hi"}'),
+                    StreamChunk.tool_input_end(tool="echo", call_id="c1"),
+                    StreamChunk.done(content=""),
+                ],
+                [
+                    StreamChunk.text_delta(content="Final answer"),
+                    StreamChunk.done(content="Final answer"),
+                ],
+            ]
+        )
+        loop = AgentLoop(provider=provider, tools=[echo])
+        chunks = []
+
+        async for chunk in loop.run_stream([Message.user("Use tool")]):
+            chunks.append(chunk)
+
+        tool_results = [c for c in chunks if c.canonical_type == "tool_result"]
+        assert tool_results
+        assert tool_results[0].tool == "echo"
+        assert "hi" in (tool_results[0].result_preview or "")
+        done = [c for c in chunks if c.type == "done"][-1]
+        assert done.tool_calls == [{"name": "echo", "call_id": "c1"}]
+
 
 class TestAgentLoopMiddleware:
     """Middleware hook execution order and state updates."""

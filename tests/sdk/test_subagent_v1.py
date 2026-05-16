@@ -35,6 +35,9 @@ def mock_paths(tmp_dir):
     from src.storage.paths import DataPaths
 
     mock = DataPaths(data_path=tmp_dir, user_id="test_user")
+    # Alias old user-level paths to workspace-scoped for backwards test compat
+    mock.subagents_dir = mock.workspace_subagents_dir
+    mock.memory_dir = mock.workspace_memory_dir
     with patch("src.storage.paths.get_paths", return_value=mock):
         with patch("src.sdk.work_queue.get_paths", return_value=mock):
             with patch("src.sdk.coordinator.get_paths", return_value=mock):

@@ -23,7 +23,6 @@ from src.app_logging import get_logger
 from src.config import get_settings
 from src.sdk.loop import AgentLoop
 from src.sdk.messages import Message, StreamChunk
-from src.sdk.middleware_memory import MemoryMiddleware
 from src.sdk.middleware_observation import ObservationMiddleware
 from src.sdk.middleware_summarization import SummarizationMiddleware
 from src.sdk.native_tools import get_native_tools
@@ -58,8 +57,10 @@ def _get_system_prompt(user_id: str, workspace_id: str | None = None) -> str:
     settings = get_settings()
     base_prompt = getattr(settings.agent, "system_prompt", "You are a helpful executive assistant.")
 
+    w_id = workspace_id or "personal"
+
     # Inject available skills
-    skills_context = _get_skills_context(user_id)
+    skills_context = _get_skills_context(user_id, w_id)
 
     # Inject workspace context
     workspace_context = _get_workspace_context(workspace_id)
@@ -84,20 +85,29 @@ def _get_workspace_context(workspace_id: str | None) -> str:
         return ""
 
 
-def _get_skills_context(user_id: str) -> str:
+def _get_skills_context(user_id: str, workspace_id: str = "personal") -> str:
     """Build a concise skills reference for the system prompt."""
     try:
         from src.skills.registry import get_skill_registry
 
-        registry = get_skill_registry(user_id=user_id)
+        registry = get_skill_registry(user_id=user_id, workspace_id=workspace_id)
         skills = registry.get_all_skills()
         if not skills:
+            return ""
+
+        visible_skills = [
+            s
+            for s in skills
+            if str(s.get("metadata", {}).get("disable_model_invocation", "")).lower()
+            not in ("true", "1", "yes")
+        ]
+        if not visible_skills:
             return ""
 
         lines = ["\n\n## Available Skills"]
         lines.append("When a task matches a skill description below, call skills_load(name) first to get detailed instructions before proceeding. Do NOT call skills_list — descriptions are already here.")
         lines.append("")
-        for s in skills:
+        for s in visible_skills:
             name = s.get("name", "")
             desc = s.get("description", "")
             lines.append(f"- **{name}**: {desc}")
@@ -106,22 +116,16 @@ def _get_skills_context(user_id: str) -> str:
         return ""
 
 
-async def create_sdk_loop(user_id: str, workspace_id: str = "personal") -> AgentLoop:
-    """Create an AgentLoop for a user with all wiring.
-
-    All tools are now SDK-native (from src.sdk.native_tools).
-    MCP tools are discovered and injected via MCPToolBridge.
-    Workspace-scoped memory middleware is injected per workspace.
-    No more LangChain adapter needed.
-    """
+async def create_sdk_loop(user_id: str, workspace_id: str = "personal", model: str | None = None, provider_keys: dict[str, str] | None = None) -> AgentLoop:
+    """Create an AgentLoop for a user with all wiring."""
     import time
 
     _seed_default_workspace()
     t0 = time.monotonic()
     settings = get_settings()
-    model_str = getattr(settings.agent, "model", "ollama:minimax-m2.5")
+    model_str = model or getattr(settings.agent, "model", "ollama:minimax-m2.5")
 
-    provider = create_model_from_config(model_str)
+    provider = create_model_from_config(model_str, provider_keys=provider_keys)
     t1 = time.monotonic()
 
     tools = get_native_tools()
@@ -181,7 +185,7 @@ async def create_sdk_loop(user_id: str, workspace_id: str = "personal") -> Agent
     middlewares.append(
         ObservationMiddleware(user_id=user_id, workspace_id=workspace_id)
     )
-    middlewares.append(MemoryMiddleware(user_id=user_id, workspace_id=workspace_id))
+    # middlewares.append(MemoryMiddleware(user_id=user_id, workspace_id=workspace_id))
     t4 = time.monotonic()
 
     loop = AgentLoop(
@@ -216,13 +220,17 @@ async def create_sdk_loop(user_id: str, workspace_id: str = "personal") -> Agent
     return loop
 
 
-async def get_sdk_loop(user_id: str, workspace_id: str = "personal") -> AgentLoop:
-    """Get or create an AgentLoop for a user+workspace (cached)."""
-    cache_key = f"{user_id}:{workspace_id}"
+async def get_sdk_loop(user_id: str, workspace_id: str = "personal", model: str | None = None, provider_keys: dict[str, str] | None = None) -> AgentLoop:
+    """Get or create an AgentLoop for a user+workspace+model (cached)."""
+    if provider_keys:
+        loop = await create_sdk_loop(user_id, workspace_id, model=model, provider_keys=provider_keys)
+        logger.info("sdk_runner.loop_created_uncached", {"user_id": user_id, "workspace_id": workspace_id, "model": model}, user_id=user_id)
+        return loop
+    cache_key = f"{user_id}:{workspace_id}:{model or 'default'}"
     async with _loop_lock:
         if cache_key not in _loop_cache:
-            _loop_cache[cache_key] = await create_sdk_loop(user_id, workspace_id)
-            logger.info("sdk_runner.loop_created", {"user_id": user_id, "workspace_id": workspace_id}, user_id=user_id)
+            _loop_cache[cache_key] = await create_sdk_loop(user_id, workspace_id, model=model)
+            logger.info("sdk_runner.loop_created", {"user_id": user_id, "workspace_id": workspace_id, "model": model}, user_id=user_id)
         return _loop_cache[cache_key]
 
 
@@ -293,6 +301,8 @@ async def run_sdk_agent(
     user_id: str,
     messages: list[Message],
     workspace_id: str = "personal",
+    model: str | None = None,
+    provider_keys: dict[str, str] | None = None,
 ) -> list[Message]:
     """Run the SDK agent loop to completion.
 
@@ -300,11 +310,13 @@ async def run_sdk_agent(
         user_id: User identifier.
         messages: Conversation history as SDK Messages.
         workspace_id: Current workspace ID.
+        model: Optional model override.
+        provider_keys: Optional per-provider API keys from frontend.
 
     Returns:
         Final message list from the agent.
     """
-    loop = await get_sdk_loop(user_id, workspace_id)
+    loop = await get_sdk_loop(user_id, workspace_id, model=model, provider_keys=provider_keys)
     result = await loop.run(messages)
     return result
 
@@ -313,28 +325,10 @@ async def run_sdk_agent_stream(
     user_id: str,
     messages: list[Message],
     workspace_id: str = "personal",
+    model: str | None = None,
+    provider_keys: dict[str, str] | None = None,
 ) -> Any:
-    """Run the SDK agent loop with streaming.
-
-    Yields StreamChunk events that map directly to WS protocol messages.
-
-    Args:
-        user_id: User identifier.
-        messages: Conversation history as SDK Messages.
-        workspace_id: Current workspace ID for context injection.
-
-    Yields:
-        StreamChunk events.
-    """
-    loop = await get_sdk_loop(user_id, workspace_id)
-
-    if workspace_id and workspace_id != "personal":
-        ctx = _get_workspace_context(workspace_id)
-        if ctx and messages:
-            for i, m in enumerate(messages):
-                if m.role == "system":
-                    messages[i] = Message.system(m.content + ctx)
-                    break
+    loop = await get_sdk_loop(user_id, workspace_id, model=model, provider_keys=provider_keys)
 
     try:
         async for chunk in loop.run_stream(messages):
@@ -346,13 +340,29 @@ async def run_sdk_agent_stream(
 
 def reset_sdk_loop(user_id: str = "default_user", workspace_id: str = "personal") -> None:
     """Reset the SDK agent loop for a user+workspace."""
-    cache_key = f"{user_id}:{workspace_id}"
-    if cache_key in _loop_cache:
-        del _loop_cache[cache_key]
+    cache_prefix = f"{user_id}:{workspace_id}:"
+    for cache_key in list(_loop_cache):
+        if cache_key.startswith(cache_prefix):
+            del _loop_cache[cache_key]
+    from src.storage.memory import clear_memory_store_cache
+    clear_memory_store_cache()
     logger.info("sdk_runner.loop_reset", {"user_id": user_id, "workspace_id": workspace_id}, user_id=user_id)
+
+
+def reset_user_sdk_loops(user_id: str) -> None:
+    """Reset all cached SDK agent loops for a user across workspaces."""
+    cache_prefix = f"{user_id}:"
+    for cache_key in list(_loop_cache):
+        if cache_key.startswith(cache_prefix):
+            del _loop_cache[cache_key]
+    from src.storage.memory import clear_memory_store_cache
+    clear_memory_store_cache()
+    logger.info("sdk_runner.user_loops_reset", {"user_id": user_id}, user_id=user_id)
 
 
 def reset_all_sdk_loops() -> None:
     """Reset all cached agent loops."""
     _loop_cache.clear()
+    from src.storage.memory import clear_memory_store_cache
+    clear_memory_store_cache()
     logger.info("sdk_runner.all_loops_reset", {})

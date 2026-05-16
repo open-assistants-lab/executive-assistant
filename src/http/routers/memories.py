@@ -13,6 +13,7 @@ router = APIRouter(prefix="/memories", tags=["memories"])
 @router.get("")
 async def list_memories(
     user_id: str = "default_user",
+    workspace_id: str = "personal",
     domain: str | None = None,
     memory_type: str | None = None,
     min_confidence: float = 0.0,
@@ -23,7 +24,7 @@ async def list_memories(
     """List user memories/preferences."""
     from src.storage.memory import get_memory_store
 
-    store = get_memory_store(user_id)
+    store = get_memory_store(user_id, workspace_id)
     memories = store.list_memories(
         domain=domain,
         memory_type=memory_type,
@@ -66,16 +67,14 @@ async def list_memories(
 
 @router.post("")
 async def add_memory(
-    trigger: str,
-    action: str,
-    domain: str = "general",
-    memory_type: str = "fact",
+    request: MemorySearchRequest,
     user_id: str = "default_user",
+    workspace_id: str = "personal",
 ):
     """Add a new memory entry."""
     from src.storage.memory import get_memory_store
 
-    store = get_memory_store(user_id)
+    store = get_memory_store(user_id, workspace_id)
     memory = store.add_memory(
         trigger=trigger,
         action=action,
@@ -87,16 +86,14 @@ async def add_memory(
 
 @router.put("/{memory_id}")
 async def update_memory(
-    memory_id: str,
-    trigger: str | None = None,
-    action: str | None = None,
-    confidence: float | None = None,
+    request: MemorySearchRequest,
     user_id: str = "default_user",
+    workspace_id: str = "personal",
 ):
     """Update a memory entry."""
     from src.storage.memory import get_memory_store
 
-    store = get_memory_store(user_id)
+    store = get_memory_store(user_id, workspace_id)
     updated = store.update_memory(
         memory_id,
         new_trigger=trigger,
@@ -107,23 +104,33 @@ async def update_memory(
     return {"result": "Memory updated"}
 
 
+@router.delete("/clear")
+async def clear_all_memories(user_id: str = "default_user", workspace_id: str = "personal"):
+    """Clear all memories for a user/workspace."""
+    from src.storage.memory import get_memory_store
+
+    store = get_memory_store(user_id, workspace_id)
+    count = store.clear_all()
+    return {"status": "cleared", "count": count, "user_id": user_id, "workspace_id": workspace_id}
+
+
 @router.delete("/{memory_id}")
-async def remove_memory(memory_id: str, user_id: str = "default_user"):
+async def remove_memory(memory_id: str, user_id: str = "default_user", workspace_id: str = "personal"):
     """Remove a memory."""
     from src.storage.memory import get_memory_store
 
-    store = get_memory_store(user_id)
+    store = get_memory_store(user_id, workspace_id)
     removed = store.remove_memory(memory_id)
 
     return {"status": "removed" if removed else "not_found", "id": memory_id}
 
 
 @router.post("/search")
-async def search_memories(request: MemorySearchRequest):
+async def search_memories(request: MemorySearchRequest, workspace_id: str = "personal"):
     """Search memories using keyword, semantic, hybrid, or field search."""
     from src.storage.memory import get_memory_store
 
-    store = get_memory_store(request.user_id)
+    store = get_memory_store(request.user_id, workspace_id)
 
     if request.method == "fts":
         results = store.search_fts(request.query, limit=request.limit)
@@ -154,7 +161,7 @@ async def search_memories(request: MemorySearchRequest):
 
 
 @router.post("/consolidate")
-async def consolidate_memories(user_id: str = "default_user"):
+async def consolidate_memories(user_id: str = "default_user", workspace_id: str = "personal"):
     """Trigger memory consolidation manually."""
     from src.storage.consolidation import trigger_consolidation
 
@@ -163,11 +170,11 @@ async def consolidate_memories(user_id: str = "default_user"):
 
 
 @router.get("/insights")
-async def list_insights(user_id: str = "default_user", limit: int = 20, domain: str | None = None):
+async def list_insights(user_id: str = "default_user", workspace_id: str = "personal", limit: int = 20, domain: str | None = None):
     """List synthesized insights from memory consolidation."""
     from src.storage.memory import get_memory_store
 
-    store = get_memory_store(user_id)
+    store = get_memory_store(user_id, workspace_id)
     insights = store.list_insights(limit=limit, domain=domain)
 
     return {
@@ -191,7 +198,7 @@ async def remove_insight(insight_id: str, user_id: str = "default_user"):
     """Remove an insight."""
     from src.storage.memory import get_memory_store
 
-    store = get_memory_store(user_id)
+    store = get_memory_store(user_id, workspace_id)
     removed = store.remove_insight(insight_id)
 
     return {"status": "removed" if removed else "not_found", "id": insight_id}
@@ -202,7 +209,7 @@ async def search_insights(request: InsightSearchRequest):
     """Search insights using keyword or semantic search."""
     from src.storage.memory import get_memory_store
 
-    store = get_memory_store(request.user_id)
+    store = get_memory_store(request.user_id, workspace_id)
 
     if request.method == "fts":
         results = store.search_insights(request.query, limit=request.limit)
@@ -234,7 +241,7 @@ async def add_connection(request: ConnectionRequest):
     """Create a connection between two memories."""
     from src.storage.memory import get_memory_store
 
-    store = get_memory_store(request.user_id)
+    store = get_memory_store(request.user_id, workspace_id)
     store.add_connection(
         request.memory_id,
         request.target_id,
@@ -256,7 +263,7 @@ async def memory_stats(user_id: str = "default_user"):
     """Get memory system statistics."""
     from src.storage.memory import get_memory_store
 
-    store = get_memory_store(user_id)
+    store = get_memory_store(user_id, workspace_id)
     return store.get_stats()
 
 
@@ -265,7 +272,7 @@ async def search_all(request: SearchAllRequest):
     """Unified search across memories, messages, and insights."""
     from src.storage.memory import get_memory_store
 
-    store = get_memory_store(request.user_id)
+    store = get_memory_store(request.user_id, workspace_id)
     results = store.search_all(
         request.query,
         memories_limit=request.memories_limit,

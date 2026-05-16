@@ -19,6 +19,7 @@ Usage:
 import argparse
 import asyncio
 import json
+import os
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -265,7 +266,10 @@ async def evaluate_qa(instances: list[LongMemEvalInstance], max_instances: int |
                 except Exception:
                     pass
 
-            from tests.benchmarks.longmemeval.adapter import get_batch_embeddings, parse_longmemeval_date
+            from tests.benchmarks.longmemeval.adapter import (
+                get_batch_embeddings,
+                parse_longmemeval_date,
+            )
             rows = []
             texts = []
             metas = []
@@ -379,15 +383,16 @@ Question: {instance.question}"""
                 except Exception:
                     pass
 
-        if (idx + 1) % 5 == 0 or (idx + 1) == len(subset):
-            r = results[-1]
-            status = "OK" if not r.error else "ERR"
-            cat = r.failure_category or ""
-            tools = ",".join(r.tool_calls or []) or "none"
-            ans_preview = (r.agent_answer or "")[:60].replace("\n", " ")
-            print(f"  QA {idx+1}/{len(subset)}: {status} [{cat}] tools=[{tools}] {r.question_type} ({r.latency_ms:.0f}ms)")
-            if not r.error and r.agent_answer:
-                print(f"    Answer: {ans_preview}...")
+        r = results[-1]
+        status = "OK" if not r.error else "ERR"
+        cat = r.failure_category or ""
+        tools = ",".join(r.tool_calls or []) or "none"
+        ans_preview = (r.agent_answer or "")[:80].replace("\n", " ")
+        print(f"  [{idx+1}/{len(subset)}] {status} [{cat}] {r.question_type} | tools=[{tools}] ({r.latency_ms:.0f}ms)")
+        if not r.error and r.agent_answer:
+            print(f"    A: {ans_preview}")
+        elif r.error:
+            print(f"    ERR: {str(r.error)[:100]}")
 
     if use_judge and results:
         print(f"  Judging {len(results)} answers with GPT-4o...")
@@ -430,6 +435,33 @@ Question: {instance.question}"""
     return results
 
 
+def _deduplicate_observations(observations: list[dict]) -> list[dict]:
+    """Deduplicate observations by entity.attribute from facts_extracted, keeping latest."""
+    if not observations:
+        return []
+    keyed: dict[tuple[str, str], dict] = {}
+    for obs in observations:
+        if obs.get("priority") == "🟢":
+            continue
+        facts = obs.get("facts_extracted") or []
+        for fact in facts:
+            key = (fact.get("entity", ""), fact.get("attribute", ""))
+            if not key[0] or not key[1]:
+                continue
+            obs_ts = obs.get("referenced_date") or obs.get("observation_ts") or ""
+            if key in keyed:
+                existing_ts = (
+                    keyed[key].get("referenced_date")
+                    or keyed[key].get("observation_ts")
+                    or ""
+                )
+            else:
+                existing_ts = ""
+            if key not in keyed or obs_ts > existing_ts:
+                keyed[key] = obs
+    return list({id(o): o for o in keyed.values()}.values())
+
+
 async def evaluate_qa_direct(instances: list[LongMemEvalInstance], max_instances: int | None = None, use_judge: bool = True) -> list[QAResult]:
     """Evaluate QA accuracy by running AgentLoop directly (no HTTP server).
 
@@ -454,7 +486,7 @@ async def evaluate_qa_direct(instances: list[LongMemEvalInstance], max_instances
             store = get_message_store(user_id)
             store.db.raw_query("DELETE FROM messages")
             collection = store.db._get_collection("messages_content")
-            if collection:
+            if collection is not None:
                 try:
                     existing = collection.get()
                     if existing and existing["ids"]:
@@ -480,27 +512,78 @@ async def evaluate_qa_direct(instances: list[LongMemEvalInstance], max_instances
             msg_ids = [store.db.insert("messages", row, sync=False) for row in rows]
             store.db.process_journal()
             collection = store.db._get_collection("messages_content")
-            collection.add(ids=[str(mid) for mid in msg_ids], embeddings=embeddings, documents=texts, metadatas=metas)
+            if collection is not None:
+                collection.add(ids=[str(mid) for mid in msg_ids], embeddings=embeddings, documents=texts, metadatas=metas)
 
             verification_count = store.count_messages()
             if verification_count == 0:
                 raise Exception("Injection failed: 0 messages stored")
 
+            from src.sdk.providers.factory import create_model_from_config
+            from src.sdk.tools_core.observation import run_observer
+            from src.storage.observation import ObservationStore
+
+            obs_store = ObservationStore(user_id)
+            obs_model = create_model_from_config(
+                os.environ.get("OBSERVER_MODEL")
+                or os.environ.get("DEFAULT_MODEL")
+                or "openai/gpt-4o"
+            )
+            extraction_mode = os.environ.get("LME_EXTRACTION_MODE", "observer")  # observer | production | mempalace
+
+            if extraction_mode == "mempalace":
+                print(f"    MemPalace mode: verbatim search, no LLM extraction", flush=True)
+                all_obs = []
+            elif extraction_mode == "production":
+                from src.sdk.middleware_memory import MemoryMiddleware
+
+                extracted = MemoryMiddleware.extract_from_messages(texts, user_id)
+                print(f"    Extracted {extracted} memories (production pipeline)", flush=True)
+                all_obs = []
+            else:
+                rows = store.db.query("messages", limit=verification_count, order_by="ts ASC")
+                msg_dicts = [
+                    {"role": str(r["role"]), "ts": str(r.get("ts", "")), "content": str(r["content"])}
+                    for r in rows
+                ]
+
+                chunk_sz = 100
+                all_obs: list[dict] = []
+                chunks = (len(msg_dicts) + chunk_sz - 1) // chunk_sz
+                for chunk_start in range(0, len(msg_dicts), chunk_sz):
+                    chunk = msg_dicts[chunk_start:chunk_start + chunk_sz]
+                    try:
+                        chunk_obs = await run_observer(chunk, obs_model, all_obs[:] if all_obs else None)
+                        if chunk_obs:
+                            all_obs.extend(chunk_obs)
+                    except Exception:
+                        pass
+
+                if all_obs:
+                    obs_store.insert_observations(all_obs)
+                    print(f"    Observed {len(all_obs)} observations ({chunks} batches)", flush=True)
+
+            deduped = _deduplicate_observations(all_obs)
+            if deduped:
+                print(f"    Deduped to {len(deduped)} observations", flush=True)
+                deduped.sort(key=lambda o: (0 if o["priority"] == "🔴" else 1, o.get("observation_ts", "")))
+                all_obs = deduped[:40]
+
+            working_memory = ""  # ObservationMiddleware.before_agent handles injection
+
             loop = await create_sdk_loop(user_id)
-            prompt = f"""IMPORTANT: Your user_id is "{user_id}". You MUST pass user_id="{user_id}" to every memory_search and memory_get_history call.
-
-Search your conversation history using the memory_search(query="...", user_id="{user_id}") tool BEFORE answering. memory_search automatically expands your query, so use specific keywords.
-
-Key strategies:
-- For "how many/much" questions: search for each specific activity/item separately with different queries, then combine the results.
-- For "current/latest/after" questions: the search already prioritizes recent results — focus on the most recent mention.
-- For recommendation/preference questions: if the initial search doesn't find preferences, try searching for "like", "enjoy", "love", "prefer", or "favorite" plus the topic.
-- For temporal questions (when, how long, how many days between): search for the specific events or dates mentioned, then compute the answer from the dates found.
-- Use memory_get_history(user_id="{user_id}") if you need more context or to find nearby messages.
-
-Only say "I don't have enough information to answer that" if you have already searched AND cannot find the answer.
-
-Question: {instance.question}"""
+            prompt = (
+                working_memory
+                + f'IMPORTANT: Your user_id is "{user_id}". Use memory_search to find answers.\n\n'
+                + "Working Memory above provides context from past conversations. For exact numbers, dates, names, and places — ALWAYS verify with memory_search.\n\n"
+                + "Key strategies:\n"
+                + "- For \"how many/much\" questions: call memory_search multiple times with different keywords for each specific item, then combine the results.\n"
+                + "- For temporal questions (when, how long, how many days between): find the dates with memory_search, then you MUST call time_get() to calculate the interval. Do NOT answer without calculating.\n"
+                + "- For recommendation/preference questions: search for \"like\", \"enjoy\", \"love\", \"prefer\", or \"favorite\" plus the topic.\n"
+                + "- For \"current/latest/after\" questions: search results prioritize recent content -- focus on the most recent.\n\n"
+                + "Only say \"I don't have enough information to answer that\" if you have already searched AND cannot find the answer.\n\n"
+                + f"Question: {instance.question}"
+            )
 
             messages = [Message.user(prompt)]
             max_retries = 3
@@ -575,7 +658,20 @@ Question: {instance.question}"""
                 tool_calls=tool_names or None,
             ))
 
+            status = "ERR" if failure_category == "error" else (
+                "MISS" if failure_category == "search_miss" else "OK"
+            )
+            tools_str = ",".join(tool_names) if tool_names else "none"
+            ans_preview = agent_answer[:150].replace("\n", " ") if agent_answer else "(empty)"
+            expected_preview = str(instance.answer)[:100].replace("\n", " ")
+            print(f"    Q: {instance.question[:100]}")
+            print(f"    A: {ans_preview}")
+            print(f"    E: {expected_preview}")
+            print(f"    Status: {status}  Tools: {tools_str}  Obs: {len(all_obs)}  Facts: {len(deduped if 'deduped' in dir() else all_obs)}", flush=True)
+
         except Exception as e:
+            import traceback as _tb
+            _tb.print_exc()
             results.append(QAResult(
                 question_id=instance.question_id,
                 question_type=instance.question_type,

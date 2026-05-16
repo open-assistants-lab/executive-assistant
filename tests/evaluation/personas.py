@@ -414,8 +414,8 @@ def generate_test_queries(persona: dict, count: int = 10) -> list[str]:
     - memory_get_history, memory_search
     - time_get
     - skills_list, skills_load
-    - search_web, scrape_url, map_url, crawl_url
-    - subagent_create, subagent_invoke, subagent_schedule
+    - web_search, web_fetch
+    - subagent_create, subagent_invoke, subagent_list, subagent_progress
 
     For count > 10, repeats queries with variations.
     """
@@ -487,15 +487,15 @@ def generate_test_queries(persona: dict, count: int = 10) -> list[str]:
         "Get time in London",
         # 51-55: Skills - list, load, create
         "List all available skills",
-        "Load planning-with-files skill",
-        "Load deep-research skill",
+        "Load skill-creator skill",
+        "Load skill-creator skill",
         "Create new skill called analysis-skill",
         "What skills do I have?",
         # 56-60: Skills - trigger, gated tools
         "Show me skills about planning",
         "Load skill-creator skill",
         "Use sql_write_query skill",
-        "Load subagent-manager skill",
+        "Load skill-creator skill",
         "List skill descriptions",
         # 61-65: Subagent - create, invoke, list
         "Create research subagent",

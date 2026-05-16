@@ -12,11 +12,10 @@ from typing import Any
 from src.sdk.providers.anthropic import AnthropicProvider
 from src.sdk.providers.base import LLMProvider
 from src.sdk.providers.gemini import GeminiProvider
-from src.sdk.providers.ollama import OllamaLocal
+from src.sdk.providers.ollama import OllamaCloud
 from src.sdk.providers.openai import OpenAIProvider
 
 _PROVIDER_CLASSES: dict[str, type[LLMProvider]] = {
-    "ollama": OllamaLocal,
     "openai": OpenAIProvider,
     "openai-compatible": OpenAIProvider,
     "anthropic": AnthropicProvider,
@@ -39,7 +38,7 @@ _ENV_KEY_MAP: dict[str, str] = {
 def _resolve_provider_type(provider_id: str) -> tuple[str, str]:
     lower = provider_id.lower().strip()
 
-    if lower == "ollama":
+    if lower in ("ollama", "ollama-cloud"):
         return "ollama", ""
     if lower == "anthropic":
         return "anthropic", ""
@@ -72,11 +71,16 @@ def create_provider(
     resolved_type, registry_url = _resolve_provider_type(provider_type)
 
     if resolved_type == "ollama":
+        resolved_key = api_key or os.environ.get("OLLAMA_API_KEY", "")
         env_base_url = os.environ.get("OLLAMA_LOCAL_BASE_URL") or os.environ.get("OLLAMA_BASE_URL", "")
-        if "ollama.com" in env_base_url:
-            env_base_url = ""
+        if resolved_key or "ollama.com" in env_base_url:
+            return OllamaCloud(
+                base_url="https://ollama.com",
+                model=model or "minimax-m2.5",
+                api_key=resolved_key,
+            )
         resolved_url = base_url or env_base_url or registry_url or "http://localhost:11434/v1"
-        return OllamaLocal(base_url=resolved_url, model=model or "minimax-m2.5")
+        return OpenAIProvider(base_url=resolved_url, model=model or "minimax-m2.5")
 
     if resolved_type == "anthropic":
         resolved_key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
@@ -144,18 +148,29 @@ def _default_base_url(provider_id: str) -> str:
     return _fallback.get(provider_id, "https://api.openai.com/v1")
 
 
-def create_model_from_config(config_model: str | None = None) -> LLMProvider:
+def create_model_from_config(
+    config_model: str | None = None,
+    provider_keys: dict[str, str] | None = None,
+) -> LLMProvider:
     from src.config import get_settings
 
     settings = get_settings()
     model_str = config_model or settings.agent.model
 
+    provider_type, model_name = _parse_model_string(model_str)
+    resolved_key = None
+    if provider_keys:
+        resolved_key = provider_keys.get(provider_type) or provider_keys.get(provider_type.lower(), "")
+        if not resolved_key:
+            resolved_key = None
+
     registry_provider = create_provider_from_registry_model(model_str)
     if registry_provider is not None:
+        if resolved_key and hasattr(registry_provider, '_api_key'):
+            registry_provider._api_key = resolved_key
         return registry_provider
 
-    provider_type, model_name = _parse_model_string(model_str)
-    return create_provider(provider_type, model=model_name)
+    return create_provider(provider_type, model=model_name, api_key=resolved_key)
 
 
 def _parse_model_string(model_str: str) -> tuple[str, str]:

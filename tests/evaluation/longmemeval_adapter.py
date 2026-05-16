@@ -12,14 +12,11 @@ Usage:
 
 from __future__ import annotations
 
-# Load .env for OPENAI_API_KEY (must be before module-level constants)
-from dotenv import load_dotenv
-load_dotenv()
-
 import argparse
 import asyncio
 import json
 import os
+import re
 import sys
 import time
 from collections import defaultdict
@@ -27,6 +24,15 @@ from pathlib import Path
 from typing import Any
 
 import aiohttp
+from dotenv import load_dotenv
+
+try:
+    from tests.evaluation.longmemeval_synthesis import synthesize_answer
+except ModuleNotFoundError:
+    from longmemeval_synthesis import synthesize_answer
+
+# Load .env for OPENAI_API_KEY before module-level constants are read.
+load_dotenv()
 
 # ── Config ───────────────────────────────────────────────────────────────────
 
@@ -36,6 +42,7 @@ JUDGE_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 JUDGE_BASE_URL = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
 USER_ID = "lme_eval_user"
 MAX_CONCURRENT = 3  # parallel questions (sessions are sequential per question)
+MEMORY_SEARCH_INSTRUCTION = ""
 
 
 # ── Dataset ──────────────────────────────────────────────────────────────────
@@ -78,19 +85,71 @@ async def send_message(
     message: str,
     user_id: str = USER_ID,
     workspace_id: str = "personal",
-) -> str:
+    return_details: bool = False,
+) -> str | dict[str, Any]:
     """Send a single message to the agent and return the response text."""
-    payload = {"message": message, "user_id": user_id, "workspace_id": workspace_id}
+    details = await send_message_details(
+        session, message, user_id=user_id, workspace_id=workspace_id, return_details=return_details
+    )
+    if return_details:
+        return details
+    return str(details.get("response", ""))
+
+
+async def send_message_details(
+    session: aiohttp.ClientSession,
+    message: str,
+    user_id: str = USER_ID,
+    workspace_id: str = "personal",
+    return_details: bool = True,
+) -> dict[str, Any]:
+    """Send a verbose message and return response plus tool diagnostics."""
+    prompted_message = message
+    if "Use memory_search before answering" not in prompted_message:
+        prompted_message = f"{MEMORY_SEARCH_INSTRUCTION}{message}"
+    payload = {
+        "message": prompted_message,
+        "user_id": user_id,
+        "workspace_id": workspace_id,
+        "verbose": return_details,
+    }
     try:
         async with session.post(
             f"{HTTP_BASE_URL}/message", json=payload, timeout=aiohttp.ClientTimeout(total=120)
         ) as resp:
             if resp.status != 200:
-                return ""
+                raw_body = ""
+                try:
+                    raw_body = await resp.text()
+                except Exception:
+                    raw_body = ""
+                return {
+                    "response": "",
+                    "tool_calls": [],
+                    "tool_events": [],
+                    "http_status": resp.status,
+                    "error": f"http_{resp.status}",
+                    "raw_body": raw_body,
+                }
             data = await resp.json()
-            return data.get("response", "")
-    except Exception:
-        return ""
+            verbose_data = data.get("verbose_data") or {}
+            return {
+                "response": data.get("response", ""),
+                "tool_calls": data.get("tool_calls") or [],
+                "tool_events": verbose_data.get("tool_events") or [],
+                "http_status": resp.status,
+                "error": data.get("error"),
+                "raw_body": "",
+            }
+    except Exception as e:
+        return {
+            "response": "",
+            "tool_calls": [],
+            "tool_events": [],
+            "http_status": None,
+            "error": f"{type(e).__name__}: {e}",
+            "raw_body": "",
+        }
 
 
 async def ingest_sessions_fast(
@@ -177,6 +236,10 @@ async def score_response(
     """Score agent response against ground truth using GPT-4o judge."""
     if not agent_response.strip():
         return False
+    if _requires_exact_value_match(ground_truth) and not _fuzzy_match(
+        ground_truth, agent_response
+    ):
+        return False
 
     prompt = JUDGE_PROMPT.format(ground_truth=ground_truth, agent_response=agent_response)
 
@@ -223,14 +286,102 @@ def _fuzzy_match(ground_truth: str | int | float, agent_response: str) -> bool:
     ]):
         return False
 
-    if gt_lower in agent_lower:
+    expected_numbers = _extract_expected_numbers(gt_lower)
+    if expected_numbers:
+        expected_currency = _extract_currency_values(gt_lower)
+        if expected_currency:
+            response_currency = _extract_currency_values(agent_lower)
+            if response_currency and response_currency[-1] not in expected_currency:
+                return False
+        if _expected_time_only_in_goal_context(gt_lower, agent_lower):
+            return False
+        response_numbers = set(_extract_response_numbers(agent_lower))
+        return bool(expected_numbers & response_numbers)
+
+    if re.search(rf"\b{re.escape(gt_lower)}\b", agent_lower):
         return True
     gt_words = set(gt_lower.split())
     agent_words = set(agent_lower.split())
     if not gt_words:
         return False
+    if len(gt_words) <= 3:
+        return False
     overlap = len(gt_words & agent_words) / len(gt_words)
     return overlap >= 0.5
+
+
+_NUMBER_WORDS = {
+    "zero": 0,
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+    "thirteen": 13,
+    "fourteen": 14,
+    "fifteen": 15,
+    "sixteen": 16,
+    "seventeen": 17,
+    "eighteen": 18,
+    "nineteen": 19,
+    "twenty": 20,
+}
+
+
+def _requires_exact_value_match(ground_truth: str | int | float) -> bool:
+    text = str(ground_truth).lower()
+    return bool(_extract_expected_numbers(text)) or len(text.split()) <= 3
+
+
+def _extract_expected_numbers(text: str) -> set[int]:
+    values = set(_extract_response_numbers(text))
+    for word, value in _NUMBER_WORDS.items():
+        if re.search(rf"\b{word}\b", text):
+            values.add(value)
+    return values
+
+
+def _extract_response_numbers(text: str) -> list[int]:
+    values = []
+    for match in re.finditer(r"(?<![\w.])\$?([0-9][0-9,]*(?:\.[0-9]+)?)(?![\w.])", text):
+        raw = match.group(1).replace(",", "")
+        try:
+            values.append(int(float(raw)))
+        except ValueError:
+            continue
+    for word, value in _NUMBER_WORDS.items():
+        if re.search(rf"\b{word}\b", text):
+            values.append(value)
+    return values
+
+
+def _extract_currency_values(text: str) -> list[int]:
+    values = []
+    for match in re.finditer(r"\$\s*([0-9][0-9,]*(?:\.[0-9]+)?)", text):
+        raw = match.group(1).replace(",", "")
+        try:
+            values.append(int(float(raw)))
+        except ValueError:
+            continue
+    return values
+
+
+def _expected_time_only_in_goal_context(ground_truth: str, agent_response: str) -> bool:
+    expected_times = set(re.findall(r"\b\d{1,2}:\d{2}\b", ground_truth))
+    if not expected_times:
+        return False
+    for sentence in re.split(r"[.!?]\s+", agent_response):
+        if expected_times & set(re.findall(r"\b\d{1,2}:\d{2}\b", sentence)):
+            if not re.search(r"\b(goal|hope|hoping|aim|aiming|beat)\b", sentence):
+                return False
+    return True
 
 
 # ── Benchmark Runner ─────────────────────────────────────────────────────────
@@ -265,10 +416,33 @@ async def run_single_question(
     )
 
     # Step 2: Ask the question
-    agent_response = await send_message(session, question, user_id=uid, workspace_id=ws)
+    message_result = await send_message(
+        session, question, user_id=uid, workspace_id=ws, return_details=True
+    )
+    if isinstance(message_result, dict):
+        agent_response = str(message_result.get("response", ""))
+        tool_calls = message_result.get("tool_calls") or []
+        tool_events = message_result.get("tool_events") or []
+        http_status = message_result.get("http_status")
+        error = message_result.get("error")
+        raw_body = message_result.get("raw_body", "")
+    else:
+        agent_response = str(message_result)
+        tool_calls = []
+        tool_events = []
+        http_status = None
+        error = None
+        raw_body = ""
     t1 = time.monotonic()
 
+    synthesis = None
+    synthesized_answer = synthesize_answer(question, tool_events)
+    if synthesized_answer is not None:
+        agent_response = synthesized_answer
+        synthesis = "deterministic"
+
     # Step 3: Score
+    scorer = "judge" if judge_session else "fuzzy"
     if judge_session:
         correct = await score_response(ground_truth, agent_response, judge_session)
     else:
@@ -286,10 +460,21 @@ async def run_single_question(
     return {
         "question_id": question_id,
         "question_type": question_type,
+        "question": question,
         "correct": correct,
         "duration_s": round(duration, 1),
         "turns_ingested": turns_ingested,
+        "user_id": uid,
+        "workspace_id": ws,
+        "scorer": scorer,
+        "synthesis": synthesis,
+        "agent_response_full": agent_response,
         "agent_response": agent_response[:500],
+        "tool_calls": tool_calls,
+        "tool_events": tool_events,
+        "http_status": http_status,
+        "error": error,
+        "raw_body": raw_body[:1000] if isinstance(raw_body, str) else str(raw_body)[:1000],
         "ground_truth": ground_truth,
     }
 

@@ -71,8 +71,8 @@ class MessageStore:
         if base_dir is not None:
             base_path = Path(base_dir)
         else:
-            paths = get_paths(user_id, workspace_id=workspace_id)
-            base_path = paths.workspace_conversation_path().parent
+            paths = get_paths(user_id)
+            base_path = paths.conversation_dir()
         base_path.mkdir(parents=True, exist_ok=True)
 
         settings = get_settings()
@@ -178,21 +178,50 @@ class MessageStore:
         limit: int = 10,
         fts_weight: float = 0.5,
         recency_weight: float = 0.3,
+        dedup_by_session: bool = False,
     ) -> list[SearchResult]:
         if not query:
             return []
+        fetch_limit = limit * 3 if dedup_by_session else limit
         rows = self.db.search(
             "messages",
             "content",
             query,
             mode=SearchMode.HYBRID,
-            limit=limit,
+            limit=fetch_limit,
             fts_weight=fts_weight,
             recency_weight=recency_weight,
             recency_column="ts",
             query_embedding=query_embedding,
         )
-        return self._rows_to_search_results(rows)
+        results = self._rows_to_search_results(rows)
+        if not dedup_by_session:
+            return results
+
+        seen: set[str] = set()
+        deduped = []
+        for r in results:
+            meta = self._parse_metadata(r.id)
+            sid = meta.get("session_id", "") if meta else ""
+            if not sid or sid in seen:
+                continue
+            seen.add(sid)
+            deduped.append(r)
+            if len(deduped) >= limit:
+                break
+        return deduped
+
+    def _parse_metadata(self, row_id: int) -> dict | None:
+        row = self.db.get("messages", row_id)
+        if not row or not row.get("metadata"):
+            return None
+        meta = row["metadata"]
+        if isinstance(meta, str):
+            try:
+                return json.loads(meta)
+            except (json.JSONDecodeError, TypeError):
+                return None
+        return None
 
     def get_messages(
         self,
@@ -263,7 +292,7 @@ _stores: dict[str, MessageStore] = {}
 
 
 def get_message_store(user_id: str = "default_user", workspace_id: str = "personal") -> MessageStore:
-    key = f"{user_id}:{workspace_id}"
+    key = f"{user_id}:msgstore"
     if key not in _stores:
         _stores[key] = MessageStore(user_id, workspace_id=workspace_id)
     return _stores[key]

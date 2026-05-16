@@ -1,17 +1,20 @@
 """Unit tests for the memory storage layer (src/storage/memory.py)."""
 
+from unittest.mock import patch
+
 import pytest
 
 from src.storage.memory import (
     DEFAULT_CONFIDENCE,
+    INITIAL_LEARNED_CONFIDENCE_CAP,
+    MAX_CONFIDENCE,
+    MAX_CONFIDENCE_BOOST_FROM_ACCESS,
     MEMORY_DETAIL_COMPACT,
     MEMORY_DETAIL_FULL,
     MEMORY_DETAIL_SUMMARY,
     MEMORY_TYPE_FACT,
     MEMORY_TYPE_PREFERENCE,
     MEMORY_TYPE_WORKFLOW,
-    MAX_CONFIDENCE,
-    MAX_CONFIDENCE_BOOST_FROM_ACCESS,
     MIN_CONFIDENCE_DELETE,
     SCOPE_GLOBAL,
     SCOPE_PROJECT,
@@ -212,6 +215,12 @@ class TestSearchFTS:
             results = store_with_memories.search_fts(mems[0].action.split()[0], limit=10)
             assert all(not m.is_superseded for m in results)
 
+    def test_search_fts_uses_search_all_once(self, store):
+        with patch.object(store.db, "search_all", return_value=[]) as search_all:
+            store.search_fts("dark mode", limit=5)
+
+        search_all.assert_called_once()
+
 
 class TestSearchSemantic:
     """Tests for vector/semantic search."""
@@ -225,6 +234,20 @@ class TestSearchSemantic:
         results = store.search_semantic("anything", limit=5)
         assert len(results) == 0
 
+    def test_search_semantic_uses_search_rows_without_extra_get(self, store):
+        mem = store.add_memory(trigger="semantic", action="row reuse")
+        row = store.db.get("memories", mem.id)
+        row["_score"] = 0.9
+
+        with (
+            patch.object(store.db, "search_all", return_value=[row]),
+            patch.object(store, "get_memory", wraps=store.get_memory) as get_memory,
+        ):
+            results = store.search_semantic("semantic", limit=1)
+
+        assert [m.id for m in results] == [mem.id]
+        assert get_memory.call_count == 0
+
 
 class TestSearchHybrid:
     """Tests for hybrid search (keyword + semantic combined)."""
@@ -237,6 +260,20 @@ class TestSearchHybrid:
         store = MemoryStore(user_id="empty_hybrid", base_dir=tmp_path)
         results = store.search_hybrid("test", limit=5)
         assert len(results) == 0
+
+    def test_search_hybrid_uses_search_rows_without_extra_get(self, store):
+        mem = store.add_memory(trigger="hybrid", action="row reuse")
+        row = store.db.get("memories", mem.id)
+        row["_score"] = 0.9
+
+        with (
+            patch.object(store.db, "search_all", return_value=[row]),
+            patch.object(store, "get_memory", wraps=store.get_memory) as get_memory,
+        ):
+            results = store.search_hybrid("hybrid", limit=1)
+
+        assert [m.id for m in results] == [mem.id]
+        assert get_memory.call_count == 0
 
 
 class TestSearchAll:
@@ -436,6 +473,13 @@ class TestMaybeDecay:
         mems = store.list_memories()
         assert all(m.confidence >= MIN_CONFIDENCE_DELETE for m in mems)
 
+    def test_add_memory_throttles_decay(self, store):
+        with patch.object(store, "maybe_decay_confidence") as decay:
+            store.add_memory(trigger="first", action="first")
+            store.add_memory(trigger="second", action="second")
+
+        assert decay.call_count == 0
+
 
 class TestProgressiveDisclosure:
     """Tests for context injection with progressive detail levels."""
@@ -504,6 +548,53 @@ class TestBatchOperations:
         mems = store.list_memories()
         assert len(mems) >= 3
 
+    def test_add_memories_batch_runs_decay_once(self, store):
+        with patch.object(store, "maybe_decay_confidence") as decay:
+            store.add_memories_batch([
+                {"trigger": "batch decay", "action": "runs once"},
+                {"trigger": "batch decay 2", "action": "runs once"},
+            ])
+
+        decay.assert_called_once()
+
+    def test_reconcile_vectors_reconciles_once_without_query_gate(self, store):
+        with (
+            patch.object(store.db, "query", wraps=store.db.query) as query,
+            patch.object(store.db, "reconcile", return_value={"missing_added": 2}) as reconcile,
+        ):
+            assert store.reconcile_vectors(limit=0) == 2
+
+        reconcile.assert_called_once_with("memories")
+        assert not query.called
+
+    def test_clear_all_processes_journal_once(self, store_with_memories):
+        with patch.object(store_with_memories.db, "_process_journal") as process_journal:
+            deleted = store_with_memories.clear_all()
+
+        assert deleted >= 3
+        process_journal.assert_called_once()
+        assert store_with_memories.list_memories() == []
+
+
+class TestStructuredFactLookup:
+    def test_find_current_fact_logs_when_using_json_fallback(self, store):
+        fact_key = store._fact_key("user", "favorite_color", SCOPE_GLOBAL)
+        mem = store.add_memory(
+            trigger="favorite color",
+            action="blue",
+            memory_type=MEMORY_TYPE_FACT,
+            structured_data={"fact_key": fact_key},
+        )
+
+        with (
+            patch.object(store.db, "query", side_effect=[[], [store.db.get("memories", mem.id)]]) as query,
+            patch("src.storage.memory.logger.warning") as warning,
+        ):
+            assert store._find_current_fact("user", "favorite_color") is not None
+
+        assert query.call_count == 2
+        warning.assert_called_once()
+
 
 class TestProjectScoping:
     """Tests for project-scoped memories."""
@@ -565,3 +656,44 @@ class TestGetStats:
         stats = store.get_stats()
         assert stats["total"] == 0
         assert stats["avg_confidence"] == 0
+
+    def test_stats_excludes_superseded_from_breakdowns(self, store):
+        old = store.add_memory(trigger="old", action="old", domain="archive")
+        new = store.add_memory(trigger="new", action="new", domain="active")
+        store.supersede_memory(old.id, new.id)
+
+        stats = store.get_stats()
+
+        assert stats["active_total"] == 1
+        assert "archive" not in stats["by_domain"]
+
+
+class TestNamingAndCache:
+    def test_initial_learned_confidence_cap_alias(self):
+        assert INITIAL_LEARNED_CONFIDENCE_CAP == MAX_CONFIDENCE
+
+    def test_memory_store_cache_is_bounded(self, tmp_path, monkeypatch):
+        import src.storage.memory as memory_module
+
+        memory_module.clear_memory_store_cache()
+        monkeypatch.setattr(memory_module, "_MEMORY_STORE_CACHE_MAX", 2)
+
+        class FakePaths:
+            def __init__(self, user_id: str):
+                self.user_id = user_id
+
+            def workspace_memory_dir(self):
+                return tmp_path / self.user_id
+
+        monkeypatch.setattr(
+            memory_module,
+            "get_paths",
+            lambda user_id, workspace_id="personal": FakePaths(user_id),
+        )
+
+        memory_module.get_memory_store("u1")
+        memory_module.get_memory_store("u2")
+        memory_module.get_memory_store("u3")
+
+        assert len(memory_module._memory_store_cache) == 2
+        assert "u1:personal" not in memory_module._memory_store_cache

@@ -1,10 +1,12 @@
 import json
+from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from src.app_logging import get_logger, timer
+from src.http.auth import require_auth
 from src.http.models import MessageRequest, MessageResponse
 from src.sdk.runner import (
     _messages_from_conversation,
@@ -16,6 +18,7 @@ from src.storage.messages import get_message_store
 _pending_approvals: dict[str, dict] = {}
 
 router = APIRouter(tags=["conversation"])
+logger = get_logger()
 
 
 def _persist_tool_messages(conversation, tool_events: list[dict]) -> None:
@@ -35,9 +38,15 @@ def _persist_tool_messages(conversation, tool_events: list[dict]) -> None:
 
 @router.get("/conversation")
 async def get_conversation(user_id: str = "default_user", limit: int = 100, workspace_id: str = "personal"):
-    """Get conversation history."""
+    """Get conversation history filtered by workspace."""
     conversation = get_message_store(user_id, workspace_id)
     messages = conversation.get_recent_messages(limit)
+    print(f"[DEBUG-CONV] total_messages={len(messages)} ws={workspace_id}")
+    if messages:
+        print(f"[DEBUG-CONV] first_ws={(messages[0].metadata or {}).get('workspace_id','NONE')}")
+    messages = _filter_by_workspace(messages, workspace_id)
+    print(f"[DEBUG-CONV] after_filter={len(messages)}")
+    messages = _filter_by_workspace(messages, workspace_id)
 
     return {
         "messages": [
@@ -52,6 +61,21 @@ async def get_conversation(user_id: str = "default_user", limit: int = 100, work
     }
 
 
+def _filter_by_workspace(messages: list, workspace_id: str) -> list:
+    """Filter messages to only those matching the given workspace_id."""
+    if not workspace_id:
+        return messages
+    if workspace_id == "personal":
+        return [
+            m for m in messages
+            if (m.metadata or {}).get("workspace_id", "personal") == "personal"
+        ]
+    return [
+        m for m in messages
+        if (m.metadata or {}).get("workspace_id", "personal") == workspace_id
+    ]
+
+
 @router.delete("/conversation")
 async def clear_conversation(user_id: str = "default_user", workspace_id: str = "personal"):
     """Clear conversation history."""
@@ -61,7 +85,7 @@ async def clear_conversation(user_id: str = "default_user", workspace_id: str = 
 
 
 @router.post("/message", response_model=MessageResponse)
-async def handle_message(req: MessageRequest) -> MessageResponse:
+async def handle_message(req: MessageRequest, _: None = Depends(require_auth)) -> MessageResponse:
     """Send a message to the agent (SDK-powered)."""
     try:
         user_id = req.user_id or "default_user"
@@ -82,9 +106,10 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
             return MessageResponse(response=f"{tool_name} approved (execution pending).")
 
         conversation = get_message_store(user_id, workspace_id)
-        conversation.add_message("user", req.message)
+        conversation.add_message("user", req.message, metadata={"workspace_id": workspace_id})
 
         recent_messages = conversation.get_messages_with_summary(50)
+        recent_messages = _filter_by_workspace(recent_messages, workspace_id)
         sdk_messages = _messages_from_conversation(recent_messages)
 
         logger = get_logger()
@@ -102,6 +127,8 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
                     user_id=user_id,
                     messages=sdk_messages,
                     workspace_id=workspace_id,
+                    model=req.model,
+                    provider_keys=req.provider_keys,
                 ):
                     if chunk.type == "ai_token" and chunk.content:
                         ai_content_parts.append(chunk.content)
@@ -125,7 +152,7 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
                                 "tool": chunk.tool,
                                 "stage": "end",
                                 "call_id": chunk.call_id,
-                                "output": (chunk.result_preview or "")[:200],
+                                "output": (chunk.result_preview or "")[:2000],
                             }
                         )
                     elif chunk.type == "tool_result" and chunk.tool:
@@ -134,7 +161,7 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
                                 "tool": chunk.tool,
                                 "stage": "end",
                                 "call_id": chunk.call_id,
-                                "output": (chunk.result_preview or "")[:200],
+                                "output": (chunk.result_preview or "")[:2000],
                             }
                         )
 
@@ -156,7 +183,10 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
 
                 _persist_tool_messages(conversation, tool_events)
             else:
-                result_messages = await run_sdk_agent(user_id=user_id, messages=sdk_messages, workspace_id=workspace_id)
+                result_messages = await run_sdk_agent(
+                    user_id=user_id, messages=sdk_messages, workspace_id=workspace_id,
+                    model=req.model, provider_keys=req.provider_keys,
+                )
 
                 tool_contents = []
                 for m in result_messages:
@@ -195,19 +225,20 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
                 if not response:
                     response = "Task completed."
 
-        tool_calls_list = (
-            [
-                {"name": t["tool"], "tool_call_id": t.get("call_id", "")}
-                for t in tool_events
-                if t.get("stage") == "start"
-            ]
-            if req.verbose
-            else None
-        )
+        tool_calls_list = None
+        if req.verbose:
+            seen_call_ids: set[str] = set()
+            tool_calls_list = []
+            for t in tool_events:
+                call_id = t.get("call_id", "")
+                tool_name = t.get("tool", "")
+                if tool_name and call_id not in seen_call_ids:
+                    seen_call_ids.add(call_id)
+                    tool_calls_list.append({"name": tool_name, "tool_call_id": call_id})
 
-        assistant_metadata = None
+        assistant_metadata: dict[str, Any] = {"workspace_id": workspace_id}
         if verbose_data and verbose_data.get("tool_events"):
-            assistant_metadata = {"tool_events": verbose_data["tool_events"]}
+            assistant_metadata["tool_events"] = verbose_data["tool_events"]
         conversation.add_message("assistant", response, metadata=assistant_metadata)
 
         logger.info(
@@ -231,16 +262,17 @@ async def handle_message(req: MessageRequest) -> MessageResponse:
 
 
 @router.post("/message/stream")
-async def message_stream(req: MessageRequest):
+async def message_stream(req: MessageRequest, _: None = Depends(require_auth)):
     """Send a message and stream response using SSE (SDK-powered)."""
     try:
         user_id = req.user_id or "default_user"
         workspace_id = getattr(req, "workspace_id", "personal") or "personal"
 
         conversation = get_message_store(user_id, workspace_id)
-        conversation.add_message("user", req.message)
+        conversation.add_message("user", req.message, metadata={"workspace_id": workspace_id})
 
         recent_messages = conversation.get_messages_with_summary(50)
+        recent_messages = _filter_by_workspace(recent_messages, workspace_id)
         sdk_messages = _messages_from_conversation(recent_messages)
 
         logger = get_logger()
@@ -254,6 +286,8 @@ async def message_stream(req: MessageRequest):
                 user_id=user_id,
                 messages=sdk_messages,
                 workspace_id=workspace_id,
+                model=req.model,
+                provider_keys=req.provider_keys,
             ):
                 canonical = chunk.canonical_type
 
@@ -297,7 +331,7 @@ async def message_stream(req: MessageRequest):
                 output = result_by_call_id.get(tm.get("tool_call_id", ""), "")
                 conversation.add_message("tool", output, metadata=tm)
 
-            conversation.add_message("assistant", response, metadata={"stream": True})
+            conversation.add_message("assistant", response, metadata={"stream": True, "workspace_id": workspace_id})
             logger.info(
                 "agent.response", {"response": response[:80]}, user_id=user_id, channel="http"
             )
@@ -315,7 +349,7 @@ class ConversationImportRequest(BaseModel):
 
 
 @router.post("/conversation/import")
-async def import_conversation(req: ConversationImportRequest):
+async def import_conversation(req: ConversationImportRequest, _: None = Depends(require_auth)):
     """Bulk-import conversation history without triggering the agent loop.
 
     Used by evaluation frameworks (LongMemEval) to pre-load session data
@@ -349,7 +383,7 @@ async def extract_conversation_memories(user_id: str = "default_user", workspace
 
     try:
         conversation = get_message_store(user_id, workspace_id)
-        recent = conversation.get_recent_messages(count=200)
+        recent = conversation.get_recent_messages(count=500, offset=0)
         if recent:
             raw_messages = [
                 f"{m.role}: {m.content[:500]}" for m in recent if m.content.strip()

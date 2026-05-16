@@ -41,6 +41,14 @@ class MessagesConfig(_BaseSettings):
     """Messages (long-term) configuration using SQLite + FTS5 + ChromaDB."""
 
     enabled: bool = True
+    max_chroma_index_gb: int = Field(
+        default=5,
+        description=(
+            "Maximum size in GB for a single ChromaDB HNSW index file (link_lists.bin). "
+            "When exceeded at startup, the index is automatically rebuilt. "
+            "Set to 0 to disable health checks."
+        ),
+    )
 
     model_config = ConfigDict(env_prefix="MESSAGES_")
 
@@ -100,6 +108,20 @@ class ObservabilityConfig(_BaseSettings):
     langfuse: LangfuseConfig = Field(default_factory=LangfuseConfig)
 
 
+class AuthConfig(_BaseSettings):
+    """API key authentication for remote connections.
+
+    Solo (localhost): auth disabled if api_key is empty. Localhost bypass enabled by default.
+    Multi-device WAN: set EA_API_KEY to require auth on non-localhost connections.
+    Multi-tenant: each container has its own EA_API_KEY.
+    """
+
+    api_key: str = Field(default="")
+    solo_bypass: bool = Field(default=True)
+
+    model_config = ConfigDict(env_prefix="EA_")
+
+
 class ApiConfig(_BaseSettings):
     """API configuration."""
 
@@ -147,6 +169,18 @@ class FilesystemConfig(_BaseSettings):
     model_config = ConfigDict(env_prefix="FILESYSTEM_")
 
 
+class EmailConfig(_BaseSettings):
+    """Email configuration for Gmail/Outlook via gws/m365 CLI."""
+
+    enabled: bool = True
+    gws_client_id: str = Field(default="")
+    gws_client_secret: str = Field(default="")
+    m365_client_id: str = Field(default="")
+    sync_interval_minutes: int = Field(default=15)
+
+    model_config = ConfigDict(env_prefix="EMAIL_")
+
+
 class ShellToolConfig(_BaseSettings):
     """Shell tool configuration."""
 
@@ -169,6 +203,14 @@ class EmailSyncConfig(_BaseSettings):
     backfill_limit: int = 1000
 
     model_config = ConfigDict(env_prefix="EMAIL_SYNC_")
+
+
+class CompanionConfig(_BaseSettings):
+    """Companion V1 configuration."""
+
+    enabled: bool = False
+
+    model_config = ConfigDict(env_prefix="COMPANION_")
 
 
 class MCPConfig(_BaseSettings):
@@ -195,6 +237,9 @@ class AppConfig(_BaseSettings):
     shell_tool: ShellToolConfig = Field(default_factory=ShellToolConfig)
     email_sync: EmailSyncConfig = Field(default_factory=EmailSyncConfig)
     mcp: MCPConfig = Field(default_factory=MCPConfig)
+    companion: CompanionConfig = Field(default_factory=CompanionConfig)
+    email: EmailConfig = Field(default_factory=EmailConfig)
+    auth: AuthConfig = Field(default_factory=AuthConfig)
 
     model_config = ConfigDict(env_file=".env", env_nested_delimiter="__")
 

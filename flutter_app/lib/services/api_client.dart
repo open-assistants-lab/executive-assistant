@@ -217,9 +217,61 @@ class ApiClient {
 
   // ─── Skills ───
 
-  Future<List<dynamic>> listSkills() async {
-    final response = await _get(Uri.parse(_buildUrl('/skills')));
+  Future<List<dynamic>> listSkills({String? workspaceId}) async {
+    final extra = <String, String>{};
+    if (workspaceId != null) extra['workspace_id'] = workspaceId;
+    final response = await _get(Uri.parse(_buildUrl('/skills', extra)));
     return _handleListResponse(response, 'skills');
+  }
+
+  Future<Map<String, dynamic>> getSkillDetail(
+    String name, {
+    String? workspaceId,
+  }) async {
+    final extra = <String, String>{};
+    if (workspaceId != null) extra['workspace_id'] = workspaceId;
+    final encodedName = Uri.encodeComponent(name);
+    final response = await _get(
+      Uri.parse(_buildUrl('/skills/$encodedName', extra)),
+    );
+    return _handleResponse(response);
+  }
+
+  Future<Map<String, dynamic>> createSkill(
+    String name,
+    String description,
+    String content, {
+    String scope = 'user',
+    String? workspaceId,
+  }) async {
+    final extra = <String, String>{};
+    if (workspaceId != null) extra['workspace_id'] = workspaceId;
+    final response = await _post(
+      Uri.parse(_buildUrl('/skills', extra)),
+      body: jsonEncode({
+        'name': name,
+        'description': description,
+        'content': content,
+        'scope': scope,
+      }),
+    );
+    return _handleResponse(response);
+  }
+
+  Future<void> deleteSkill(
+    String name, {
+    String scope = 'user',
+    String? workspaceId,
+  }) async {
+    final extra = <String, String>{'scope': scope};
+    if (workspaceId != null) extra['workspace_id'] = workspaceId;
+    final encodedName = Uri.encodeComponent(name);
+    final response = await _delete(
+      Uri.parse(_buildUrl('/skills/$encodedName', extra)),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(response.statusCode, response.body);
+    }
   }
 
   // ─── Conversation ───

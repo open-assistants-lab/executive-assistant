@@ -18,15 +18,11 @@ from src.storage.memory import Memory, get_memory_store
 logger = get_logger()
 
 
-async def run_consolidation(user_id: str) -> dict[str, Any]:
-    """Run memory consolidation for a user.
+async def run_consolidation(user_id: str, workspace_id: str = "personal") -> dict[str, Any]:
+    """Run memory consolidation for a workspace."""
+    logger.info("memory.consolidation.started", {"user_id": user_id, "workspace_id": workspace_id}, user_id=user_id)
 
-    Returns:
-        Summary of consolidation results
-    """
-    logger.info("memory.consolidation.started", {"user_id": user_id}, user_id=user_id)
-
-    store = get_memory_store(user_id)
+    store = get_memory_store(user_id, workspace_id)
 
     memories = store.list_memories(limit=200)
 
@@ -340,8 +336,8 @@ def _extract_json(content: str) -> dict[str, Any] | None:
     return None
 
 
-def trigger_consolidation(user_id: str) -> dict[str, Any]:
-    """Manually trigger consolidation for a user (sync wrapper).
+def trigger_consolidation(user_id: str, workspace_id: str = "personal") -> dict[str, Any]:
+    """Manually trigger consolidation for a workspace (sync wrapper).
 
     Handles running from daemon threads or inside a running event loop
     by spawning a separate thread when needed.
@@ -355,10 +351,8 @@ def trigger_consolidation(user_id: str) -> dict[str, Any]:
         loop = None
 
     if loop and loop.is_running():
-        # Running inside an event loop (HTTP server).
-        # Can't call asyncio.run() here — use a thread.
         with concurrent.futures.ThreadPoolExecutor() as pool:
-            future = pool.submit(asyncio.run, run_consolidation(user_id))
+            future = pool.submit(asyncio.run, run_consolidation(user_id, workspace_id))
             try:
                 return future.result(timeout=60)
             except Exception as e:
@@ -375,20 +369,21 @@ def trigger_consolidation(user_id: str) -> dict[str, Any]:
 _message_counts: dict[str, int] = {}
 
 
-def on_conversation_end(user_id: str, threshold: int) -> None:
+def on_conversation_end(user_id: str, threshold: int, workspace_id: str = "personal") -> None:
     """Call after each message to potentially trigger consolidation every N messages."""
     global _message_counts
 
-    count = _message_counts.get(user_id, 0) + 1
-    _message_counts[user_id] = count
+    key = f"{user_id}:{workspace_id}"
+    count = _message_counts.get(key, 0) + 1
+    _message_counts[key] = count
 
     if count >= threshold and count % threshold == 0:
         logger.info(
             "memory.consolidation.triggered",
-            {"user_id": user_id, "message_count": count},
+            {"user_id": user_id, "workspace_id": workspace_id, "message_count": count},
             user_id=user_id,
         )
-        trigger_consolidation(user_id)
+        trigger_consolidation(user_id, workspace_id)
 
 
 __all__ = [
