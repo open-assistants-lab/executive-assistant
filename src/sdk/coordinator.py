@@ -254,13 +254,19 @@ class SubagentCoordinator:
                 self._run_loop(task_id, agent_def, task, db),
                 timeout=agent_def.timeout_seconds,
             )
-            await db.set_completed(task_id, result)
+            completed = await db.set_completed(task_id, result)
+            if not completed:
+                await self._set_cancelled_if_requested(task_id, db)
         except TaskCancelledError:
             await db.set_cancelled(task_id)
         except TimeoutError:
-            await db.set_failed(task_id, f"timeout after {agent_def.timeout_seconds}s")
+            failed = await db.set_failed(task_id, f"timeout after {agent_def.timeout_seconds}s")
+            if not failed:
+                await self._set_cancelled_if_requested(task_id, db)
         except Exception as e:
-            await db.set_failed(task_id, f"{type(e).__name__}: {e}")
+            failed = await db.set_failed(task_id, f"{type(e).__name__}: {e}")
+            if not failed:
+                await self._set_cancelled_if_requested(task_id, db)
 
         return task_id
 
@@ -331,23 +337,30 @@ class SubagentCoordinator:
             else:
                 completed = await db.set_completed(task_id, result)
                 if not completed:
-                    latest = await db.get_task(task_id)
-                    if latest and (
-                        latest["cancel_requested"]
-                        or latest["status"]
-                        in {TaskStatus.CANCELLING.value, TaskStatus.CANCELLED.value}
-                    ):
-                        await db.set_cancelled(task_id)
+                    await self._set_cancelled_if_requested(task_id, db)
         except TaskCancelledError:
             await db.set_cancelled(task_id)
         except TimeoutError:
-            await db.set_failed(task_id, f"timeout after {agent_def.timeout_seconds}s")
+            failed = await db.set_failed(task_id, f"timeout after {agent_def.timeout_seconds}s")
+            if not failed:
+                await self._set_cancelled_if_requested(task_id, db)
         except Exception as e:
-            await db.set_failed(task_id, f"{type(e).__name__}: {e}")
+            failed = await db.set_failed(task_id, f"{type(e).__name__}: {e}")
+            if not failed:
+                await self._set_cancelled_if_requested(task_id, db)
         finally:
             heartbeat_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await heartbeat_task
+
+    async def _set_cancelled_if_requested(self, task_id: str, db: WorkQueueDB) -> bool:
+        latest = await db.get_task(task_id)
+        if latest and (
+            latest["cancel_requested"]
+            or latest["status"] in {TaskStatus.CANCELLING.value, TaskStatus.CANCELLED.value}
+        ):
+            return await db.set_cancelled(task_id)
+        return False
 
     async def _run_loop(
         self,

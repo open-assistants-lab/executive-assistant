@@ -226,8 +226,17 @@ class WorkQueueDB:
         cursor = await db.execute(
             """UPDATE work_queue
             SET status = ?, result = ?, error = ?, completed_at = ?, updated_at = ?
-            WHERE id = ?""",
-            (TaskStatus.FAILED.value, result.model_dump_json(), error, now, now, task_id),
+            WHERE id = ? AND status IN (?, ?) AND cancel_requested = 0""",
+            (
+                TaskStatus.FAILED.value,
+                result.model_dump_json(),
+                error,
+                now,
+                now,
+                task_id,
+                TaskStatus.PENDING.value,
+                TaskStatus.RUNNING.value,
+            ),
         )
         await db.commit()
         return cursor.rowcount > 0

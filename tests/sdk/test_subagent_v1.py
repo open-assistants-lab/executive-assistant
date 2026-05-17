@@ -325,6 +325,20 @@ class TestWorkQueueDB:
         assert row["status"] == "cancelling"
 
     @pytest.mark.asyncio
+    async def test_set_failed_does_not_overwrite_cancellation(self, db, agent_def):
+        task_id = await db.insert_task("test_agent", "t", agent_def)
+        await db.claim_task(task_id, worker_id="worker-a")
+        await db.request_cancel(task_id)
+
+        ok = await db.set_failed(task_id, "boom")
+
+        row = await db.get_task(task_id)
+        assert not ok
+        assert row["status"] == "cancelling"
+        assert row["cancel_requested"] == 1
+        assert row["error"] is None
+
+    @pytest.mark.asyncio
     async def test_request_cancel_active_tasks_for_agent_only(self, db, agent_def):
         from src.sdk.subagent_models import TaskStatus
 
@@ -856,6 +870,66 @@ class TestSubagentCoordinator:
 
         monkeypatch.setattr(coordinator, "_run_loop", fake_run_loop)
         monkeypatch.setattr(db, "set_completed", cancel_before_complete)
+
+        await coordinator._run_job(task_id)
+
+        row = await db.get_task(task_id)
+        assert row["status"] == "cancelled"
+        assert row["cancel_requested"] == 1
+        result = json.loads(row["result"])
+        assert result["error"] == "cancelled by supervisor"
+
+    @pytest.mark.asyncio
+    async def test_run_job_preserves_cancel_racing_with_error_failure(
+        self, mock_paths, agent_def, monkeypatch
+    ):
+        from src.sdk.coordinator import SubagentCoordinator
+
+        coordinator = SubagentCoordinator("test_user")
+        db = await coordinator._get_db()
+        task_id = await db.insert_task("test_agent", "do work", agent_def)
+
+        async def fake_run_loop(task_id: str, frozen_agent_def, task: str, db):
+            raise RuntimeError("boom")
+
+        original_set_failed = db.set_failed
+
+        async def cancel_before_fail(task_id: str, error: str):
+            await db.request_cancel(task_id)
+            return await original_set_failed(task_id, error)
+
+        monkeypatch.setattr(coordinator, "_run_loop", fake_run_loop)
+        monkeypatch.setattr(db, "set_failed", cancel_before_fail)
+
+        await coordinator._run_job(task_id)
+
+        row = await db.get_task(task_id)
+        assert row["status"] == "cancelled"
+        assert row["cancel_requested"] == 1
+        result = json.loads(row["result"])
+        assert result["error"] == "cancelled by supervisor"
+
+    @pytest.mark.asyncio
+    async def test_run_job_preserves_cancel_racing_with_timeout_failure(
+        self, mock_paths, agent_def, monkeypatch
+    ):
+        from src.sdk.coordinator import SubagentCoordinator
+
+        coordinator = SubagentCoordinator("test_user")
+        db = await coordinator._get_db()
+        task_id = await db.insert_task("test_agent", "do work", agent_def)
+
+        async def fake_run_loop(task_id: str, frozen_agent_def, task: str, db):
+            raise TimeoutError
+
+        original_set_failed = db.set_failed
+
+        async def cancel_before_fail(task_id: str, error: str):
+            await db.request_cancel(task_id)
+            return await original_set_failed(task_id, error)
+
+        monkeypatch.setattr(coordinator, "_run_loop", fake_run_loop)
+        monkeypatch.setattr(db, "set_failed", cancel_before_fail)
 
         await coordinator._run_job(task_id)
 
