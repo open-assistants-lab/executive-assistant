@@ -497,14 +497,14 @@ def generate_test_queries(persona: dict, count: int = 10) -> list[str]:
         "Use sql_write_query skill",
         "Load skill-creator skill",
         "List skill descriptions",
-        # 61-65: Subagent - create, invoke, list
+        # 61-65: Subagent - create, start, check, list
         "Create research subagent",
-        "Invoke research subagent",
-        "Check subagent progress",
+        "Start research subagent",
+        "Check subagent job",
         "List all subagents",
-        "Invoke subagent with query",
-        # 66-70: Subagent - batch, schedule, cancel
-        "Batch invoke multiple subagents",
+        "Start subagent with query",
+        # 66-70: Subagent - tasks, schedule, cancel
+        "List subagent tasks",
         "Schedule daily reminder task",
         "List scheduled jobs",
         "Cancel scheduled job",
@@ -580,8 +580,8 @@ def generate_test_queries(persona: dict, count: int = 10) -> list[str]:
                 8: "time get",
                 9: "skills list/load/create - EVAL",
                 10: "skills trigger + gated - EVAL",
-                11: "subagent create/invoke/progress",
-                12: "subagent batch/schedule/cancel",
+                11: "subagent create/start/check",
+                12: "subagent tasks/schedule/cancel",
                 13: "web scrape/search/map",
                 14: "email sync + extract",
                 15: "app create/insert/query",

@@ -347,9 +347,9 @@ Each persona tests different interaction styles, edge cases, and feature domains
 | 6.6 | `subagent_instruct` | "tell research subagent to also check arxiv" | Instruction injected |
 | 6.7 | `subagent_cancel` | "cancel the research task" | CancelRequested flag set |
 | 6.8 | `subagent_delete` | "delete research subagent" | AgentDef + tasks removed |
-| 6.9 | Doom loop | Invoke subagent that loops same tool 3x | auto-instruction injected |
-| 6.10 | Cost limit | Invoke with cost_limit_usd=0.01 | CostLimitExceededError |
-| 6.11 | Timeout | Invoke with timeout=1s | TimeoutError |
+| 6.9 | Doom loop | Start subagent that loops same tool 3x | auto-instruction injected |
+| 6.10 | Cost limit | Start with cost_limit_usd=0.01 | CostLimitExceededError |
+| 6.11 | Timeout | Start with timeout=1s | TimeoutError |
 | 6.12 | No recursion | Subagent tries subagent_create | Tool not available (disallowed) |
 
 ### 7. MCP
@@ -381,10 +381,10 @@ Each persona tests different interaction styles, edge cases, and feature domains
 | 9.1 | `MemoryMiddleware` | Long conversation, ask about earlier topic | Memory injected into context |
 | 9.2 | `SummarizationMiddleware` | ~4000+ token conversation | Auto-summarization triggered |
 | 9.3 | `SummarizationMiddleware` failure | LLM returns "too long to summarize" | Original messages preserved |
-| 9.4 | `ProgressMiddleware` | Subagent invoke, check progress | Progress updates in work_queue |
+| 9.4 | `ProgressMiddleware` | Start subagent, check job | Progress updates in work_queue |
 | 9.5 | `ProgressMiddleware` doom loop | Same tool+args 3x | `stuck=true` + auto-instruction |
-| 9.6 | `InstructionMiddleware` cancel | subagent_cancel during invoke | Subagent stops after current LLM call |
-| 9.7 | `InstructionMiddleware` inject | subagent_instruct during invoke | Instruction appears in next LLM call |
+| 9.6 | `InstructionMiddleware` cancel | subagent_cancel during async job | Subagent stops after current LLM call |
+| 9.7 | `InstructionMiddleware` inject | subagent_instruct during async job | Instruction appears in next LLM call |
 
 ### 10. Streaming (SSE)
 
