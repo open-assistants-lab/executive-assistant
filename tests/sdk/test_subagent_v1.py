@@ -190,6 +190,20 @@ class TestWorkQueueDB:
         assert ok
         row = await db.get_task(task_id)
         assert row["status"] == "running"
+        assert row["started_at"]
+        assert row["heartbeat_at"]
+        assert row["claimed_by"] is None
+
+    @pytest.mark.asyncio
+    async def test_fresh_set_running_task_not_stale_by_default(self, db, agent_def):
+        task_id = await db.insert_task("test_agent", "t", agent_def)
+        await db.set_running(task_id)
+
+        count = await db.mark_stale_running_failed()
+
+        assert count == 0
+        row = await db.get_task(task_id)
+        assert row["status"] == "running"
 
     @pytest.mark.asyncio
     async def test_set_completed(self, db, agent_def):

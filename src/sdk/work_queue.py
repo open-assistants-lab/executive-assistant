@@ -148,9 +148,10 @@ class WorkQueueDB:
         now = _now()
         cursor = await db.execute(
             """UPDATE work_queue
-            SET status = ?, started_at = COALESCE(started_at, ?), updated_at = ?
+            SET status = ?, started_at = COALESCE(started_at, ?),
+                heartbeat_at = COALESCE(heartbeat_at, ?), updated_at = ?
             WHERE id = ?""",
-            (TaskStatus.RUNNING.value, now, now, task_id),
+            (TaskStatus.RUNNING.value, now, now, now, task_id),
         )
         await db.commit()
         return cursor.rowcount > 0
@@ -236,7 +237,7 @@ class WorkQueueDB:
         await db.commit()
         return cursor.rowcount > 0
 
-    async def mark_stale_running_failed(self, max_age_seconds: int) -> int:
+    async def mark_stale_running_failed(self, max_age_seconds: int = 300) -> int:
         db = await self._get_db()
         now = _now()
         cutoff = (datetime.now(UTC) - timedelta(seconds=max_age_seconds)).isoformat()
