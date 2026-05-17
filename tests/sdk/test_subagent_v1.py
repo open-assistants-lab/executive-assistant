@@ -517,6 +517,58 @@ class TestSubagentCoordinator:
         assert "subagent_invoke" not in names
         assert "subagent_progress" not in names
 
+    def test_build_tools_removes_subagent_and_extra_memory_tools(self, agent_def):
+        from src.sdk.coordinator import _build_tools_for_subagent
+        from src.sdk.subagent_models import AgentDef
+
+        d = AgentDef(name="a", tools=None)
+        names = {t.name for t in _build_tools_for_subagent(d)}
+
+        assert "memory_search" in names
+        assert not any(n.startswith("subagent_") for n in names)
+        assert "memory_search_all" not in names
+        assert "memory_search_insights" not in names
+
+    def test_build_tools_allowlist_still_includes_memory_search(self):
+        from src.sdk.coordinator import _build_tools_for_subagent
+        from src.sdk.subagent_models import AgentDef
+
+        d = AgentDef(name="a", tools=["time_get"], disallowed_tools=["memory_search"])
+        names = {t.name for t in _build_tools_for_subagent(d)}
+
+        assert "time_get" in names
+        assert "memory_search" in names
+
+    def test_build_tools_includes_skills_load_when_skills_configured(self):
+        from src.sdk.coordinator import _build_tools_for_subagent
+        from src.sdk.subagent_models import AgentDef
+
+        d = AgentDef(name="a", tools=["time_get"], skills=["skill-creator"])
+        names = {t.name for t in _build_tools_for_subagent(d)}
+
+        assert "skills_load" in names
+
+    def test_validate_agent_def_rejects_unknown_tool(self):
+        from src.sdk.coordinator import validate_agent_def
+        from src.sdk.subagent_models import AgentDef
+
+        errors = validate_agent_def(AgentDef(name="a", tools=["not_a_tool"]))
+        assert any("Unknown tool" in e for e in errors)
+
+    def test_validate_agent_def_rejects_subagent_tool(self):
+        from src.sdk.coordinator import validate_agent_def
+        from src.sdk.subagent_models import AgentDef
+
+        errors = validate_agent_def(AgentDef(name="a", tools=["subagent_invoke"]))
+        assert any("Subagent tool" in e for e in errors)
+
+    def test_validate_agent_def_allows_default_future_subagent_denylist_names(self):
+        from src.sdk.coordinator import validate_agent_def
+        from src.sdk.subagent_models import AgentDef
+
+        errors = validate_agent_def(AgentDef(name="a"))
+        assert not errors
+
     @pytest.mark.asyncio
     async def test_run_loop_passes_provider_options_to_run_config(self, mock_paths):
         from src.sdk.coordinator import SubagentCoordinator

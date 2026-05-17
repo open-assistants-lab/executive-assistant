@@ -31,7 +31,56 @@ from src.storage.paths import get_paths
 
 logger = get_logger()
 
-_LEGACY_RECURSIVE_SUBAGENT_TOOLS = {"subagent_invoke", "subagent_progress"}
+MANDATORY_SUBAGENT_TOOLS = {"memory_search"}
+OPTIONAL_SKILL_LOAD_TOOL = "skills_load"
+DENIED_SKILL_MANAGEMENT_TOOLS = {"skill_create", "skill_delete", "skill_update"}
+
+
+def _is_denied_memory_tool(name: str) -> bool:
+    return name.startswith("memory_") and name != "memory_search"
+
+
+def _is_subagent_tool(name: str) -> bool:
+    return name.startswith("subagent_")
+
+
+def validate_agent_def(
+    agent_def: AgentDef,
+    user_id: str = "default_user",
+    workspace_id: str = "personal",
+) -> list[str]:
+    from src.sdk.native_tools import get_native_tools
+
+    tool_names = {t.name for t in get_native_tools()}
+    errors: list[str] = []
+
+    for name in agent_def.tools or []:
+        if name not in tool_names:
+            errors.append(f"Unknown tool: {name}")
+        if _is_subagent_tool(name):
+            errors.append(f"Subagent tool is not allowed in subagent tools: {name}")
+        if _is_denied_memory_tool(name):
+            errors.append(f"Memory tool is not allowed in subagent tools: {name}")
+
+    for name in agent_def.disallowed_tools:
+        if _is_denied_memory_tool(name):
+            errors.append(f"Memory tool is not allowed in subagent disallowed_tools: {name}")
+        elif name not in tool_names and not _is_subagent_tool(name):
+            errors.append(f"Unknown disallowed tool: {name}")
+
+    skill_registry = get_skill_registry(user_id=user_id, workspace_id=workspace_id)
+    for skill_name in agent_def.skills:
+        if skill_registry.get_skill(skill_name) is None:
+            errors.append(f"Unknown skill: {skill_name}")
+
+    if agent_def.max_llm_calls <= 0:
+        errors.append("max_llm_calls must be positive")
+    if agent_def.cost_limit_usd <= 0:
+        errors.append("cost_limit_usd must be positive")
+    if agent_def.timeout_seconds <= 0:
+        errors.append("timeout_seconds must be positive")
+
+    return errors
 
 
 def _build_tools_for_subagent(agent_def: AgentDef) -> list[Any]:
@@ -42,9 +91,19 @@ def _build_tools_for_subagent(agent_def: AgentDef) -> list[Any]:
 
     allowed = set(agent_def.tools) if agent_def.tools else set(tool_map.keys())
     disallowed = set(agent_def.disallowed_tools)
-    final = allowed - disallowed - _LEGACY_RECURSIVE_SUBAGENT_TOOLS
+    final = allowed - disallowed
+    final = {
+        name
+        for name in final
+        if not _is_subagent_tool(name)
+        and not _is_denied_memory_tool(name)
+        and name not in DENIED_SKILL_MANAGEMENT_TOOLS
+    }
+    final.update(MANDATORY_SUBAGENT_TOOLS)
+    if agent_def.skills:
+        final.add(OPTIONAL_SKILL_LOAD_TOOL)
 
-    return [tool_map[n] for n in final if n in tool_map]
+    return [tool_map[n] for n in sorted(final) if n in tool_map]
 
 
 def _build_system_prompt(agent_def: AgentDef, user_id: str, workspace_id: str = "personal") -> str:
@@ -68,11 +127,20 @@ def _build_system_prompt(agent_def: AgentDef, user_id: str, workspace_id: str = 
     except Exception:
         pass
 
-    skill_registry = get_skill_registry(user_id=user_id)
-    for skill_name in agent_def.skills:
-        skill = skill_registry.get_skill(skill_name)
-        if skill:
-            parts.append(f"\n\n## Skill: {skill_name}\n{skill['content']}")
+    if agent_def.skills:
+        skill_registry = get_skill_registry(user_id=user_id, workspace_id=workspace_id)
+        skill_entries = []
+        for skill_name in agent_def.skills:
+            skill = skill_registry.get_skill(skill_name)
+            if skill:
+                skill_entries.append(f"- **{skill_name}**: {skill['description']}")
+
+        if skill_entries:
+            parts.append(
+                "## Available Skills\n"
+                "Call skills_load(name) before following a skill's instructions.\n"
+                + "\n".join(skill_entries)
+            )
 
     return "\n\n".join(parts)
 
