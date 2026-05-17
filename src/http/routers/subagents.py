@@ -71,6 +71,15 @@ def _serialize_job(row: dict[str, Any]) -> dict[str, Any]:
     return job
 
 
+def _validate_context_ids(user_id: str, workspace_id: str) -> None:
+    from src.storage.paths import get_paths
+
+    try:
+        get_paths(user_id, workspace_id=workspace_id)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+
+
 @router.get("")
 async def list_subagents(
     user_id: str = Query("default_user"),
@@ -78,6 +87,7 @@ async def list_subagents(
 ):
     from src.sdk.coordinator import get_coordinator
 
+    _validate_context_ids(user_id, workspace_id)
     coordinator = get_coordinator(user_id, workspace_id)
     defs = await coordinator.list_defs()
 
@@ -104,6 +114,7 @@ async def create_subagent(
 ):
     from src.sdk.coordinator import get_coordinator, validate_agent_def
 
+    _validate_context_ids(user_id, workspace_id)
     coordinator = get_coordinator(user_id, workspace_id)
     if coordinator.load_def(body.name) is not None:
         raise HTTPException(status_code=400, detail=f"Subagent '{body.name}' already exists.")
@@ -142,6 +153,7 @@ async def list_subagent_jobs(
 ):
     from src.sdk.work_queue import get_work_queue
 
+    _validate_context_ids(user_id, workspace_id)
     db = await get_work_queue(user_id, workspace_id)
     jobs = await db.check_progress(status=status)
     return {"jobs": [_serialize_job(job) for job in jobs]}
@@ -155,6 +167,7 @@ async def get_subagent_job(
 ):
     from src.sdk.work_queue import get_work_queue
 
+    _validate_context_ids(user_id, workspace_id)
     db = await get_work_queue(user_id, workspace_id)
     row = await db.get_task(job_id)
     if row is None:
@@ -172,6 +185,7 @@ async def instruct_subagent_job(
     from src.sdk.coordinator import get_coordinator
     from src.sdk.work_queue import get_work_queue
 
+    _validate_context_ids(user_id, workspace_id)
     db = await get_work_queue(user_id, workspace_id)
     if await db.get_task(job_id) is None:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -191,6 +205,7 @@ async def cancel_subagent_job(
     from src.sdk.coordinator import get_coordinator
     from src.sdk.work_queue import get_work_queue
 
+    _validate_context_ids(user_id, workspace_id)
     db = await get_work_queue(user_id, workspace_id)
     if await db.get_task(job_id) is None:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -210,6 +225,7 @@ async def update_subagent(
 ):
     from src.sdk.coordinator import get_coordinator, validate_agent_def
 
+    _validate_context_ids(user_id, workspace_id)
     coordinator = get_coordinator(user_id, workspace_id)
     update_data = body.model_dump(exclude_unset=True)
     update_data.pop("name", None)
@@ -243,6 +259,7 @@ async def delete_subagent(
 ):
     from src.sdk.coordinator import get_coordinator
 
+    _validate_context_ids(user_id, workspace_id)
     coordinator = get_coordinator(user_id, workspace_id)
     if not await coordinator.delete(name):
         raise HTTPException(status_code=404, detail=f"Subagent '{name}' not found.")
@@ -258,6 +275,7 @@ async def start_subagent(
 ):
     from src.sdk.coordinator import get_coordinator
 
+    _validate_context_ids(user_id, workspace_id)
     coordinator = get_coordinator(user_id, workspace_id)
     try:
         task_id = await coordinator.start(name, body.task, parent_id=body.parent_id)

@@ -33,6 +33,22 @@ class TestSubagentsEndpoints:
         )
         assert r.status_code == 404
 
+    def test_invalid_user_id_returns_client_error(self, client):
+        response = client.get(
+            "/subagents",
+            params={"user_id": "bad/user", "workspace_id": "personal"},
+        )
+        assert 400 <= response.status_code < 500
+        assert response.json()["detail"]
+
+    def test_invalid_workspace_id_returns_client_error(self, client):
+        response = client.get(
+            "/subagents/jobs",
+            params={"user_id": "test_user", "workspace_id": "bad/workspace"},
+        )
+        assert 400 <= response.status_code < 500
+        assert response.json()["detail"]
+
 
 class TestSubagentV1Invocations:
     def test_create_start_and_instruct_subagent_job(self, client, test_user_id):
