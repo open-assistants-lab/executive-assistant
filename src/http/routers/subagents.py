@@ -132,19 +132,6 @@ async def create_subagent(
     return {"status": "created", "name": body.name, "workspace_id": workspace_id}
 
 
-@router.post("/invoke", include_in_schema=False)
-async def old_invoke_route_removed():
-    raise HTTPException(status_code=404, detail="Route removed. Use /subagents/{name}/start.")
-
-
-@router.post("/instruct", include_in_schema=False)
-async def old_instruct_route_removed():
-    raise HTTPException(
-        status_code=404,
-        detail="Route removed. Use /subagents/jobs/{job_id}/instructions.",
-    )
-
-
 @router.get("/jobs")
 async def list_subagent_jobs(
     user_id: str = Query("default_user"),

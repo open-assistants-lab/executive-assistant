@@ -51,7 +51,7 @@ class TestSubagentsEndpoints:
 
 
 class TestSubagentV1Invocations:
-    def test_create_start_and_instruct_subagent_job(self, client, test_user_id):
+    def test_create_start_list_detail_and_instruct_subagent_job(self, client, test_user_id):
         name = _agent_name()
         params = {"user_id": test_user_id, "workspace_id": "personal"}
 
@@ -78,6 +78,17 @@ class TestSubagentV1Invocations:
         assert start_data["subagent"] == name
         assert start_data["job_id"]
 
+        detail_response = client.get(f"/subagents/jobs/{start_data['job_id']}", params=params)
+        assert detail_response.status_code == 200
+        detail_job = detail_response.json()["job"]
+        assert detail_job["id"] == start_data["job_id"]
+        assert detail_job["status"] in {"pending", "running", "failed", "completed"}
+
+        list_response = client.get("/subagents/jobs", params=params)
+        assert list_response.status_code == 200
+        jobs = list_response.json()["jobs"]
+        assert any(job["id"] == start_data["job_id"] for job in jobs)
+
         instruction_response = client.post(
             f"/subagents/jobs/{start_data['job_id']}/instructions",
             params=params,
@@ -103,7 +114,12 @@ class TestSubagentV1Invocations:
 
     def test_old_invoke_route_removed(self, client):
         response = client.post("/subagents/invoke", params={"name": "worker", "task": "do work"})
-        assert response.status_code == 404
+        assert response.status_code in {404, 405}
+
+    def test_legacy_routes_are_not_registered(self, app):
+        route_paths = {getattr(route, "path", "") for route in app.routes}
+        assert "/subagents/invoke" not in route_paths
+        assert "/subagents/instruct" not in route_paths
 
     def test_cancel_subagent_job(self, client):
         r = client.post(
@@ -119,20 +135,12 @@ class TestSubagentV1Invocations:
         )
         assert response.status_code == 404
 
-    def test_job_instruction_route_exists(self, client):
-        response = client.post(
-            "/subagents/jobs/not-real/instructions",
-            params={"user_id": "test_user", "workspace_id": "personal"},
-            json={"instruction": "focus"},
-        )
-        assert response.status_code in {200, 404}
-
     def test_old_instruct_route_removed(self, client):
         response = client.post(
             "/subagents/instruct",
             params={"name": "worker", "instruction": "focus"},
         )
-        assert response.status_code == 404
+        assert response.status_code in {404, 405}
 
     def test_update_subagent(self, client, test_user_id):
         r = client.patch(
