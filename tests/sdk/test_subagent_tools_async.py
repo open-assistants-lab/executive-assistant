@@ -150,3 +150,133 @@ def test_subagent_create_rejects_non_object_provider_options(monkeypatch):
     )
 
     assert result == "Error: provider_options must be a JSON object."
+
+
+def test_subagent_update_parses_new_fields_and_validates_before_save(monkeypatch):
+    from src.sdk.subagent_models import AgentDef
+    from src.sdk.tools_core import subagent as mod
+
+    saved = {}
+    validated = {}
+    existing = AgentDef(name="worker", description="old")
+
+    class FakeCoordinator:
+        def load_def(self, name):
+            return existing
+
+        async def update(self, name, **kwargs):
+            saved["name"] = name
+            saved["kwargs"] = kwargs
+            return existing.model_copy(update=kwargs)
+
+    def fake_validate(agent_def, **kwargs):
+        validated["agent_def"] = agent_def
+        validated["kwargs"] = kwargs
+        return []
+
+    monkeypatch.setattr(
+        mod, "get_coordinator", lambda user_id, workspace_id: FakeCoordinator(), raising=False
+    )
+    monkeypatch.setattr(mod, "validate_agent_def", fake_validate, raising=False)
+
+    result = mod.subagent_update.invoke(
+        {
+            "name": "worker",
+            "user_id": "u",
+            "workspace_id": "w",
+            "provider_options": '{"anthropic": {"thinking": {"type": "enabled"}}}',
+            "output_schema": '{"type": "object"}',
+            "handoff_instructions": "return concise output",
+            "artifact_policy": "none",
+        }
+    )
+
+    assert "updated" in result
+    assert saved["name"] == "worker"
+    assert saved["kwargs"]["provider_options"] == {
+        "anthropic": {"thinking": {"type": "enabled"}}
+    }
+    assert saved["kwargs"]["output_schema"] == {"type": "object"}
+    assert saved["kwargs"]["handoff_instructions"] == "return concise output"
+    assert saved["kwargs"]["artifact_policy"] == "none"
+    assert validated["agent_def"].provider_options == {
+        "anthropic": {"thinking": {"type": "enabled"}}
+    }
+    assert validated["agent_def"].output_schema == {"type": "object"}
+    assert validated["agent_def"].handoff_instructions == "return concise output"
+    assert validated["agent_def"].artifact_policy == "none"
+    assert validated["kwargs"] == {"user_id": "u", "workspace_id": "w"}
+
+
+def test_subagent_update_rejects_invalid_provider_options_json(monkeypatch):
+    from src.sdk.subagent_models import AgentDef
+    from src.sdk.tools_core import subagent as mod
+
+    class FakeCoordinator:
+        def load_def(self, name):
+            return AgentDef(name="worker")
+
+        async def update(self, name, **kwargs):
+            raise AssertionError("update should not be called")
+
+    monkeypatch.setattr(
+        mod, "get_coordinator", lambda user_id, workspace_id: FakeCoordinator(), raising=False
+    )
+
+    result = mod.subagent_update.invoke(
+        {"name": "worker", "user_id": "u", "provider_options": "{"}
+    )
+
+    assert result.startswith("Error: Invalid provider_options JSON")
+
+
+def test_subagent_update_rejects_invalid_output_schema_json(monkeypatch):
+    from src.sdk.subagent_models import AgentDef
+    from src.sdk.tools_core import subagent as mod
+
+    class FakeCoordinator:
+        def load_def(self, name):
+            return AgentDef(name="worker")
+
+        async def update(self, name, **kwargs):
+            raise AssertionError("update should not be called")
+
+    monkeypatch.setattr(
+        mod, "get_coordinator", lambda user_id, workspace_id: FakeCoordinator(), raising=False
+    )
+
+    result = mod.subagent_update.invoke(
+        {"name": "worker", "user_id": "u", "output_schema": "{"}
+    )
+
+    assert result.startswith("Error: Invalid output_schema JSON")
+
+
+def test_subagent_update_rejects_validation_errors_before_save(monkeypatch):
+    from src.sdk.subagent_models import AgentDef
+    from src.sdk.tools_core import subagent as mod
+
+    validated = {}
+
+    class FakeCoordinator:
+        def load_def(self, name):
+            return AgentDef(name="worker")
+
+        async def update(self, name, **kwargs):
+            raise AssertionError("update should not be called")
+
+    def fake_validate(agent_def, **kwargs):
+        validated["tools"] = agent_def.tools
+        return ["Unknown tool: not_a_tool"]
+
+    monkeypatch.setattr(
+        mod, "get_coordinator", lambda user_id, workspace_id: FakeCoordinator(), raising=False
+    )
+    monkeypatch.setattr(mod, "validate_agent_def", fake_validate, raising=False)
+
+    result = mod.subagent_update.invoke(
+        {"name": "worker", "user_id": "u", "tools": ["not_a_tool"]}
+    )
+
+    assert result == "Error: Unknown tool: not_a_tool"
+    assert validated["tools"] == ["not_a_tool"]
