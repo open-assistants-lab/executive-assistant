@@ -145,9 +145,9 @@ async def invoke_subagent(
     user_id: str = Query("default_user"),
     workspace_id: str = Query("personal"),
 ):
-    from src.sdk.tools_core.subagent import subagent_invoke
+    from src.sdk.tools_core.subagent import subagent_start
 
-    result = await subagent_invoke.ainvoke({
+    result = await subagent_start.ainvoke({
         "user_id": user_id,
         "workspace_id": workspace_id,
         "agent_name": name,

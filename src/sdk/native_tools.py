@@ -86,12 +86,13 @@ from src.sdk.tools_core.skills import (
 )
 from src.sdk.tools_core.subagent import (
     subagent_cancel,
+    subagent_check,
     subagent_create,
     subagent_delete,
     subagent_instruct,
-    subagent_invoke,
     subagent_list,
-    subagent_progress,
+    subagent_start,
+    subagent_tasks,
     subagent_update,
 )
 from src.sdk.tools_core.time import time_get
@@ -176,9 +177,10 @@ def _register_all() -> None:
     registry.register(app_search_hybrid)
 
     registry.register(subagent_create)
-    registry.register(subagent_invoke)
+    registry.register(subagent_start)
+    registry.register(subagent_check)
+    registry.register(subagent_tasks)
     registry.register(subagent_list)
-    registry.register(subagent_progress)
     registry.register(subagent_instruct)
     registry.register(subagent_cancel)
     registry.register(subagent_delete)
