@@ -308,6 +308,27 @@ class WorkQueueDB:
         await db.commit()
         return cursor.rowcount > 0
 
+    async def request_cancel_active_tasks_for_agent(self, agent_name: str) -> int:
+        db = await self._get_db()
+        now = _now()
+        cursor = await db.execute(
+            """UPDATE work_queue
+            SET cancel_requested = 1, status = ?, updated_at = ?
+            WHERE user_id = ? AND workspace_id = ? AND agent_name = ? AND status IN (?, ?, ?)""",
+            (
+                TaskStatus.CANCELLING.value,
+                now,
+                self.user_id,
+                self.workspace_id,
+                agent_name,
+                TaskStatus.PENDING.value,
+                TaskStatus.RUNNING.value,
+                TaskStatus.CANCELLING.value,
+            ),
+        )
+        await db.commit()
+        return cursor.rowcount
+
     async def is_cancel_requested(self, task_id: str) -> bool:
         row = await self.get_task(task_id)
         if row is None:

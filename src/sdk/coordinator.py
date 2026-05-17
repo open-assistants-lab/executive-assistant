@@ -189,6 +189,7 @@ class SubagentCoordinator:
         self.base_path = get_paths(user_id, workspace_id=workspace_id).workspace_subagents_dir()
         self.base_path.mkdir(parents=True, exist_ok=True)
         self._db: WorkQueueDB | None = None
+        self._background_tasks: set[asyncio.Task[Any]] = set()
 
     async def _get_db(self) -> WorkQueueDB:
         if self._db is None:
@@ -280,8 +281,13 @@ class SubagentCoordinator:
         db = await self._get_db()
         task_id = await db.insert_task(agent_name, task, agent_def, parent_id)
         background_task = asyncio.create_task(self._run_job(task_id))
-        background_task.add_done_callback(self._consume_background_exception)
+        self._background_tasks.add(background_task)
+        background_task.add_done_callback(self._on_background_task_done)
         return task_id
+
+    def _on_background_task_done(self, task: asyncio.Task[Any]) -> None:
+        self._background_tasks.discard(task)
+        self._consume_background_exception(task)
 
     @staticmethod
     def _consume_background_exception(task: asyncio.Task[Any]) -> None:
@@ -425,6 +431,8 @@ class SubagentCoordinator:
         agent_def = self.load_def(name)
         if agent_def is None:
             return False
+        db = await self._get_db()
+        await db.request_cancel_active_tasks_for_agent(name)
         agent_path = self.base_path / name
         if agent_path.exists():
             shutil.rmtree(agent_path)

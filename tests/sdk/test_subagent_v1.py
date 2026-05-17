@@ -87,6 +87,11 @@ def agent_def():
     )
 
 
+async def _wait_for_no_background_tasks(coordinator):
+    while coordinator._background_tasks:
+        await asyncio.sleep(0)
+
+
 # -- Model Tests --
 
 
@@ -318,6 +323,30 @@ class TestWorkQueueDB:
         row = await db.get_task(task_id)
         assert row["cancel_requested"] == 1
         assert row["status"] == "cancelling"
+
+    @pytest.mark.asyncio
+    async def test_request_cancel_active_tasks_for_agent_only(self, db, agent_def):
+        from src.sdk.subagent_models import TaskStatus
+
+        pending_id = await db.insert_task("test_agent", "pending", agent_def)
+        running_id = await db.insert_task("test_agent", "running", agent_def)
+        await db.set_running(running_id)
+        completed_id = await db.insert_task("test_agent", "completed", agent_def)
+        await db.set_status(completed_id, TaskStatus.COMPLETED)
+        other_id = await db.insert_task("other_agent", "running", agent_def)
+        await db.set_running(other_id)
+
+        count = await db.request_cancel_active_tasks_for_agent("test_agent")
+
+        assert count == 2
+        assert await db.is_cancel_requested(pending_id)
+        assert await db.is_cancel_requested(running_id)
+        assert not await db.is_cancel_requested(completed_id)
+        assert not await db.is_cancel_requested(other_id)
+        assert (await db.get_task(pending_id))["status"] == "cancelling"
+        assert (await db.get_task(running_id))["status"] == "cancelling"
+        assert (await db.get_task(completed_id))["status"] == "completed"
+        assert (await db.get_task(other_id))["status"] == "running"
 
     @pytest.mark.asyncio
     async def test_heartbeat_updates_timestamp(self, db, agent_def):
@@ -723,6 +752,32 @@ class TestSubagentCoordinator:
         await asyncio.sleep(0)
 
     @pytest.mark.asyncio
+    async def test_start_retains_background_task_until_completion(
+        self, mock_paths, agent_def, monkeypatch
+    ):
+        from src.sdk.coordinator import SubagentCoordinator
+
+        coordinator = SubagentCoordinator("test_user")
+        await coordinator.create(agent_def)
+        started = asyncio.Event()
+        finish = asyncio.Event()
+
+        async def fake_run_job(task_id: str):
+            started.set()
+            await finish.wait()
+
+        monkeypatch.setattr(coordinator, "_run_job", fake_run_job)
+
+        await coordinator.start("test_agent", "do work")
+
+        await asyncio.wait_for(started.wait(), timeout=1)
+        assert len(coordinator._background_tasks) == 1
+
+        finish.set()
+        await asyncio.wait_for(_wait_for_no_background_tasks(coordinator), timeout=1)
+        assert coordinator._background_tasks == set()
+
+    @pytest.mark.asyncio
     async def test_start_freezes_config_snapshot(self, mock_paths, agent_def, monkeypatch):
         from src.sdk.coordinator import SubagentCoordinator
 
@@ -851,6 +906,47 @@ class TestSubagentCoordinator:
         ok = await coord.delete("deleteme")
         assert ok
         assert coord.load_def("deleteme") is None
+
+    @pytest.mark.asyncio
+    async def test_delete_requests_cancel_for_active_jobs_only(self, mock_paths):
+        from src.sdk.coordinator import SubagentCoordinator
+        from src.sdk.subagent_models import AgentDef, TaskStatus
+
+        coord = SubagentCoordinator("test_user")
+        await coord.create(AgentDef(name="deleteme", description="Temporary"))
+        await coord.create(AgentDef(name="keepme", description="Persistent"))
+        db = await coord._get_db()
+
+        agent_def = coord.load_def("deleteme")
+        other_def = coord.load_def("keepme")
+        pending_id = await db.insert_task("deleteme", "pending", agent_def)
+        running_id = await db.insert_task("deleteme", "running", agent_def)
+        await db.set_running(running_id)
+        cancelling_id = await db.insert_task("deleteme", "cancelling", agent_def)
+        await db.set_status(cancelling_id, TaskStatus.CANCELLING)
+        completed_id = await db.insert_task("deleteme", "completed", agent_def)
+        await db.set_status(completed_id, TaskStatus.COMPLETED)
+        failed_id = await db.insert_task("deleteme", "failed", agent_def)
+        await db.set_status(failed_id, TaskStatus.FAILED)
+        cancelled_id = await db.insert_task("deleteme", "cancelled", agent_def)
+        await db.set_status(cancelled_id, TaskStatus.CANCELLED)
+        other_id = await db.insert_task("keepme", "running", other_def)
+        await db.set_running(other_id)
+
+        ok = await coord.delete("deleteme")
+
+        assert ok
+        assert await db.is_cancel_requested(pending_id)
+        assert await db.is_cancel_requested(running_id)
+        assert await db.is_cancel_requested(cancelling_id)
+        assert not await db.is_cancel_requested(completed_id)
+        assert not await db.is_cancel_requested(failed_id)
+        assert not await db.is_cancel_requested(cancelled_id)
+        assert not await db.is_cancel_requested(other_id)
+        assert (await db.get_task(pending_id))["status"] == "cancelling"
+        assert (await db.get_task(running_id))["status"] == "cancelling"
+        assert (await db.get_task(cancelling_id))["status"] == "cancelling"
+        assert (await db.get_task(other_id))["status"] == "running"
 
     @pytest.mark.asyncio
     async def test_delete_nonexistent(self, mock_paths):
