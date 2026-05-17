@@ -421,6 +421,28 @@ class TestInstructionMiddleware:
 
 
 class TestSubagentCoordinator:
+    def test_default_tools_exclude_legacy_recursive_subagent_tools(self):
+        from src.sdk.coordinator import _build_tools_for_subagent
+        from src.sdk.subagent_models import AgentDef
+
+        class FakeTool:
+            def __init__(self, name: str):
+                self.name = name
+
+        tools = [
+            FakeTool("time_get"),
+            FakeTool("subagent_invoke"),
+            FakeTool("subagent_progress"),
+        ]
+
+        with patch("src.sdk.native_tools.get_native_tools", return_value=tools):
+            resolved = _build_tools_for_subagent(AgentDef(name="researcher"))
+
+        names = {tool.name for tool in resolved}
+        assert "time_get" in names
+        assert "subagent_invoke" not in names
+        assert "subagent_progress" not in names
+
     @pytest.mark.asyncio
     async def test_create_and_load(self, mock_paths):
         from src.sdk.coordinator import SubagentCoordinator

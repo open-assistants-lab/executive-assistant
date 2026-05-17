@@ -31,6 +31,8 @@ from src.storage.paths import get_paths
 
 logger = get_logger()
 
+_LEGACY_RECURSIVE_SUBAGENT_TOOLS = {"subagent_invoke", "subagent_progress"}
+
 
 def _build_tools_for_subagent(agent_def: AgentDef) -> list[Any]:
     from src.sdk.native_tools import get_native_tools
@@ -40,7 +42,7 @@ def _build_tools_for_subagent(agent_def: AgentDef) -> list[Any]:
 
     allowed = set(agent_def.tools) if agent_def.tools else set(tool_map.keys())
     disallowed = set(agent_def.disallowed_tools)
-    final = allowed - disallowed
+    final = allowed - disallowed - _LEGACY_RECURSIVE_SUBAGENT_TOOLS
 
     return [tool_map[n] for n in final if n in tool_map]
 
