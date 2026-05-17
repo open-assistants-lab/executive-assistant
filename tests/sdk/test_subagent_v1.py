@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -36,6 +37,13 @@ def mock_paths(tmp_dir):
 
     mock = DataPaths(data_path=tmp_dir, user_id="test_user")
     # Alias old user-level paths to workspace-scoped for backwards test compat
+    def temp_workspace_dir(name: str):
+        path = Path(tmp_dir) / "workspaces" / "personal" / name
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    mock.workspace_subagents_dir = lambda: temp_workspace_dir("subagents")
+    mock.workspace_memory_dir = lambda: temp_workspace_dir("memory")
     mock.subagents_dir = mock.workspace_subagents_dir
     mock.memory_dir = mock.workspace_memory_dir
     with patch("src.storage.paths.get_paths", return_value=mock):
@@ -258,6 +266,58 @@ class TestWorkQueueDB:
         assert ok
 
         assert await db.is_cancel_requested(task_id)
+
+    @pytest.mark.asyncio
+    async def test_claim_pending_task_once(self, db, agent_def):
+        task_id = await db.insert_task("test_agent", "t", agent_def)
+
+        first = await db.claim_task(task_id, worker_id="worker-a")
+        second = await db.claim_task(task_id, worker_id="worker-b")
+
+        assert first is True
+        assert second is False
+        row = await db.get_task(task_id)
+        assert row["status"] == "running"
+        assert row["claimed_by"] == "worker-a"
+        assert row["claimed_at"]
+        assert row["heartbeat_at"]
+
+    @pytest.mark.asyncio
+    async def test_request_cancel_sets_cancelling_for_running_task(self, db, agent_def):
+        task_id = await db.insert_task("test_agent", "t", agent_def)
+        await db.claim_task(task_id, worker_id="worker-a")
+
+        ok = await db.request_cancel(task_id)
+
+        assert ok
+        row = await db.get_task(task_id)
+        assert row["cancel_requested"] == 1
+        assert row["status"] == "cancelling"
+
+    @pytest.mark.asyncio
+    async def test_heartbeat_updates_timestamp(self, db, agent_def):
+        task_id = await db.insert_task("test_agent", "t", agent_def)
+        await db.claim_task(task_id, worker_id="worker-a")
+        before = (await db.get_task(task_id))["heartbeat_at"]
+
+        ok = await db.heartbeat(task_id, worker_id="worker-a")
+
+        after = (await db.get_task(task_id))["heartbeat_at"]
+
+        assert ok
+        assert after >= before
+
+    @pytest.mark.asyncio
+    async def test_mark_stale_running_failed(self, db, agent_def):
+        task_id = await db.insert_task("test_agent", "t", agent_def)
+        await db.claim_task(task_id, worker_id="worker-a")
+
+        count = await db.mark_stale_running_failed(max_age_seconds=-1)
+
+        assert count >= 1
+        row = await db.get_task(task_id)
+        assert row["status"] == "failed"
+        assert "interrupted by restart" in row["error"]
 
     @pytest.mark.asyncio
     async def test_is_cancel_requested_nonexistent(self, db):
