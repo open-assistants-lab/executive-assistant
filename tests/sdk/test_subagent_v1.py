@@ -652,28 +652,30 @@ class TestSubagentCoordinator:
         assert "## Available Skills" in prompt
         assert "skill-creator" in prompt
         assert "Create reusable skills." in prompt
-        assert "skills_load(name)" in prompt
+        assert "skills_load(skill_name=...)" in prompt
         assert "SECRET FULL SKILL CONTENT" not in prompt
 
     @pytest.mark.asyncio
-    async def test_run_loop_passes_provider_options_to_run_config(self, mock_paths):
+    async def test_run_loop_passes_provider_options_and_workspace_to_agent_loop(self, mock_paths):
         from src.sdk.coordinator import SubagentCoordinator
         from src.sdk.messages import Message
         from src.sdk.subagent_models import AgentDef
 
         captured_run_config = None
+        captured_workspace_id = None
 
         class FakeAgentLoop:
             def __init__(self, **kwargs):
-                nonlocal captured_run_config
+                nonlocal captured_run_config, captured_workspace_id
                 captured_run_config = kwargs["run_config"]
+                captured_workspace_id = kwargs["workspace_id"]
 
             async def run(self, messages):
                 return [*messages, Message.assistant("done")]
 
         provider_options = {"anthropic": {"thinking": {"type": "enabled"}}}
         agent_def = AgentDef(name="researcher", provider_options=provider_options)
-        coord = SubagentCoordinator("test_user")
+        coord = SubagentCoordinator("test_user", workspace_id="sales")
 
         with patch("src.sdk.providers.factory.create_model_from_config", return_value=object()):
             with patch("src.sdk.coordinator._build_tools_for_subagent", return_value=[]):
@@ -683,6 +685,7 @@ class TestSubagentCoordinator:
 
         assert captured_run_config is not None
         assert captured_run_config.provider_options == provider_options
+        assert captured_workspace_id == "sales"
 
     @pytest.mark.asyncio
     async def test_create_and_load(self, mock_paths):

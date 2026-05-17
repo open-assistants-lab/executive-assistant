@@ -140,7 +140,7 @@ def _build_system_prompt(agent_def: AgentDef, user_id: str, workspace_id: str = 
         if skill_entries:
             parts.append(
                 "## Available Skills\n"
-                "Call skills_load(name) before following a skill's instructions.\n"
+                "Call skills_load(skill_name=...) before following a skill's instructions.\n"
                 + "\n".join(skill_entries)
             )
 
@@ -292,6 +292,7 @@ class SubagentCoordinator:
             middlewares=[progress_mw, instruction_mw],
             run_config=run_config,
             user_id=self.user_id,
+            workspace_id=self.workspace_id,
         )
 
         messages = [Message.user(task)]
