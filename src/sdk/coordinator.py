@@ -209,6 +209,7 @@ class SubagentCoordinator:
         run_config = RunConfig(
             max_llm_calls=agent_def.max_llm_calls,
             cost_limit_usd=agent_def.cost_limit_usd,
+            provider_options=agent_def.provider_options or None,
         )
 
         progress_mw = ProgressMiddleware(task_id, db)

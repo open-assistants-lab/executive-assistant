@@ -444,6 +444,35 @@ class TestSubagentCoordinator:
         assert "subagent_progress" not in names
 
     @pytest.mark.asyncio
+    async def test_run_loop_passes_provider_options_to_run_config(self, mock_paths):
+        from src.sdk.coordinator import SubagentCoordinator
+        from src.sdk.messages import Message
+        from src.sdk.subagent_models import AgentDef
+
+        captured_run_config = None
+
+        class FakeAgentLoop:
+            def __init__(self, **kwargs):
+                nonlocal captured_run_config
+                captured_run_config = kwargs["run_config"]
+
+            async def run(self, messages):
+                return [*messages, Message.assistant("done")]
+
+        provider_options = {"anthropic": {"thinking": {"type": "enabled"}}}
+        agent_def = AgentDef(name="researcher", provider_options=provider_options)
+        coord = SubagentCoordinator("test_user")
+
+        with patch("src.sdk.providers.factory.create_model_from_config", return_value=object()):
+            with patch("src.sdk.coordinator._build_tools_for_subagent", return_value=[]):
+                with patch("src.sdk.coordinator._build_system_prompt", return_value="system"):
+                    with patch("src.sdk.loop.AgentLoop", FakeAgentLoop):
+                        await coord._run_loop("task-1", agent_def, "do it", object())
+
+        assert captured_run_config is not None
+        assert captured_run_config.provider_options == provider_options
+
+    @pytest.mark.asyncio
     async def test_create_and_load(self, mock_paths):
         from src.sdk.coordinator import SubagentCoordinator
         from src.sdk.subagent_models import AgentDef
