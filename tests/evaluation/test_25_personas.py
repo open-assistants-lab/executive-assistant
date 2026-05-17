@@ -6,11 +6,17 @@ Streaming is tested separately (once) since it doesn't need per-persona repetiti
 
 import asyncio
 import json
-import sys
+import os
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import aiohttp
+import pytest
+
+pytestmark = pytest.mark.skipif(
+    os.environ.get("EA_RUN_HTTP_EVALS") != "1",
+    reason="set EA_RUN_HTTP_EVALS=1 to run live HTTP evaluation tests",
+)
 
 HTTP_BASE_URL = "http://localhost:8080"
 
@@ -257,9 +263,12 @@ async def run_all_tests():
     for persona in PERSONAS:
         persona_results = [r for r in all_results if r.persona_id == persona["id"]]
         p = sum(1 for r in persona_results if r.success)
-        f = len(persona_results) - p
+        failed = len(persona_results) - p
         avg_ms = sum(r.duration_ms for r in persona_results) / len(persona_results) if persona_results else 0
-        print(f"  {persona['id']:3s} {persona['name']:25s} | {p}/{len(persona_results)} passed | {avg_ms:.0f}ms avg")
+        print(
+            f"  {persona['id']:3s} {persona['name']:25s} | "
+            f"{p}/{len(persona_results)} passed | {failed} failed | {avg_ms:.0f}ms avg"
+        )
 
     # ─── Save results ───
     output_path = "data/evaluations/persona_integration_test.json"

@@ -2,9 +2,17 @@
 
 import asyncio
 import json
+import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
+
+import pytest
+
+pytestmark = pytest.mark.skipif(
+    os.environ.get("EA_RUN_HTTP_EVALS") != "1",
+    reason="set EA_RUN_HTTP_EVALS=1 to run live HTTP evaluation tests",
+)
 
 HTTP_BASE_URL = "http://localhost:8080"
 
