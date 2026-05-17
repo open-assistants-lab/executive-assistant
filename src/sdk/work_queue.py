@@ -282,7 +282,10 @@ class WorkQueueDB:
 
     async def get_task(self, task_id: str) -> dict[str, Any] | None:
         db = await self._get_db()
-        cursor = await db.execute("SELECT * FROM work_queue WHERE id = ?", (task_id,))
+        cursor = await db.execute(
+            "SELECT * FROM work_queue WHERE id = ? AND user_id = ? AND workspace_id = ?",
+            (task_id, self.user_id, self.workspace_id),
+        )
         row = await cursor.fetchone()
         if row is None:
             return None
@@ -380,23 +383,35 @@ class WorkQueueDB:
         db = await self._get_db()
         if parent_id is not None and status is not None:
             cursor = await db.execute(
-                "SELECT id, agent_name, task, status, progress, error, created_at, updated_at FROM work_queue WHERE parent_id = ? AND status = ? ORDER BY created_at",
-                (parent_id, status.value),
+                """SELECT id, agent_name, task, status, progress, error, created_at, updated_at
+                FROM work_queue
+                WHERE user_id = ? AND workspace_id = ? AND parent_id = ? AND status = ?
+                ORDER BY created_at""",
+                (self.user_id, self.workspace_id, parent_id, status.value),
             )
         elif parent_id is not None:
             cursor = await db.execute(
-                "SELECT id, agent_name, task, status, progress, error, created_at, updated_at FROM work_queue WHERE parent_id = ? ORDER BY created_at",
-                (parent_id,),
+                """SELECT id, agent_name, task, status, progress, error, created_at, updated_at
+                FROM work_queue
+                WHERE user_id = ? AND workspace_id = ? AND parent_id = ?
+                ORDER BY created_at""",
+                (self.user_id, self.workspace_id, parent_id),
             )
         elif status is not None:
             cursor = await db.execute(
-                "SELECT id, agent_name, task, status, progress, error, created_at, updated_at FROM work_queue WHERE user_id = ? AND status = ? ORDER BY created_at",
-                (self.user_id, status.value),
+                """SELECT id, agent_name, task, status, progress, error, created_at, updated_at
+                FROM work_queue
+                WHERE user_id = ? AND workspace_id = ? AND status = ?
+                ORDER BY created_at""",
+                (self.user_id, self.workspace_id, status.value),
             )
         else:
             cursor = await db.execute(
-                "SELECT id, agent_name, task, status, progress, error, created_at, updated_at FROM work_queue WHERE user_id = ? ORDER BY created_at",
-                (self.user_id,),
+                """SELECT id, agent_name, task, status, progress, error, created_at, updated_at
+                FROM work_queue
+                WHERE user_id = ? AND workspace_id = ?
+                ORDER BY created_at""",
+                (self.user_id, self.workspace_id),
             )
         rows = await cursor.fetchall()
         return [dict(r) for r in rows]

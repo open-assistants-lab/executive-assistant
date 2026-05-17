@@ -422,6 +422,60 @@ class TestWorkQueueDB:
         assert running[0]["id"] == t1
 
     @pytest.mark.asyncio
+    async def test_get_task_is_scoped_to_user_and_workspace(self, mock_paths, agent_def):
+        from src.sdk.work_queue import WorkQueueDB
+
+        db = WorkQueueDB("test_user", workspace_id="personal")
+        other_workspace = WorkQueueDB("test_user", workspace_id="other")
+        other_user = WorkQueueDB("other_user", workspace_id="personal")
+        try:
+            task_id = await db.insert_task("test_agent", "task", agent_def)
+
+            assert await db.get_task(task_id) is not None
+            assert await other_workspace.get_task(task_id) is None
+            assert await other_user.get_task(task_id) is None
+        finally:
+            await db.close()
+            await other_workspace.close()
+            await other_user.close()
+
+    @pytest.mark.asyncio
+    async def test_check_progress_is_scoped_to_user_and_workspace(self, mock_paths, agent_def):
+        from src.sdk.subagent_models import TaskStatus
+        from src.sdk.work_queue import WorkQueueDB
+
+        db = WorkQueueDB("test_user", workspace_id="personal")
+        other_workspace = WorkQueueDB("test_user", workspace_id="other")
+        other_user = WorkQueueDB("other_user", workspace_id="personal")
+        try:
+            own_id = await db.insert_task("test_agent", "own", agent_def, parent_id="shared")
+            other_workspace_id = await other_workspace.insert_task(
+                "test_agent", "other workspace", agent_def, parent_id="shared"
+            )
+            other_user_id = await other_user.insert_task(
+                "test_agent", "other user", agent_def, parent_id="shared"
+            )
+            await db.set_running(own_id)
+            await other_workspace.set_running(other_workspace_id)
+            await other_user.set_running(other_user_id)
+
+            all_tasks = await db.check_progress()
+            parent_tasks = await db.check_progress(parent_id="shared")
+            status_tasks = await db.check_progress(status=TaskStatus.RUNNING)
+            parent_status_tasks = await db.check_progress(
+                parent_id="shared", status=TaskStatus.RUNNING
+            )
+
+            assert {t["id"] for t in all_tasks} == {own_id}
+            assert {t["id"] for t in parent_tasks} == {own_id}
+            assert {t["id"] for t in status_tasks} == {own_id}
+            assert {t["id"] for t in parent_status_tasks} == {own_id}
+        finally:
+            await db.close()
+            await other_workspace.close()
+            await other_user.close()
+
+    @pytest.mark.asyncio
     async def test_get_result(self, db, agent_def):
         from src.sdk.subagent_models import SubagentResult
 
