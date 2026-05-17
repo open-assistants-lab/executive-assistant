@@ -97,6 +97,33 @@ class TestAgentDef:
         assert d.cost_limit_usd == 0.01
         assert d.timeout_seconds == 10
 
+    def test_agent_def_new_fields(self):
+        from src.sdk.subagent_models import AgentDef
+
+        d = AgentDef(
+            name="researcher",
+            workspace_id="sales",
+            provider_options={"anthropic": {"thinking": {"type": "enabled"}}},
+            output_schema={"type": "object", "properties": {"summary": {"type": "string"}}},
+            handoff_instructions="Return concise bullets.",
+            artifact_policy="write reports under reports/",
+        )
+
+        assert d.workspace_id == "sales"
+        assert d.provider_options == {"anthropic": {"thinking": {"type": "enabled"}}}
+        assert d.output_schema is not None
+        assert d.handoff_instructions == "Return concise bullets."
+        assert d.artifact_policy == "write reports under reports/"
+
+    def test_default_disallowed_tools_use_new_names_only(self):
+        from src.sdk.subagent_models import AgentDef
+
+        d = AgentDef(name="a")
+        assert "subagent_start" in d.disallowed_tools
+        assert "subagent_tasks" in d.disallowed_tools
+        assert "subagent_invoke" not in d.disallowed_tools
+        assert "subagent_progress" not in d.disallowed_tools
+
 
 class TestSubagentResult:
     def test_success_result(self):
@@ -124,6 +151,11 @@ class TestTaskStatus:
         assert TaskStatus.COMPLETED == "completed"
         assert TaskStatus.FAILED == "failed"
         assert TaskStatus.CANCELLED == "cancelled"
+
+    def test_task_status_has_cancelling(self):
+        from src.sdk.subagent_models import TaskStatus
+
+        assert TaskStatus.CANCELLING == "cancelling"
 
 
 # -- WorkQueueDB Tests --
