@@ -61,6 +61,8 @@ def validate_agent_def(
             errors.append(f"Subagent tool is not allowed in subagent tools: {name}")
         if _is_denied_memory_tool(name):
             errors.append(f"Memory tool is not allowed in subagent tools: {name}")
+        if name in DENIED_SKILL_MANAGEMENT_TOOLS:
+            errors.append(f"Skill management tool is not allowed in subagent tools: {name}")
 
     for name in agent_def.disallowed_tools:
         if _is_denied_memory_tool(name):

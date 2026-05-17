@@ -548,6 +548,31 @@ class TestSubagentCoordinator:
 
         assert "skills_load" in names
 
+    def test_build_tools_removes_skill_management_tools(self):
+        from src.sdk.coordinator import _build_tools_for_subagent
+        from src.sdk.subagent_models import AgentDef
+
+        class FakeTool:
+            def __init__(self, name: str):
+                self.name = name
+
+        tools = [
+            FakeTool("time_get"),
+            FakeTool("memory_search"),
+            FakeTool("skill_create"),
+            FakeTool("skill_delete"),
+            FakeTool("skills_load"),
+        ]
+
+        with patch("src.sdk.native_tools.get_native_tools", return_value=tools):
+            resolved = _build_tools_for_subagent(AgentDef(name="a", tools=None))
+
+        names = {tool.name for tool in resolved}
+        assert "time_get" in names
+        assert "memory_search" in names
+        assert "skill_create" not in names
+        assert "skill_delete" not in names
+
     def test_validate_agent_def_rejects_unknown_tool(self):
         from src.sdk.coordinator import validate_agent_def
         from src.sdk.subagent_models import AgentDef
@@ -562,12 +587,73 @@ class TestSubagentCoordinator:
         errors = validate_agent_def(AgentDef(name="a", tools=["subagent_invoke"]))
         assert any("Subagent tool" in e for e in errors)
 
+    def test_validate_agent_def_rejects_skill_management_tool(self):
+        from src.sdk.coordinator import validate_agent_def
+        from src.sdk.subagent_models import AgentDef
+
+        errors = validate_agent_def(AgentDef(name="a", tools=["skill_create"]))
+        assert any("Skill management tool" in e for e in errors)
+
+    def test_validate_agent_def_rejects_denied_memory_tool(self):
+        from src.sdk.coordinator import validate_agent_def
+        from src.sdk.subagent_models import AgentDef
+
+        errors = validate_agent_def(AgentDef(name="a", tools=["memory_search_all"]))
+        assert any("Memory tool" in e for e in errors)
+
+    def test_validate_agent_def_rejects_unknown_skill(self):
+        from src.sdk.coordinator import validate_agent_def
+        from src.sdk.subagent_models import AgentDef
+
+        class FakeSkillRegistry:
+            def get_skill(self, name: str):
+                return None
+
+        with patch("src.sdk.coordinator.get_skill_registry", return_value=FakeSkillRegistry()):
+            errors = validate_agent_def(AgentDef(name="a", skills=["missing-skill"]))
+
+        assert any("Unknown skill" in e for e in errors)
+
+    def test_validate_agent_def_rejects_non_positive_limits(self):
+        from src.sdk.coordinator import validate_agent_def
+        from src.sdk.subagent_models import AgentDef
+
+        errors = validate_agent_def(
+            AgentDef(name="a", max_llm_calls=0, cost_limit_usd=0, timeout_seconds=0)
+        )
+
+        assert "max_llm_calls must be positive" in errors
+        assert "cost_limit_usd must be positive" in errors
+        assert "timeout_seconds must be positive" in errors
+
     def test_validate_agent_def_allows_default_future_subagent_denylist_names(self):
         from src.sdk.coordinator import validate_agent_def
         from src.sdk.subagent_models import AgentDef
 
         errors = validate_agent_def(AgentDef(name="a"))
         assert not errors
+
+    def test_build_system_prompt_lists_skills_without_inlining_content(self):
+        from src.sdk.coordinator import _build_system_prompt
+        from src.sdk.subagent_models import AgentDef
+
+        class FakeSkillRegistry:
+            def get_skill(self, name: str):
+                return {
+                    "name": name,
+                    "description": "Create reusable skills.",
+                    "content": "SECRET FULL SKILL CONTENT",
+                }
+
+        agent_def = AgentDef(name="a", skills=["skill-creator"])
+        with patch("src.sdk.coordinator.get_skill_registry", return_value=FakeSkillRegistry()):
+            prompt = _build_system_prompt(agent_def, user_id="test_user", workspace_id="personal")
+
+        assert "## Available Skills" in prompt
+        assert "skill-creator" in prompt
+        assert "Create reusable skills." in prompt
+        assert "skills_load(name)" in prompt
+        assert "SECRET FULL SKILL CONTENT" not in prompt
 
     @pytest.mark.asyncio
     async def test_run_loop_passes_provider_options_to_run_config(self, mock_paths):
