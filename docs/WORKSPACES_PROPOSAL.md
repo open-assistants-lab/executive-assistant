@@ -193,7 +193,7 @@ The Flutter app doesn't need to disconnect/reconnect WebSocket. Workspace state 
 
 ### How Subagents Resolve
 
-When the main agent calls `subagent_invoke("researcher", ...)`:
+When the main agent calls `subagent_start("researcher", ...)`:
 
 ```python
 def resolve_subagent(workspace_id: str, user_id: str, name: str) -> AgentDef | None:
@@ -255,7 +255,7 @@ User: "create a research subagent for general use"
 
 ### Invocation
 
-When the main agent calls `subagent_invoke("researcher", "find competitor pricing")`:
+When the main agent calls `subagent_start("researcher", "find competitor pricing")`:
 
 ```python
 def resolve_and_invoke(name, task, workspace_id, user_id):
@@ -838,7 +838,7 @@ CREATE INDEX idx_work_queue_workspace ON work_queue(workspace_id, status);
 **File: `src/sdk/tools_core/subagent.py` — update tools (MODIFY, ~30 lines)**
 
 ```python
-def subagent_invoke(..., workspace_id: str | None = None):
+def subagent_start(..., workspace_id: str | None = None):
     ws_id = workspace_id or get_current_workspace(user_id)
     # ... pass ws_id to coordinator and work_queue
 ```
@@ -1087,7 +1087,7 @@ All calls to `get_message_store()` and `get_memory_store()` now pass `workspace_
 
 #### `src/sdk/tools_core/subagent.py` — All 8 subagent tools gain `workspace_id`
 
-Every tool (`subagent_create`, `subagent_update`, `subagent_invoke`, `subagent_list`, `subagent_progress`, `subagent_instruct`, `subagent_cancel`, `subagent_delete`) gains `workspace_id` parameter (default `"personal"`), passed to `get_coordinator(user_id, workspace_id)`.
+Every tool (`subagent_create`, `subagent_update`, `subagent_start`, `subagent_check`, `subagent_tasks`, `subagent_list`, `subagent_instruct`, `subagent_cancel`, `subagent_delete`) gains `workspace_id` parameter (default `"personal"`), passed to `get_coordinator(user_id, workspace_id)`.
 
 #### `src/sdk/tools_core/filesystem.py` — File paths scoped to workspace
 
@@ -1581,7 +1581,7 @@ User asks "what's my project?"
 **Subagent invocation path (verified clean):**
 
 ```
-Agent calls subagent_invoke("writer", task, user_id, workspace_id="q2-planning")
+Agent calls subagent_start("writer", task, user_id, workspace_id="q2-planning")
   → get_coordinator(user_id, workspace_id)           [subagent.py:227]
   → coordinator.load_def("writer")                    [coordinator.py:303-317]
   → self.base_path = workspace_subagents_dir() → q2-planning/subagents/writer/config.yaml

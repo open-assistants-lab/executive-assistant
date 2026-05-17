@@ -70,7 +70,7 @@ PERSONA_QUERIES = {
     "p1": ["what time is it", "list my files", "search web for AI news", "create subagent named dev with shell_execute", "list my subagents"],
     "p2": ["Could you please tell me the current time?", "Would you list my files?", "I would like to search the web for Python tutorials please.", "Can you list available skills?", "Please list my subagents."],
     "p3": ["hey what time is it", "show me my files real quick", "search web for latest tech news", "what skills do I have", "list subagents"],
-    "p4": ["What time is it? How does timezone support work?", "Can you list my files? What formats are supported?", "What skills are available? Can you explain each?", "How do I create a subagent? What tools can I give it?", "What subagents do I have? How do I check progress?"],
+    "p4": ["What time is it? How does timezone support work?", "Can you list my files? What formats are supported?", "What skills are available? Can you explain each?", "How do I create a subagent? What tools can I give it?", "What subagents do I have? How do I check a subagent job?"],
     "p5": ["I've been working on a project and need to know what time it is in New York", "I have some files from my research - can you show me what's there?", "I heard about interesting AI developments - can you search for recent news?", "I'm exploring what capabilities you have - what skills are available?", "I set up some subagents earlier for my research - can you list them?"],
     "p6": ["Time. Now.", "List all files immediately.", "Search web for AI trends.", "List available skills.", "List all subagents."],
     "p7": ["What time is it? ⏰", "Show me my files! 📁", "Search the web for cool stuff! 🔍", "What skills do you have? ✨", "List my subagents! 🤖"],
@@ -84,7 +84,7 @@ PERSONA_QUERIES = {
     "p15": ["What time is it? Also list my files", "Search web for AI news while I check my skills", "Create subagent named researcher with web_search, also list existing subagents", "What time is it in London? Also Tokyo?", "List files and search web for Python"],
     "p16": ["Organize my files by listing them with details.", "Categorize available skills by type.", "Create a structured list of subagents.", "What time is it in all major timezones - organized by UTC offset.", "Search web and organize results by relevance."],
     "p17": ["What time is it? Actually, let's list files instead.", "Maybe just show me what subagents I have.", "Or search the web for something interesting.", "Whichever skill is most useful right now.", "I changed my mind - just tell me the time."],
-    "p18": ["What's the current time? Tracking timezone goals.", "List files - what's my progress on file organization?", "Search web for productivity tools.", "What skills can help track my goals?", "Check subagent progress - are tasks completing?"],
+    "p18": ["What's the current time? Tracking timezone goals.", "List files - what's my progress on file organization?", "Search web for productivity tools.", "What skills can help track my goals?", "Check subagent job - are tasks completing?"],
     "p19": ["What time works for the team? List files we can share.", "Search web for collaboration tools.", "What skills help with team workflows?", "Create subagent for team research.", "List subagents the team has set up."],
     "p20": ["What time is it? Don't log this.", "List files - keep it private.", "Search web but don't store results.", "What skills are available? Are they secure?", "List subagents - who has access?"],
     "p21": ["time", "files", "web search Python", "skills", "subagents"],
@@ -180,7 +180,7 @@ async def test_streaming():
     print("\n  Streaming test COMPLETE.")
 
 
-async def test_persona(persona: dict, queries: list[str]) -> list[TestResult]:
+async def run_persona_queries(persona: dict, queries: list[str]) -> list[TestResult]:
     results = []
     for query in queries:
         user_id = f"persona_{persona['id']}"
@@ -231,7 +231,7 @@ async def run_all_tests():
         queries = PERSONA_QUERIES.get(persona["id"], ["What time is it?"])
         print(f"\n[{persona['id']}] {persona['name']} ({persona['style']}) — {len(queries)} queries")
 
-        results = await test_persona(persona, queries)
+        results = await run_persona_queries(persona, queries)
         all_results.extend(results)
 
         passed = sum(1 for r in results if r.success)

@@ -49,13 +49,13 @@ async def test_subagent_create():
     return results
 
 
-async def test_subagent_invoke():
+async def test_subagent_start():
     results = []
     await call_agent("Create a subagent named 'quick-test' with web_search and files_read tools")
     await asyncio.sleep(1)
     tests = [
-        ("Invoke subagent", "Invoke subagent 'quick-test' to search for AI news"),
-        ("Invoke with specific task", "Invoke quick-test to find information about Python asyncio"),
+        ("Start subagent", "Start subagent 'quick-test' to search for AI news"),
+        ("Start with specific task", "Start quick-test to find information about Python asyncio"),
     ]
     for name, query in tests:
         start = time.time()
@@ -101,15 +101,15 @@ async def test_subagent_list():
     return results
 
 
-async def test_subagent_progress():
+async def test_subagent_tasks():
     results = []
-    tests = [("Get subagent progress", "Show progress of any active subagent tasks")]
+    tests = [("List subagent tasks", "Show any active subagent tasks")]
     for name, query in tests:
         start = time.time()
         try:
             resp = await call_agent(query)
             response = resp.get("response", "")
-            success = "progress" in response.lower() or "subagent" in response.lower()
+            success = "task" in response.lower() or "subagent" in response.lower()
             results.append(TestResult(name=name, query=query, response=response, success=success, duration_ms=int((time.time() - start) * 1000)))
         except Exception as e:
             results.append(TestResult(name=name, query=query, response="", success=False, error=str(e), duration_ms=int((time.time() - start) * 1000)))
@@ -243,10 +243,10 @@ async def run_all_tests():
 
     test_fns = [
         ("subagent_create", test_subagent_create),
-        ("subagent_invoke", test_subagent_invoke),
+        ("subagent_start", test_subagent_start),
         ("subagent_update", test_subagent_update),
         ("subagent_list", test_subagent_list),
-        ("subagent_progress", test_subagent_progress),
+        ("subagent_tasks", test_subagent_tasks),
         ("subagent_instruct", test_subagent_instruct),
         ("subagent_cancel", test_subagent_cancel),
         ("subagent_delete", test_subagent_delete),

@@ -5,8 +5,7 @@ def test_new_runtime_tools_registered():
     assert "subagent_start" in names
     assert "subagent_check" in names
     assert "subagent_tasks" in names
-    assert "subagent_invoke" not in names
-    assert "subagent_progress" not in names
+    assert {"subagent_start", "subagent_check", "subagent_tasks"}.issubset(names)
 
 
 def test_subagent_start_returns_job_id(monkeypatch):

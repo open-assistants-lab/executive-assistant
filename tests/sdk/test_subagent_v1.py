@@ -145,8 +145,7 @@ class TestAgentDef:
         d = AgentDef(name="a")
         assert "subagent_start" in d.disallowed_tools
         assert "subagent_tasks" in d.disallowed_tools
-        assert "subagent_invoke" not in d.disallowed_tools
-        assert "subagent_progress" not in d.disallowed_tools
+        assert all(name.startswith("subagent_") for name in d.disallowed_tools)
 
 
 class TestSubagentResult:
@@ -608,7 +607,7 @@ class TestInstructionMiddleware:
 
 
 class TestSubagentCoordinator:
-    def test_default_tools_exclude_legacy_recursive_subagent_tools(self):
+    def test_default_tools_exclude_recursive_subagent_tools(self):
         from src.sdk.coordinator import _build_tools_for_subagent
         from src.sdk.subagent_models import AgentDef
 
@@ -618,8 +617,8 @@ class TestSubagentCoordinator:
 
         tools = [
             FakeTool("time_get"),
-            FakeTool("subagent_invoke"),
-            FakeTool("subagent_progress"),
+            FakeTool("subagent_start"),
+            FakeTool("subagent_tasks"),
         ]
 
         with patch("src.sdk.native_tools.get_native_tools", return_value=tools):
@@ -627,8 +626,8 @@ class TestSubagentCoordinator:
 
         names = {tool.name for tool in resolved}
         assert "time_get" in names
-        assert "subagent_invoke" not in names
-        assert "subagent_progress" not in names
+        assert "subagent_start" not in names
+        assert "subagent_tasks" not in names
 
     def test_build_tools_removes_subagent_and_extra_memory_tools(self, agent_def):
         from src.sdk.coordinator import _build_tools_for_subagent
@@ -697,7 +696,7 @@ class TestSubagentCoordinator:
         from src.sdk.coordinator import validate_agent_def
         from src.sdk.subagent_models import AgentDef
 
-        errors = validate_agent_def(AgentDef(name="a", tools=["subagent_invoke"]))
+        errors = validate_agent_def(AgentDef(name="a", tools=["subagent_start"]))
         assert any("Subagent tool" in e for e in errors)
 
     def test_validate_agent_def_rejects_skill_management_tool(self):

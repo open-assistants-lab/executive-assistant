@@ -21,7 +21,7 @@ The repo already has a strong subagent foundation:
 
 Current gaps:
 
-- `subagent_invoke` appears async in wording but blocks until completion.
+- `subagent_start` uses explicit async wording and returns a job ID.
 - No dynamic per-invocation overrides for prompt/tools/skills/model/provider options.
 - Skill lookup does not consistently use workspace-aware registry behavior.
 - `mcp_config` is persisted but not clearly wired into subagent runtime.
@@ -236,7 +236,7 @@ Rules:
 
 ## Async Runtime Tools
 
-Use new tool names only. Do not keep old `subagent_invoke` / `subagent_progress` aliases because the product has not launched.
+Use new tool names only. Do not keep old invoke/progress aliases because the product has not launched.
 
 ### Management Tools
 
@@ -310,7 +310,7 @@ V1 does not need `waiting_for_approval` unless subagent HITL is implemented. If 
 
 ## Background Execution
 
-Current `subagent_invoke` blocks. V1 should use true async background execution.
+Current start behavior should use true async background execution.
 
 ```text
 subagent_start

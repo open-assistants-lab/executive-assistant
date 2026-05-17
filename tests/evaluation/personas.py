@@ -415,7 +415,7 @@ def generate_test_queries(persona: dict, count: int = 10) -> list[str]:
     - time_get
     - skills_list, skills_load
     - web_search, web_fetch
-    - subagent_create, subagent_invoke, subagent_list, subagent_progress
+    - subagent_create, subagent_start, subagent_list, subagent_check, subagent_tasks
 
     For count > 10, repeats queries with variations.
     """

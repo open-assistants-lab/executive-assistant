@@ -122,9 +122,10 @@
 |------|--------|-------------|
 | `subagent_create` | `tools_core/subagent.py` | destructive |
 | `subagent_update` | `tools_core/subagent.py` | destructive |
-| `subagent_invoke` | `tools_core/subagent.py` | destructive, openWorld |
+| `subagent_start` | `tools_core/subagent.py` | destructive, openWorld |
 | `subagent_list` | `tools_core/subagent.py` | readOnly, idempotent |
-| `subagent_progress` | `tools_core/subagent.py` | readOnly, idempotent |
+| `subagent_check` | `tools_core/subagent.py` | readOnly, idempotent |
+| `subagent_tasks` | `tools_core/subagent.py` | readOnly, idempotent |
 | `subagent_instruct` | `tools_core/subagent.py` | destructive |
 | `subagent_cancel` | `tools_core/subagent.py` | destructive |
 | `subagent_delete` | `tools_core/subagent.py` | destructive |
@@ -220,7 +221,7 @@ Each persona tests different interaction styles, edge cases, and feature domains
 | **p15** | Busy Brian | Multi-task, parallel | Parallel tool calls, subagent batch |
 | **p16** | Organized Olivia | Structured, categorized | Files (mkdir, rename, versions), Apps |
 | **p17** | Flexible Fran | Changes mind mid-task | InstructionMiddleware, subagent_instruct |
-| **p18** | Goal-Oriented Gary | Progress tracking | subagent_progress, subagent_instruct |
+| **p18** | Goal-Oriented Gary | Progress tracking | subagent_check, subagent_tasks, subagent_instruct |
 | **p19** | Collaborative Carol | Team-focused | Browser tools (share, screenshot), Apps |
 | **p20** | Privacy-First Paul | Security conscious | Memory isolation, file access controls |
 
@@ -340,9 +341,9 @@ Each persona tests different interaction styles, edge cases, and feature domains
 |---|------|--------|----------|
 | 6.1 | `subagent_create` | "create research subagent with files_read, search_web" | AgentDef created |
 | 6.2 | `subagent_update` | "update research subagent add memory_search" | AgentDef updated |
-| 6.3 | `subagent_invoke` | "invoke research subagent to find AI papers" | Task queued + executed |
+| 6.3 | `subagent_start` | "start research subagent to find AI papers" | Task queued + executed |
 | 6.4 | `subagent_list` | "list my subagents" | AgentDefs + active tasks |
-| 6.5 | `subagent_progress` | "check progress of research task" | Status + progress |
+| 6.5 | `subagent_check` | "check subagent job for research task" | Status + progress |
 | 6.6 | `subagent_instruct` | "tell research subagent to also check arxiv" | Instruction injected |
 | 6.7 | `subagent_cancel` | "cancel the research task" | CancelRequested flag set |
 | 6.8 | `subagent_delete` | "delete research subagent" | AgentDef + tasks removed |
@@ -431,7 +432,7 @@ Single-command queries across all tool categories. Verifies basic connectivity a
 
 100 queries per persona targeting specific feature domains:
 - p11 (Apps), p12 (parallel), p13 (summarization), p14 (skills), p15 (subagents/parallel)
-- p16 (files/apps), p17 (subagent_instruct), p18 (subagent_progress), p19 (browser), p20 (security/isolation)
+- p16 (files/apps), p17 (subagent_instruct), p18 (subagent_check/subagent_tasks), p19 (browser), p20 (security/isolation)
 
 ### Phase 4: Stress & Edge Cases (p21–p25)
 
