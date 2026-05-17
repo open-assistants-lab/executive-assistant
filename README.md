@@ -49,22 +49,23 @@ curl -X POST http://localhost:8080/message \
   -H "Content-Type: application/json" \
   -d '{"message": "Create subagent research-agent with skills: planning-with-files, tools: search_web,scrape_url, description: Research assistant", "user_id": "my_user"}'
 
-# Invoke subagent (async - returns immediately, results stored in database)
+# Start subagent (async - returns immediately, results stored in database)
 curl -X POST http://localhost:8080/message \
   -H "Content-Type: application/json" \
-  -d '{"message": "Invoke subagent research-agent to research: LangGraph framework", "user_id": "my_user"}'
+  -d '{"message": "Start subagent research-agent to research: LangGraph framework", "user_id": "my_user"}'
 ```
 
 **Key Features:**
-- **Async invocation**: `subagent_invoke` schedules task immediately and returns right away
+- **Async invocation**: `subagent_start` schedules task immediately and returns right away
 - **Database persistence**: Results stored in `data/jobs_results.db` for cross-process access
-- **Progress tracking**: `subagent_progress` tool shows status and retrieves results
+- **Job tracking**: `subagent_check` shows one job status and retrieves results; `subagent_tasks` lists jobs
 
 **Subagent Tools:**
 - `subagent_create` - Create subagent with custom config
-- `subagent_invoke` - Execute task asynchronously (schedule now)
+- `subagent_start` - Execute task asynchronously (schedule now)
 - `subagent_list` - List all subagents
-- `subagent_progress` - Get task status and results
+- `subagent_check` - Get one task status and result
+- `subagent_tasks` - List subagent tasks
 - `subagent_update` - Amend existing subagent config
 - `subagent_instruct` - Send course-correction to running subagent
 - `subagent_cancel` - Cancel a running/pending task
@@ -81,7 +82,7 @@ data/users/{user_id}/subagents/{subagent_name}/
 
 | Category | Tools |
 |----------|-------|
-| **Subagents** | `subagent_create`, `subagent_invoke`, `subagent_list`, `subagent_progress`, `subagent_validate`, `subagent_batch`, `subagent_schedule` |
+| **Subagents** | `subagent_create`, `subagent_start`, `subagent_check`, `subagent_tasks`, `subagent_list`, `subagent_update`, `subagent_instruct`, `subagent_cancel`, `subagent_delete` |
 | **App Builder** | `app_create`, `app_list`, `app_schema`, `app_delete`, `app_insert`, `app_update`, `app_delete_row`, `app_column_add`, `app_column_delete`, `app_column_rename`, `app_query`, `app_search_fts`, `app_search_semantic`, `app_search_hybrid` |
 | **Filesystem** | `list_files`, `read_file`, `write_file`, `edit_file`, `delete_file` (HITL) |
 | **File Search** | `files_glob_search` (e.g., `*.py`, `**/*.json`), `files_grep_search` (regex) |

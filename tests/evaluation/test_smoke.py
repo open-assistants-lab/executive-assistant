@@ -2,8 +2,16 @@
 
 import asyncio
 import json
+import os
 import time
+
 import aiohttp
+import pytest
+
+pytestmark = pytest.mark.skipif(
+    os.environ.get("EA_RUN_HTTP_EVALS") != "1",
+    reason="set EA_RUN_HTTP_EVALS=1 to run live HTTP evaluation tests",
+)
 
 HTTP_BASE_URL = "http://localhost:8080"
 
@@ -158,7 +166,7 @@ async def test_all_personas():
     Path("data/evaluations").mkdir(parents=True, exist_ok=True)
     with open("data/evaluations/persona_smoke_test.json", "w") as f:
         json.dump(all_results, f, indent=2)
-    print(f"Saved to data/evaluations/persona_smoke_test.json")
+    print("Saved to data/evaluations/persona_smoke_test.json")
 
     # Failures
     if total_failed > 0:

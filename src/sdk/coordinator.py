@@ -8,7 +8,9 @@ runs it with timeout and cost limits, and stores structured results in work_queu
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
+import shutil
 from typing import Any
 
 import yaml
@@ -24,12 +26,66 @@ from src.sdk.subagent_models import (
     AgentDef,
     SubagentResult,
     TaskCancelledError,
+    TaskStatus,
 )
 from src.sdk.work_queue import WorkQueueDB, get_work_queue
 from src.skills import get_skill_registry
 from src.storage.paths import get_paths
 
 logger = get_logger()
+
+MANDATORY_SUBAGENT_TOOLS = {"memory_search"}
+OPTIONAL_SKILL_LOAD_TOOL = "skills_load"
+DENIED_SKILL_MANAGEMENT_TOOLS = {"skill_create", "skill_delete", "skill_update"}
+
+
+def _is_denied_memory_tool(name: str) -> bool:
+    return name.startswith("memory_") and name != "memory_search"
+
+
+def _is_subagent_tool(name: str) -> bool:
+    return name.startswith("subagent_")
+
+
+def validate_agent_def(
+    agent_def: AgentDef,
+    user_id: str = "default_user",
+    workspace_id: str = "personal",
+) -> list[str]:
+    from src.sdk.native_tools import get_native_tools
+
+    tool_names = {t.name for t in get_native_tools()}
+    errors: list[str] = []
+
+    for name in agent_def.tools or []:
+        if name not in tool_names:
+            errors.append(f"Unknown tool: {name}")
+        if _is_subagent_tool(name):
+            errors.append(f"Subagent tool is not allowed in subagent tools: {name}")
+        if _is_denied_memory_tool(name):
+            errors.append(f"Memory tool is not allowed in subagent tools: {name}")
+        if name in DENIED_SKILL_MANAGEMENT_TOOLS:
+            errors.append(f"Skill management tool is not allowed in subagent tools: {name}")
+
+    for name in agent_def.disallowed_tools:
+        if _is_denied_memory_tool(name):
+            errors.append(f"Memory tool is not allowed in subagent disallowed_tools: {name}")
+        elif name not in tool_names and not _is_subagent_tool(name):
+            errors.append(f"Unknown disallowed tool: {name}")
+
+    skill_registry = get_skill_registry(user_id=user_id, workspace_id=workspace_id)
+    for skill_name in agent_def.skills:
+        if skill_registry.get_skill(skill_name) is None:
+            errors.append(f"Unknown skill: {skill_name}")
+
+    if agent_def.max_llm_calls <= 0:
+        errors.append("max_llm_calls must be positive")
+    if agent_def.cost_limit_usd <= 0:
+        errors.append("cost_limit_usd must be positive")
+    if agent_def.timeout_seconds <= 0:
+        errors.append("timeout_seconds must be positive")
+
+    return errors
 
 
 def _build_tools_for_subagent(agent_def: AgentDef) -> list[Any]:
@@ -41,8 +97,18 @@ def _build_tools_for_subagent(agent_def: AgentDef) -> list[Any]:
     allowed = set(agent_def.tools) if agent_def.tools else set(tool_map.keys())
     disallowed = set(agent_def.disallowed_tools)
     final = allowed - disallowed
+    final = {
+        name
+        for name in final
+        if not _is_subagent_tool(name)
+        and not _is_denied_memory_tool(name)
+        and name not in DENIED_SKILL_MANAGEMENT_TOOLS
+    }
+    final.update(MANDATORY_SUBAGENT_TOOLS)
+    if agent_def.skills:
+        final.add(OPTIONAL_SKILL_LOAD_TOOL)
 
-    return [tool_map[n] for n in final if n in tool_map]
+    return [tool_map[n] for n in sorted(final) if n in tool_map]
 
 
 def _build_system_prompt(agent_def: AgentDef, user_id: str, workspace_id: str = "personal") -> str:
@@ -66,11 +132,20 @@ def _build_system_prompt(agent_def: AgentDef, user_id: str, workspace_id: str = 
     except Exception:
         pass
 
-    skill_registry = get_skill_registry(user_id=user_id)
-    for skill_name in agent_def.skills:
-        skill = skill_registry.get_skill(skill_name)
-        if skill:
-            parts.append(f"\n\n## Skill: {skill_name}\n{skill['content']}")
+    if agent_def.skills:
+        skill_registry = get_skill_registry(user_id=user_id, workspace_id=workspace_id)
+        skill_entries = []
+        for skill_name in agent_def.skills:
+            skill = skill_registry.get_skill(skill_name)
+            if skill:
+                skill_entries.append(f"- **{skill_name}**: {skill['description']}")
+
+        if skill_entries:
+            parts.append(
+                "## Available Skills\n"
+                "Call skills_load(skill_name=...) before following a skill's instructions.\n"
+                + "\n".join(skill_entries)
+            )
 
     return "\n\n".join(parts)
 
@@ -114,6 +189,7 @@ class SubagentCoordinator:
         self.base_path = get_paths(user_id, workspace_id=workspace_id).workspace_subagents_dir()
         self.base_path.mkdir(parents=True, exist_ok=True)
         self._db: WorkQueueDB | None = None
+        self._background_tasks: set[asyncio.Task[Any]] = set()
 
     async def _get_db(self) -> WorkQueueDB:
         if self._db is None:
@@ -178,15 +254,113 @@ class SubagentCoordinator:
                 self._run_loop(task_id, agent_def, task, db),
                 timeout=agent_def.timeout_seconds,
             )
-            await db.set_completed(task_id, result)
+            completed = await db.set_completed(task_id, result)
+            if not completed:
+                await self._set_cancelled_if_requested(task_id, db)
         except TaskCancelledError:
             await db.set_cancelled(task_id)
         except TimeoutError:
-            await db.set_failed(task_id, f"timeout after {agent_def.timeout_seconds}s")
+            failed = await db.set_failed(task_id, f"timeout after {agent_def.timeout_seconds}s")
+            if not failed:
+                await self._set_cancelled_if_requested(task_id, db)
         except Exception as e:
-            await db.set_failed(task_id, f"{type(e).__name__}: {e}")
+            failed = await db.set_failed(task_id, f"{type(e).__name__}: {e}")
+            if not failed:
+                await self._set_cancelled_if_requested(task_id, db)
 
         return task_id
+
+    async def start(
+        self,
+        agent_name: str,
+        task: str,
+        parent_id: str | None = None,
+    ) -> str:
+        agent_def = self.load_def(agent_name)
+        if agent_def is None:
+            raise ValueError(f"Subagent '{agent_name}' not found. Create it first with subagent_create.")
+
+        errors = validate_agent_def(agent_def, user_id=self.user_id, workspace_id=self.workspace_id)
+        if errors:
+            raise ValueError("Invalid subagent definition: " + "; ".join(errors))
+
+        db = await self._get_db()
+        task_id = await db.insert_task(agent_name, task, agent_def, parent_id)
+        background_task = asyncio.create_task(self._run_job(task_id))
+        self._background_tasks.add(background_task)
+        background_task.add_done_callback(self._on_background_task_done)
+        return task_id
+
+    def _on_background_task_done(self, task: asyncio.Task[Any]) -> None:
+        self._background_tasks.discard(task)
+        self._consume_background_exception(task)
+
+    @staticmethod
+    def _consume_background_exception(task: asyncio.Task[Any]) -> None:
+        with contextlib.suppress(asyncio.CancelledError):
+            exc = task.exception()
+            if exc is not None:
+                logger.error(
+                    "subagent.background_failed",
+                    {"error": str(exc), "error_type": type(exc).__name__},
+                    user_id="system",
+                )
+
+    async def _heartbeat_loop(self, task_id: str, worker_id: str, db: WorkQueueDB) -> None:
+        while True:
+            await asyncio.sleep(5)
+            await db.heartbeat(task_id, worker_id)
+
+    async def _run_job(self, task_id: str) -> None:
+        db = await self._get_db()
+        worker_id = f"{self.user_id}:{self.workspace_id}:{id(self)}"
+        claimed = await db.claim_task(task_id, worker_id)
+        if not claimed:
+            return
+
+        row = await db.get_task(task_id)
+        if row is None:
+            return
+
+        agent_def = AgentDef(**json.loads(row.get("config") or "{}"))
+        task = row["task"]
+        heartbeat_task = asyncio.create_task(self._heartbeat_loop(task_id, worker_id, db))
+
+        try:
+            result = await asyncio.wait_for(
+                self._run_loop(task_id, agent_def, task, db),
+                timeout=agent_def.timeout_seconds,
+            )
+            latest = await db.get_task(task_id)
+            if latest and latest["status"] == TaskStatus.CANCELLING.value:
+                await db.set_cancelled(task_id)
+            else:
+                completed = await db.set_completed(task_id, result)
+                if not completed:
+                    await self._set_cancelled_if_requested(task_id, db)
+        except TaskCancelledError:
+            await db.set_cancelled(task_id)
+        except TimeoutError:
+            failed = await db.set_failed(task_id, f"timeout after {agent_def.timeout_seconds}s")
+            if not failed:
+                await self._set_cancelled_if_requested(task_id, db)
+        except Exception as e:
+            failed = await db.set_failed(task_id, f"{type(e).__name__}: {e}")
+            if not failed:
+                await self._set_cancelled_if_requested(task_id, db)
+        finally:
+            heartbeat_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await heartbeat_task
+
+    async def _set_cancelled_if_requested(self, task_id: str, db: WorkQueueDB) -> bool:
+        latest = await db.get_task(task_id)
+        if latest and (
+            latest["cancel_requested"]
+            or latest["status"] in {TaskStatus.CANCELLING.value, TaskStatus.CANCELLED.value}
+        ):
+            return await db.set_cancelled(task_id)
+        return False
 
     async def _run_loop(
         self,
@@ -196,6 +370,8 @@ class SubagentCoordinator:
         db: WorkQueueDB,
     ) -> SubagentResult:
         from src.sdk.loop import AgentLoop, RunConfig
+        from src.sdk.middleware_observation import ObservationMiddleware
+        from src.sdk.middleware_summarization import SummarizationMiddleware
         from src.sdk.providers.factory import create_model_from_config
 
         model_str = agent_def.model or self.settings.agent.model
@@ -207,18 +383,22 @@ class SubagentCoordinator:
         run_config = RunConfig(
             max_llm_calls=agent_def.max_llm_calls,
             cost_limit_usd=agent_def.cost_limit_usd,
+            provider_options=agent_def.provider_options or None,
         )
 
         progress_mw = ProgressMiddleware(task_id, db)
         instruction_mw = InstructionMiddleware(task_id, db)
+        summarization_mw = SummarizationMiddleware()
+        observation_mw = ObservationMiddleware(user_id=self.user_id, workspace_id=self.workspace_id)
 
         loop = AgentLoop(
             provider=provider,
             tools=tools,
             system_prompt=system_prompt,
-            middlewares=[progress_mw, instruction_mw],
+            middlewares=[progress_mw, instruction_mw, summarization_mw, observation_mw],
             run_config=run_config,
             user_id=self.user_id,
+            workspace_id=self.workspace_id,
         )
 
         messages = [Message.user(task)]
@@ -267,6 +447,17 @@ class SubagentCoordinator:
     async def instruct(self, task_id: str, message: str) -> bool:
         db = await self._get_db()
         return await db.add_instruction(task_id, message)
+
+    async def delete(self, name: str) -> bool:
+        agent_def = self.load_def(name)
+        if agent_def is None:
+            return False
+        db = await self._get_db()
+        await db.request_cancel_active_tasks_for_agent(name)
+        agent_path = self.base_path / name
+        if agent_path.exists():
+            shutil.rmtree(agent_path)
+        return True
 
     async def check_progress(self, parent_id: str | None = None) -> list[dict[str, Any]]:
         db = await self._get_db()

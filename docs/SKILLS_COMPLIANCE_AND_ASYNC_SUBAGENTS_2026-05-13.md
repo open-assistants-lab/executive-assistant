@@ -44,14 +44,14 @@ Source: [Deep Agents async subagents](https://docs.langchain.com/oss/python/deep
 
 | Aspect | EA (current) | Deep Agents (async) |
 |--------|-------------|---------------------|
-| **Invocation** | `subagent_invoke` blocks parent until done | `start_async_task` returns task ID immediately |
+| **Invocation** | legacy start blocked parent until done | `start_async_task` returns task ID immediately |
 | **Parent behavior** | Waits (or times out) | Continues interacting with user |
 | **Mid-task steering** | `InstructionMiddleware` (next LLM call) | `update_async_task` sends new instructions anytime |
 | **Cancellation** | `cancel_requested` flag polled before LLM calls | `cancel_async_task` cancels server-side run |
-| **Status check** | `subagent_progress` queries work_queue table | `check_async_task` queries Agent Protocol server |
+| **Status check** | `subagent_check` queries work_queue table | `check_async_task` queries Agent Protocol server |
 | **State channel** | Task IDs in tool messages → lost on summarization | Dedicated `async_tasks` state channel survives compaction |
 | **Execution target** | In-process `AgentLoop.run()` in same Python process | Separate Agent Protocol server (ASGI or HTTP) |
-| **Concurrency** | Sequential (single `subagent_invoke` at a time) | Parallel — launch multiple, check later |
+| **Concurrency** | Sequential (single start at a time) | Parallel — launch multiple, check later |
 | **Horizonal scaling** | None (in-process) | HTTP transport to remote servers |
 
 ### What EA Should Adopt
@@ -68,11 +68,11 @@ Deep Agents stores task metadata in a dedicated `async_tasks` state channel on t
 
 ### Priority 2: Non-Blocking Invoke
 
-EA's `subagent_invoke` blocks — the parent agent stops talking to the user while the subagent runs. For tasks that take 30+ seconds (research, coding, data analysis), this creates a dead-air experience.
+EA's legacy start path blocked — the parent agent stopped talking to the user while the subagent ran. For tasks that take 30+ seconds (research, coding, data analysis), this creates a dead-air experience.
 
 Deep Agents' `start_async_task` returns a task ID immediately. The parent can say "I've started researching that — it'll take a few minutes. Anything else while we wait?" and continue the conversation.
 
-**How to adopt:** Add `subagent_invoke_async(task)` to `SubagentCoordinator`. Wraps `AgentLoop.run()` in `asyncio.create_task()`, saves the Future to the task state channel, returns the task ID immediately. Add `subagent_check(task_id)` to poll the Future. The existing `subagent_progress` tool becomes `subagent_check` — unified interface.
+**How to adopt:** Add `subagent_start(task)` to `SubagentCoordinator`. Wraps `AgentLoop.run()` in `asyncio.create_task()`, saves the Future to the task state channel, returns the task ID immediately. Add `subagent_check(task_id)` to poll the Future.
 
 **Lines:** ~120. **Effort:** 1 day.
 
@@ -82,8 +82,8 @@ Deep Agents provides a clean five-tool interface that EA should mirror:
 
 | Deep Agents tool | EA equivalent | Status |
 |-----------------|---------------|--------|
-| `start_async_task` | `subagent_invoke_async` (new) | To build |
-| `check_async_task` | `subagent_progress` → rename to `subagent_check` | Rename + enhance |
+| `start_async_task` | `subagent_start` | To build |
+| `check_async_task` | `subagent_check` | Rename + enhance |
 | `update_async_task` | `subagent_instruct` | Exists ✅ |
 | `cancel_async_task` | `subagent_cancel` | Exists ✅ |
 | `list_async_tasks` | `subagent_list` (lists agent defs + tasks) | Exists ✅ |
@@ -108,7 +108,7 @@ Task statuses in conversation history are always stale — always call check_tas
 | Priority | Feature | Lines | Days | Impact |
 |----------|---------|-------|------|--------|
 | **P1** | Dedicated task state channel | ~80 | 0.5 | Survives summarization, enables long sessions |
-| **P2** | Non-blocking `subagent_invoke_async` | ~120 | 1 | Eliminates dead air during long subagent runs |
-| **P2** | Rename `subagent_progress` → `subagent_check` | ~20 | 0.2 | Cleaner async semantics |
+| **P2** | Non-blocking `subagent_start` | ~120 | 1 | Eliminates dead air during long subagent runs |
+| **P2** | Add `subagent_check` | ~20 | 0.2 | Cleaner async semantics |
 | **P3** | Polling guardrails in system prompt | ~5 | — | Prevents tight polling loops |
 | **P3** | Agent Protocol transport | ~300 | 2 | Remote subagents, independent scaling (Phase 2) |

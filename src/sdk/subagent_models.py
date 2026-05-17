@@ -12,13 +12,14 @@ from pydantic import BaseModel, Field
 
 DEFAULT_DISALLOWED_TOOLS = [
     "subagent_create",
-    "subagent_invoke",
+    "subagent_update",
+    "subagent_delete",
     "subagent_list",
-    "subagent_progress",
+    "subagent_start",
+    "subagent_check",
+    "subagent_tasks",
     "subagent_instruct",
     "subagent_cancel",
-    "subagent_delete",
-    "subagent_update",
 ]
 
 DEFAULT_MAX_LLM_CALLS = 50
@@ -30,6 +31,7 @@ DEFAULT_MAX_OUTPUT_CHARS = 10000
 class TaskStatus(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
+    CANCELLING = "cancelling"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
@@ -44,7 +46,9 @@ class AgentDef(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9_-]+$")
     description: str = ""
+    workspace_id: str = "personal"
     model: str | None = None
+    provider_options: dict[str, Any] = Field(default_factory=dict)
     system_prompt: str | None = None
     tools: list[str] | None = None
     disallowed_tools: list[str] = Field(default_factory=lambda: list(DEFAULT_DISALLOWED_TOOLS))
@@ -53,6 +57,9 @@ class AgentDef(BaseModel):
     cost_limit_usd: float = DEFAULT_COST_LIMIT_USD
     timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS
     mcp_config: dict[str, Any] | None = None
+    output_schema: dict[str, Any] | None = None
+    handoff_instructions: str | None = None
+    artifact_policy: str | None = None
 
     model_config = {"extra": "ignore"}
 

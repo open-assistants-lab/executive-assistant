@@ -503,9 +503,10 @@ SQLite work_queue-backed coordination with supervisor pattern. Full design in `d
 **8 V1 tools** (in `src/sdk/tools_core/subagent.py`):
 - `subagent_create` — create AgentDef, persist to disk
 - `subagent_update` — amend existing AgentDef (partial update)
-- `subagent_invoke` — insert task into work_queue + run AgentLoop with middlewares
+- `subagent_start` — insert task into work_queue + run AgentLoop with middlewares
 - `subagent_list` — list AgentDefs + active tasks
-- `subagent_progress` — check task status/progress
+- `subagent_check` — check one task status/result
+- `subagent_tasks` — list task status/progress
 - `subagent_instruct` — inject course-correction into running subagent
 - `subagent_cancel` — set cancel_requested flag
 - `subagent_delete` — remove AgentDef + cancel running tasks
@@ -513,7 +514,7 @@ SQLite work_queue-backed coordination with supervisor pattern. Full design in `d
 **Key design decisions:**
 - Config frozen at invocation into `work_queue.config` (amendments don't affect running tasks)
 - `disallowed_tools` defaults include all `subagent_*` tools (prevents recursion)
-- `SubagentCoordinator.invoke()` uses `AgentLoop.run()` (not `run_stream()`), wrapped in `asyncio.wait_for(timeout)`
+- `SubagentCoordinator.start()` schedules background execution and returns a task ID
 - Progress via `ProgressMiddleware.abefore_model` + polling; InstructionMiddleware checks cancel/instructions before each LLM call
 - Doom loop: same tool+args called 3x → `progress.stuck = true` + auto-instruction
 
@@ -551,7 +552,7 @@ SQLite work_queue-backed coordination with supervisor pattern. Full design in `d
 | `email.py` | `email_connect`, `email_disconnect`, `email_accounts`, `email_list`, `email_get`, `email_search`, `email_send`, `email_sync` | 8 |
 | `firecrawl.py` | `scrape_url`, `search_web`, `map_url`, `crawl_url`, `get_crawl_status`, `cancel_crawl`, `firecrawl_status`, `firecrawl_agent` | 8 |
 | `browser_use.py` | `browser_open`, `browser_state`, `browser_click`, `browser_input`, `browser_type`, `browser_keys`, `browser_scroll`, `browser_screenshot`, `browser_eval`, `browser_get_title`, `browser_get_text`, `browser_get_html`, `browser_get_url`, `browser_tab_new`, `browser_tab_switch`, `browser_tab_close`, `browser_wait_text`, `browser_sessions`, `browser_close_all`, `browser_status` | 20 |
-| `subagent.py` | `subagent_create`, `subagent_update`, `subagent_invoke`, `subagent_list`, `subagent_progress`, `subagent_instruct`, `subagent_cancel`, `subagent_delete` | 8 |
+| `subagent.py` | `subagent_create`, `subagent_update`, `subagent_start`, `subagent_check`, `subagent_tasks`, `subagent_list`, `subagent_instruct`, `subagent_cancel`, `subagent_delete` | 9 |
 
 **NOT YET MIGRATED:**
 - Apps (14 tools) — `src/tools/apps/tools.py`

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import aiosqlite
@@ -34,6 +34,11 @@ CREATE TABLE IF NOT EXISTS work_queue (
     instructions TEXT DEFAULT '[]',
     config TEXT DEFAULT '{}',
     cancel_requested INTEGER DEFAULT 0,
+    claimed_by TEXT,
+    claimed_at TEXT,
+    heartbeat_at TEXT,
+    started_at TEXT,
+    completed_at TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -66,9 +71,29 @@ class WorkQueueDB:
             self._db = await aiosqlite.connect(self._db_path)
             self._db.row_factory = aiosqlite.Row
             await self._db.executescript(_SCHEMA)
+            await self._ensure_columns()
             await self._db.execute("PRAGMA journal_mode=WAL")
             await self._db.commit()
         return self._db
+
+    async def _ensure_columns(self) -> None:
+        db = self._db
+        if db is None:
+            return
+        cursor = await db.execute("PRAGMA table_info(work_queue)")
+        rows = await cursor.fetchall()
+        existing = {row["name"] for row in rows}
+        columns = {
+            "claimed_by": "TEXT",
+            "claimed_at": "TEXT",
+            "heartbeat_at": "TEXT",
+            "started_at": "TEXT",
+            "completed_at": "TEXT",
+        }
+        for name, ddl in columns.items():
+            if name not in existing:
+                await db.execute(f"ALTER TABLE work_queue ADD COLUMN {name} {ddl}")
+        await db.commit()
 
     async def close(self) -> None:
         if self._db is not None:
@@ -119,14 +144,75 @@ class WorkQueueDB:
         return cursor.rowcount > 0
 
     async def set_running(self, task_id: str) -> bool:
-        return await self.set_status(task_id, TaskStatus.RUNNING)
+        db = await self._get_db()
+        now = _now()
+        cursor = await db.execute(
+            """UPDATE work_queue
+            SET status = ?, started_at = COALESCE(started_at, ?),
+                heartbeat_at = COALESCE(heartbeat_at, ?), updated_at = ?
+            WHERE id = ?""",
+            (TaskStatus.RUNNING.value, now, now, now, task_id),
+        )
+        await db.commit()
+        return cursor.rowcount > 0
+
+    async def claim_task(self, task_id: str, worker_id: str) -> bool:
+        db = await self._get_db()
+        now = _now()
+        cursor = await db.execute(
+            """UPDATE work_queue
+            SET status = ?, claimed_by = ?, claimed_at = ?, heartbeat_at = ?,
+                started_at = COALESCE(started_at, ?), updated_at = ?
+            WHERE id = ? AND status = ?""",
+            (
+                TaskStatus.RUNNING.value,
+                worker_id,
+                now,
+                now,
+                now,
+                now,
+                task_id,
+                TaskStatus.PENDING.value,
+            ),
+        )
+        await db.commit()
+        return cursor.rowcount > 0
+
+    async def heartbeat(self, task_id: str, worker_id: str) -> bool:
+        db = await self._get_db()
+        now = _now()
+        cursor = await db.execute(
+            """UPDATE work_queue
+            SET heartbeat_at = ?, updated_at = ?
+            WHERE id = ? AND claimed_by = ? AND status IN (?, ?)""",
+            (
+                now,
+                now,
+                task_id,
+                worker_id,
+                TaskStatus.RUNNING.value,
+                TaskStatus.CANCELLING.value,
+            ),
+        )
+        await db.commit()
+        return cursor.rowcount > 0
 
     async def set_completed(self, task_id: str, result: SubagentResult) -> bool:
         db = await self._get_db()
         now = _now()
         cursor = await db.execute(
-            "UPDATE work_queue SET status = ?, result = ?, updated_at = ? WHERE id = ?",
-            (TaskStatus.COMPLETED.value, result.model_dump_json(), now, task_id),
+            """UPDATE work_queue
+            SET status = ?, result = ?, completed_at = ?, updated_at = ?
+            WHERE id = ? AND status IN (?, ?) AND cancel_requested = 0""",
+            (
+                TaskStatus.COMPLETED.value,
+                result.model_dump_json(),
+                now,
+                now,
+                task_id,
+                TaskStatus.PENDING.value,
+                TaskStatus.RUNNING.value,
+            ),
         )
         await db.commit()
         return cursor.rowcount > 0
@@ -138,8 +224,19 @@ class WorkQueueDB:
             name="", task="", success=False, output="", error=error
         )
         cursor = await db.execute(
-            "UPDATE work_queue SET status = ?, result = ?, error = ?, updated_at = ? WHERE id = ?",
-            (TaskStatus.FAILED.value, result.model_dump_json(), error, now, task_id),
+            """UPDATE work_queue
+            SET status = ?, result = ?, error = ?, completed_at = ?, updated_at = ?
+            WHERE id = ? AND status IN (?, ?) AND cancel_requested = 0""",
+            (
+                TaskStatus.FAILED.value,
+                result.model_dump_json(),
+                error,
+                now,
+                now,
+                task_id,
+                TaskStatus.PENDING.value,
+                TaskStatus.RUNNING.value,
+            ),
         )
         await db.commit()
         return cursor.rowcount > 0
@@ -151,15 +248,44 @@ class WorkQueueDB:
             name="", task="", success=False, output="", error="cancelled by supervisor"
         )
         cursor = await db.execute(
-            "UPDATE work_queue SET status = ?, result = ?, cancel_requested = 1, updated_at = ? WHERE id = ?",
-            (TaskStatus.CANCELLED.value, result.model_dump_json(), now, task_id),
+            """UPDATE work_queue
+            SET status = ?, result = ?, cancel_requested = 1, completed_at = ?, updated_at = ?
+            WHERE id = ?""",
+            (TaskStatus.CANCELLED.value, result.model_dump_json(), now, now, task_id),
         )
         await db.commit()
         return cursor.rowcount > 0
 
+    async def mark_stale_running_failed(self, max_age_seconds: int = 300) -> int:
+        db = await self._get_db()
+        now = _now()
+        cutoff = (datetime.now(UTC) - timedelta(seconds=max_age_seconds)).isoformat()
+        error = "subagent task interrupted by restart; last heartbeat is stale"
+        result = SubagentResult(name="", task="", success=False, output="", error=error)
+        cursor = await db.execute(
+            """UPDATE work_queue
+            SET status = ?, result = ?, error = ?, completed_at = ?, updated_at = ?
+            WHERE status IN (?, ?) AND (heartbeat_at IS NULL OR heartbeat_at < ?)""",
+            (
+                TaskStatus.FAILED.value,
+                result.model_dump_json(),
+                error,
+                now,
+                now,
+                TaskStatus.RUNNING.value,
+                TaskStatus.CANCELLING.value,
+                cutoff,
+            ),
+        )
+        await db.commit()
+        return cursor.rowcount
+
     async def get_task(self, task_id: str) -> dict[str, Any] | None:
         db = await self._get_db()
-        cursor = await db.execute("SELECT * FROM work_queue WHERE id = ?", (task_id,))
+        cursor = await db.execute(
+            "SELECT * FROM work_queue WHERE id = ? AND user_id = ? AND workspace_id = ?",
+            (task_id, self.user_id, self.workspace_id),
+        )
         row = await cursor.fetchone()
         if row is None:
             return None
@@ -194,11 +320,54 @@ class WorkQueueDB:
         db = await self._get_db()
         now = _now()
         cursor = await db.execute(
-            "UPDATE work_queue SET cancel_requested = 1, updated_at = ? WHERE id = ?",
-            (now, task_id),
+            """UPDATE work_queue
+            SET cancel_requested = 1,
+                status = CASE WHEN status = ? THEN ? ELSE status END,
+                updated_at = ?
+            WHERE id = ?""",
+            (TaskStatus.RUNNING.value, TaskStatus.CANCELLING.value, now, task_id),
         )
         await db.commit()
         return cursor.rowcount > 0
+
+    async def request_cancel_active_tasks_for_agent(self, agent_name: str) -> int:
+        db = await self._get_db()
+        now = _now()
+        error = "cancelled before start"
+        result = SubagentResult(name=agent_name, task="", success=False, output="", error=error)
+        pending_cursor = await db.execute(
+            """UPDATE work_queue
+            SET status = ?, result = ?, error = ?, cancel_requested = 1,
+                completed_at = ?, updated_at = ?
+            WHERE user_id = ? AND workspace_id = ? AND agent_name = ? AND status = ?""",
+            (
+                TaskStatus.CANCELLED.value,
+                result.model_dump_json(),
+                error,
+                now,
+                now,
+                self.user_id,
+                self.workspace_id,
+                agent_name,
+                TaskStatus.PENDING.value,
+            ),
+        )
+        active_cursor = await db.execute(
+            """UPDATE work_queue
+            SET cancel_requested = 1, status = ?, updated_at = ?
+            WHERE user_id = ? AND workspace_id = ? AND agent_name = ? AND status IN (?, ?)""",
+            (
+                TaskStatus.CANCELLING.value,
+                now,
+                self.user_id,
+                self.workspace_id,
+                agent_name,
+                TaskStatus.RUNNING.value,
+                TaskStatus.CANCELLING.value,
+            ),
+        )
+        await db.commit()
+        return pending_cursor.rowcount + active_cursor.rowcount
 
     async def is_cancel_requested(self, task_id: str) -> bool:
         row = await self.get_task(task_id)
@@ -214,23 +383,35 @@ class WorkQueueDB:
         db = await self._get_db()
         if parent_id is not None and status is not None:
             cursor = await db.execute(
-                "SELECT id, agent_name, task, status, progress, error, created_at, updated_at FROM work_queue WHERE parent_id = ? AND status = ? ORDER BY created_at",
-                (parent_id, status.value),
+                """SELECT id, agent_name, task, status, progress, error, created_at, updated_at
+                FROM work_queue
+                WHERE user_id = ? AND workspace_id = ? AND parent_id = ? AND status = ?
+                ORDER BY created_at""",
+                (self.user_id, self.workspace_id, parent_id, status.value),
             )
         elif parent_id is not None:
             cursor = await db.execute(
-                "SELECT id, agent_name, task, status, progress, error, created_at, updated_at FROM work_queue WHERE parent_id = ? ORDER BY created_at",
-                (parent_id,),
+                """SELECT id, agent_name, task, status, progress, error, created_at, updated_at
+                FROM work_queue
+                WHERE user_id = ? AND workspace_id = ? AND parent_id = ?
+                ORDER BY created_at""",
+                (self.user_id, self.workspace_id, parent_id),
             )
         elif status is not None:
             cursor = await db.execute(
-                "SELECT id, agent_name, task, status, progress, error, created_at, updated_at FROM work_queue WHERE user_id = ? AND status = ? ORDER BY created_at",
-                (self.user_id, status.value),
+                """SELECT id, agent_name, task, status, progress, error, created_at, updated_at
+                FROM work_queue
+                WHERE user_id = ? AND workspace_id = ? AND status = ?
+                ORDER BY created_at""",
+                (self.user_id, self.workspace_id, status.value),
             )
         else:
             cursor = await db.execute(
-                "SELECT id, agent_name, task, status, progress, error, created_at, updated_at FROM work_queue WHERE user_id = ? ORDER BY created_at",
-                (self.user_id,),
+                """SELECT id, agent_name, task, status, progress, error, created_at, updated_at
+                FROM work_queue
+                WHERE user_id = ? AND workspace_id = ?
+                ORDER BY created_at""",
+                (self.user_id, self.workspace_id),
             )
         rows = await cursor.fetchall()
         return [dict(r) for r in rows]

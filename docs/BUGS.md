@@ -2126,7 +2126,7 @@ Comprehensive workspace_id plumbing audit after multi-workspace implementation. 
 **File:** `src/http/routers/subagents.py:148`
 **Severity:** High
 
-`POST /subagents/invoke` called `subagent_invoke.ainvoke({"name": ..., ...})` but the function parameter is `agent_name`. Would crash with `TypeError` at runtime.
+`POST /subagents/invoke` called the subagent start tool with `{"name": ..., ...}` but the function parameter is `agent_name`. Would crash with `TypeError` at runtime.
 
 **Fix:** Changed `"name": name` to `"agent_name": name`.
 
@@ -2166,7 +2166,7 @@ Three files referenced `subagent_batch`, `subagent_schedule`, `subagent_schedule
 
 **Fix:**
 - `README.md`: Replaced stale tool names with actual available tools (`subagent_update`, `subagent_instruct`, `subagent_cancel`, `subagent_delete`)
-- `personas.py`: Replaced `subagent_schedule` with `subagent_list, subagent_progress`
+- `personas.py`: Replaced `subagent_schedule` with `subagent_list, subagent_tasks`
 - `SKILL.md`: Full rewrite — removed schedule/batch sections, updated all tool signatures to match actual SDK, added workspace_id documentation
 
 ### Workspace Audit Summary

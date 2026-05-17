@@ -148,7 +148,7 @@ V1 supports **delegation-and-return** only. Handoff (transfer control permanentl
 
 ### Pattern 3: Model-Driven Routing (Phase 2)
 
-V1 uses explicit invocation: `subagent_create` + `subagent_invoke`. Auto-generated `delegate_to_{name}` tools for model-driven routing are Phase 2.
+V1 uses explicit start: `subagent_create` + `subagent_start`. Auto-generated `delegate_to_{name}` tools for model-driven routing are Phase 2.
 
 ### Pattern 4: Declarative Agent Definitions with Runtime Creation + Amendment
 
@@ -180,7 +180,7 @@ User message → Main Agent
                     ├── Analyzes request
                     ├── Creates/reuses subagent(s)
                     ├── Delegates task(s) → work_queue
-                    ├── Monitors progress (subagent_progress)
+                    ├── Monitors progress (subagent_tasks)
                     ├── Course-corrects (subagent_instruct)
                     ├── Cancels if stuck (subagent_cancel)
                     └── Composes final answer from results
@@ -198,8 +198,8 @@ class AgentDef(BaseModel):
     system_prompt: str | None = None               # custom system prompt
     tools: list[str] | None = None                 # allowlist (None = all native tools)
     disallowed_tools: list[str] = [                # denylist — always includes subagent tools
-        "subagent_create", "subagent_invoke",
-        "subagent_list", "subagent_progress",
+        "subagent_create", "subagent_start",
+        "subagent_list", "subagent_check", "subagent_tasks",
         "subagent_instruct", "subagent_cancel",
         "subagent_delete", "subagent_update",
     ]
@@ -359,7 +359,7 @@ subagent_create(
 )
 
 # 2. Reuse existing — just invoke by name
-subagent_invoke(
+subagent_start(
     agent_name="web_researcher",
     task="Find the top 5 AI companies by revenue in 2025"
 )
@@ -386,7 +386,7 @@ The main agent has five supervision tools:
 
 ```python
 # 1. Check progress on subtasks
-subagent_progress(parent_id=None) → [
+subagent_tasks(parent_id=None) → [
     {"id": "task-1", "name": "researcher", "status": "running",
      "progress": {"phase": "executing", "steps_completed": 5, "stuck": False}},
     {"id": "task-2", "name": "writer", "status": "pending", "progress": {}},
@@ -412,7 +412,7 @@ subagent_delete(name)  # removes config + cancels any running tasks
 
 **Stuck detection** is built into `ProgressMiddleware`:
 - Same tool called 3× with identical args → `progress.stuck = true` + auto-instruction
-- Main agent checks `subagent_progress()` and sees `stuck: true`
+- Main agent checks `subagent_tasks()` and sees `stuck: true`
 - Main agent decides: `subagent_instruct()` to redirect, or `subagent_cancel()` to kill
 
 **Cancel flow:**
@@ -446,15 +446,15 @@ User: "Research AI companies, write a report, email it to john@example.com"
 
 Main Agent:
   1. Creates/uses subagent "researcher"
-  2. subagent_invoke("researcher", "Research top 5 AI companies by revenue")
-  3. [waits for completion via subagent_progress]
+  2. subagent_start("researcher", "Research top 5 AI companies by revenue")
+  3. [waits for completion via subagent_check]
   4. Gets result → "Here are the top 5 AI companies..."
   5. Creates/uses subagent "writer"
-  6. subagent_invoke("writer", "Write a comparison report based on these findings: <result>")
+  6. subagent_start("writer", "Write a comparison report based on these findings: <result>")
   7. [waits for completion]
   8. Gets result → "Here is the comparison report..."
   9. Creates/uses subagent "emailer"
-  10. subagent_invoke("emailer", "Email this report to john@example.com: <result>")
+  10. subagent_start("emailer", "Email this report to john@example.com: <result>")
   11. [waits for completion]
   12. Composes final answer for user
 ```
@@ -462,9 +462,9 @@ Main Agent:
 **Parallel tasks** — the main agent can invoke multiple subagents and poll them:
 ```
 Main Agent:
-  1. task_a = subagent_invoke("researcher_a", "Research company A")
-  2. task_b = subagent_invoke("researcher_b", "Research company B")  # runs in parallel
-  3. [poll subagent_progress for both]
+  1. task_a = subagent_start("researcher_a", "Research company A")
+  2. task_b = subagent_start("researcher_b", "Research company B")  # runs in parallel
+  3. [poll subagent_check for both]
   4. result_a = subagent_results(task_a)
   5. result_b = subagent_results(task_b)
   6. Combine and continue
@@ -496,9 +496,10 @@ When a task is invoked, the config is **frozen** into `work_queue.config` — so
 |---|---|
 | `subagent_create` | Create a new AgentDef, persist to disk |
 | `subagent_update` | Amend an existing AgentDef (partial update, keeps unspecified fields) |
-| `subagent_invoke` | Insert task into work_queue + run immediately |
+| `subagent_start` | Insert task into work_queue + start background execution |
 | `subagent_list` | List user's AgentDefs + their running tasks |
-| `subagent_progress` | Check progress/status of tasks |
+| `subagent_check` | Check progress/status of one task |
+| `subagent_tasks` | List progress/status of tasks |
 | `subagent_instruct` | Course-correct a running subagent |
 | `subagent_cancel` | Kill a running subagent |
 | `subagent_delete` | Remove AgentDef + cancel any running tasks |
@@ -507,7 +508,7 @@ When a task is invoked, the config is **frozen** into `work_queue.config` — so
 - `subagent_batch` — main agent orchestrates sequentially or via parallel invoke
 - `subagent_validate` — AgentDef validation is built-in via Pydantic
 - `subagent_schedule` / `subagent_schedule_cancel` / `subagent_schedule_list` — use existing APScheduler, wire later (Phase 2)
-- `subagent_check` — merged into `subagent_progress` (stuck detection visible via `progress.stuck`)
+- `subagent_check` — checks one task (stuck detection visible via `progress.stuck`)
 
 ---
 
@@ -548,7 +549,7 @@ File changes:
 - `src/sdk/tools_core/subagent.py` — Rewrite to use `WorkQueueDB` + `SubagentCoordinator`:
   - 8 tools as specified above
   - All tools interact with work_queue for task state
-  - `subagent_invoke` creates AgentLoop with middlewares
+  - `subagent_start` creates AgentLoop with middlewares
   - `subagent_update` patches config YAML on disk
 
 ### Phase 5: Testing + Documentation
@@ -571,7 +572,7 @@ File changes:
 | Background watchdog | Main agent checks when active. Watchdog needs deployment consideration. |
 | Webhook triggers (`webhook_triggers` table + FastAPI endpoint) | No user request yet. Requires auth, rate limiting. |
 | Handoff mode (`loop.handoff()`) | Different UX — conversation transfer. Orthogonal to work_queue. |
-| Model-driven routing (`delegate_to_{name}` auto-generation) | V1 uses explicit `subagent_create` + `subagent_invoke`. Auto-generation needs `sub_agents` on `AgentLoop`. |
+| Model-driven routing (`delegate_to_{name}` auto-generation) | V1 uses explicit `subagent_create` + `subagent_start`. Auto-generation needs `sub_agents` on `AgentLoop`. |
 | `AgentDef.middlewares` configurable | V1 uses fixed set (Progress + Instruction). Per-agent middleware selection adds config complexity. |
 | `access_memory` / `access_messages` flags | V1: subagents inherit user context. Isolation flags need tool filtering. |
 | `structured_output` in `SubagentResult` | V1: text output. Typed output requires schema per subagent. |
@@ -618,7 +619,7 @@ File changes:
 
 **Context:** Subagents should be createable at runtime AND reusable AND amendable.
 
-**Decision:** `subagent_create` creates new, `subagent_invoke` reuses by name, `subagent_update` amends existing. All persisted to `config.yaml`.
+**Decision:** `subagent_create` creates new, `subagent_start` reuses by name, `subagent_update` amends existing. All persisted to `config.yaml`.
 
 **Rationale:**
 - The main agent often doesn't know in advance what subagents it needs. "Research X" requires different config than "Write about Y."
@@ -751,7 +752,7 @@ This threshold is configurable in `AgentDef` or `SubagentCoordinator` defaults.
 | Task-type model routing | ✅ Phase 2 | `AgentDef.model` already supports per-subagent model. Could add automatic routing: research → cheap/fast model, creative → powerful model |
 | Sub-agents spawn sub-agents | ❌ V1, 🔲 Phase 3 | DR-005 forbids. Perplexity's filesystem communication validates our work_queue approach — both make interactions inspectable, but SQLite is strictly better (structured queries, atomic, no parsing) |
 | MicroVM isolation | ❌ Not needed | Single-process, per-user. Process isolation sufficient. MicroVMs are a cloud/multi-tenant requirement |
-| Model Council (ensemble) | 🔲 Phase 3 | Run 3 cheap models on same question, synthesize. Our work_queue naturally supports this: 3 parallel `subagent_invoke` calls, main agent synthesizes |
+| Model Council (ensemble) | 🔲 Phase 3 | Run 3 cheap models on same question, synthesize. Our work_queue naturally supports this: 3 parallel `subagent_start` calls, main agent synthesizes |
 | Skills as reusable templates | ✅ Already exists | Our skill system already does this. `AgentDef.skills` injects skills into system prompt |
 | Credit-based costing | ✅ Partial | We track `cost_usd` per task in `SubagentResult`. Could add a **credit budget** to `AgentDef` (pre-spending cap) in Phase 2 |
 | Filesystem as communication | ✅ Validated our decision | Perplexity chose filesystem because it's inspectable. Our work_queue is the same principle but structurally superior: SQL queries vs file parsing, atomic transactions vs file writes, structured JSON vs markdown |
@@ -762,7 +763,7 @@ This threshold is configurable in `AgentDef` or `SubagentCoordinator` defaults.
 
 ## Open Questions
 
-1. **Streaming from subagents**: V1 uses polling (`subagent_progress`). SSE streaming would require a callback/event mechanism — deferred to Phase 2.
+1. **Streaming from subagents**: V1 uses polling (`subagent_check`). SSE streaming would require a callback/event mechanism — deferred to Phase 2.
 
 2. **Subagent chaining depth**: V1 disallows nesting entirely. Phase 2 could add `AgentDef.worker_type` with depth tracking.
 

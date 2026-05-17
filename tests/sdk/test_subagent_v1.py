@@ -10,9 +10,11 @@ Covers:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import tempfile
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -36,6 +38,13 @@ def mock_paths(tmp_dir):
 
     mock = DataPaths(data_path=tmp_dir, user_id="test_user")
     # Alias old user-level paths to workspace-scoped for backwards test compat
+    def temp_workspace_dir(name: str):
+        path = Path(tmp_dir) / "workspaces" / "personal" / name
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    mock.workspace_subagents_dir = lambda: temp_workspace_dir("subagents")
+    mock.workspace_memory_dir = lambda: temp_workspace_dir("memory")
     mock.subagents_dir = mock.workspace_subagents_dir
     mock.memory_dir = mock.workspace_memory_dir
     with patch("src.storage.paths.get_paths", return_value=mock):
@@ -53,6 +62,16 @@ async def db(mock_paths):
     await db.close()
 
 
+@pytest.fixture(autouse=True)
+async def cleanup_work_queue_cache():
+    yield
+    from src.sdk.work_queue import _db_cache
+
+    for cached_db in list(_db_cache.values()):
+        await cached_db.close()
+    _db_cache.clear()
+
+
 @pytest.fixture
 def agent_def():
     from src.sdk.subagent_models import AgentDef
@@ -66,6 +85,11 @@ def agent_def():
         cost_limit_usd=0.5,
         timeout_seconds=30,
     )
+
+
+async def _wait_for_no_background_tasks(coordinator):
+    while coordinator._background_tasks:
+        await asyncio.sleep(0)
 
 
 # -- Model Tests --
@@ -97,6 +121,32 @@ class TestAgentDef:
         assert d.cost_limit_usd == 0.01
         assert d.timeout_seconds == 10
 
+    def test_agent_def_new_fields(self):
+        from src.sdk.subagent_models import AgentDef
+
+        d = AgentDef(
+            name="researcher",
+            workspace_id="sales",
+            provider_options={"anthropic": {"thinking": {"type": "enabled"}}},
+            output_schema={"type": "object", "properties": {"summary": {"type": "string"}}},
+            handoff_instructions="Return concise bullets.",
+            artifact_policy="write reports under reports/",
+        )
+
+        assert d.workspace_id == "sales"
+        assert d.provider_options == {"anthropic": {"thinking": {"type": "enabled"}}}
+        assert d.output_schema is not None
+        assert d.handoff_instructions == "Return concise bullets."
+        assert d.artifact_policy == "write reports under reports/"
+
+    def test_default_disallowed_tools_use_new_names_only(self):
+        from src.sdk.subagent_models import AgentDef
+
+        d = AgentDef(name="a")
+        assert "subagent_start" in d.disallowed_tools
+        assert "subagent_tasks" in d.disallowed_tools
+        assert all(name.startswith("subagent_") for name in d.disallowed_tools)
+
 
 class TestSubagentResult:
     def test_success_result(self):
@@ -125,6 +175,11 @@ class TestTaskStatus:
         assert TaskStatus.FAILED == "failed"
         assert TaskStatus.CANCELLED == "cancelled"
 
+    def test_task_status_has_cancelling(self):
+        from src.sdk.subagent_models import TaskStatus
+
+        assert TaskStatus.CANCELLING == "cancelling"
+
 
 # -- WorkQueueDB Tests --
 
@@ -148,6 +203,20 @@ class TestWorkQueueDB:
         task_id = await db.insert_task("test_agent", "t", agent_def)
         ok = await db.set_running(task_id)
         assert ok
+        row = await db.get_task(task_id)
+        assert row["status"] == "running"
+        assert row["started_at"]
+        assert row["heartbeat_at"]
+        assert row["claimed_by"] is None
+
+    @pytest.mark.asyncio
+    async def test_fresh_set_running_task_not_stale_by_default(self, db, agent_def):
+        task_id = await db.insert_task("test_agent", "t", agent_def)
+        await db.set_running(task_id)
+
+        count = await db.mark_stale_running_failed()
+
+        assert count == 0
         row = await db.get_task(task_id)
         assert row["status"] == "running"
 
@@ -228,6 +297,101 @@ class TestWorkQueueDB:
         assert await db.is_cancel_requested(task_id)
 
     @pytest.mark.asyncio
+    async def test_claim_pending_task_once(self, db, agent_def):
+        task_id = await db.insert_task("test_agent", "t", agent_def)
+
+        first = await db.claim_task(task_id, worker_id="worker-a")
+        second = await db.claim_task(task_id, worker_id="worker-b")
+
+        assert first is True
+        assert second is False
+        row = await db.get_task(task_id)
+        assert row["status"] == "running"
+        assert row["claimed_by"] == "worker-a"
+        assert row["claimed_at"]
+        assert row["heartbeat_at"]
+
+    @pytest.mark.asyncio
+    async def test_request_cancel_sets_cancelling_for_running_task(self, db, agent_def):
+        task_id = await db.insert_task("test_agent", "t", agent_def)
+        await db.claim_task(task_id, worker_id="worker-a")
+
+        ok = await db.request_cancel(task_id)
+
+        assert ok
+        row = await db.get_task(task_id)
+        assert row["cancel_requested"] == 1
+        assert row["status"] == "cancelling"
+
+    @pytest.mark.asyncio
+    async def test_set_failed_does_not_overwrite_cancellation(self, db, agent_def):
+        task_id = await db.insert_task("test_agent", "t", agent_def)
+        await db.claim_task(task_id, worker_id="worker-a")
+        await db.request_cancel(task_id)
+
+        ok = await db.set_failed(task_id, "boom")
+
+        row = await db.get_task(task_id)
+        assert not ok
+        assert row["status"] == "cancelling"
+        assert row["cancel_requested"] == 1
+        assert row["error"] is None
+
+    @pytest.mark.asyncio
+    async def test_request_cancel_active_tasks_for_agent_only(self, db, agent_def):
+        from src.sdk.subagent_models import TaskStatus
+
+        pending_id = await db.insert_task("test_agent", "pending", agent_def)
+        running_id = await db.insert_task("test_agent", "running", agent_def)
+        await db.set_running(running_id)
+        completed_id = await db.insert_task("test_agent", "completed", agent_def)
+        await db.set_status(completed_id, TaskStatus.COMPLETED)
+        other_id = await db.insert_task("other_agent", "running", agent_def)
+        await db.set_running(other_id)
+
+        count = await db.request_cancel_active_tasks_for_agent("test_agent")
+
+        assert count == 2
+        assert await db.is_cancel_requested(pending_id)
+        assert await db.is_cancel_requested(running_id)
+        assert not await db.is_cancel_requested(completed_id)
+        assert not await db.is_cancel_requested(other_id)
+        pending = await db.get_task(pending_id)
+        running = await db.get_task(running_id)
+        assert pending["status"] == "cancelled"
+        assert pending["completed_at"] is not None
+        assert pending["error"] == "cancelled before start"
+        assert json.loads(pending["result"])["error"] == "cancelled before start"
+        assert running["status"] == "cancelling"
+        assert (await db.get_task(completed_id))["status"] == "completed"
+        assert (await db.get_task(other_id))["status"] == "running"
+
+    @pytest.mark.asyncio
+    async def test_heartbeat_updates_timestamp(self, db, agent_def):
+        task_id = await db.insert_task("test_agent", "t", agent_def)
+        await db.claim_task(task_id, worker_id="worker-a")
+        before = (await db.get_task(task_id))["heartbeat_at"]
+
+        ok = await db.heartbeat(task_id, worker_id="worker-a")
+
+        after = (await db.get_task(task_id))["heartbeat_at"]
+
+        assert ok
+        assert after >= before
+
+    @pytest.mark.asyncio
+    async def test_mark_stale_running_failed(self, db, agent_def):
+        task_id = await db.insert_task("test_agent", "t", agent_def)
+        await db.claim_task(task_id, worker_id="worker-a")
+
+        count = await db.mark_stale_running_failed(max_age_seconds=-1)
+
+        assert count >= 1
+        row = await db.get_task(task_id)
+        assert row["status"] == "failed"
+        assert "interrupted by restart" in row["error"]
+
+    @pytest.mark.asyncio
     async def test_is_cancel_requested_nonexistent(self, db):
         assert not await db.is_cancel_requested("nonexistent")
 
@@ -255,6 +419,60 @@ class TestWorkQueueDB:
         running = await db.check_progress(status=TaskStatus.RUNNING)
         assert len(running) == 1
         assert running[0]["id"] == t1
+
+    @pytest.mark.asyncio
+    async def test_get_task_is_scoped_to_user_and_workspace(self, mock_paths, agent_def):
+        from src.sdk.work_queue import WorkQueueDB
+
+        db = WorkQueueDB("test_user", workspace_id="personal")
+        other_workspace = WorkQueueDB("test_user", workspace_id="other")
+        other_user = WorkQueueDB("other_user", workspace_id="personal")
+        try:
+            task_id = await db.insert_task("test_agent", "task", agent_def)
+
+            assert await db.get_task(task_id) is not None
+            assert await other_workspace.get_task(task_id) is None
+            assert await other_user.get_task(task_id) is None
+        finally:
+            await db.close()
+            await other_workspace.close()
+            await other_user.close()
+
+    @pytest.mark.asyncio
+    async def test_check_progress_is_scoped_to_user_and_workspace(self, mock_paths, agent_def):
+        from src.sdk.subagent_models import TaskStatus
+        from src.sdk.work_queue import WorkQueueDB
+
+        db = WorkQueueDB("test_user", workspace_id="personal")
+        other_workspace = WorkQueueDB("test_user", workspace_id="other")
+        other_user = WorkQueueDB("other_user", workspace_id="personal")
+        try:
+            own_id = await db.insert_task("test_agent", "own", agent_def, parent_id="shared")
+            other_workspace_id = await other_workspace.insert_task(
+                "test_agent", "other workspace", agent_def, parent_id="shared"
+            )
+            other_user_id = await other_user.insert_task(
+                "test_agent", "other user", agent_def, parent_id="shared"
+            )
+            await db.set_running(own_id)
+            await other_workspace.set_running(other_workspace_id)
+            await other_user.set_running(other_user_id)
+
+            all_tasks = await db.check_progress()
+            parent_tasks = await db.check_progress(parent_id="shared")
+            status_tasks = await db.check_progress(status=TaskStatus.RUNNING)
+            parent_status_tasks = await db.check_progress(
+                parent_id="shared", status=TaskStatus.RUNNING
+            )
+
+            assert {t["id"] for t in all_tasks} == {own_id}
+            assert {t["id"] for t in parent_tasks} == {own_id}
+            assert {t["id"] for t in status_tasks} == {own_id}
+            assert {t["id"] for t in parent_status_tasks} == {own_id}
+        finally:
+            await db.close()
+            await other_workspace.close()
+            await other_user.close()
 
     @pytest.mark.asyncio
     async def test_get_result(self, db, agent_def):
@@ -389,6 +607,391 @@ class TestInstructionMiddleware:
 
 
 class TestSubagentCoordinator:
+    def test_default_tools_exclude_recursive_subagent_tools(self):
+        from src.sdk.coordinator import _build_tools_for_subagent
+        from src.sdk.subagent_models import AgentDef
+
+        class FakeTool:
+            def __init__(self, name: str):
+                self.name = name
+
+        tools = [
+            FakeTool("time_get"),
+            FakeTool("subagent_start"),
+            FakeTool("subagent_tasks"),
+        ]
+
+        with patch("src.sdk.native_tools.get_native_tools", return_value=tools):
+            resolved = _build_tools_for_subagent(AgentDef(name="researcher"))
+
+        names = {tool.name for tool in resolved}
+        assert "time_get" in names
+        assert "subagent_start" not in names
+        assert "subagent_tasks" not in names
+
+    def test_build_tools_removes_subagent_and_extra_memory_tools(self, agent_def):
+        from src.sdk.coordinator import _build_tools_for_subagent
+        from src.sdk.subagent_models import AgentDef
+
+        d = AgentDef(name="a", tools=None)
+        names = {t.name for t in _build_tools_for_subagent(d)}
+
+        assert "memory_search" in names
+        assert not any(n.startswith("subagent_") for n in names)
+        assert "memory_search_all" not in names
+        assert "memory_search_insights" not in names
+
+    def test_build_tools_allowlist_still_includes_memory_search(self):
+        from src.sdk.coordinator import _build_tools_for_subagent
+        from src.sdk.subagent_models import AgentDef
+
+        d = AgentDef(name="a", tools=["time_get"], disallowed_tools=["memory_search"])
+        names = {t.name for t in _build_tools_for_subagent(d)}
+
+        assert "time_get" in names
+        assert "memory_search" in names
+
+    def test_build_tools_includes_skills_load_when_skills_configured(self):
+        from src.sdk.coordinator import _build_tools_for_subagent
+        from src.sdk.subagent_models import AgentDef
+
+        d = AgentDef(name="a", tools=["time_get"], skills=["skill-creator"])
+        names = {t.name for t in _build_tools_for_subagent(d)}
+
+        assert "skills_load" in names
+
+    def test_build_tools_removes_skill_management_tools(self):
+        from src.sdk.coordinator import _build_tools_for_subagent
+        from src.sdk.subagent_models import AgentDef
+
+        class FakeTool:
+            def __init__(self, name: str):
+                self.name = name
+
+        tools = [
+            FakeTool("time_get"),
+            FakeTool("memory_search"),
+            FakeTool("skill_create"),
+            FakeTool("skill_delete"),
+            FakeTool("skills_load"),
+        ]
+
+        with patch("src.sdk.native_tools.get_native_tools", return_value=tools):
+            resolved = _build_tools_for_subagent(AgentDef(name="a", tools=None))
+
+        names = {tool.name for tool in resolved}
+        assert "time_get" in names
+        assert "memory_search" in names
+        assert "skill_create" not in names
+        assert "skill_delete" not in names
+
+    def test_validate_agent_def_rejects_unknown_tool(self):
+        from src.sdk.coordinator import validate_agent_def
+        from src.sdk.subagent_models import AgentDef
+
+        errors = validate_agent_def(AgentDef(name="a", tools=["not_a_tool"]))
+        assert any("Unknown tool" in e for e in errors)
+
+    def test_validate_agent_def_rejects_subagent_tool(self):
+        from src.sdk.coordinator import validate_agent_def
+        from src.sdk.subagent_models import AgentDef
+
+        errors = validate_agent_def(AgentDef(name="a", tools=["subagent_start"]))
+        assert any("Subagent tool" in e for e in errors)
+
+    def test_validate_agent_def_rejects_skill_management_tool(self):
+        from src.sdk.coordinator import validate_agent_def
+        from src.sdk.subagent_models import AgentDef
+
+        errors = validate_agent_def(AgentDef(name="a", tools=["skill_create"]))
+        assert any("Skill management tool" in e for e in errors)
+
+    def test_validate_agent_def_rejects_denied_memory_tool(self):
+        from src.sdk.coordinator import validate_agent_def
+        from src.sdk.subagent_models import AgentDef
+
+        errors = validate_agent_def(AgentDef(name="a", tools=["memory_search_all"]))
+        assert any("Memory tool" in e for e in errors)
+
+    def test_validate_agent_def_rejects_unknown_skill(self):
+        from src.sdk.coordinator import validate_agent_def
+        from src.sdk.subagent_models import AgentDef
+
+        class FakeSkillRegistry:
+            def get_skill(self, name: str):
+                return None
+
+        with patch("src.sdk.coordinator.get_skill_registry", return_value=FakeSkillRegistry()):
+            errors = validate_agent_def(AgentDef(name="a", skills=["missing-skill"]))
+
+        assert any("Unknown skill" in e for e in errors)
+
+    def test_validate_agent_def_rejects_non_positive_limits(self):
+        from src.sdk.coordinator import validate_agent_def
+        from src.sdk.subagent_models import AgentDef
+
+        errors = validate_agent_def(
+            AgentDef(name="a", max_llm_calls=0, cost_limit_usd=0, timeout_seconds=0)
+        )
+
+        assert "max_llm_calls must be positive" in errors
+        assert "cost_limit_usd must be positive" in errors
+        assert "timeout_seconds must be positive" in errors
+
+    def test_validate_agent_def_allows_default_future_subagent_denylist_names(self):
+        from src.sdk.coordinator import validate_agent_def
+        from src.sdk.subagent_models import AgentDef
+
+        errors = validate_agent_def(AgentDef(name="a"))
+        assert not errors
+
+    def test_build_system_prompt_lists_skills_without_inlining_content(self):
+        from src.sdk.coordinator import _build_system_prompt
+        from src.sdk.subagent_models import AgentDef
+
+        class FakeSkillRegistry:
+            def get_skill(self, name: str):
+                return {
+                    "name": name,
+                    "description": "Create reusable skills.",
+                    "content": "SECRET FULL SKILL CONTENT",
+                }
+
+        agent_def = AgentDef(name="a", skills=["skill-creator"])
+        with patch("src.sdk.coordinator.get_skill_registry", return_value=FakeSkillRegistry()):
+            prompt = _build_system_prompt(agent_def, user_id="test_user", workspace_id="personal")
+
+        assert "## Available Skills" in prompt
+        assert "skill-creator" in prompt
+        assert "Create reusable skills." in prompt
+        assert "skills_load(skill_name=...)" in prompt
+        assert "SECRET FULL SKILL CONTENT" not in prompt
+
+    @pytest.mark.asyncio
+    async def test_run_loop_passes_provider_options_and_workspace_to_agent_loop(self, mock_paths):
+        from src.sdk.coordinator import SubagentCoordinator
+        from src.sdk.messages import Message
+        from src.sdk.subagent_models import AgentDef
+
+        captured_run_config = None
+        captured_workspace_id = None
+
+        class FakeAgentLoop:
+            def __init__(self, **kwargs):
+                nonlocal captured_run_config, captured_workspace_id
+                captured_run_config = kwargs["run_config"]
+                captured_workspace_id = kwargs["workspace_id"]
+
+            async def run(self, messages):
+                return [*messages, Message.assistant("done")]
+
+        provider_options = {"anthropic": {"thinking": {"type": "enabled"}}}
+        agent_def = AgentDef(name="researcher", provider_options=provider_options)
+        coord = SubagentCoordinator("test_user", workspace_id="sales")
+
+        with patch("src.sdk.providers.factory.create_model_from_config", return_value=object()):
+            with patch("src.sdk.coordinator._build_tools_for_subagent", return_value=[]):
+                with patch("src.sdk.coordinator._build_system_prompt", return_value="system"):
+                    with patch("src.sdk.loop.AgentLoop", FakeAgentLoop):
+                        await coord._run_loop("task-1", agent_def, "do it", object())
+
+        assert captured_run_config is not None
+        assert captured_run_config.provider_options == provider_options
+        assert captured_workspace_id == "sales"
+
+    @pytest.mark.asyncio
+    async def test_start_returns_before_runner_finishes(self, mock_paths, agent_def, monkeypatch):
+        from src.sdk.coordinator import SubagentCoordinator
+
+        coordinator = SubagentCoordinator("test_user")
+        await coordinator.create(agent_def)
+        started = asyncio.Event()
+        finish = asyncio.Event()
+
+        async def fake_run_job(task_id: str):
+            started.set()
+            await finish.wait()
+
+        monkeypatch.setattr(coordinator, "_run_job", fake_run_job)
+
+        task_id = await coordinator.start("test_agent", "do work")
+
+        await asyncio.wait_for(started.wait(), timeout=1)
+        row = await (await coordinator._get_db()).get_task(task_id)
+        assert row is not None
+        assert row["status"] in {"pending", "running"}
+        finish.set()
+        await asyncio.sleep(0)
+
+    @pytest.mark.asyncio
+    async def test_start_retains_background_task_until_completion(
+        self, mock_paths, agent_def, monkeypatch
+    ):
+        from src.sdk.coordinator import SubagentCoordinator
+
+        coordinator = SubagentCoordinator("test_user")
+        await coordinator.create(agent_def)
+        started = asyncio.Event()
+        finish = asyncio.Event()
+
+        async def fake_run_job(task_id: str):
+            started.set()
+            await finish.wait()
+
+        monkeypatch.setattr(coordinator, "_run_job", fake_run_job)
+
+        await coordinator.start("test_agent", "do work")
+
+        await asyncio.wait_for(started.wait(), timeout=1)
+        assert len(coordinator._background_tasks) == 1
+
+        finish.set()
+        await asyncio.wait_for(_wait_for_no_background_tasks(coordinator), timeout=1)
+        assert coordinator._background_tasks == set()
+
+    @pytest.mark.asyncio
+    async def test_start_freezes_config_snapshot(self, mock_paths, agent_def, monkeypatch):
+        from src.sdk.coordinator import SubagentCoordinator
+
+        coordinator = SubagentCoordinator("test_user")
+        await coordinator.create(agent_def)
+
+        async def fake_run_job(task_id: str):
+            return None
+
+        monkeypatch.setattr(coordinator, "_run_job", fake_run_job)
+        task_id = await coordinator.start("test_agent", "do work")
+        await coordinator.update("test_agent", model="changed:model")
+
+        row = await (await coordinator._get_db()).get_task(task_id)
+        config = json.loads(row["config"])
+        assert config["model"] == agent_def.model
+
+    @pytest.mark.asyncio
+    async def test_run_job_claims_pending_task_and_marks_completed(
+        self, mock_paths, agent_def, monkeypatch
+    ):
+        from src.sdk.coordinator import SubagentCoordinator
+        from src.sdk.subagent_models import SubagentResult
+
+        coordinator = SubagentCoordinator("test_user")
+        db = await coordinator._get_db()
+        task_id = await db.insert_task("test_agent", "do work", agent_def)
+
+        async def fake_run_loop(task_id: str, frozen_agent_def, task: str, db):
+            return SubagentResult(
+                name=frozen_agent_def.name,
+                task=task,
+                success=True,
+                output=f"completed {task_id}",
+            )
+
+        monkeypatch.setattr(coordinator, "_run_loop", fake_run_loop)
+
+        await coordinator._run_job(task_id)
+
+        row = await db.get_task(task_id)
+        assert row["status"] == "completed"
+        assert row["claimed_by"] is not None
+        result = json.loads(row["result"])
+        assert result["output"] == f"completed {task_id}"
+
+    @pytest.mark.asyncio
+    async def test_run_job_preserves_cancel_racing_with_completion(
+        self, mock_paths, agent_def, monkeypatch
+    ):
+        from src.sdk.coordinator import SubagentCoordinator
+        from src.sdk.subagent_models import SubagentResult
+
+        coordinator = SubagentCoordinator("test_user")
+        db = await coordinator._get_db()
+        task_id = await db.insert_task("test_agent", "do work", agent_def)
+
+        async def fake_run_loop(task_id: str, frozen_agent_def, task: str, db):
+            return SubagentResult(
+                name=frozen_agent_def.name,
+                task=task,
+                success=True,
+                output="done",
+            )
+
+        original_set_completed = db.set_completed
+
+        async def cancel_before_complete(task_id: str, result):
+            await db.request_cancel(task_id)
+            return await original_set_completed(task_id, result)
+
+        monkeypatch.setattr(coordinator, "_run_loop", fake_run_loop)
+        monkeypatch.setattr(db, "set_completed", cancel_before_complete)
+
+        await coordinator._run_job(task_id)
+
+        row = await db.get_task(task_id)
+        assert row["status"] == "cancelled"
+        assert row["cancel_requested"] == 1
+        result = json.loads(row["result"])
+        assert result["error"] == "cancelled by supervisor"
+
+    @pytest.mark.asyncio
+    async def test_run_job_preserves_cancel_racing_with_error_failure(
+        self, mock_paths, agent_def, monkeypatch
+    ):
+        from src.sdk.coordinator import SubagentCoordinator
+
+        coordinator = SubagentCoordinator("test_user")
+        db = await coordinator._get_db()
+        task_id = await db.insert_task("test_agent", "do work", agent_def)
+
+        async def fake_run_loop(task_id: str, frozen_agent_def, task: str, db):
+            raise RuntimeError("boom")
+
+        original_set_failed = db.set_failed
+
+        async def cancel_before_fail(task_id: str, error: str):
+            await db.request_cancel(task_id)
+            return await original_set_failed(task_id, error)
+
+        monkeypatch.setattr(coordinator, "_run_loop", fake_run_loop)
+        monkeypatch.setattr(db, "set_failed", cancel_before_fail)
+
+        await coordinator._run_job(task_id)
+
+        row = await db.get_task(task_id)
+        assert row["status"] == "cancelled"
+        assert row["cancel_requested"] == 1
+        result = json.loads(row["result"])
+        assert result["error"] == "cancelled by supervisor"
+
+    @pytest.mark.asyncio
+    async def test_run_job_preserves_cancel_racing_with_timeout_failure(
+        self, mock_paths, agent_def, monkeypatch
+    ):
+        from src.sdk.coordinator import SubagentCoordinator
+
+        coordinator = SubagentCoordinator("test_user")
+        db = await coordinator._get_db()
+        task_id = await db.insert_task("test_agent", "do work", agent_def)
+
+        async def fake_run_loop(task_id: str, frozen_agent_def, task: str, db):
+            raise TimeoutError
+
+        original_set_failed = db.set_failed
+
+        async def cancel_before_fail(task_id: str, error: str):
+            await db.request_cancel(task_id)
+            return await original_set_failed(task_id, error)
+
+        monkeypatch.setattr(coordinator, "_run_loop", fake_run_loop)
+        monkeypatch.setattr(db, "set_failed", cancel_before_fail)
+
+        await coordinator._run_job(task_id)
+
+        row = await db.get_task(task_id)
+        assert row["status"] == "cancelled"
+        assert row["cancel_requested"] == 1
+        result = json.loads(row["result"])
+        assert result["error"] == "cancelled by supervisor"
+
     @pytest.mark.asyncio
     async def test_create_and_load(self, mock_paths):
         from src.sdk.coordinator import SubagentCoordinator
@@ -471,6 +1074,54 @@ class TestSubagentCoordinator:
         ok = await coord.delete("deleteme")
         assert ok
         assert coord.load_def("deleteme") is None
+
+    @pytest.mark.asyncio
+    async def test_delete_requests_cancel_for_active_jobs_only(self, mock_paths):
+        from src.sdk.coordinator import SubagentCoordinator
+        from src.sdk.subagent_models import AgentDef, TaskStatus
+
+        coord = SubagentCoordinator("test_user")
+        await coord.create(AgentDef(name="deleteme", description="Temporary"))
+        await coord.create(AgentDef(name="keepme", description="Persistent"))
+        db = await coord._get_db()
+
+        agent_def = coord.load_def("deleteme")
+        other_def = coord.load_def("keepme")
+        pending_id = await db.insert_task("deleteme", "pending", agent_def)
+        running_id = await db.insert_task("deleteme", "running", agent_def)
+        await db.set_running(running_id)
+        cancelling_id = await db.insert_task("deleteme", "cancelling", agent_def)
+        await db.set_status(cancelling_id, TaskStatus.CANCELLING)
+        completed_id = await db.insert_task("deleteme", "completed", agent_def)
+        await db.set_status(completed_id, TaskStatus.COMPLETED)
+        failed_id = await db.insert_task("deleteme", "failed", agent_def)
+        await db.set_status(failed_id, TaskStatus.FAILED)
+        cancelled_id = await db.insert_task("deleteme", "cancelled", agent_def)
+        await db.set_status(cancelled_id, TaskStatus.CANCELLED)
+        other_id = await db.insert_task("keepme", "running", other_def)
+        await db.set_running(other_id)
+
+        ok = await coord.delete("deleteme")
+
+        assert ok
+        assert await db.is_cancel_requested(pending_id)
+        assert await db.is_cancel_requested(running_id)
+        assert await db.is_cancel_requested(cancelling_id)
+        assert not await db.is_cancel_requested(completed_id)
+        assert not await db.is_cancel_requested(failed_id)
+        assert not await db.is_cancel_requested(cancelled_id)
+        assert not await db.is_cancel_requested(other_id)
+        pending = await db.get_task(pending_id)
+        assert pending["status"] == "cancelled"
+        assert pending["completed_at"] is not None
+        assert pending["error"] == "cancelled before start"
+        assert json.loads(pending["result"])["error"] == "cancelled before start"
+        assert (await db.get_task(running_id))["status"] == "cancelling"
+        assert (await db.get_task(cancelling_id))["status"] == "cancelling"
+        assert (await db.get_task(completed_id))["status"] == "completed"
+        assert (await db.get_task(failed_id))["status"] == "failed"
+        assert (await db.get_task(cancelled_id))["status"] == "cancelled"
+        assert (await db.get_task(other_id))["status"] == "running"
 
     @pytest.mark.asyncio
     async def test_delete_nonexistent(self, mock_paths):

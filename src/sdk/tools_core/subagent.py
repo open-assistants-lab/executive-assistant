@@ -1,27 +1,97 @@
-"""Subagent tools — V1 SDK-native implementation with work_queue coordination.
+"""Subagent tools — SDK-native implementation with async work_queue jobs.
 
-8 tools:
+Management:
     subagent_create   — create AgentDef, persist to disk
     subagent_update   — amend existing AgentDef (partial update)
-    subagent_invoke   — insert task into work_queue + run immediately
-    subagent_list     — list user's AgentDefs + their running tasks
-    subagent_progress — check progress/status of tasks
-    subagent_instruct — course-correct a running subagent
-    subagent_cancel    — kill a running subagent
     subagent_delete   — remove AgentDef + cancel any running tasks
+    subagent_list     — list user's AgentDefs + active tasks
+
+Runtime:
+    subagent_start    — start a subagent job and return immediately with job ID
+    subagent_check    — check one job status/result
+    subagent_tasks    — list active/recent jobs
+    subagent_instruct — course-correct a running subagent
+    subagent_cancel   — kill a running subagent
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
+import threading
 from typing import Any
 
 from src.app_logging import get_logger
-from src.sdk.subagent_models import AgentDef
+from src.sdk.coordinator import get_coordinator, validate_agent_def
+from src.sdk.subagent_models import AgentDef, TaskStatus
 from src.sdk.tools import ToolAnnotations, tool
 
 logger = get_logger()
+
+_loop: asyncio.AbstractEventLoop | None = None
+_loop_lock = threading.Lock()
+
+
+def _get_loop() -> asyncio.AbstractEventLoop:
+    global _loop
+    with _loop_lock:
+        if _loop is None or _loop.is_closed():
+            _loop = asyncio.new_event_loop()
+            thread = threading.Thread(target=_loop.run_forever, daemon=True)
+            thread.start()
+        return _loop
+
+
+def _run_async(coro: Any) -> Any:
+    future = asyncio.run_coroutine_threadsafe(coro, _get_loop())
+    return future.result()
+
+
+def _parse_object_json(value: str | None, field_name: str) -> tuple[dict[str, Any] | None, str | None]:
+    if value is None:
+        return None, None
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError as e:
+        return None, f"Error: Invalid {field_name} JSON: {e}"
+    if not isinstance(parsed, dict):
+        return None, f"Error: {field_name} must be a JSON object."
+    return parsed, None
+
+
+def _format_task(row: dict[str, Any], task_id: str) -> str:
+    progress = json.loads(row.get("progress") or "{}")
+    status = row.get("status", "unknown")
+    agent_name = row.get("agent_name", "unknown")
+
+    lines = [f"## Task: {task_id}", f"**Agent:** {agent_name}", f"**Status:** {status}"]
+
+    if progress:
+        steps = progress.get("steps_completed", 0)
+        phase = progress.get("phase", "")
+        msg = progress.get("message", "")
+        stuck = progress.get("stuck", False)
+        lines.append(f"**Steps completed:** {steps}")
+        if phase:
+            lines.append(f"**Phase:** {phase}")
+        if msg:
+            lines.append(f"**Last action:** {msg}")
+        if stuck:
+            lines.append("**STUCK** - doom loop detected")
+
+    if status == "completed":
+        result_data = json.loads(row.get("result") or "{}")
+        output = result_data.get("output", "")
+        truncated = result_data.get("truncated", False)
+        lines.append(f"\n**Output:**\n{output[:500]}{'...' if len(output) > 500 else ''}")
+        if truncated:
+            lines.append("(output truncated)")
+    elif status == "failed":
+        lines.append(f"\n**Error:** {row.get('error', 'Unknown')}")
+    elif status == "cancelled":
+        lines.append("\nTask was cancelled by supervisor.")
+
+    return "\n".join(lines)
 
 
 @tool
@@ -38,6 +108,10 @@ def subagent_create(
     cost_limit_usd: float = 1.0,
     timeout_seconds: int = 300,
     mcp_config: str | None = None,
+    provider_options: str | None = None,
+    output_schema: str | None = None,
+    handoff_instructions: str | None = None,
+    artifact_policy: str | None = None,
 ) -> str:
     """Create a new subagent with specified configuration.
 
@@ -54,16 +128,23 @@ def subagent_create(
         cost_limit_usd: Per-task cost limit in USD (default 1.0)
         timeout_seconds: Per-task hard wall-clock timeout (default 300)
         mcp_config: MCP servers as JSON string
+        provider_options: Provider-specific options as JSON object
+        output_schema: Expected output schema as JSON object
+        handoff_instructions: Instructions for returning work to supervisor
+        artifact_policy: Policy for writing artifacts
 
     Returns:
         Success message or validation errors
     """
-    mcp_dict = None
-    if mcp_config:
-        try:
-            mcp_dict = json.loads(mcp_config)
-        except json.JSONDecodeError as e:
-            return f"Error: Invalid MCP config JSON: {e}"
+    mcp_dict, error = _parse_object_json(mcp_config, "MCP config")
+    if error:
+        return error
+    provider_options_dict, error = _parse_object_json(provider_options, "provider_options")
+    if error:
+        return error
+    output_schema_dict, error = _parse_object_json(output_schema, "output_schema")
+    if error:
+        return error
 
     if skills is None:
         skills = []
@@ -79,9 +160,15 @@ def subagent_create(
         cost_limit_usd=cost_limit_usd,
         timeout_seconds=timeout_seconds,
         mcp_config=mcp_dict,
+        provider_options=provider_options_dict or {},
+        output_schema=output_schema_dict,
+        handoff_instructions=handoff_instructions,
+        artifact_policy=artifact_policy,
     )
 
-    from src.sdk.coordinator import get_coordinator
+    errors = validate_agent_def(agent_def, user_id=user_id, workspace_id=workspace_id)
+    if errors:
+        return "Error: " + "; ".join(errors)
 
     coordinator = get_coordinator(user_id, workspace_id)
 
@@ -89,15 +176,7 @@ def subagent_create(
     if existing is not None:
         return f"Error: Subagent '{name}' already exists. Use subagent_update to amend it."
 
-    try:
-        asyncio.get_running_loop()
-        import concurrent.futures
-
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            future = pool.submit(asyncio.run, coordinator.create(agent_def))
-            future.result()
-    except RuntimeError:
-        asyncio.run(coordinator.create(agent_def))
+    _run_async(coordinator.create(agent_def))
 
     lines = [f"Subagent '{name}' created successfully."]
     if model:
@@ -126,6 +205,10 @@ def subagent_update(
     cost_limit_usd: float | None = None,
     timeout_seconds: int | None = None,
     mcp_config: str | None = None,
+    provider_options: str | None = None,
+    output_schema: str | None = None,
+    handoff_instructions: str | None = None,
+    artifact_policy: str | None = None,
 ) -> str:
     """Amend an existing subagent. Only specified fields are updated.
 
@@ -142,12 +225,14 @@ def subagent_update(
         cost_limit_usd: New cost limit
         timeout_seconds: New timeout
         mcp_config: New MCP config as JSON string
+        provider_options: New provider options as JSON object
+        output_schema: New output schema as JSON object
+        handoff_instructions: New handoff instructions
+        artifact_policy: New artifact policy
 
     Returns:
         Confirmation message
     """
-    from src.sdk.coordinator import get_coordinator
-
     coordinator = get_coordinator(user_id, workspace_id)
     existing = coordinator.load_def(name)
     if existing is None:
@@ -171,23 +256,34 @@ def subagent_update(
     if timeout_seconds is not None:
         update_kwargs["timeout_seconds"] = timeout_seconds
     if mcp_config is not None:
-        try:
-            update_kwargs["mcp_config"] = json.loads(mcp_config)
-        except json.JSONDecodeError as e:
-            return f"Error: Invalid MCP config JSON: {e}"
+        parsed, error = _parse_object_json(mcp_config, "MCP config")
+        if error:
+            return error
+        update_kwargs["mcp_config"] = parsed
+    if provider_options is not None:
+        parsed, error = _parse_object_json(provider_options, "provider_options")
+        if error:
+            return error
+        update_kwargs["provider_options"] = parsed or {}
+    if output_schema is not None:
+        parsed, error = _parse_object_json(output_schema, "output_schema")
+        if error:
+            return error
+        update_kwargs["output_schema"] = parsed
+    if handoff_instructions is not None:
+        update_kwargs["handoff_instructions"] = handoff_instructions
+    if artifact_policy is not None:
+        update_kwargs["artifact_policy"] = artifact_policy
 
     if not update_kwargs:
         return f"No fields specified to update for subagent '{name}'."
 
-    try:
-        asyncio.get_running_loop()
-        import concurrent.futures
+    updated_def = existing.model_copy(update=update_kwargs)
+    errors = validate_agent_def(updated_def, user_id=user_id, workspace_id=workspace_id)
+    if errors:
+        return "Error: " + "; ".join(errors)
 
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            future = pool.submit(asyncio.run, coordinator.update(name, **update_kwargs))
-            updated = future.result()
-    except RuntimeError:
-        updated = asyncio.run(coordinator.update(name, **update_kwargs))
+    updated = _run_async(coordinator.update(name, **update_kwargs))
 
     if updated is None:
         return f"Error: Failed to update subagent '{name}'."
@@ -199,59 +295,47 @@ subagent_update.annotations = ToolAnnotations(title="Update Subagent", destructi
 
 
 @tool
-def subagent_invoke(
+def subagent_start(
     agent_name: str,
     task: str,
     user_id: str,
     workspace_id: str = "personal",
     parent_id: str | None = None,
 ) -> str:
-    """Invoke a subagent to execute a task. Returns task ID immediately.
+    """Start a subagent to execute a task. Returns job ID immediately.
 
-    The subagent runs in the background. Use subagent_progress to check status.
+    The subagent runs in the background. Use subagent_check to check status.
     Use subagent_instruct to send course-corrections.
     Use subagent_cancel to kill a stuck or misbehaving subagent.
 
     Args:
-        agent_name: Name of the subagent to invoke
+        agent_name: Name of the subagent to start
         task: Task description/prompt
         user_id: The user ID (required)
         workspace_id: Workspace ID (defaults to current workspace)
         parent_id: Correlation ID to group related tasks
 
     Returns:
-        Task ID and status message
+        Job ID and status message
     """
-    from src.sdk.coordinator import get_coordinator
-
     coordinator = get_coordinator(user_id, workspace_id)
 
     existing = coordinator.load_def(agent_name)
     if existing is None:
         return f"Error: Subagent '{agent_name}' not found. Create it first with subagent_create."
 
-    import concurrent.futures
+    task_id_str = _run_async(coordinator.start(agent_name, task, parent_id=parent_id))
 
-    def _run() -> str:
-        return asyncio.run(coordinator.invoke(agent_name, task, parent_id=parent_id))
+    return f"""Subagent job started for '{agent_name}'.
 
-    try:
-        asyncio.get_running_loop()
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            task_id_str = pool.submit(_run).result()
-    except RuntimeError:
-        task_id_str = asyncio.run(coordinator.invoke(agent_name, task, parent_id=parent_id))
-
-    return f"""Task submitted for subagent '{agent_name}'.
-
-**Task ID**: {task_id_str}
+**Job ID**: {task_id_str}
 **Task**: {task[:100]}
 **Status**: Running in background...
 
-Use `subagent_progress` with task ID to check status and results."""
+Use `subagent_check` with job ID to check status and results."""
 
 
-subagent_invoke.annotations = ToolAnnotations(title="Invoke Subagent", open_world=True)
+subagent_start.annotations = ToolAnnotations(title="Start Subagent", open_world=True)
 
 
 @tool
@@ -265,22 +349,10 @@ def subagent_list(user_id: str, workspace_id: str = "personal") -> str:
     Returns:
         List of subagents with their configs and active tasks
     """
-    from src.sdk.coordinator import get_coordinator
-
     coordinator = get_coordinator(user_id, workspace_id)
 
-    try:
-        asyncio.get_running_loop()
-        import concurrent.futures
-
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            defs_future = pool.submit(asyncio.run, coordinator.list_defs())
-            progress_future = pool.submit(asyncio.run, coordinator.check_progress())
-            defs = defs_future.result()
-            tasks = progress_future.result()
-    except RuntimeError:
-        defs = asyncio.run(coordinator.list_defs())
-        tasks = asyncio.run(coordinator.check_progress())
+    defs = _run_async(coordinator.list_defs())
+    tasks = _run_async(coordinator.check_progress())
 
     if not defs and not tasks:
         return "No subagents found."
@@ -312,107 +384,82 @@ subagent_list.annotations = ToolAnnotations(title="List Subagents", read_only=Tr
 
 
 @tool
-def subagent_progress(
-    task_id: str | None = None,
-    parent_id: str | None = None,
+def subagent_check(
+    task_id: str,
     user_id: str = "default_user",
     workspace_id: str = "personal",
 ) -> str:
-    """Check progress/status of subagent tasks.
+    """Check progress/status of one subagent job.
 
     Args:
-        task_id: Specific task ID to check
-        parent_id: Filter tasks by parent correlation ID
+        task_id: Specific task/job ID to check
         user_id: The user ID (required)
         workspace_id: Workspace ID (defaults to current workspace)
 
     Returns:
         Task status and progress information
     """
-    from src.sdk.coordinator import get_coordinator
+    coordinator = get_coordinator(user_id, workspace_id)
+
+    async def _get_task() -> dict[str, Any] | None:
+        db = await coordinator._get_db()
+        return await db.get_task(task_id)
+
+    row = _run_async(_get_task())
+    if row is None:
+        return f"No task found with ID: {task_id}"
+
+    return _format_task(row, task_id)
+
+
+subagent_check.annotations = ToolAnnotations(title="Subagent Check", read_only=True, idempotent=True)
+
+
+@tool
+def subagent_tasks(
+    user_id: str = "default_user",
+    workspace_id: str = "personal",
+    status: str | None = None,
+) -> str:
+    """List active/recent subagent jobs.
+
+    Args:
+        user_id: The user ID (required)
+        workspace_id: Workspace ID (defaults to current workspace)
+        status: Optional status filter: pending, running, cancelling, completed, failed, cancelled
+
+    Returns:
+        List of matching jobs
+    """
+    status_filter = None
+    if status:
+        try:
+            status_filter = TaskStatus(status)
+        except ValueError:
+            valid = ", ".join(s.value for s in TaskStatus)
+            return f"Error: Invalid status '{status}'. Valid statuses: {valid}."
 
     coordinator = get_coordinator(user_id, workspace_id)
-    import concurrent.futures
 
-    if task_id:
+    async def _get_tasks() -> list[dict[str, Any]]:
+        db = await coordinator._get_db()
+        return await db.check_progress(status=status_filter)
 
-        async def _get_task() -> dict[str, Any] | None:
-            db = await coordinator._get_db()
-            return await db.get_task(task_id)
+    tasks = _run_async(_get_tasks())
+    if not tasks:
+        return "No tasks found." if status_filter else "No active tasks."
 
-        try:
-            asyncio.get_running_loop()
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                row = pool.submit(asyncio.run, _get_task()).result()
-        except RuntimeError:
-            row = asyncio.run(_get_task())
+    lines = ["## Tasks\n"]
+    for t in tasks:
+        t_status = t.get("status", "unknown")
+        t_name = t.get("agent_name", "unknown")
+        tid = t.get("id", "?")
+        lines.append(f"- **{tid}** ({t_name}): {t_status}")
 
-        if row is None:
-            return f"No task found with ID: {task_id}"
-
-        progress = json.loads(row.get("progress") or "{}")
-        status = row.get("status", "unknown")
-        agent_name = row.get("agent_name", "unknown")
-
-        lines = [f"## Task: {task_id}", f"**Agent:** {agent_name}", f"**Status:** {status}"]
-
-        if progress:
-            steps = progress.get("steps_completed", 0)
-            phase = progress.get("phase", "")
-            msg = progress.get("message", "")
-            stuck = progress.get("stuck", False)
-            lines.append(f"**Steps completed:** {steps}")
-            if phase:
-                lines.append(f"**Phase:** {phase}")
-            if msg:
-                lines.append(f"**Last action:** {msg}")
-            if stuck:
-                lines.append("**STUCK** - doom loop detected")
-
-        if status == "completed":
-            result_data = json.loads(row.get("result") or "{}")
-            output = result_data.get("output", "")
-            truncated = result_data.get("truncated", False)
-            lines.append(f"\n**Output:**\n{output[:500]}{'...' if len(output) > 500 else ''}")
-            if truncated:
-                lines.append("(output truncated)")
-
-        elif status == "failed":
-            lines.append(f"\n**Error:** {row.get('error', 'Unknown')}")
-
-        elif status == "cancelled":
-            lines.append("\nTask was cancelled by supervisor.")
-
-        return "\n".join(lines)
-
-    else:
-
-        async def _get_progress() -> list[dict[str, Any]]:
-            return await coordinator.check_progress(parent_id=parent_id)
-
-        try:
-            asyncio.get_running_loop()
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                tasks = pool.submit(asyncio.run, _get_progress()).result()
-        except RuntimeError:
-            tasks = asyncio.run(_get_progress())
-
-        if not tasks:
-            return "No active tasks."
-
-        lines = ["## Tasks\n"]
-        for t in tasks:
-            t_status = t.get("status", "unknown")
-            t_name = t.get("agent_name", "unknown")
-            tid = t.get("id", "?")
-            lines.append(f"- **{tid}** ({t_name}): {t_status}")
-
-        return "\n".join(lines)
+    return "\n".join(lines)
 
 
-subagent_progress.annotations = ToolAnnotations(
-    title="Subagent Progress", read_only=True, idempotent=True
-)
+subagent_tasks.annotations = ToolAnnotations(title="Subagent Tasks", read_only=True, idempotent=True)
 
 
 @tool
@@ -435,8 +482,6 @@ def subagent_instruct(
     Returns:
         Confirmation message
     """
-    from src.sdk.coordinator import get_coordinator
-
     coordinator = get_coordinator(user_id, workspace_id)
 
     async def _instruct() -> bool | None:
@@ -449,14 +494,7 @@ def subagent_instruct(
         ok = await db.add_instruction(task_id, message)
         return ok
 
-    try:
-        asyncio.get_running_loop()
-        import concurrent.futures
-
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            result = pool.submit(asyncio.run, _instruct()).result()
-    except RuntimeError:
-        result = asyncio.run(_instruct())
+    result = _run_async(_instruct())
 
     if result is None:
         return f"Error: Task '{task_id}' not found or not running."
@@ -484,21 +522,12 @@ def subagent_cancel(task_id: str, user_id: str, workspace_id: str = "personal") 
     Returns:
         Cancellation confirmation
     """
-    from src.sdk.coordinator import get_coordinator
-
     coordinator = get_coordinator(user_id, workspace_id)
 
     async def _cancel() -> bool:
         return await coordinator.cancel(task_id)
 
-    try:
-        asyncio.get_running_loop()
-        import concurrent.futures
-
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            ok = pool.submit(asyncio.run, _cancel()).result()
-    except RuntimeError:
-        ok = asyncio.run(_cancel())
+    ok = _run_async(_cancel())
 
     if ok:
         return f"Task '{task_id}' cancellation requested. The subagent will terminate on its next iteration."
@@ -520,21 +549,12 @@ def subagent_delete(name: str, user_id: str, workspace_id: str = "personal") -> 
     Returns:
         Deletion confirmation
     """
-    from src.sdk.coordinator import get_coordinator
-
     coordinator = get_coordinator(user_id, workspace_id)
 
     async def _delete() -> bool:
         return await coordinator.delete(name)
 
-    try:
-        asyncio.get_running_loop()
-        import concurrent.futures
-
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            ok = pool.submit(asyncio.run, _delete()).result()
-    except RuntimeError:
-        ok = asyncio.run(_delete())
+    ok = _run_async(_delete())
 
     if ok:
         return f"Subagent '{name}' deleted. Any running tasks have been cancelled."
