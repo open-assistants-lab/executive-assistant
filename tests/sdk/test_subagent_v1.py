@@ -343,8 +343,13 @@ class TestWorkQueueDB:
         assert await db.is_cancel_requested(running_id)
         assert not await db.is_cancel_requested(completed_id)
         assert not await db.is_cancel_requested(other_id)
-        assert (await db.get_task(pending_id))["status"] == "cancelling"
-        assert (await db.get_task(running_id))["status"] == "cancelling"
+        pending = await db.get_task(pending_id)
+        running = await db.get_task(running_id)
+        assert pending["status"] == "cancelled"
+        assert pending["completed_at"] is not None
+        assert pending["error"] == "cancelled before start"
+        assert json.loads(pending["result"])["error"] == "cancelled before start"
+        assert running["status"] == "cancelling"
         assert (await db.get_task(completed_id))["status"] == "completed"
         assert (await db.get_task(other_id))["status"] == "running"
 
@@ -943,9 +948,16 @@ class TestSubagentCoordinator:
         assert not await db.is_cancel_requested(failed_id)
         assert not await db.is_cancel_requested(cancelled_id)
         assert not await db.is_cancel_requested(other_id)
-        assert (await db.get_task(pending_id))["status"] == "cancelling"
+        pending = await db.get_task(pending_id)
+        assert pending["status"] == "cancelled"
+        assert pending["completed_at"] is not None
+        assert pending["error"] == "cancelled before start"
+        assert json.loads(pending["result"])["error"] == "cancelled before start"
         assert (await db.get_task(running_id))["status"] == "cancelling"
         assert (await db.get_task(cancelling_id))["status"] == "cancelling"
+        assert (await db.get_task(completed_id))["status"] == "completed"
+        assert (await db.get_task(failed_id))["status"] == "failed"
+        assert (await db.get_task(cancelled_id))["status"] == "cancelled"
         assert (await db.get_task(other_id))["status"] == "running"
 
     @pytest.mark.asyncio
