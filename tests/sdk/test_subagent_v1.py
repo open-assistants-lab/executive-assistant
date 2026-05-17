@@ -830,6 +830,42 @@ class TestSubagentCoordinator:
         assert result["output"] == f"completed {task_id}"
 
     @pytest.mark.asyncio
+    async def test_run_job_preserves_cancel_racing_with_completion(
+        self, mock_paths, agent_def, monkeypatch
+    ):
+        from src.sdk.coordinator import SubagentCoordinator
+        from src.sdk.subagent_models import SubagentResult
+
+        coordinator = SubagentCoordinator("test_user")
+        db = await coordinator._get_db()
+        task_id = await db.insert_task("test_agent", "do work", agent_def)
+
+        async def fake_run_loop(task_id: str, frozen_agent_def, task: str, db):
+            return SubagentResult(
+                name=frozen_agent_def.name,
+                task=task,
+                success=True,
+                output="done",
+            )
+
+        original_set_completed = db.set_completed
+
+        async def cancel_before_complete(task_id: str, result):
+            await db.request_cancel(task_id)
+            return await original_set_completed(task_id, result)
+
+        monkeypatch.setattr(coordinator, "_run_loop", fake_run_loop)
+        monkeypatch.setattr(db, "set_completed", cancel_before_complete)
+
+        await coordinator._run_job(task_id)
+
+        row = await db.get_task(task_id)
+        assert row["status"] == "cancelled"
+        assert row["cancel_requested"] == 1
+        result = json.loads(row["result"])
+        assert result["error"] == "cancelled by supervisor"
+
+    @pytest.mark.asyncio
     async def test_create_and_load(self, mock_paths):
         from src.sdk.coordinator import SubagentCoordinator
         from src.sdk.subagent_models import AgentDef

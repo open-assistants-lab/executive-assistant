@@ -329,7 +329,15 @@ class SubagentCoordinator:
             if latest and latest["status"] == TaskStatus.CANCELLING.value:
                 await db.set_cancelled(task_id)
             else:
-                await db.set_completed(task_id, result)
+                completed = await db.set_completed(task_id, result)
+                if not completed:
+                    latest = await db.get_task(task_id)
+                    if latest and (
+                        latest["cancel_requested"]
+                        or latest["status"]
+                        in {TaskStatus.CANCELLING.value, TaskStatus.CANCELLED.value}
+                    ):
+                        await db.set_cancelled(task_id)
         except TaskCancelledError:
             await db.set_cancelled(task_id)
         except TimeoutError:

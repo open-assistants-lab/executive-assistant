@@ -201,8 +201,18 @@ class WorkQueueDB:
         db = await self._get_db()
         now = _now()
         cursor = await db.execute(
-            "UPDATE work_queue SET status = ?, result = ?, completed_at = ?, updated_at = ? WHERE id = ?",
-            (TaskStatus.COMPLETED.value, result.model_dump_json(), now, now, task_id),
+            """UPDATE work_queue
+            SET status = ?, result = ?, completed_at = ?, updated_at = ?
+            WHERE id = ? AND status IN (?, ?) AND cancel_requested = 0""",
+            (
+                TaskStatus.COMPLETED.value,
+                result.model_dump_json(),
+                now,
+                now,
+                task_id,
+                TaskStatus.PENDING.value,
+                TaskStatus.RUNNING.value,
+            ),
         )
         await db.commit()
         return cursor.rowcount > 0
