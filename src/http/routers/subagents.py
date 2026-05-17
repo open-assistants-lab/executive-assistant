@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from src.sdk.subagent_models import AgentDef, TaskStatus
 
@@ -108,7 +108,11 @@ async def create_subagent(
     if coordinator.load_def(body.name) is not None:
         raise HTTPException(status_code=400, detail=f"Subagent '{body.name}' already exists.")
 
-    agent_def = AgentDef(**body.model_dump(), workspace_id=workspace_id)
+    try:
+        agent_def = AgentDef(**body.model_dump(), workspace_id=workspace_id)
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=e.errors()) from e
+
     errors = validate_agent_def(agent_def, user_id=user_id, workspace_id=workspace_id)
     if errors:
         raise HTTPException(status_code=400, detail={"errors": errors})
@@ -214,7 +218,13 @@ async def update_subagent(
     if current is None:
         raise HTTPException(status_code=404, detail=f"Subagent '{name}' not found.")
 
-    candidate = current.model_copy(update={k: v for k, v in update_data.items() if v is not None})
+    candidate_data = current.model_dump()
+    candidate_data.update({k: v for k, v in update_data.items() if v is not None})
+    try:
+        candidate = AgentDef(**candidate_data)
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=e.errors()) from e
+
     errors = validate_agent_def(candidate, user_id=user_id, workspace_id=workspace_id)
     if errors:
         raise HTTPException(status_code=400, detail={"errors": errors})
