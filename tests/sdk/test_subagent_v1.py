@@ -10,6 +10,7 @@ Covers:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import tempfile
@@ -59,6 +60,16 @@ async def db(mock_paths):
     db = WorkQueueDB("test_user")
     yield db
     await db.close()
+
+
+@pytest.fixture(autouse=True)
+async def cleanup_work_queue_cache():
+    yield
+    from src.sdk.work_queue import _db_cache
+
+    for cached_db in list(_db_cache.values()):
+        await cached_db.close()
+    _db_cache.clear()
 
 
 @pytest.fixture
@@ -686,6 +697,77 @@ class TestSubagentCoordinator:
         assert captured_run_config is not None
         assert captured_run_config.provider_options == provider_options
         assert captured_workspace_id == "sales"
+
+    @pytest.mark.asyncio
+    async def test_start_returns_before_runner_finishes(self, mock_paths, agent_def, monkeypatch):
+        from src.sdk.coordinator import SubagentCoordinator
+
+        coordinator = SubagentCoordinator("test_user")
+        await coordinator.create(agent_def)
+        started = asyncio.Event()
+        finish = asyncio.Event()
+
+        async def fake_run_job(task_id: str):
+            started.set()
+            await finish.wait()
+
+        monkeypatch.setattr(coordinator, "_run_job", fake_run_job)
+
+        task_id = await coordinator.start("test_agent", "do work")
+
+        await asyncio.wait_for(started.wait(), timeout=1)
+        row = await (await coordinator._get_db()).get_task(task_id)
+        assert row is not None
+        assert row["status"] in {"pending", "running"}
+        finish.set()
+        await asyncio.sleep(0)
+
+    @pytest.mark.asyncio
+    async def test_start_freezes_config_snapshot(self, mock_paths, agent_def, monkeypatch):
+        from src.sdk.coordinator import SubagentCoordinator
+
+        coordinator = SubagentCoordinator("test_user")
+        await coordinator.create(agent_def)
+
+        async def fake_run_job(task_id: str):
+            return None
+
+        monkeypatch.setattr(coordinator, "_run_job", fake_run_job)
+        task_id = await coordinator.start("test_agent", "do work")
+        await coordinator.update("test_agent", model="changed:model")
+
+        row = await (await coordinator._get_db()).get_task(task_id)
+        config = json.loads(row["config"])
+        assert config["model"] == agent_def.model
+
+    @pytest.mark.asyncio
+    async def test_run_job_claims_pending_task_and_marks_completed(
+        self, mock_paths, agent_def, monkeypatch
+    ):
+        from src.sdk.coordinator import SubagentCoordinator
+        from src.sdk.subagent_models import SubagentResult
+
+        coordinator = SubagentCoordinator("test_user")
+        db = await coordinator._get_db()
+        task_id = await db.insert_task("test_agent", "do work", agent_def)
+
+        async def fake_run_loop(task_id: str, frozen_agent_def, task: str, db):
+            return SubagentResult(
+                name=frozen_agent_def.name,
+                task=task,
+                success=True,
+                output=f"completed {task_id}",
+            )
+
+        monkeypatch.setattr(coordinator, "_run_loop", fake_run_loop)
+
+        await coordinator._run_job(task_id)
+
+        row = await db.get_task(task_id)
+        assert row["status"] == "completed"
+        assert row["claimed_by"] is not None
+        result = json.loads(row["result"])
+        assert result["output"] == f"completed {task_id}"
 
     @pytest.mark.asyncio
     async def test_create_and_load(self, mock_paths):

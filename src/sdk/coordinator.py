@@ -8,7 +8,9 @@ runs it with timeout and cost limits, and stores structured results in work_queu
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
+import shutil
 from typing import Any
 
 import yaml
@@ -24,6 +26,7 @@ from src.sdk.subagent_models import (
     AgentDef,
     SubagentResult,
     TaskCancelledError,
+    TaskStatus,
 )
 from src.sdk.work_queue import WorkQueueDB, get_work_queue
 from src.skills import get_skill_registry
@@ -260,6 +263,78 @@ class SubagentCoordinator:
 
         return task_id
 
+    async def start(
+        self,
+        agent_name: str,
+        task: str,
+        parent_id: str | None = None,
+    ) -> str:
+        agent_def = self.load_def(agent_name)
+        if agent_def is None:
+            raise ValueError(f"Subagent '{agent_name}' not found. Create it first with subagent_create.")
+
+        errors = validate_agent_def(agent_def, user_id=self.user_id, workspace_id=self.workspace_id)
+        if errors:
+            raise ValueError("Invalid subagent definition: " + "; ".join(errors))
+
+        db = await self._get_db()
+        task_id = await db.insert_task(agent_name, task, agent_def, parent_id)
+        background_task = asyncio.create_task(self._run_job(task_id))
+        background_task.add_done_callback(self._consume_background_exception)
+        return task_id
+
+    @staticmethod
+    def _consume_background_exception(task: asyncio.Task[Any]) -> None:
+        with contextlib.suppress(asyncio.CancelledError):
+            exc = task.exception()
+            if exc is not None:
+                logger.error(
+                    "subagent.background_failed",
+                    {"error": str(exc), "error_type": type(exc).__name__},
+                    user_id="system",
+                )
+
+    async def _heartbeat_loop(self, task_id: str, worker_id: str, db: WorkQueueDB) -> None:
+        while True:
+            await asyncio.sleep(5)
+            await db.heartbeat(task_id, worker_id)
+
+    async def _run_job(self, task_id: str) -> None:
+        db = await self._get_db()
+        worker_id = f"{self.user_id}:{self.workspace_id}:{id(self)}"
+        claimed = await db.claim_task(task_id, worker_id)
+        if not claimed:
+            return
+
+        row = await db.get_task(task_id)
+        if row is None:
+            return
+
+        agent_def = AgentDef(**json.loads(row.get("config") or "{}"))
+        task = row["task"]
+        heartbeat_task = asyncio.create_task(self._heartbeat_loop(task_id, worker_id, db))
+
+        try:
+            result = await asyncio.wait_for(
+                self._run_loop(task_id, agent_def, task, db),
+                timeout=agent_def.timeout_seconds,
+            )
+            latest = await db.get_task(task_id)
+            if latest and latest["status"] == TaskStatus.CANCELLING.value:
+                await db.set_cancelled(task_id)
+            else:
+                await db.set_completed(task_id, result)
+        except TaskCancelledError:
+            await db.set_cancelled(task_id)
+        except TimeoutError:
+            await db.set_failed(task_id, f"timeout after {agent_def.timeout_seconds}s")
+        except Exception as e:
+            await db.set_failed(task_id, f"{type(e).__name__}: {e}")
+        finally:
+            heartbeat_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await heartbeat_task
+
     async def _run_loop(
         self,
         task_id: str,
@@ -268,6 +343,8 @@ class SubagentCoordinator:
         db: WorkQueueDB,
     ) -> SubagentResult:
         from src.sdk.loop import AgentLoop, RunConfig
+        from src.sdk.middleware_observation import ObservationMiddleware
+        from src.sdk.middleware_summarization import SummarizationMiddleware
         from src.sdk.providers.factory import create_model_from_config
 
         model_str = agent_def.model or self.settings.agent.model
@@ -284,12 +361,14 @@ class SubagentCoordinator:
 
         progress_mw = ProgressMiddleware(task_id, db)
         instruction_mw = InstructionMiddleware(task_id, db)
+        summarization_mw = SummarizationMiddleware()
+        observation_mw = ObservationMiddleware(user_id=self.user_id, workspace_id=self.workspace_id)
 
         loop = AgentLoop(
             provider=provider,
             tools=tools,
             system_prompt=system_prompt,
-            middlewares=[progress_mw, instruction_mw],
+            middlewares=[progress_mw, instruction_mw, summarization_mw, observation_mw],
             run_config=run_config,
             user_id=self.user_id,
             workspace_id=self.workspace_id,
@@ -341,6 +420,15 @@ class SubagentCoordinator:
     async def instruct(self, task_id: str, message: str) -> bool:
         db = await self._get_db()
         return await db.add_instruction(task_id, message)
+
+    async def delete(self, name: str) -> bool:
+        agent_def = self.load_def(name)
+        if agent_def is None:
+            return False
+        agent_path = self.base_path / name
+        if agent_path.exists():
+            shutil.rmtree(agent_path)
+        return True
 
     async def check_progress(self, parent_id: str | None = None) -> list[dict[str, Any]]:
         db = await self._get_db()
