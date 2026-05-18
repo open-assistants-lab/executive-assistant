@@ -30,21 +30,48 @@ logger = get_logger()
 
 _loop: asyncio.AbstractEventLoop | None = None
 _loop_lock = threading.Lock()
+_TIMEOUT_SECONDS = 300
+_LOOP_ERROR_COUNT = 0
+_MAX_LOOP_ERRORS = 3
 
 
 def _get_loop() -> asyncio.AbstractEventLoop:
-    global _loop
+    global _loop, _LOOP_ERROR_COUNT
     with _loop_lock:
         if _loop is None or _loop.is_closed():
             _loop = asyncio.new_event_loop()
             thread = threading.Thread(target=_loop.run_forever, daemon=True)
             thread.start()
+            _LOOP_ERROR_COUNT = 0
         return _loop
 
 
 def _run_async(coro: Any) -> Any:
-    future = asyncio.run_coroutine_threadsafe(coro, _get_loop())
-    return future.result()
+    global _LOOP_ERROR_COUNT, _loop
+
+    try:
+        loop = _get_loop()
+        future = asyncio.run_coroutine_threadsafe(coro, loop)
+        return future.result(timeout=_TIMEOUT_SECONDS)
+    except TimeoutError:
+        _LOOP_ERROR_COUNT += 1
+        raise TimeoutError(
+            f"Subagent tool call timed out after {_TIMEOUT_SECONDS}s"
+        )
+    except Exception as e:
+        _LOOP_ERROR_COUNT += 1
+        logger.error(
+            "subagent.bridge_error",
+            {"error": str(e), "error_type": type(e).__name__,
+             "error_count": _LOOP_ERROR_COUNT},
+            user_id="system",
+        )
+        if _LOOP_ERROR_COUNT >= _MAX_LOOP_ERRORS:
+            with _loop_lock:
+                if _loop and not _loop.is_closed():
+                    _loop.call_soon_threadsafe(_loop.stop)
+            _loop = None
+        raise
 
 
 def _parse_object_json(value: str | None, field_name: str) -> tuple[dict[str, Any] | None, str | None]:

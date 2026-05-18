@@ -1,3 +1,6 @@
+import pytest
+
+
 def test_new_runtime_tools_registered():
     from src.sdk.native_tools import get_native_tools
 
@@ -279,3 +282,37 @@ def test_subagent_update_rejects_validation_errors_before_save(monkeypatch):
 
     assert result == "Error: Unknown tool: not_a_tool"
     assert validated["tools"] == ["not_a_tool"]
+
+
+class TestAsyncBridgeRecovery:
+    def test_run_async_respects_timeout(self):
+        import asyncio
+        from unittest import mock
+
+        import src.sdk.tools_core.subagent as subagent_module
+
+        async def slow_coro():
+            await asyncio.sleep(60)
+            return "done"
+
+        with mock.patch.object(subagent_module, "_TIMEOUT_SECONDS", 0.5):
+            with pytest.raises(TimeoutError):
+                subagent_module._run_async(slow_coro())
+
+    def test_get_loop_creates_fresh_loop_when_closed(self):
+        import time
+
+        import src.sdk.tools_core.subagent as subagent_module
+
+        subagent_module._loop = None
+        loop1 = subagent_module._get_loop()
+        assert not loop1.is_closed()
+
+        loop1.call_soon_threadsafe(loop1.stop)
+        time.sleep(0.2)
+        loop1.close()
+
+        loop2 = subagent_module._get_loop()
+        assert loop2 is not None
+        assert not loop2.is_closed()
+        assert loop2 is not loop1
