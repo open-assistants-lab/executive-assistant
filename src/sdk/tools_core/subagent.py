@@ -47,30 +47,44 @@ def _get_loop() -> asyncio.AbstractEventLoop:
 
 
 def _run_async(coro: Any) -> Any:
-    global _LOOP_ERROR_COUNT, _loop
+    global _LOOP_ERROR_COUNT
 
     try:
         loop = _get_loop()
         future = asyncio.run_coroutine_threadsafe(coro, loop)
         return future.result(timeout=_TIMEOUT_SECONDS)
     except TimeoutError:
-        _LOOP_ERROR_COUNT += 1
+        with _loop_lock:
+            _LOOP_ERROR_COUNT += 1
+            current_count = _LOOP_ERROR_COUNT
+        logger.warning(
+            "subagent.bridge_timeout",
+            {"timeout_s": _TIMEOUT_SECONDS, "error_count": current_count},
+            user_id="system",
+        )
+        if current_count >= _MAX_LOOP_ERRORS:
+            with _loop_lock:
+                if _loop and not _loop.is_closed():
+                    _loop.call_soon_threadsafe(_loop.stop)
+                _loop = None
         raise TimeoutError(
             f"Subagent tool call timed out after {_TIMEOUT_SECONDS}s"
         )
     except Exception as e:
-        _LOOP_ERROR_COUNT += 1
+        with _loop_lock:
+            _LOOP_ERROR_COUNT += 1
+            current_count = _LOOP_ERROR_COUNT
         logger.error(
             "subagent.bridge_error",
             {"error": str(e), "error_type": type(e).__name__,
-             "error_count": _LOOP_ERROR_COUNT},
+             "error_count": current_count},
             user_id="system",
         )
-        if _LOOP_ERROR_COUNT >= _MAX_LOOP_ERRORS:
+        if current_count >= _MAX_LOOP_ERRORS:
             with _loop_lock:
                 if _loop and not _loop.is_closed():
                     _loop.call_soon_threadsafe(_loop.stop)
-            _loop = None
+                _loop = None
         raise
 
 
