@@ -552,8 +552,18 @@ class SubagentCoordinator:
                 data = yaml.safe_load(config_path.read_text()) or {}
                 data.setdefault("disallowed_tools", list(SAFE_DISALLOWED_TOOLS))
                 return AgentDef(**data)
+            except yaml.YAMLError as e:
+                logger.error(
+                    "subagent.corrupt_yaml",
+                    {"name": name, "path": str(config_path), "error": str(e)},
+                    user_id=self.user_id,
+                )
             except Exception as e:
-                logger.warning("subagent.load_failed", {"name": name, "error": str(e)}, user_id=self.user_id)
+                logger.error(
+                    "subagent.load_failed",
+                    {"name": name, "error": str(e), "error_type": type(e).__name__},
+                    user_id=self.user_id,
+                )
 
         # 2. User-global fallback
         try:
@@ -563,10 +573,29 @@ class SubagentCoordinator:
                 data = yaml.safe_load(global_path.read_text()) or {}
                 data.setdefault("disallowed_tools", list(SAFE_DISALLOWED_TOOLS))
                 return AgentDef(**data)
+        except yaml.YAMLError as e:
+            logger.error(
+                "subagent.corrupt_yaml",
+                {"name": name, "path": str(global_path),
+                 "error": str(e)},
+                user_id=self.user_id,
+            )
         except Exception as e:
-            logger.warning("subagent.load_failed", {"name": name, "error": str(e)}, user_id=self.user_id)
+            logger.error(
+                "subagent.load_failed",
+                {"name": name, "error": str(e), "error_type": type(e).__name__},
+                user_id=self.user_id,
+            )
 
         return None
+
+    def is_valid(self, name: str) -> bool:
+        """Check if a subagent config exists and is loadable.
+
+        Returns False for: missing agent, corrupt YAML, or invalid AgentDef.
+        Returns True for: valid, loadable AgentDef.
+        """
+        return self.load_def(name) is not None
 
 
 _coordinators: dict[str, SubagentCoordinator] = {}
