@@ -382,7 +382,9 @@ class AgentNotifier extends StateNotifier<ChatState> {
         state.copyWith(
           streamingText:
               state.streamingText + _extractTextContent(msg['content']),
-          status: ChatStatus.streaming,
+          status: state.status == ChatStatus.awaitingApproval
+              ? ChatStatus.awaitingApproval
+              : ChatStatus.streaming,
         ),
       );
       return;
@@ -396,7 +398,9 @@ class AgentNotifier extends StateNotifier<ChatState> {
         state.copyWith(
           reasoningText:
               state.reasoningText + (msg['content']?.toString() ?? ''),
-          status: ChatStatus.streaming,
+          status: state.status == ChatStatus.awaitingApproval
+              ? ChatStatus.awaitingApproval
+              : ChatStatus.streaming,
         ),
       );
       return;
@@ -414,7 +418,9 @@ class AgentNotifier extends StateNotifier<ChatState> {
       _setState(
         state.copyWith(
           activeToolCalls: [...state.activeToolCalls, tc],
-          status: ChatStatus.streaming,
+          status: state.status == ChatStatus.awaitingApproval
+              ? ChatStatus.awaitingApproval
+              : ChatStatus.streaming,
         ),
       );
       return;
@@ -600,7 +606,9 @@ class AgentNotifier extends StateNotifier<ChatState> {
             ...state.activeToolCalls,
             ToolCallDisplay(callId: callId, toolName: toolName, args: args),
           ],
-          status: ChatStatus.streaming,
+          status: state.status == ChatStatus.awaitingApproval
+              ? ChatStatus.awaitingApproval
+              : ChatStatus.streaming,
         ),
       );
     }

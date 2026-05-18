@@ -408,5 +408,73 @@ void main() {
       expect(notifier.state.pendingApprovals.containsKey('c99'), isTrue);
       expect(notifier.state.pendingApprovals['c99']!.toolName, 'email_send');
     });
+
+    test('text_delta after interrupt preserves awaitingApproval', () async {
+      statusCtrl.add(ConnectionStatus.connected);
+      msgCtrl.add(WsMessage(type: 'interrupt', data: {
+        'type': 'interrupt',
+        'call_id': 'c1',
+        'tool': 'subagent_create',
+        'args': {'name': 'test'},
+      }));
+      msgCtrl.add(WsMessage(type: 'text_delta', data: {
+        'type': 'text_delta',
+        'content': 'Approval needed...',
+      }));
+      await Future.delayed(Duration.zero);
+      expect(notifier.state.status, ChatStatus.awaitingApproval);
+    });
+
+    test('tool_start after interrupt preserves awaitingApproval', () async {
+      statusCtrl.add(ConnectionStatus.connected);
+      msgCtrl.add(WsMessage(type: 'interrupt', data: {
+        'type': 'interrupt',
+        'call_id': 'c1',
+        'tool': 'subagent_create',
+        'args': {'name': 'test'},
+      }));
+      msgCtrl.add(WsMessage(type: 'tool_start', data: {
+        'type': 'tool_start',
+        'call_id': 'c2',
+        'tool': 'subagent_list',
+        'args': {},
+      }));
+      await Future.delayed(Duration.zero);
+      expect(notifier.state.status, ChatStatus.awaitingApproval);
+    });
+
+    test('reasoning after interrupt preserves awaitingApproval', () async {
+      statusCtrl.add(ConnectionStatus.connected);
+      msgCtrl.add(WsMessage(type: 'interrupt', data: {
+        'type': 'interrupt',
+        'call_id': 'c1',
+        'tool': 'subagent_create',
+        'args': {'name': 'test'},
+      }));
+      msgCtrl.add(WsMessage(type: 'reasoning', data: {
+        'type': 'reasoning',
+        'content': 'thinking...',
+      }));
+      await Future.delayed(Duration.zero);
+      expect(notifier.state.status, ChatStatus.awaitingApproval);
+    });
+
+    test('tool_call after interrupt preserves awaitingApproval', () async {
+      statusCtrl.add(ConnectionStatus.connected);
+      msgCtrl.add(WsMessage(type: 'interrupt', data: {
+        'type': 'interrupt',
+        'call_id': 'c1',
+        'tool': 'subagent_create',
+        'args': {'name': 'test'},
+      }));
+      msgCtrl.add(WsMessage(type: 'tool_call', data: {
+        'type': 'tool_call',
+        'call_id': 'c2',
+        'tool': 'subagent_list',
+        'args': {},
+      }));
+      await Future.delayed(Duration.zero);
+      expect(notifier.state.status, ChatStatus.awaitingApproval);
+    });
   });
 }
