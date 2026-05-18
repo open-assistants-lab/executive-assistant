@@ -1248,7 +1248,6 @@ class TestStaleJobRecovery:
     @pytest.mark.asyncio
     async def test_coordinator_recovers_stale_jobs_on_init(self, tmp_path):
         from datetime import UTC, datetime, timedelta
-        from pathlib import Path
         from unittest import mock
 
         import aiosqlite
@@ -1307,3 +1306,51 @@ class TestStaleJobRecovery:
             task = await db.get_task("stale-job")
             assert task is not None
             assert task["status"] == "failed"
+
+
+class TestSafeDefaults:
+    def test_load_def_applies_safe_disallowed_tools_by_default(self, tmp_path):
+        import yaml
+
+        from src.sdk.coordinator import SubagentCoordinator
+
+        agent_dir = tmp_path / "subagent" / "test_agent"
+        agent_dir.mkdir(parents=True)
+        config = agent_dir / "config.yaml"
+        config.write_text(yaml.dump({"name": "test_agent", "description": "test"}))
+
+        coordinator = SubagentCoordinator.__new__(SubagentCoordinator)
+        coordinator.base_path = tmp_path / "subagent"
+        coordinator.user_id = "test_user"
+
+        agent_def = coordinator.load_def("test_agent")
+        assert agent_def is not None
+        assert "shell_execute" in agent_def.disallowed_tools
+        assert "email_send" in agent_def.disallowed_tools
+        assert "browser_click" in agent_def.disallowed_tools
+        assert "subagent_create" in agent_def.disallowed_tools
+
+    def test_explicit_tools_overrides_safe_defaults(self, tmp_path):
+        import yaml
+
+        from src.sdk.coordinator import SubagentCoordinator
+
+        agent_dir = tmp_path / "subagent" / "explicit_agent"
+        agent_dir.mkdir(parents=True)
+        config = agent_dir / "config.yaml"
+        config.write_text(yaml.dump({
+            "name": "explicit_agent",
+            "description": "test",
+            "tools": ["shell_execute", "memory_search", "files_list"],
+            "disallowed_tools": ["subagent_create"]
+        }))
+
+        coordinator = SubagentCoordinator.__new__(SubagentCoordinator)
+        coordinator.base_path = tmp_path / "subagent"
+        coordinator.user_id = "test_user"
+
+        agent_def = coordinator.load_def("explicit_agent")
+        assert agent_def is not None
+        assert "shell_execute" in agent_def.tools
+        assert "shell_execute" not in agent_def.disallowed_tools
+        assert "subagent_create" in agent_def.disallowed_tools

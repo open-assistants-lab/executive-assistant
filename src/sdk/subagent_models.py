@@ -22,6 +22,19 @@ DEFAULT_DISALLOWED_TOOLS = [
     "subagent_cancel",
 ]
 
+DEFAULT_SAFE_DENIED_TOOLS = [
+    "shell_execute",
+    "email_send",
+    "email_connect",
+    "email_disconnect",
+    "browser_click",
+    "browser_input",
+    "browser_type",
+    "browser_eval",
+    "browser_open",
+    "browser_keys",
+]
+
 DEFAULT_MAX_LLM_CALLS = 50
 DEFAULT_COST_LIMIT_USD = 1.0
 DEFAULT_TIMEOUT_SECONDS = 300
