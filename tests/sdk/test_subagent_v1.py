@@ -1356,3 +1356,122 @@ class TestSafeDefaults:
         assert "shell_execute" in agent_def.tools
         assert "shell_execute" not in agent_def.disallowed_tools
         assert "subagent_create" in agent_def.disallowed_tools
+
+
+class TestDoomLoopDetection:
+    """Verify doom loop detection uses tool call args, not result content."""
+
+    @pytest.mark.asyncio
+    async def test_doom_loop_detects_same_tool_with_same_args(self):
+        from unittest import mock
+
+        from src.sdk.messages import Message
+        from src.sdk.middleware_progress import DOOM_THRESHOLD, ProgressMiddleware
+        from src.sdk.state import AgentState
+
+        mock_db = mock.AsyncMock()
+        mw = ProgressMiddleware("task-1", mock_db)
+
+        state = AgentState()
+        for i in range(DOOM_THRESHOLD):
+            state.add_message(Message(
+                role="assistant",
+                content=[{"type": "tool_call", "name": "files_read", "input": {"path": "/a.txt"}}],
+            ))
+            state.add_message(Message.tool_result(
+                tool_call_id=f"tc{i}", content="file contents", name="files_read"
+            ))
+            await mw.abefore_model(state)  # one call per iteration
+
+        assert len(mw._last_tool_calls) == DOOM_THRESHOLD
+        assert len(set(mw._last_tool_calls)) == 1  # all identical -> stuck
+
+    @pytest.mark.asyncio
+    async def test_doom_loop_distinguishes_same_tool_with_different_args(self):
+        from unittest import mock
+
+        from src.sdk.messages import Message
+        from src.sdk.middleware_progress import ProgressMiddleware
+        from src.sdk.state import AgentState
+
+        mock_db = mock.AsyncMock()
+        mw = ProgressMiddleware("task-2", mock_db)
+
+        state = AgentState()
+        # Build state with 3 different tool calls, 1 LLM call at a time
+        # to mimic how AgentLoop actually calls abefore_model iteratively
+
+        state.add_message(Message(
+            role="assistant",
+            content=[{"type": "tool_call", "name": "files_read", "input": {"path": "/a.txt"}}],
+        ))
+        state.add_message(Message.tool_result(
+            tool_call_id="tc0", content="content A", name="files_read"
+        ))
+        await mw.abefore_model(state)  # call 1
+
+        state.add_message(Message(
+            role="assistant",
+            content=[{"type": "tool_call", "name": "files_read", "input": {"path": "/b.txt"}}],
+        ))
+        state.add_message(Message.tool_result(
+            tool_call_id="tc1", content="content B", name="files_read"
+        ))
+        await mw.abefore_model(state)  # call 2
+
+        state.add_message(Message(
+            role="assistant",
+            content=[{"type": "tool_call", "name": "files_read", "input": {"path": "/c.txt"}}],
+        ))
+        state.add_message(Message.tool_result(
+            tool_call_id="tc2", content="content C", name="files_read"
+        ))
+        result = await mw.abefore_model(state)  # call 3
+
+        assert result is None
+        # Different args -> 3 different hashes
+        assert len(set(mw._last_tool_calls)) == 3
+
+    @pytest.mark.asyncio
+    async def test_doom_loop_distinguishes_string_returning_tools(self):
+        from unittest import mock
+
+        from src.sdk.messages import Message
+        from src.sdk.middleware_progress import ProgressMiddleware
+        from src.sdk.state import AgentState
+
+        mock_db = mock.AsyncMock()
+        mw = ProgressMiddleware("task-3", mock_db)
+
+        state = AgentState()
+
+        state.add_message(Message(
+            role="assistant",
+            content=[{"type": "tool_call", "name": "shell_execute", "input": {"command": "ls"}}],
+        ))
+        state.add_message(Message.tool_result(
+            tool_call_id="tc0", content="file1\\nfile2", name="shell_execute"
+        ))
+        await mw.abefore_model(state)  # call 1
+
+        state.add_message(Message(
+            role="assistant",
+            content=[{"type": "tool_call", "name": "shell_execute", "input": {"command": "pwd"}}],
+        ))
+        state.add_message(Message.tool_result(
+            tool_call_id="tc1", content="/home/user", name="shell_execute"
+        ))
+        await mw.abefore_model(state)  # call 2
+
+        state.add_message(Message(
+            role="assistant",
+            content=[{"type": "tool_call", "name": "shell_execute", "input": {"command": "date"}}],
+        ))
+        state.add_message(Message.tool_result(
+            tool_call_id="tc2", content="Mon May 19", name="shell_execute"
+        ))
+        result = await mw.abefore_model(state)  # call 3
+
+        assert result is None
+        # String-returning tool with different args -> 3 different hashes
+        assert len(set(mw._last_tool_calls)) == 3

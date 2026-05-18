@@ -40,17 +40,7 @@ class ProgressMiddleware(Middleware):
         tool_name = getattr(last_result, "name", None) or "unknown"
         self._steps_completed += 1
 
-        # Doom loop detection: same tool+args 3 times
-        tool_args = {}
-        try:
-            raw = getattr(last_result, "content", "")
-            if isinstance(raw, str):
-                parsed = json.loads(raw)
-                if isinstance(parsed, dict):
-                    tool_args = parsed
-        except (json.JSONDecodeError, TypeError):
-            pass
-
+        tool_args = self._extract_tool_call_args(state, tool_name)
         args_json = json.dumps(tool_args, sort_keys=True, ensure_ascii=True)
         call_hash = f"{tool_name}:{hashlib.md5(args_json.encode()).hexdigest()[:8]}"
         self._last_tool_calls.append(call_hash)
@@ -83,3 +73,18 @@ class ProgressMiddleware(Middleware):
             )
 
         return None
+
+    def _extract_tool_call_args(self, state: AgentState, tool_name: str) -> dict[str, Any]:
+        """Walk messages backwards to find the tool call block for the last tool result."""
+        for msg in reversed(state.messages):
+            if msg.role != "assistant":
+                continue
+            content = msg.content
+            if not isinstance(content, list):
+                continue
+            for block in reversed(content):
+                if not isinstance(block, dict):
+                    continue
+                if block.get("type") == "tool_call" and block.get("name") == tool_name:
+                    return dict(block.get("input") or {})
+        return {}
