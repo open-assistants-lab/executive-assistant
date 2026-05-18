@@ -75,16 +75,14 @@ class ProgressMiddleware(Middleware):
         return None
 
     def _extract_tool_call_args(self, state: AgentState, tool_name: str) -> dict[str, Any]:
-        """Walk messages backwards to find the tool call block for the last tool result."""
+        """Walk messages backwards to find the tool call args for the last tool result."""
         for msg in reversed(state.messages):
             if msg.role != "assistant":
                 continue
-            content = msg.content
-            if not isinstance(content, list):
+            tool_calls = getattr(msg, "tool_calls", None)
+            if not tool_calls:
                 continue
-            for block in reversed(content):
-                if not isinstance(block, dict):
-                    continue
-                if block.get("type") == "tool_call" and block.get("name") == tool_name:
-                    return dict(block.get("input") or {})
+            for tc in reversed(tool_calls):
+                if getattr(tc, "name", None) == tool_name:
+                    return dict(getattr(tc, "arguments", {}))
         return {}
