@@ -35,6 +35,8 @@ DEFAULT_SAFE_DENIED_TOOLS = [
     "browser_keys",
 ]
 
+SAFE_DISALLOWED_TOOLS = list(DEFAULT_DISALLOWED_TOOLS) + list(DEFAULT_SAFE_DENIED_TOOLS)
+
 DEFAULT_MAX_LLM_CALLS = 50
 DEFAULT_COST_LIMIT_USD = 1.0
 DEFAULT_TIMEOUT_SECONDS = 300
@@ -64,7 +66,7 @@ class AgentDef(BaseModel):
     provider_options: dict[str, Any] = Field(default_factory=dict)
     system_prompt: str | None = None
     tools: list[str] | None = None
-    disallowed_tools: list[str] = Field(default_factory=lambda: list(DEFAULT_DISALLOWED_TOOLS))
+    disallowed_tools: list[str] = Field(default_factory=lambda: list(SAFE_DISALLOWED_TOOLS))
     skills: list[str] = Field(default_factory=list)
     max_llm_calls: int = DEFAULT_MAX_LLM_CALLS
     cost_limit_usd: float = DEFAULT_COST_LIMIT_USD

@@ -139,13 +139,15 @@ class TestAgentDef:
         assert d.handoff_instructions == "Return concise bullets."
         assert d.artifact_policy == "write reports under reports/"
 
-    def test_default_disallowed_tools_use_new_names_only(self):
+    def test_default_disallowed_tools_blocks_subagent_recursion_and_dangerous_tools(self):
         from src.sdk.subagent_models import AgentDef
 
         d = AgentDef(name="a")
         assert "subagent_start" in d.disallowed_tools
         assert "subagent_tasks" in d.disallowed_tools
-        assert all(name.startswith("subagent_") for name in d.disallowed_tools)
+        assert "shell_execute" in d.disallowed_tools
+        assert "email_send" in d.disallowed_tools
+        assert "browser_click" in d.disallowed_tools
 
 
 class TestSubagentResult:

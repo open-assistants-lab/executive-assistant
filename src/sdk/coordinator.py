@@ -21,9 +21,9 @@ from src.sdk.messages import Message
 from src.sdk.middleware_instruction import InstructionMiddleware
 from src.sdk.middleware_progress import ProgressMiddleware
 from src.sdk.subagent_models import (
-    DEFAULT_DISALLOWED_TOOLS,
     DEFAULT_MAX_OUTPUT_CHARS,
     DEFAULT_SAFE_DENIED_TOOLS,
+    SAFE_DISALLOWED_TOOLS,
     AgentDef,
     SubagentResult,
     TaskCancelledError,
@@ -71,7 +71,7 @@ def validate_agent_def(
     for name in agent_def.disallowed_tools:
         if _is_denied_memory_tool(name):
             errors.append(f"Memory tool is not allowed in subagent disallowed_tools: {name}")
-        elif name not in tool_names and not _is_subagent_tool(name):
+        elif name not in tool_names and not _is_subagent_tool(name) and name not in set(DEFAULT_SAFE_DENIED_TOOLS):
             errors.append(f"Unknown disallowed tool: {name}")
 
     skill_registry = get_skill_registry(user_id=user_id, workspace_id=workspace_id)
@@ -507,8 +507,7 @@ class SubagentCoordinator:
                 for d in global_dir.iterdir():
                     if d.is_dir() and d.name not in seen and (d / "config.yaml").exists():
                         data = yaml.safe_load((d / "config.yaml").read_text()) or {}
-                        safe_denied = list(DEFAULT_DISALLOWED_TOOLS) + list(DEFAULT_SAFE_DENIED_TOOLS)
-                        data.setdefault("disallowed_tools", safe_denied)
+                        data.setdefault("disallowed_tools", list(SAFE_DISALLOWED_TOOLS))
                         defs.append(AgentDef(**data))
         except Exception:
             pass
@@ -537,8 +536,7 @@ class SubagentCoordinator:
                 for d in global_dir.iterdir():
                     if d.is_dir() and d.name not in seen and (d / "config.yaml").exists():
                         data = yaml.safe_load((d / "config.yaml").read_text()) or {}
-                        safe_denied = list(DEFAULT_DISALLOWED_TOOLS) + list(DEFAULT_SAFE_DENIED_TOOLS)
-                        data.setdefault("disallowed_tools", safe_denied)
+                        data.setdefault("disallowed_tools", list(SAFE_DISALLOWED_TOOLS))
                         agent_def = AgentDef(**data)
                         scoped.append((agent_def, "user"))
         except Exception:
@@ -552,8 +550,7 @@ class SubagentCoordinator:
         if config_path.exists():
             try:
                 data = yaml.safe_load(config_path.read_text()) or {}
-                safe_denied = list(DEFAULT_DISALLOWED_TOOLS) + list(DEFAULT_SAFE_DENIED_TOOLS)
-                data.setdefault("disallowed_tools", safe_denied)
+                data.setdefault("disallowed_tools", list(SAFE_DISALLOWED_TOOLS))
                 return AgentDef(**data)
             except Exception as e:
                 logger.warning("subagent.load_failed", {"name": name, "error": str(e)}, user_id=self.user_id)
@@ -564,8 +561,7 @@ class SubagentCoordinator:
             global_path = DataPaths(user_id=self.user_id).global_subagents_dir() / name / "config.yaml"
             if global_path.exists():
                 data = yaml.safe_load(global_path.read_text()) or {}
-                safe_denied = list(DEFAULT_DISALLOWED_TOOLS) + list(DEFAULT_SAFE_DENIED_TOOLS)
-                data.setdefault("disallowed_tools", safe_denied)
+                data.setdefault("disallowed_tools", list(SAFE_DISALLOWED_TOOLS))
                 return AgentDef(**data)
         except Exception as e:
             logger.warning("subagent.load_failed", {"name": name, "error": str(e)}, user_id=self.user_id)
