@@ -389,9 +389,18 @@ class SubagentCoordinator:
         db: WorkQueueDB,
     ) -> SubagentResult:
         from src.sdk.loop import AgentLoop, RunConfig
-        from src.sdk.middleware_observation import ObservationMiddleware
         from src.sdk.middleware_summarization import SummarizationMiddleware
         from src.sdk.providers.factory import create_model_from_config
+
+        try:
+            from src.sdk.middleware_observation import ObservationMiddleware
+        except ImportError:
+            logger.warning(
+                "subagent.missing_observation_middleware",
+                {"task_id": task_id, "agent": agent_def.name},
+                user_id=self.user_id,
+            )
+            ObservationMiddleware = None
 
         model_str = agent_def.model or self.settings.agent.model
         provider = create_model_from_config(model_str)
@@ -408,13 +417,26 @@ class SubagentCoordinator:
         progress_mw = ProgressMiddleware(task_id, db)
         instruction_mw = InstructionMiddleware(task_id, db)
         summarization_mw = SummarizationMiddleware()
-        observation_mw = ObservationMiddleware(user_id=self.user_id, workspace_id=self.workspace_id)
+
+        middlewares = [progress_mw, instruction_mw, summarization_mw]
+        if ObservationMiddleware is not None:
+            try:
+                observation_mw = ObservationMiddleware(
+                    user_id=self.user_id, workspace_id=self.workspace_id
+                )
+                middlewares.append(observation_mw)
+            except Exception as e:
+                logger.warning(
+                    "subagent.observation_middleware_init_failed",
+                    {"task_id": task_id, "error": str(e)},
+                    user_id=self.user_id,
+                )
 
         loop = AgentLoop(
             provider=provider,
             tools=tools,
             system_prompt=system_prompt,
-            middlewares=[progress_mw, instruction_mw, summarization_mw, observation_mw],
+            middlewares=middlewares,
             run_config=run_config,
             user_id=self.user_id,
             workspace_id=self.workspace_id,
