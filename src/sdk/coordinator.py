@@ -400,7 +400,7 @@ class SubagentCoordinator:
                 {"task_id": task_id, "agent": agent_def.name},
                 user_id=self.user_id,
             )
-            ObservationMiddleware = None
+            ObservationMiddleware = None  # noqa: N806
 
         model_str = agent_def.model or self.settings.agent.model
         provider = create_model_from_config(model_str)

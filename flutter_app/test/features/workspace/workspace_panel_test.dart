@@ -639,4 +639,78 @@ void main() {
     expect(notifier.state.activeJobs.containsKey('job-0'), isFalse);
     expect(notifier.state.activeJobs.containsKey('job-14'), isTrue);
   });
+
+  testWidgets('create dialog rejects invalid name with inline error', (
+    tester,
+  ) async {
+    final api = MockApiClient();
+    when(() => api.listSubagents(workspaceId: any(named: 'workspaceId')))
+        .thenAnswer((_) async => []);
+    when(() => api.listToolNames()).thenAnswer((_) async => ['time_get']);
+    when(
+      () => api.createSubagent(
+        name: any(named: 'name'),
+        description: any(named: 'description'),
+        model: any(named: 'model'),
+        scope: any(named: 'scope'),
+        tools: any(named: 'tools'),
+        skills: any(named: 'skills'),
+        systemPrompt: any(named: 'systemPrompt'),
+        maxLlmCalls: any(named: 'maxLlmCalls'),
+        costLimitUsd: any(named: 'costLimitUsd'),
+        timeoutSeconds: any(named: 'timeoutSeconds'),
+        workspaceId: any(named: 'workspaceId'),
+      ),
+    ).thenAnswer((_) async => {});
+
+    final container = ProviderContainer(
+      overrides: [apiClientProvider.overrideWithValue(api)],
+    );
+    addTearDown(container.dispose);
+    container.read(currentWorkspaceIdProvider.notifier).state = 'personal';
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: SubagentsPanel())),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+
+    // Enter invalid name with spaces
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Name *'),
+      'bad name',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Description *'),
+      'Description',
+    );
+    await tester.tap(find.text('Create'));
+    await tester.pumpAndSettle();
+
+    // Dialog should still be open with error message
+    expect(
+      find.text('Name can only contain letters, numbers, hyphens, and underscores'),
+      findsOneWidget,
+    );
+    verifyNever(
+      () => api.createSubagent(
+        name: any(named: 'name'),
+        description: any(named: 'description'),
+        workspaceId: any(named: 'workspaceId'),
+        model: any(named: 'model'),
+        scope: any(named: 'scope'),
+        tools: any(named: 'tools'),
+        skills: any(named: 'skills'),
+        systemPrompt: any(named: 'systemPrompt'),
+        maxLlmCalls: any(named: 'maxLlmCalls'),
+        costLimitUsd: any(named: 'costLimitUsd'),
+        timeoutSeconds: any(named: 'timeoutSeconds'),
+      ),
+    );
+  });
 }
