@@ -190,10 +190,28 @@ class SubagentCoordinator:
         self.base_path.mkdir(parents=True, exist_ok=True)
         self._db: WorkQueueDB | None = None
         self._background_tasks: set[asyncio.Task[Any]] = set()
+        self._recovery_task: asyncio.Task[Any] | None = None
+
+    async def _recover_stale_jobs(self, max_age_seconds: int = 300) -> int:
+        """Mark stale RUNNING/CANCELLING tasks as FAILED. Call on first DB access."""
+        try:
+            db = await self._get_db()
+            count = await db.mark_stale_running_failed(max_age_seconds)
+        except Exception:
+            return 0
+        if count > 0:
+            logger.warning(
+                "subagent.stale_tasks_recovered",
+                {"count": count, "user_id": self.user_id, "workspace_id": self.workspace_id},
+                user_id="system",
+            )
+        return count
 
     async def _get_db(self) -> WorkQueueDB:
         if self._db is None:
             self._db = await get_work_queue(self.user_id, self.workspace_id)
+            if self._recovery_task is None:
+                self._recovery_task = asyncio.create_task(self._recover_stale_jobs())
         return self._db
 
     async def create(self, agent_def: AgentDef) -> AgentDef:
@@ -494,6 +512,36 @@ class SubagentCoordinator:
             pass
 
         return defs
+
+    async def list_defs_with_scope(self) -> list[tuple[AgentDef, str]]:
+        """Return agent defs tagged with scope ('workspace' or 'user')."""
+        scoped: list[tuple[AgentDef, str]] = []
+        seen: set[str] = set()
+
+        # 1. Workspace-scoped subagents
+        if self.base_path.exists():
+            for d in self.base_path.iterdir():
+                if d.is_dir() and (d / "config.yaml").exists():
+                    agent_def = self.load_def(d.name)
+                    if agent_def:
+                        scoped.append((agent_def, "workspace"))
+                        seen.add(d.name)
+
+        # 2. User-global fallback (only for defs NOT seen in workspace)
+        try:
+            from src.storage.paths import DataPaths
+            global_dir = DataPaths(user_id=self.user_id).global_subagents_dir()
+            if global_dir.exists():
+                for d in global_dir.iterdir():
+                    if d.is_dir() and d.name not in seen and (d / "config.yaml").exists():
+                        data = yaml.safe_load((d / "config.yaml").read_text()) or {}
+                        data.setdefault("disallowed_tools", list(DEFAULT_DISALLOWED_TOOLS))
+                        agent_def = AgentDef(**data)
+                        scoped.append((agent_def, "user"))
+        except Exception:
+            pass
+
+        return scoped
 
     def load_def(self, name: str) -> AgentDef | None:
         # 1. Workspace-scoped

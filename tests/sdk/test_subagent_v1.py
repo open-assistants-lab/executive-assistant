@@ -1239,3 +1239,71 @@ class TestSubagentLifecycle:
 
         row = await db.get_task(task_id)
         assert row["status"] == "cancelled"
+
+
+# -- Stale Job Recovery --
+
+
+class TestStaleJobRecovery:
+    @pytest.mark.asyncio
+    async def test_coordinator_recovers_stale_jobs_on_init(self, tmp_path):
+        from datetime import UTC, datetime, timedelta
+        from pathlib import Path
+        from unittest import mock
+
+        import aiosqlite
+
+        from src.sdk.coordinator import SubagentCoordinator
+
+        db_dir = tmp_path / "subagents"
+        db_dir.mkdir()
+
+        # Direct DB: insert a stale RUNNING task
+        db = await aiosqlite.connect(str(db_dir / "work_queue.db"))
+        db.row_factory = aiosqlite.Row
+        await db.executescript("""
+            CREATE TABLE IF NOT EXISTS work_queue (
+                id TEXT PRIMARY KEY,
+                parent_id TEXT,
+                user_id TEXT NOT NULL,
+                workspace_id TEXT NOT NULL DEFAULT 'personal',
+                agent_name TEXT NOT NULL,
+                task TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                progress TEXT DEFAULT '{}',
+                result TEXT,
+                error TEXT,
+                instructions TEXT DEFAULT '[]',
+                config TEXT DEFAULT '{}',
+                cancel_requested INTEGER DEFAULT 0,
+                claimed_by TEXT,
+                claimed_at TEXT,
+                heartbeat_at TEXT,
+                started_at TEXT,
+                completed_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
+        stale_time = (datetime.now(UTC) - timedelta(seconds=600)).isoformat()
+        await db.execute(
+            "INSERT INTO work_queue (id, user_id, workspace_id, agent_name, task, status, heartbeat_at, created_at, updated_at) "
+            "VALUES ('stale-job', 'test_user', 'test_ws', 'helper', 'do thing', 'running', ?, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
+            (stale_time,)
+        )
+        await db.commit()
+        await db.close()
+
+        # Patch get_paths to use tmp dir (both coordinator and work_queue paths)
+        mock_paths = mock.MagicMock()
+        mock_paths.workspace_subagents_dir = mock.MagicMock(return_value=db_dir)
+        mock_paths.work_queue_db = mock.MagicMock(return_value=db_dir / "work_queue.db")
+
+        with mock.patch('src.sdk.coordinator.get_paths', return_value=mock_paths), \
+             mock.patch('src.sdk.work_queue.get_paths', return_value=mock_paths):
+            coordinator = SubagentCoordinator("test_user", "test_ws")
+            db = await coordinator._get_db()
+            await coordinator._recovery_task
+            task = await db.get_task("stale-job")
+            assert task is not None
+            assert task["status"] == "failed"
