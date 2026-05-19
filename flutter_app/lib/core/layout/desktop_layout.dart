@@ -15,7 +15,7 @@ import '../../features/companion/companion_pulse.dart';
 import '../../features/companion/companion_context_pill.dart';
 import '../../features/companion/companion_toast.dart';
 import '../../features/settings/settings_screen.dart';
-import '../../core/motion/motion.dart';
+
 
 enum DesktopSidebarItem {
   email(
@@ -148,23 +148,20 @@ class _Sidebar extends ConsumerWidget {
                   : ListView(
                       padding: const EdgeInsets.only(top: 4),
                       children: [
-                        EaMotion.tapPulse(
-                          context,
-                          ListTile(
-                            dense: true,
-                            leading: Icon(
-                              Icons.add,
-                              size: 16,
+                        ListTile(
+                          dense: true,
+                          leading: Icon(
+                            Icons.add,
+                            size: 16,
+                            color: AppColors.textDim,
+                          ),
+                          title: Text(
+                            'New workspace',
+                            style: AppTypography.caption.copyWith(
                               color: AppColors.textDim,
                             ),
-                            title: Text(
-                              'New workspace',
-                              style: AppTypography.caption.copyWith(
-                                color: AppColors.textDim,
-                              ),
-                            ),
-                            onTap: () => _showCreateDialog(context, ref),
                           ),
+                          onTap: () => _showCreateDialog(context, ref),
                         ),
                         const Divider(height: 1),
                         ...list.map((ws) {

@@ -6,7 +6,7 @@ import '../../features/chat/chat_screen.dart';
 import '../../features/email/email_list_screen.dart';
 import '../../features/workspace/workspace_panel.dart';
 import '../layout/responsive_shell.dart';
-import '../motion/motion.dart';
+import '../../theme/tokens/motion.dart';
 import '../../theme/app_theme.dart';
 import '../../services/instrumented_app.dart';
 
@@ -44,9 +44,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               key: state.pageKey,
               child: const EmailListScreen(),
               transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                return EaMotion.sidewaysTransition(animation, child);
+                return SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0.15, 0),
+                    end: Offset.zero,
+                  ).chain(CurveTween(curve: Curves.easeInOutCubic)).animate(animation),
+                  child: FadeTransition(opacity: animation, child: child),
+                );
               },
-              transitionDuration: EaMotion.intuitive,
+              transitionDuration: EaMotion.standard.intuitive,
             ),
           ),
           GoRoute(

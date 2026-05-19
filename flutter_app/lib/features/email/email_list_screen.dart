@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:executive_assistant/providers/agent_provider.dart';
-import 'package:executive_assistant/core/motion/motion.dart';
+
 
 class EmailListScreen extends ConsumerStatefulWidget {
   const EmailListScreen({super.key});
@@ -91,9 +91,7 @@ class _EmailListScreenState extends ConsumerState<EmailListScreen> {
                     itemBuilder: (context, index) {
                       final email = _emails[index] as Map<String, dynamic>;
                       final isRead = email['is_read'] == true;
-                      return EaMotion.staggeredEntry(
-                        index,
-                        ListTile(
+                      return ListTile(
                         leading: CircleAvatar(
                           backgroundColor: isRead
                               ? Colors.grey.shade200
@@ -129,7 +127,6 @@ class _EmailListScreenState extends ConsumerState<EmailListScreen> {
                           ],
                         ),
                         dense: true,
-                      ),
                       );
                     },
                   ),
