@@ -86,20 +86,56 @@ class EaColors {
     borderAccent: Color(0xCC5E4ED6),
   );
 
+  // ── Migration shims (always dark — removed in Phase 4) ──
+  // During migration, existing code using AppColors statically
+  // continues to work. New code uses context.tokens.colors.*.
+  // TODO(migration): Remove all static getters below after Phase 3.
+
+  @Deprecated('Use context.tokens.colors.bgCanvas instead')
   static Color get background => dark.bgCanvas;
+
+  @Deprecated('Use context.tokens.colors.bgSurface instead')
   static Color get surface => dark.bgSurface;
+
+  @Deprecated('Use context.tokens.colors.bgCanvas instead')
   static Color get primary => dark.bgCanvas;
+
+  @Deprecated('Use context.tokens.colors.accent instead')
   static Color get accent_color => dark.accent;
+
+  @Deprecated('Use context.tokens.colors.success instead')
   static Color get success_color => dark.success;
+
+  @Deprecated('Use context.tokens.colors.warning instead')
   static Color get warning_color => dark.warning;
+
+  @Deprecated('Use context.tokens.colors.error instead')
   static Color get danger => dark.error;
+
+  @Deprecated('Use context.tokens.colors.textTertiary instead')
   static Color get textDim => dark.textTertiary;
+
+  @Deprecated('Use context.tokens.colors.borderDefault instead')
   static Color get border => dark.borderDefault;
+
+  @Deprecated('Use context.tokens.colors.borderSubtle instead')
   static Color get divider => dark.borderSubtle;
+
+  @Deprecated('Use context.tokens.colors.accentMuted instead')
   static Color get userBubble => dark.accentMuted;
+
+  @Deprecated('Use context.tokens.colors.bgSurface instead')
   static Color get assistantBubble => dark.bgSurface;
+
+  @Deprecated('Use context.tokens.colors.bgField instead')
   static Color get toolChipBg => dark.bgField;
+
+  @Deprecated('Use context.tokens.colors.textPrimary instead')
   static Color get toolChipText => dark.textPrimary;
+
+  @Deprecated('Use context.tokens.colors.accent instead')
   static Color get companionPulse => dark.accent;
+
+  @Deprecated('Use context.tokens.colors.bgField instead')
   static Color get inputBg => dark.bgField;
 }
