@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../theme/app_colors.dart';
-import '../../theme/app_typography.dart';
 import '../../providers/companion_provider.dart';
+import '../../theme/app_theme.dart';
 
 class CompanionContextPill extends ConsumerWidget {
   final String activeWorkspaceId;
@@ -26,20 +25,20 @@ class CompanionContextPill extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.accent.withAlpha(15),
-          border: const Border(left: BorderSide(color: AppColors.accent, width: 2)),
+          color: context.tokens.colors.accent.withAlpha(15),
+          border: Border(left: BorderSide(color: context.tokens.colors.accent, width: 2)),
           borderRadius: BorderRadius.circular(8),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(
           children: [
-            Icon(Icons.lightbulb_outline, size: 14, color: AppColors.accent),
+            Icon(Icons.lightbulb_outline, size: 14, color: context.tokens.colors.accent),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 notif.message,
-                style: AppTypography.caption.copyWith(
-                  color: AppColors.textSecondary,
+                style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+                  color: context.tokens.colors.textSecondary,
                   fontSize: 12,
                 ),
               ),
@@ -47,7 +46,7 @@ class CompanionContextPill extends ConsumerWidget {
             const SizedBox(width: 8),
             GestureDetector(
               onTap: () => ref.read(companionNotifierProvider.notifier).dismiss(notif.id),
-              child: Text('Dismiss', style: AppTypography.caption.copyWith(color: AppColors.accent, fontSize: 11)),
+              child: Text('Dismiss', style: context.tokens.typography.textTheme.bodySmall!.copyWith(color: context.tokens.colors.accent, fontSize: 11)),
             ),
           ],
         ),

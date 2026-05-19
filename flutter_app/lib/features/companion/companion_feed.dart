@@ -2,11 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../theme/app_colors.dart';
-import '../../theme/app_typography.dart';
-import '../../theme/app_spacing.dart';
 import '../../providers/companion_provider.dart';
 import '../../providers/chat_tab_provider.dart';
+import '../../theme/app_theme.dart';
 
 class CompanionFeed extends ConsumerStatefulWidget {
   const CompanionFeed({super.key});
@@ -44,7 +42,7 @@ class _CompanionFeedState extends ConsumerState<CompanionFeed> {
     final grouped = _groupByDate(notifications);
 
     return Container(
-      color: AppColors.background,
+      color: context.tokens.colors.bgCanvas,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -69,7 +67,7 @@ class _CompanionFeedState extends ConsumerState<CompanionFeed> {
 
   Widget _buildEmptyState(bool paused) {
     return Container(
-      color: AppColors.background,
+      color: context.tokens.colors.bgCanvas,
       child: Column(
         children: [
           _buildHeader(),
@@ -77,21 +75,21 @@ class _CompanionFeedState extends ConsumerState<CompanionFeed> {
           Expanded(
             child: Center(
               child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.screenEdge),
+                padding: EdgeInsets.all(context.tokens.spacing.xl),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (paused) ...[
-                      const Icon(Icons.pause_circle, size: 60, color: AppColors.textDim),
+                      Icon(Icons.pause_circle, size: 60, color: context.tokens.colors.textTertiary),
                       const SizedBox(height: 16),
                       Text(
                         'Companion is paused',
-                        style: AppTypography.body.copyWith(color: AppColors.textSecondary),
+                        style: context.tokens.typography.textTheme.bodyLarge!.copyWith(color: context.tokens.colors.textSecondary),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         'No check-ins until you resume.',
-                        style: AppTypography.caption.copyWith(color: AppColors.textDim),
+                        style: context.tokens.typography.textTheme.bodySmall!.copyWith(color: context.tokens.colors.textTertiary),
                       ),
                       const SizedBox(height: 24),
                       FilledButton.icon(
@@ -103,21 +101,21 @@ class _CompanionFeedState extends ConsumerState<CompanionFeed> {
                         label: const Text('Resume companion'),
                       ),
                     ] else ...[
-                      const Icon(Icons.bubble_chart_outlined, size: 60, color: AppColors.accent),
+                      Icon(Icons.bubble_chart_outlined, size: 60, color: context.tokens.colors.accent),
                       const SizedBox(height: 16),
                       Text(
                         "I'm watching across your workspaces.",
-                        style: AppTypography.body.copyWith(color: AppColors.textSecondary),
+                        style: context.tokens.typography.textTheme.bodyLarge!.copyWith(color: context.tokens.colors.textSecondary),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         "I'll let you know if anything needs your attention.",
-                        style: AppTypography.caption.copyWith(color: AppColors.textDim),
+                        style: context.tokens.typography.textTheme.bodySmall!.copyWith(color: context.tokens.colors.textTertiary),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         'Until then \u2014 carry on.',
-                        style: AppTypography.caption.copyWith(color: AppColors.textDim),
+                        style: context.tokens.typography.textTheme.bodySmall!.copyWith(color: context.tokens.colors.textTertiary),
                       ),
                     ],
                   ],
@@ -138,11 +136,11 @@ class _CompanionFeedState extends ConsumerState<CompanionFeed> {
       children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          color: AppColors.surface,
+          color: context.tokens.colors.bgSurface,
           child: Text(
             label,
-            style: AppTypography.caption.copyWith(
-              color: AppColors.textDim,
+            style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+              color: context.tokens.colors.textTertiary,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -167,14 +165,14 @@ class _CompanionFeedState extends ConsumerState<CompanionFeed> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
-          const Icon(Icons.wb_sunny_outlined, size: 20, color: AppColors.accent),
+          Icon(Icons.wb_sunny_outlined, size: 20, color: context.tokens.colors.accent),
           const SizedBox(width: 8),
-          Text('Companion', style: AppTypography.body.copyWith(fontWeight: FontWeight.w600)),
+          Text('Companion', style: context.tokens.typography.textTheme.bodyLarge!.copyWith(fontWeight: FontWeight.w600)),
           const Spacer(),
           status.when(
             data: (s) => Text(
               s.lastCheck != null ? _formatTimeAgo(s.lastCheck!) : '',
-              style: AppTypography.caption.copyWith(color: AppColors.textDim),
+              style: context.tokens.typography.textTheme.bodySmall!.copyWith(color: context.tokens.colors.textTertiary),
             ),
             loading: () => const SizedBox.shrink(),
             error: (_, __) => const SizedBox.shrink(),
@@ -193,12 +191,12 @@ class _CompanionFeedState extends ConsumerState<CompanionFeed> {
           Icon(
             paused ? Icons.circle_outlined : Icons.circle,
             size: 8,
-            color: paused ? AppColors.textDim : AppColors.success,
+            color: paused ? context.tokens.colors.textTertiary : context.tokens.colors.success,
           ),
           const SizedBox(width: 6),
           Text(
             paused ? 'Companion paused' : 'Companion running',
-            style: AppTypography.caption.copyWith(color: AppColors.textDim),
+            style: context.tokens.typography.textTheme.bodySmall!.copyWith(color: context.tokens.colors.textTertiary),
           ),
           const Spacer(),
           TextButton(
@@ -213,7 +211,7 @@ class _CompanionFeedState extends ConsumerState<CompanionFeed> {
             },
             child: Text(
               paused ? 'Resume' : 'Pause companion',
-              style: AppTypography.caption.copyWith(color: AppColors.accent),
+              style: context.tokens.typography.textTheme.bodySmall!.copyWith(color: context.tokens.colors.accent),
             ),
           ),
         ],
@@ -293,23 +291,19 @@ class CompanionEntry extends StatelessWidget {
     }
   }
 
-  Color _categoryColor(String category) {
-    switch (category) {
-      case 'email':
-        return AppColors.accent;
-      case 'deadline':
-        return AppColors.warning;
-      case 'urgent':
-        return AppColors.danger;
-      case 'checkin':
-        return AppColors.success;
-      default:
-        return AppColors.textDim;
-    }
+  Color _categoryColor(EaTokens tokens, String category) {
+    return switch (category) {
+      'email' => tokens.colors.accent,
+      'deadline' => tokens.colors.warning,
+      'urgent' => tokens.colors.error,
+      'checkin' => tokens.colors.success,
+      _ => tokens.colors.textTertiary,
+    };
   }
 
   @override
   Widget build(BuildContext context) {
+    final tokens = context.tokens;
     final cat = notification.category?.toString() ?? 'general';
     final msg = notification.message?.toString() ?? '';
     final wsId = notification.workspaceId?.toString();
@@ -320,7 +314,7 @@ class CompanionEntry extends StatelessWidget {
       decoration: BoxDecoration(
         border: isDimmed
             ? null
-            : Border(left: BorderSide(color: _categoryColor(cat), width: 2)),
+            : Border(left: BorderSide(color: _categoryColor(tokens, cat), width: 2)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Row(
@@ -328,7 +322,7 @@ class CompanionEntry extends StatelessWidget {
         children: [
           Opacity(
             opacity: isDimmed ? 0.4 : 1.0,
-            child: Icon(_categoryIcon(cat), size: 16, color: _categoryColor(cat)),
+            child: Icon(_categoryIcon(cat), size: 16, color: _categoryColor(tokens, cat)),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -339,8 +333,8 @@ class CompanionEntry extends StatelessWidget {
                   children: [
                     Text(
                       time,
-                      style: AppTypography.caption.copyWith(
-                        color: isDimmed ? AppColors.textDim : AppColors.textSecondary,
+                      style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+                        color: isDimmed ? context.tokens.colors.textTertiary : context.tokens.colors.textSecondary,
                         fontSize: 10,
                       ),
                     ),
@@ -351,14 +345,14 @@ class CompanionEntry extends StatelessWidget {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: AppColors.accent.withAlpha(20),
+                            color: context.tokens.colors.accent.withAlpha(20),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
                             wsId.length > 15 ? '${wsId.substring(0, 15)}\u2026' : wsId,
-                            style: AppTypography.caption.copyWith(
+                            style: context.tokens.typography.textTheme.bodySmall!.copyWith(
                               fontSize: 9,
-                              color: AppColors.accent,
+                              color: context.tokens.colors.accent,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -370,9 +364,9 @@ class CompanionEntry extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   msg,
-                  style: AppTypography.body.copyWith(
+                  style: context.tokens.typography.textTheme.bodyLarge!.copyWith(
                     fontSize: 13,
-                    color: isDimmed ? AppColors.textDim : AppColors.textPrimary,
+                    color: isDimmed ? context.tokens.colors.textTertiary : context.tokens.colors.textPrimary,
                   ),
                 ),
               ],
@@ -383,7 +377,7 @@ class CompanionEntry extends StatelessWidget {
               onTap: onDismiss,
               child: Padding(
                 padding: const EdgeInsets.only(left: 8),
-                child: Icon(Icons.close, size: 14, color: AppColors.textDim),
+                child: Icon(Icons.close, size: 14, color: context.tokens.colors.textTertiary),
               ),
             ),
         ],

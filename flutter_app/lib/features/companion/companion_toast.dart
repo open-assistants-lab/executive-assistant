@@ -1,10 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../theme/app_colors.dart';
-import '../../theme/app_typography.dart';
-import '../../theme/app_radius.dart';
 import '../../providers/companion_provider.dart';
+import '../../theme/app_theme.dart';
 
 class CompanionToastOverlay extends ConsumerStatefulWidget {
   const CompanionToastOverlay({super.key});
@@ -89,9 +87,9 @@ class _CompanionToastOverlayState extends ConsumerState<CompanionToastOverlay>
               width: 420,
               margin: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(AppRadius.card),
-                border: const Border(left: BorderSide(color: AppColors.warning, width: 3)),
+                color: context.tokens.colors.bgSurface,
+                borderRadius: BorderRadius.circular(context.tokens.radius.lg),
+                border: Border(left: BorderSide(color: context.tokens.colors.warning, width: 3)),
                 boxShadow: [
                   BoxShadow(
                     blurRadius: 16,
@@ -104,12 +102,12 @@ class _CompanionToastOverlayState extends ConsumerState<CompanionToastOverlay>
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.warning_amber_rounded, size: 18, color: AppColors.warning),
+                  Icon(Icons.warning_amber_rounded, size: 18, color: context.tokens.colors.warning),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       activeToast.message,
-                      style: AppTypography.body.copyWith(fontSize: 13, color: AppColors.textPrimary),
+                      style: context.tokens.typography.textTheme.bodyLarge!.copyWith(fontSize: 13, color: context.tokens.colors.textPrimary),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -118,7 +116,7 @@ class _CompanionToastOverlayState extends ConsumerState<CompanionToastOverlay>
                       ref.read(companionNotifierProvider.notifier).dismiss(activeToast.id);
                       _dismiss();
                     },
-                    child: Text('Dismiss', style: AppTypography.caption.copyWith(color: AppColors.textSecondary)),
+                    child: Text('Dismiss', style: context.tokens.typography.textTheme.bodySmall!.copyWith(color: context.tokens.colors.textSecondary)),
                   ),
                 ],
               ),

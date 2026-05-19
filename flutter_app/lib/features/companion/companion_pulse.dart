@@ -1,7 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../theme/app_colors.dart';
+import '../../theme/app_theme.dart';
 import '../../providers/companion_provider.dart';
 
 class CompanionPulse extends ConsumerStatefulWidget {
@@ -33,6 +33,7 @@ class _CompanionPulseState extends ConsumerState<CompanionPulse>
   @override
   Widget build(BuildContext context) {
     final paused = ref.watch(companionPausedProvider);
+    final tokens = context.tokens;
 
     return GestureDetector(
       onTap: () {
@@ -59,6 +60,7 @@ class _CompanionPulseState extends ConsumerState<CompanionPulse>
                   painter: _PulsePainter(
                     progress: _controller.value,
                     paused: paused,
+                    tokens: tokens,
                   ),
                 );
               },
@@ -73,8 +75,13 @@ class _CompanionPulseState extends ConsumerState<CompanionPulse>
 class _PulsePainter extends CustomPainter {
   final double progress;
   final bool paused;
+  final EaTokens tokens;
 
-  _PulsePainter({required this.progress, required this.paused});
+  _PulsePainter({
+    required this.progress,
+    required this.paused,
+    required this.tokens,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -83,25 +90,25 @@ class _PulsePainter extends CustomPainter {
 
     if (paused) {
       final paint = Paint()
-        ..color = AppColors.textDim
+        ..color = tokens.colors.textTertiary
         ..style = PaintingStyle.fill;
       canvas.drawCircle(center, baseRadius * 0.5, paint);
       return;
     }
 
     final innerPaint = Paint()
-      ..color = AppColors.accent
+      ..color = tokens.colors.accent
       ..style = PaintingStyle.fill;
 
     final middleAlpha = ((1 - progress) * 100).toInt().clamp(0, 100);
     final middlePaint = Paint()
-      ..color = AppColors.accent.withAlpha(25 + middleAlpha)
+      ..color = tokens.colors.accent.withAlpha(25 + middleAlpha)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
 
     final outerAlpha = ((sin(progress * 2 * pi) * 0.5 + 0.5) * 80).toInt();
     final outerPaint = Paint()
-      ..color = AppColors.accent.withAlpha(outerAlpha)
+      ..color = tokens.colors.accent.withAlpha(outerAlpha)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
 
