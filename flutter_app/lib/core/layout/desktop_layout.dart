@@ -74,9 +74,9 @@ class DesktopLayout extends ConsumerWidget {
               return Row(
                 children: [
                   const _Sidebar(width: sidebarWidth),
-                  Container(width: 1, color: AppColors.divider),
+                  Container(width: 1, color: context.tokens.colors.borderSubtle),
                   SizedBox(width: chatPanelWidth, child: const _ChatPanel()),
-                  Container(width: 1, color: AppColors.divider),
+                  Container(width: 1, color: context.tokens.colors.borderSubtle),
                   SizedBox(width: contentWidth, child: child),
                 ],
               );
@@ -95,12 +95,13 @@ class _Sidebar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final tokens = context.tokens;
     final currentId = ref.watch(currentWorkspaceIdProvider);
     final workspaces = ref.watch(workspaceListProvider);
 
     return Container(
       width: width,
-      color: AppColors.background,
+      color: tokens.colors.bgCanvas,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -128,13 +129,13 @@ class _Sidebar extends ConsumerWidget {
                                 Icon(
                                   Icons.add,
                                   size: 24,
-                                  color: AppColors.textDim,
+                                  color: tokens.colors.textTertiary,
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   'New workspace',
-                                  style: AppTypography.caption.copyWith(
-                                    color: AppColors.textDim,
+                                  style: tokens.typography.textTheme.labelSmall?.copyWith(
+                                    color: tokens.colors.textTertiary,
                                   ),
                                 ),
                               ],
@@ -151,12 +152,12 @@ class _Sidebar extends ConsumerWidget {
                           leading: Icon(
                             Icons.add,
                             size: 16,
-                            color: AppColors.textDim,
+                            color: tokens.colors.textTertiary,
                           ),
                           title: Text(
                             'New workspace',
-                            style: AppTypography.caption.copyWith(
-                              color: AppColors.textDim,
+                            style: tokens.typography.textTheme.labelSmall?.copyWith(
+                              color: tokens.colors.textTertiary,
                             ),
                           ),
                           onTap: () => _showCreateDialog(context, ref),
@@ -168,11 +169,11 @@ class _Sidebar extends ConsumerWidget {
                           final isActive = currentId == id;
                           return Container(
                             decoration: isActive
-                                ? const BoxDecoration(
+                                ? BoxDecoration(
                                     border: Border(
                                       left: BorderSide(
-                                        color: AppColors.accent,
-                                        width: 3,
+                                        color: tokens.colors.accent,
+                                        width: 2,
                                       ),
                                     ),
                                   )
@@ -186,18 +187,19 @@ class _Sidebar extends ConsumerWidget {
                               visualDensity: VisualDensity.compact,
                               title: Text(
                                 name,
-                                style: AppTypography.body.copyWith(
+                                style: tokens.typography.textTheme.bodyMedium?.copyWith(
                                   fontSize: 13,
                                   fontWeight: isActive
                                       ? FontWeight.w600
                                       : FontWeight.w400,
                                   color: isActive
-                                      ? AppColors.textPrimary
-                                      : AppColors.textSecondary,
+                                      ? tokens.colors.textPrimary
+                                      : tokens.colors.textSecondary,
                                 ),
                               ),
                               selected: isActive,
-                              selectedTileColor: AppColors.accent.withAlpha(15),
+                              selectedTileColor: tokens.colors.bgElevated,
+                              hoverColor: tokens.colors.bgElevated,
                               onTap: () => ref
                                   .read(chatTabNotifierProvider.notifier)
                                   .openWorkspace(id, name),
@@ -279,19 +281,26 @@ class _SidebarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = context.tokens;
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.chip),
+        borderRadius: tokens.radius.smAll,
         child: Container(
           height: 40,
           margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: selected
               ? BoxDecoration(
-                  color: AppColors.accentLight,
-                  borderRadius: BorderRadius.circular(AppRadius.chip),
+                  color: tokens.colors.bgElevated,
+                  borderRadius: tokens.radius.smAll,
+                  border: Border(
+                    left: BorderSide(
+                      color: tokens.colors.accent,
+                      width: 2,
+                    ),
+                  ),
                 )
               : null,
           child: Row(
@@ -299,14 +308,14 @@ class _SidebarItem extends StatelessWidget {
               Icon(
                 selected ? item.activeIcon : item.icon,
                 size: 20,
-                color: selected ? AppColors.accent : AppColors.textSecondary,
+                color: selected ? tokens.colors.accent : tokens.colors.textSecondary,
               ),
               const SizedBox(width: 10),
               Text(
                 item.label,
-                style: AppTypography.body.copyWith(
+                style: tokens.typography.textTheme.bodyMedium?.copyWith(
                   fontSize: 13,
-                  color: selected ? AppColors.accent : AppColors.textSecondary,
+                  color: selected ? tokens.colors.accent : tokens.colors.textSecondary,
                   fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                 ),
               ),
@@ -406,6 +415,7 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = context.tokens;
     final state = ref.watch(agentProvider);
     final tabs = ref.watch(chatTabNotifierProvider);
     final activeTab = ref.watch(activeChatTabProvider);
@@ -451,7 +461,7 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
     });
 
     return Container(
-      color: AppColors.background,
+      color: tokens.colors.bgCanvas,
       child: Column(
         children: [
           SizedBox(
@@ -478,7 +488,7 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
                             border: Border(
                               bottom: BorderSide(
                                 color: isActive
-                                    ? AppColors.accent
+                                    ? tokens.colors.accent
                                     : Colors.transparent,
                                 width: 2,
                               ),
@@ -487,14 +497,14 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
                           child: Center(
                             child: Text(
                               e.value.isNotEmpty ? e.value : e.key,
-                              style: AppTypography.body.copyWith(
+                              style: tokens.typography.textTheme.bodySmall?.copyWith(
                                 fontSize: 12,
                                 fontWeight: isActive
                                     ? FontWeight.w600
                                     : FontWeight.w400,
                                 color: isActive
-                                    ? AppColors.textPrimary
-                                    : AppColors.textDim,
+                                    ? tokens.colors.textPrimary
+                                    : tokens.colors.textTertiary,
                               ),
                             ),
                           ),
@@ -509,7 +519,7 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
                               child: Icon(
                                 Icons.close,
                                 size: 10,
-                                color: AppColors.textDim,
+                                color: tokens.colors.textTertiary,
                               ),
                             ),
                           ),
@@ -568,7 +578,9 @@ class _PanelMessageList extends ConsumerWidget {
           padding: const EdgeInsets.all(AppSpacing.screenEdge),
           child: Text(
             'Ask anything...',
-            style: AppTypography.body.copyWith(color: AppColors.textDim),
+            style: context.tokens.typography.textTheme.bodyMedium?.copyWith(
+              color: context.tokens.colors.textTertiary,
+            ),
           ),
         ),
       ),
