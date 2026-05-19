@@ -51,7 +51,7 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
     final state = ref.watch(subagentProvider);
 
     return Container(
-      color: AppColors.background,
+      color: context.tokens.colors.bgCanvas,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -66,16 +66,16 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
     return Container(
       height: 52,
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.divider)),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: context.tokens.colors.borderSubtle)),
       ),
       child: Row(
         children: [
-          Icon(Icons.smart_toy_outlined, size: 18, color: AppColors.accent),
+          Icon(Icons.smart_toy_outlined, size: 18, color: context.tokens.colors.accent),
           const SizedBox(width: 8),
           Text(
             'Subagents',
-            style: AppTypography.sectionTitle.copyWith(fontSize: 15),
+            style: context.tokens.typography.textTheme.headlineMedium!.copyWith(fontSize: 15),
           ),
           const Spacer(),
           if (state.loading && state.agents.isNotEmpty)
@@ -87,17 +87,17 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
           const SizedBox(width: 4),
           Text(
             '${state.agents.length}',
-            style: AppTypography.caption.copyWith(color: AppColors.textDim),
+            style: context.tokens.typography.textTheme.bodySmall!.copyWith(color: context.tokens.colors.textTertiary),
           ),
           const SizedBox(width: 4),
           InkWell(
             onTap: _load,
-            child: Icon(Icons.refresh, size: 16, color: AppColors.textDim),
+            child: Icon(Icons.refresh, size: 16, color: context.tokens.colors.textTertiary),
           ),
           const SizedBox(width: 8),
           InkWell(
             onTap: _showCreateDialog,
-            child: Icon(Icons.add, size: 18, color: AppColors.textDim),
+            child: Icon(Icons.add, size: 18, color: context.tokens.colors.textTertiary),
           ),
         ],
       ),
@@ -117,7 +117,7 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
             children: [
               Text(
                 state.error!,
-                style: AppTypography.caption.copyWith(color: AppColors.danger),
+                style: context.tokens.typography.textTheme.bodySmall!.copyWith(color: context.tokens.colors.error),
               ),
               const SizedBox(height: 8),
               OutlinedButton(onPressed: _load, child: const Text('Retry')),
@@ -131,17 +131,17 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.smart_toy_outlined, size: 40, color: AppColors.textDim),
+            Icon(Icons.smart_toy_outlined, size: 40, color: context.tokens.colors.textTertiary),
             const SizedBox(height: 8),
             Text(
               'No subagents yet',
-              style: AppTypography.caption.copyWith(color: AppColors.textDim),
+              style: context.tokens.typography.textTheme.bodySmall!.copyWith(color: context.tokens.colors.textTertiary),
             ),
             const SizedBox(height: 4),
             Text(
               'Create one from the panel or via chat',
-              style: AppTypography.caption.copyWith(
-                color: AppColors.textDim,
+              style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+                color: context.tokens.colors.textTertiary,
                 fontSize: 11,
               ),
             ),
@@ -306,8 +306,8 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
                           children: [
                             Text(
                               'Tools',
-                              style: AppTypography.caption.copyWith(
-                                color: AppColors.textSecondary,
+                              style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+                                color: context.tokens.colors.textSecondary,
                               ),
                             ),
                             const Spacer(),
@@ -317,21 +317,21 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
                               ),
                               child: Text(
                                 'All',
-                                style: AppTypography.caption.copyWith(
-                                  color: AppColors.accent,
+                                style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+                                  color: context.tokens.colors.accent,
                                 ),
                               ),
                             ),
-                            const Text(' / ',
-                                style: TextStyle(color: AppColors.textDim)),
+                            Text(' / ',
+                                style: TextStyle(color: context.tokens.colors.textTertiary)),
                             InkWell(
                               onTap: () => setDialogState(
                                 () => selectedTools = {},
                               ),
                               child: Text(
                                 'Clear',
-                                style: AppTypography.caption.copyWith(
-                                  color: AppColors.accent,
+                                style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+                                  color: context.tokens.colors.accent,
                                 ),
                               ),
                             ),
@@ -349,7 +349,7 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
                                     value: selectedTools.contains(t),
                                     title: Text(
                                       t,
-                                      style: AppTypography.caption.copyWith(
+                                      style: context.tokens.typography.textTheme.bodySmall!.copyWith(
                                         fontSize: 12,
                                       ),
                                     ),
@@ -541,7 +541,7 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
               Expanded(
                 child: Text(
                   agent.name,
-                  style: AppTypography.sectionTitle.copyWith(fontSize: 18),
+                  style: context.tokens.typography.textTheme.headlineMedium!.copyWith(fontSize: 18),
                 ),
               ),
               IconButton(
@@ -573,8 +573,8 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
                       child: Center(
                         child: Text(
                           'No jobs yet',
-                          style: AppTypography.caption.copyWith(
-                            color: AppColors.textDim,
+                          style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+                            color: context.tokens.colors.textTertiary,
                           ),
                         ),
                       ),
@@ -617,7 +617,7 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
                           _confirmDelete(agent);
                         },
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.danger,
+                          foregroundColor: context.tokens.colors.error,
                         ),
                       ),
                     ],
@@ -907,7 +907,7 @@ class _SubagentTile extends ConsumerWidget {
           Expanded(
             child: Text(
               agent.name,
-              style: AppTypography.body.copyWith(fontSize: 13),
+              style: context.tokens.typography.textTheme.bodyLarge!.copyWith(fontSize: 13),
             ),
           ),
           _ScopeBadge(label: agent.scope),
@@ -922,16 +922,16 @@ class _SubagentTile extends ConsumerWidget {
             agent.description.isEmpty ? 'No description' : agent.description,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: AppTypography.caption.copyWith(fontSize: 11),
+            style: context.tokens.typography.textTheme.bodySmall!.copyWith(fontSize: 11),
           ),
           if (progressMsg != null)
             Text(
               progressMsg,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: AppTypography.caption.copyWith(
+              style: context.tokens.typography.textTheme.bodySmall!.copyWith(
                 fontSize: 10,
-                color: AppColors.accent,
+                color: context.tokens.colors.accent,
               ),
             ),
         ],
@@ -943,7 +943,7 @@ class _SubagentTile extends ConsumerWidget {
             IconButton(
               tooltip: 'Cancel job',
               icon: const Icon(Icons.stop_circle_outlined, size: 18),
-              color: AppColors.warning,
+              color: context.tokens.colors.warning,
               onPressed: () {
                 ref
                     .read(subagentProvider.notifier)
@@ -987,14 +987,14 @@ class _ScopeBadge extends StatelessWidget {
       margin: const EdgeInsets.only(left: 4),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: AppColors.accent.withAlpha(18),
+        color: context.tokens.colors.accent.withAlpha(18),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
         label == 'workspace' ? 'ws' : 'user',
-        style: AppTypography.caption.copyWith(
+        style: context.tokens.typography.textTheme.bodySmall!.copyWith(
           fontSize: 10,
-          color: AppColors.accent,
+          color: context.tokens.colors.accent,
         ),
       ),
     );
@@ -1006,34 +1006,30 @@ class _StatusBadge extends StatelessWidget {
 
   const _StatusBadge({required this.label});
 
-  Color _color() {
-    switch (label) {
-      case 'running':
-        return AppColors.success;
-      case 'cancelling':
-        return AppColors.warning;
-      case 'completed':
-        return AppColors.accent;
-      case 'failed':
-        return AppColors.danger;
-      case 'cancelled':
-        return AppColors.warning;
-      default:
-        return AppColors.textDim;
-    }
+  Color _color(EaTokens tokens) {
+    return switch (label) {
+      'running' => tokens.colors.success,
+      'cancelling' => tokens.colors.warning,
+      'completed' => tokens.colors.accent,
+      'failed' => tokens.colors.error,
+      'cancelled' => tokens.colors.warning,
+      _ => tokens.colors.textTertiary,
+    };
   }
 
   @override
   Widget build(BuildContext context) {
+    final tokens = context.tokens;
+    final color = _color(tokens);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: _color().withAlpha(18),
+        color: color.withAlpha(18),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
         label,
-        style: AppTypography.caption.copyWith(fontSize: 10, color: _color()),
+        style: tokens.typography.textTheme.bodySmall!.copyWith(fontSize: 10, color: color),
       ),
     );
   }
@@ -1128,7 +1124,7 @@ class _DetailInfoRow extends StatelessWidget {
             if (agent.model != null)
               Text(
                 agent.model!,
-                style: AppTypography.caption.copyWith(fontSize: 11),
+                style: context.tokens.typography.textTheme.bodySmall!.copyWith(fontSize: 11),
               ),
           ],
         ),
@@ -1136,7 +1132,7 @@ class _DetailInfoRow extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             agent.description,
-            style: AppTypography.body.copyWith(fontSize: 13),
+            style: context.tokens.typography.textTheme.bodyLarge!.copyWith(fontSize: 13),
           ),
         ],
         const SizedBox(height: 8),
@@ -1159,7 +1155,7 @@ class _DetailInfoRow extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           'Max calls: ${agent.maxLlmCalls}  |  Cost: \$${agent.costLimitUsd}  |  Timeout: ${agent.timeoutSeconds}s',
-          style: AppTypography.caption.copyWith(fontSize: 10),
+          style: context.tokens.typography.textTheme.bodySmall!.copyWith(fontSize: 10),
         ),
       ],
     );
@@ -1190,7 +1186,7 @@ class _JobCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
-      color: isSelected ? AppColors.accentLight : null,
+      color: isSelected ? context.tokens.colors.accentMuted : null,
       child: InkWell(
         onTap: onSelect,
         borderRadius: BorderRadius.circular(8),
@@ -1206,7 +1202,7 @@ class _JobCard extends StatelessWidget {
                       job.task,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTypography.body.copyWith(fontSize: 12),
+                      style: context.tokens.typography.textTheme.bodyLarge!.copyWith(fontSize: 12),
                     ),
                   ),
                   _StatusBadge(label: job.status),
@@ -1220,16 +1216,16 @@ class _JobCard extends StatelessWidget {
                       : phase ?? message ?? '',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTypography.caption.copyWith(fontSize: 11),
+                  style: context.tokens.typography.textTheme.bodySmall!.copyWith(fontSize: 11),
                 ),
                 const SizedBox(height: 2),
               ],
               if (steps != null)
                 Text(
                   'Step $steps',
-                  style: AppTypography.caption.copyWith(
+                  style: context.tokens.typography.textTheme.bodySmall!.copyWith(
                     fontSize: 10,
-                    color: AppColors.textDim,
+                    color: context.tokens.colors.textTertiary,
                   ),
                 ),
               if (job.result != null && job.isTerminal)
@@ -1239,9 +1235,9 @@ class _JobCard extends StatelessWidget {
                     job.result!.length > 100
                         ? '${job.result!.substring(0, 100)}...'
                         : job.result!,
-                    style: AppTypography.caption.copyWith(
+                    style: context.tokens.typography.textTheme.bodySmall!.copyWith(
                       fontSize: 10,
-                      color: AppColors.success,
+                      color: context.tokens.colors.success,
                     ),
                   ),
                 ),
@@ -1250,9 +1246,9 @@ class _JobCard extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
                     job.error!,
-                    style: AppTypography.caption.copyWith(
+                    style: context.tokens.typography.textTheme.bodySmall!.copyWith(
                       fontSize: 10,
-                      color: AppColors.danger,
+                      color: context.tokens.colors.error,
                     ),
                   ),
                 ),
@@ -1261,9 +1257,9 @@ class _JobCard extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
                     '📝 ${job.instructions.length} instruction(s)',
-                    style: AppTypography.caption.copyWith(
+                    style: context.tokens.typography.textTheme.bodySmall!.copyWith(
                       fontSize: 10,
-                      color: AppColors.textDim,
+                      color: context.tokens.colors.textTertiary,
                     ),
                   ),
                 ),
@@ -1281,7 +1277,7 @@ class _JobCard extends StatelessWidget {
                         ),
                         onPressed: onCancel,
                         style: TextButton.styleFrom(
-                          foregroundColor: AppColors.warning,
+                          foregroundColor: context.tokens.colors.warning,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
                             vertical: 2,
@@ -1297,7 +1293,7 @@ class _JobCard extends StatelessWidget {
                         ),
                         onPressed: onInstruct,
                         style: TextButton.styleFrom(
-                          foregroundColor: AppColors.accent,
+                          foregroundColor: context.tokens.colors.accent,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
                             vertical: 2,
