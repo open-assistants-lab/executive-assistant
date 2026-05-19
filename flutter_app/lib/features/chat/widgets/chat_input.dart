@@ -11,6 +11,7 @@ class ChatInput extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final tokens = context.tokens;
     final state = ref.watch(agentProvider);
     final isSending =
         state.status == ChatStatus.streaming ||
@@ -37,11 +38,11 @@ class ChatInput extends ConsumerWidget {
               : null,
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.cardPadding,
-            8,
-            AppSpacing.cardPadding,
-            12,
+          padding: EdgeInsets.fromLTRB(
+            tokens.spacing.lg,
+            tokens.spacing.xs * 2,
+            tokens.spacing.lg,
+            tokens.spacing.md,
           ),
           child: Row(children: const [ModelSwitcher(), Spacer()]),
         ),
@@ -61,19 +62,20 @@ class _ApprovalBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = context.tokens;
     final approvals = pendingApprovals.values.toList();
     return Container(
-      margin: const EdgeInsets.fromLTRB(
-        AppSpacing.cardPadding,
-        4,
-        AppSpacing.cardPadding,
-        4,
+      margin: EdgeInsets.fromLTRB(
+        tokens.spacing.lg,
+        tokens.spacing.xs,
+        tokens.spacing.lg,
+        tokens.spacing.xs,
       ),
-      padding: const EdgeInsets.all(AppSpacing.cardPadding),
+      padding: EdgeInsets.all(tokens.spacing.lg),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+        color: tokens.colors.bgSurface,
+        borderRadius: BorderRadius.circular(tokens.radius.md),
+        border: Border.all(color: tokens.colors.warning.withValues(alpha: 0.4)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -81,26 +83,26 @@ class _ApprovalBar extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.warning_amber, size: 16, color: AppColors.warning),
-              const SizedBox(width: 6),
+              Icon(Icons.warning_amber, size: 16, color: tokens.colors.warning),
+              SizedBox(width: tokens.spacing.sm),
               Text(
                 'Tool requires approval',
-                style: AppTypography.caption.copyWith(
-                  color: AppColors.warning,
+                style: tokens.typography.textTheme.bodySmall?.copyWith(
+                  color: tokens.colors.warning,
                   fontWeight: FontWeight.w600,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: tokens.spacing.sm),
           ...approvals.map((tc) => Padding(
-            padding: const EdgeInsets.only(bottom: 4),
+            padding: EdgeInsets.only(bottom: tokens.spacing.xs),
             child: Text(
               tc.toolName,
-              style: AppTypography.sectionTitle.copyWith(fontSize: 15),
+              style: tokens.typography.textTheme.headlineMedium?.copyWith(fontSize: 15),
             ),
           )),
-          const SizedBox(height: 8),
+          SizedBox(height: tokens.spacing.sm),
           Row(
             children: [
               Expanded(
@@ -111,17 +113,17 @@ class _ApprovalBar extends StatelessWidget {
                     }
                   },
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.danger,
-                    side: const BorderSide(color: AppColors.danger),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    foregroundColor: tokens.colors.error,
+                    side: BorderSide(color: tokens.colors.error),
+                    padding: EdgeInsets.symmetric(vertical: tokens.spacing.sm + 2),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.button),
+                      borderRadius: BorderRadius.circular(tokens.radius.lg),
                     ),
                   ),
                   child: const Text('Reject', style: TextStyle(fontSize: 13)),
                 ),
               ),
-              const SizedBox(width: AppSpacing.itemGap),
+              SizedBox(width: tokens.spacing.sm),
               Expanded(
                 child: FilledButton(
                   onPressed: () {
@@ -130,10 +132,10 @@ class _ApprovalBar extends StatelessWidget {
                     }
                   },
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.accent,
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    backgroundColor: tokens.colors.accent,
+                    padding: EdgeInsets.symmetric(vertical: tokens.spacing.sm + 2),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.button),
+                      borderRadius: BorderRadius.circular(tokens.radius.lg),
                     ),
                   ),
                   child: const Text('Approve', style: TextStyle(fontSize: 13)),

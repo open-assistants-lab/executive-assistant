@@ -10,29 +10,30 @@ class ErrorBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final tokens = context.tokens;
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.cardPadding,
-        vertical: AppSpacing.itemGap,
+      padding: EdgeInsets.symmetric(
+        horizontal: tokens.spacing.lg,
+        vertical: tokens.spacing.sm,
       ),
-      color: AppColors.danger.withValues(alpha: 0.08),
+      color: tokens.colors.error.withValues(alpha: 0.08),
       child: Row(
         children: [
-          Icon(Icons.error_outline, size: 18, color: AppColors.danger),
-          const SizedBox(width: 8),
+          Icon(Icons.error_outline, size: 18, color: tokens.colors.error),
+          SizedBox(width: tokens.spacing.sm),
           Expanded(
             child: Text(
               error,
-              style: AppTypography.caption.copyWith(
-                color: AppColors.danger,
+              style: tokens.typography.textTheme.bodySmall?.copyWith(
+                color: tokens.colors.error,
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
           ),
           IconButton(
-            icon: Icon(Icons.close, size: 16, color: AppColors.danger),
-            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            icon: Icon(Icons.close, size: 16, color: tokens.colors.error),
+            constraints: BoxConstraints(minWidth: 28, minHeight: 28),
             padding: EdgeInsets.zero,
             onPressed: () => ref.read(agentProvider.notifier).clearError(),
           ),

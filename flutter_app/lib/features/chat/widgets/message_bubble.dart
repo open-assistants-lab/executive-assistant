@@ -19,32 +19,34 @@ class MessageBubble extends StatelessWidget {
       return ReasoningBubble(content: content);
     }
 
+    final tokens = context.tokens;
     final isUser = message.role == 'user';
+    final userBubbleColor = tokens.isDark ? tokens.colors.accentMuted : tokens.colors.accent;
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: LayoutBuilder(
         builder: (context, constraints) {
           return Container(
-            margin: const EdgeInsets.symmetric(vertical: 4),
-            padding: const EdgeInsets.all(12),
+            margin: EdgeInsets.symmetric(vertical: tokens.spacing.xs),
+            padding: EdgeInsets.all(tokens.spacing.md),
             constraints: BoxConstraints(
               maxWidth: constraints.maxWidth * 0.85,
             ),
             decoration: BoxDecoration(
-              color: isUser ? AppColors.userBubble : AppColors.assistantBubble,
+              color: isUser ? userBubbleColor : tokens.colors.bgSurface,
               borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(AppRadius.messageBubbleTop),
-                topRight: const Radius.circular(AppRadius.messageBubbleTop),
+                topLeft: Radius.circular(tokens.radius.xl),
+                topRight: Radius.circular(tokens.radius.xl),
                 bottomLeft: Radius.circular(
-                    isUser ? AppRadius.messageBubbleTop : AppRadius.messageBubbleBottom),
+                    isUser ? tokens.radius.xl : tokens.radius.sm),
                 bottomRight: Radius.circular(
-                    isUser ? AppRadius.messageBubbleBottom : AppRadius.messageBubbleTop),
+                    isUser ? tokens.radius.sm : tokens.radius.xl),
               ),
             ),
             child: SelectableText(
               message.content,
-              style: AppTypography.body.copyWith(
-                color: isUser ? AppColors.userBubbleText : AppColors.assistantBubbleText,
+              style: tokens.typography.textTheme.bodyLarge?.copyWith(
+                color: isUser ? tokens.colors.textInverse : tokens.colors.textPrimary,
               ),
             ),
           );
@@ -60,26 +62,26 @@ class _InlineToolBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = context.tokens;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: EdgeInsets.symmetric(vertical: tokens.spacing.xs),
       child: Align(
         alignment: Alignment.centerLeft,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: EdgeInsets.symmetric(horizontal: tokens.spacing.sm, vertical: tokens.spacing.xs),
           decoration: BoxDecoration(
-            color: AppColors.toolChipBg.withAlpha(100),
-            borderRadius: BorderRadius.circular(AppRadius.chip / 2),
+            color: tokens.colors.bgField.withAlpha(100),
+            borderRadius: BorderRadius.circular(tokens.radius.md / 2),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.build_outlined, size: 12, color: AppColors.textDim),
-              const SizedBox(width: 5),
+              Icon(Icons.build_outlined, size: 12, color: tokens.colors.textTertiary),
+              SizedBox(width: tokens.spacing.xs),
               Text(
                 toolName,
-                style: AppTypography.toolLabel.copyWith(
-                  color: AppColors.textDim,
-                  fontSize: 11,
+                style: tokens.typography.textTheme.labelSmall?.copyWith(
+                  color: tokens.colors.textTertiary,
                 ),
               ),
             ],
@@ -97,13 +99,14 @@ class ToolCallChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = context.tokens;
     final hasResult = toolCall.resultPreview != null;
     return Container(
-      margin: const EdgeInsets.only(top: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      margin: EdgeInsets.only(top: tokens.spacing.xs),
+      padding: EdgeInsets.symmetric(horizontal: tokens.spacing.sm + 2, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.toolChipBg,
-        borderRadius: BorderRadius.circular(AppRadius.chip),
+        color: tokens.colors.bgField,
+        borderRadius: BorderRadius.circular(tokens.radius.md),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -111,24 +114,24 @@ class ToolCallChip extends StatelessWidget {
           Icon(
             hasResult ? Icons.check_circle : Icons.build,
             size: 14,
-            color: AppColors.toolChipText,
+            color: tokens.colors.textPrimary,
           ),
-          const SizedBox(width: 6),
+          SizedBox(width: tokens.spacing.sm),
           Flexible(
             child: Text(
               toolCall.toolName,
-              style: AppTypography.toolLabel.copyWith(
-                color: AppColors.toolChipText,
+              style: tokens.typography.textTheme.labelSmall?.copyWith(
+                color: tokens.colors.textPrimary,
               ),
             ),
           ),
           if (hasResult) ...[
-            const SizedBox(width: 6),
+            SizedBox(width: tokens.spacing.sm),
             Flexible(
               child: Text(
                 toolCall.resultPreview!,
-                style: AppTypography.caption.copyWith(
-                  color: AppColors.textSecondary,
+                style: tokens.typography.textTheme.bodySmall?.copyWith(
+                  color: tokens.colors.textSecondary,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

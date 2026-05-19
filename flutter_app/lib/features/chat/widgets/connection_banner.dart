@@ -17,7 +17,8 @@ class ConnectionBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     if (connected) return const SizedBox.shrink();
 
-    final color = isDisconnected ? AppColors.danger : AppColors.warning;
+    final tokens = context.tokens;
+    final color = isDisconnected ? tokens.colors.error : tokens.colors.warning;
     final text = isDisconnected
         ? 'Not connected \u2014 tap to reconnect'
         : 'Connecting...';
@@ -26,11 +27,11 @@ class ConnectionBanner extends StatelessWidget {
       onTap: onReconnect,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+        padding: EdgeInsets.symmetric(vertical: tokens.spacing.sm, horizontal: tokens.spacing.lg),
         color: color.withValues(alpha: 0.08),
         child: Text(
           text,
-          style: AppTypography.caption.copyWith(color: color),
+          style: tokens.typography.textTheme.bodySmall?.copyWith(color: color),
           textAlign: TextAlign.center,
         ),
       ),

@@ -9,37 +9,49 @@ class ToolCallCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = context.tokens;
     final hasResult = toolCall.resultPreview != null;
+    final statusColor = hasResult ? tokens.colors.success : tokens.colors.accent;
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      padding: const EdgeInsets.all(10),
+      margin: EdgeInsets.symmetric(vertical: tokens.spacing.xs),
+      padding: EdgeInsets.all(tokens.spacing.sm + 2),
       decoration: BoxDecoration(
-        color: AppColors.toolChipBg,
-        borderRadius: BorderRadius.circular(AppRadius.chip),
+        color: tokens.colors.bgField,
+        borderRadius: BorderRadius.circular(tokens.radius.md),
+        border: Border(
+          left: BorderSide(
+            color: hasResult
+                ? tokens.colors.success
+                : toolCall.args.isNotEmpty
+                    ? tokens.colors.accent
+                    : tokens.colors.textTertiary,
+            width: 3,
+          ),
+        ),
       ),
       child: Row(
         children: [
           Icon(
             hasResult ? Icons.check_circle : Icons.sync,
             size: 16,
-            color: hasResult ? AppColors.success : AppColors.accent,
+            color: statusColor,
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: tokens.spacing.sm),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   toolCall.toolName,
-                  style: AppTypography.toolLabel.copyWith(
-                    color: AppColors.toolChipText,
+                  style: tokens.typography.monoTheme.bodyMedium?.copyWith(
+                    color: tokens.colors.textPrimary,
                   ),
                 ),
                 if (toolCall.args.isNotEmpty)
                   Text(
                     _formatArgs(toolCall.args),
-                    style: AppTypography.caption.copyWith(
-                      color: AppColors.textSecondary,
+                    style: tokens.typography.textTheme.bodySmall?.copyWith(
+                      color: tokens.colors.textSecondary,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -48,7 +60,7 @@ class ToolCallCard extends StatelessWidget {
             ),
           ),
           if (hasResult)
-            Icon(Icons.expand_more, size: 16, color: AppColors.textDim),
+            Icon(Icons.expand_more, size: 16, color: tokens.colors.textTertiary),
         ],
       ),
     );

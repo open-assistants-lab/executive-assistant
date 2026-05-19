@@ -116,11 +116,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         : state.status == ChatStatus.disconnected
         ? Icons.cloud_off
         : Icons.cloud_sync;
+    final tokens = context.tokens;
     final statusColor = isConnected
-        ? AppColors.success
+        ? tokens.colors.success
         : state.status == ChatStatus.disconnected
-        ? AppColors.danger
-        : AppColors.warning;
+        ? tokens.colors.error
+        : tokens.colors.warning;
 
     return Scaffold(
       appBar: AppBar(
@@ -171,15 +172,17 @@ class _MessageList extends StatelessWidget {
       activeToolCalls: state.activeToolCalls,
       scrollController: scrollController,
       isLoading: state.loadingHistory,
-      emptyBuilder: (_) => Center(
+          emptyBuilder: (context) => Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.chat_bubble_outline, size: 48, color: AppColors.textDim),
-            const SizedBox(height: 16),
+            Icon(Icons.chat_bubble_outline, size: 48, color: context.tokens.colors.textTertiary),
+            SizedBox(height: context.tokens.spacing.lg),
             Text(
               'Send a message to start',
-              style: AppTypography.body.copyWith(color: AppColors.textDim),
+              style: context.tokens.typography.textTheme.bodyLarge?.copyWith(
+                color: context.tokens.colors.textTertiary,
+              ),
             ),
           ],
         ),
