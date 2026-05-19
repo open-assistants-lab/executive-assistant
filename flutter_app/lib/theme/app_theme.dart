@@ -1,9 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'app_colors.dart';
-import 'app_typography.dart';
-import 'app_spacing.dart';
-import 'app_radius.dart';
 export 'app_colors.dart';
 export 'app_typography.dart';
 export 'app_spacing.dart';
@@ -87,142 +83,77 @@ extension EaTokensBuildContext on BuildContext {
 class AppTheme {
   AppTheme._();
 
-  static ThemeData get light {
-    final colorScheme = ColorScheme.light(
-      primary: AppColors.primary,
-      onPrimary: Colors.white,
-      primaryContainer: const Color(0xFFE8E8EE),
-      onPrimaryContainer: AppColors.textPrimary,
-      secondary: AppColors.accent,
-      onSecondary: Colors.white,
-      secondaryContainer: const Color(0xFFCCFBF1),
-      onSecondaryContainer: const Color(0xFF134E4A),
-      surface: AppColors.surface,
-      onSurface: AppColors.textPrimary,
-      error: AppColors.danger,
-      onError: Colors.white,
-      outline: AppColors.border,
-      outlineVariant: AppColors.divider,
-    );
+  static ThemeData _build(Brightness brightness) {
+    final tokens = brightness == Brightness.dark ? EaTokens.dark() : EaTokens.light();
 
     return ThemeData(
+      brightness: brightness,
       useMaterial3: true,
-      colorScheme: colorScheme,
-      scaffoldBackgroundColor: AppColors.background,
-      fontFamily: AppTypography.fontFamily,
-      textTheme: const TextTheme(
-        displayLarge: AppTypography.screenTitle,
-        displayMedium: AppTypography.screenTitle,
-        displaySmall: AppTypography.screenTitle,
-        headlineLarge: AppTypography.screenTitle,
-        headlineMedium: AppTypography.sectionTitle,
-        headlineSmall: AppTypography.metric,
-        titleLarge: AppTypography.sectionTitle,
-        titleMedium: AppTypography.body,
-        titleSmall: AppTypography.body,
-        bodyLarge: AppTypography.body,
-        bodyMedium: AppTypography.body,
-        bodySmall: AppTypography.caption,
-        labelLarge: AppTypography.button,
-        labelMedium: AppTypography.toolLabel,
-        labelSmall: AppTypography.chip,
+      scaffoldBackgroundColor: tokens.colors.bgCanvas,
+      colorScheme: ColorScheme(
+        brightness: brightness,
+        primary: tokens.colors.accent,
+        onPrimary: tokens.colors.textInverse,
+        secondary: tokens.colors.accent,
+        onSecondary: tokens.colors.textInverse,
+        surface: tokens.colors.bgSurface,
+        onSurface: tokens.colors.textPrimary,
+        error: tokens.colors.error,
+        onError: Colors.white,
       ),
+      textTheme: tokens.typography.textTheme,
       cardTheme: CardThemeData(
-        color: AppColors.background,
+        color: tokens.colors.bgSurface,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.card),
-          side: const BorderSide(color: AppColors.border),
+          borderRadius: tokens.radius.lgAll,
+          side: BorderSide(color: tokens.colors.borderSubtle),
         ),
-        margin: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.screenEdge,
-          vertical: AppSpacing.betweenCards / 2,
-        ),
+        margin: EdgeInsets.zero,
       ),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.textPrimary,
+      appBarTheme: AppBarTheme(
+        backgroundColor: tokens.colors.bgCanvas,
+        foregroundColor: tokens.colors.textPrimary,
         elevation: 0,
-        centerTitle: false,
-        titleTextStyle: TextStyle(
-          fontFamily: AppTypography.fontFamily,
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
-          color: AppColors.textPrimary,
-          letterSpacing: -0.27,
-        ),
+        scrolledUnderElevation: 0,
       ),
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: AppColors.background,
-        selectedItemColor: AppColors.accent,
-        unselectedItemColor: AppColors.textDim,
-        type: BottomNavigationBarType.fixed,
-        elevation: 0,
-        selectedLabelStyle: TextStyle(
-          fontFamily: AppTypography.fontFamily,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
-        unselectedLabelStyle: TextStyle(
-          fontFamily: AppTypography.fontFamily,
-          fontSize: 12,
-          fontWeight: FontWeight.w400,
-        ),
-      ),
-      floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: AppColors.accent,
-        foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(AppRadius.button)),
-        ),
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: tokens.colors.bgSurface,
+        selectedItemColor: tokens.colors.accent,
+        unselectedItemColor: tokens.colors.textTertiary,
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.surface,
+        fillColor: tokens.colors.bgField,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.input),
-          borderSide: const BorderSide(color: AppColors.border),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.input),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderRadius: tokens.radius.smAll,
+          borderSide: BorderSide(color: tokens.colors.borderDefault),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.input),
-          borderSide: const BorderSide(color: AppColors.accent, width: 1.5),
+          borderRadius: tokens.radius.smAll,
+          borderSide: BorderSide(color: tokens.colors.accent),
         ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.cardPadding,
-          vertical: AppSpacing.itemGap + AppSpacing.tightGap,
-        ),
-        hintStyle: const TextStyle(
-          fontFamily: AppTypography.fontFamily,
-          fontSize: 14,
-          color: AppColors.textDim,
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: tokens.spacing.md,
+          vertical: tokens.spacing.sm + 2,
         ),
       ),
-      bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: AppColors.background,
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: tokens.colors.bgSurface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(
-            top: Radius.circular(AppRadius.sheet),
+            top: Radius.circular(tokens.radius.lg),
           ),
         ),
       ),
-      dividerTheme: const DividerThemeData(
-        color: AppColors.divider,
+      dividerTheme: DividerThemeData(
+        color: tokens.colors.borderSubtle,
         thickness: 1,
-        space: 1,
       ),
-      chipTheme: ChipThemeData(
-        backgroundColor: AppColors.surface,
-        selectedColor: AppColors.accentLight,
-        labelStyle: AppTypography.chip,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.chip),
-        ),
-        side: const BorderSide(color: AppColors.border),
-      ),
+      extensions: [tokens],
     );
   }
+
+  static ThemeData get dark => _build(Brightness.dark);
+  static ThemeData get light => _build(Brightness.light);
 }

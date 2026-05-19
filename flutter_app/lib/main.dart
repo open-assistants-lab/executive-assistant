@@ -8,8 +8,9 @@ import 'services/instrumented_app.dart';
 import 'services/test_instrumentation.dart';
 import 'theme/app_theme.dart';
 
+final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.dark);
+
 void main() {
-  // Capture uncaught async zone errors.
   runZonedGuarded(() {
     runApp(
       InstrumentedApp(
@@ -27,10 +28,13 @@ class ExecutiveAssistantApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
+    final themeMode = ref.watch(themeModeProvider);
     return MaterialApp.router(
       title: 'Executive Assistant',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: themeMode,
       routerConfig: router,
     );
   }
