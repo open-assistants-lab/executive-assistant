@@ -21,6 +21,7 @@ dependencies:
   url_launcher: ^6.3.1
   shared_preferences: ^2.3.5
   flutter_secure_storage: ^9.2.4
+  google_fonts: ^6.2.1
 
 dev_dependencies:
   flutter_test:
@@ -37,3 +38,10 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  fonts:
+    - family: FiraCode
+      fonts:
+        - asset: assets/fonts/FiraCode-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/FiraCode-Medium.ttf
+          weight: 500
