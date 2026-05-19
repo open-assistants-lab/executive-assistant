@@ -106,7 +106,7 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
     });
 
     return Container(
-      color: AppColors.background,
+      color: context.tokens.colors.bgCanvas,
       child: Column(
         children: [
           Expanded(
@@ -132,16 +132,16 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
         Container(
           height: 52,
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: AppColors.divider)),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: context.tokens.colors.borderSubtle)),
           ),
           child: Row(
             children: [
-              Icon(Icons.folder, size: 18, color: AppColors.accent),
+              Icon(Icons.folder, size: 18, color: context.tokens.colors.accent),
               const SizedBox(width: 8),
               Text(
                 'Files',
-                style: AppTypography.sectionTitle.copyWith(fontSize: 15),
+                style: context.tokens.typography.textTheme.headlineMedium!.copyWith(fontSize: 15),
               ),
               const Spacer(),
               if (_loading && _files.isNotEmpty)
@@ -153,12 +153,12 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
               const SizedBox(width: 4),
               Text(
                 '${_files.length}',
-                style: AppTypography.caption.copyWith(color: AppColors.textDim),
+                style: context.tokens.typography.textTheme.bodySmall!.copyWith(color: context.tokens.colors.textTertiary),
               ),
               const SizedBox(width: 4),
               InkWell(
                 onTap: _loadFiles,
-                child: Icon(Icons.refresh, size: 16, color: AppColors.textDim),
+                child: Icon(Icons.refresh, size: 16, color: context.tokens.colors.textTertiary),
               ),
             ],
           ),
@@ -181,7 +181,7 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
             children: [
               Text(
                 _error!,
-                style: AppTypography.caption.copyWith(color: AppColors.danger),
+                style: context.tokens.typography.textTheme.bodySmall!.copyWith(color: context.tokens.colors.error),
               ),
               const SizedBox(height: 8),
               OutlinedButton(onPressed: _loadFiles, child: const Text('Retry')),
@@ -195,11 +195,11 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.folder_open, size: 40, color: AppColors.textDim),
+            Icon(Icons.folder_open, size: 40, color: context.tokens.colors.textTertiary),
             const SizedBox(height: 8),
             Text(
               'No files',
-              style: AppTypography.caption.copyWith(color: AppColors.textDim),
+              style: context.tokens.typography.textTheme.bodySmall!.copyWith(color: context.tokens.colors.textTertiary),
             ),
           ],
         ),
@@ -218,12 +218,12 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
           leading: Icon(
             isDir ? Icons.folder : Icons.description,
             size: 18,
-            color: isDir ? AppColors.warning : AppColors.textSecondary,
+            color: isDir ? context.tokens.colors.warning : context.tokens.colors.textSecondary,
           ),
-          title: Text(name, style: AppTypography.body.copyWith(fontSize: 13)),
+          title: Text(name, style: context.tokens.typography.textTheme.bodyLarge!.copyWith(fontSize: 13)),
           subtitle: Text(
             isDir ? 'Folder' : _formatSize(size),
-            style: AppTypography.caption.copyWith(fontSize: 11),
+            style: context.tokens.typography.textTheme.bodySmall!.copyWith(fontSize: 11),
           ),
         );
       },
@@ -243,8 +243,8 @@ class _BottomTabs extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 44,
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: AppColors.divider)),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: context.tokens.colors.borderSubtle)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -298,21 +298,21 @@ class _BottomTabButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadius.chip),
+        borderRadius: BorderRadius.circular(context.tokens.radius.md),
         onTap: onTap,
         child: Container(
           width: 40,
           height: 32,
           decoration: selected
               ? BoxDecoration(
-                  color: AppColors.accentLight,
-                  borderRadius: BorderRadius.circular(AppRadius.chip),
+                  color: context.tokens.colors.accentMuted,
+                  borderRadius: BorderRadius.circular(context.tokens.radius.md),
                 )
               : null,
           child: Icon(
             selected ? activeIcon : icon,
             size: 19,
-            color: selected ? AppColors.accent : AppColors.textSecondary,
+            color: selected ? context.tokens.colors.accent : context.tokens.colors.textSecondary,
           ),
         ),
       ),
