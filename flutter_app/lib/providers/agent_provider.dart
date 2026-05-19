@@ -129,10 +129,12 @@ class AgentNotifier extends StateNotifier<ChatState> {
 
   Future<void> loadHistory({int limit = 100}) async {
     try {
+      final targetWorkspaceId = _workspaceId;
       final apiMessages = await _apiClient.getConversation(
         limit: limit,
-        workspaceId: _workspaceId,
+        workspaceId: targetWorkspaceId,
       );
+      if (_disposed || targetWorkspaceId != _workspaceId) return;
       final now = DateTime.now();
       var idx = 0;
       final chatMessages = <ChatMessage>[];
@@ -299,6 +301,10 @@ class AgentNotifier extends StateNotifier<ChatState> {
     _setState(
       state.copyWith(
         status: state.connected ? ChatStatus.idle : ChatStatus.disconnected,
+        pendingApprovals: const {},
+        activeToolCalls: [],
+        streamingText: '',
+        reasoningText: '',
       ),
     );
   }
@@ -527,6 +533,7 @@ class AgentNotifier extends StateNotifier<ChatState> {
         );
       }).toList();
 
+      final hasPendingApprovals = state.pendingApprovals.isNotEmpty;
       final assistantMsg = ChatMessage(
         id: 'ai_${now.millisecondsSinceEpoch}',
         role: 'assistant',
@@ -536,10 +543,12 @@ class AgentNotifier extends StateNotifier<ChatState> {
       _setState(
         state.copyWith(
           messages: [...state.messages, ...toolMessages, assistantMsg],
-          status: ChatStatus.idle,
+          status: hasPendingApprovals
+              ? ChatStatus.awaitingApproval
+              : ChatStatus.idle,
           streamingText: '',
           reasoningText: '',
-          activeToolCalls: [],
+          activeToolCalls: hasPendingApprovals ? state.activeToolCalls : [],
           deliveredMessageIds: updatedIds,
           loadingHistory: false,
         ),

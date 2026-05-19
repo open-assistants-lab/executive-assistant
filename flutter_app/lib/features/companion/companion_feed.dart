@@ -4,11 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_typography.dart';
-import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
 import '../../providers/companion_provider.dart';
 import '../../providers/chat_tab_provider.dart';
-import '../../widgets/app_input.dart';
 
 class CompanionFeed extends ConsumerStatefulWidget {
   const CompanionFeed({super.key});

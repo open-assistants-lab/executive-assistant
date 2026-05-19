@@ -251,18 +251,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SizedBox(height: 4),
           ...models.map((m) {
             final modelValue = '$pid:$m';
-            return RadioListTile<String>(
+            return ListTile(
               title: Text(m, style: const TextStyle(fontSize: 12)),
-              value: modelValue,
-              groupValue: _selectedModel,
+              leading: Radio<String>(
+                value: modelValue,
+                groupValue: _selectedModel,
+                onChanged: (v) {
+                  setState(() {
+                    _selectedModel = v!;
+                    _selectedProvider = pid;
+                  });
+                  _save();
+                },
+              ),
               dense: true,
-              onChanged: (v) {
-                setState(() {
-                  _selectedModel = v!;
-                  _selectedProvider = pid;
-                });
-                _save();
-              },
             );
           }),
         ],

@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/agent_provider.dart';
 import '../../providers/workspace_provider.dart';
 import '../../providers/chat_tab_provider.dart';
-import '../../providers/companion_provider.dart';
 import '../../widgets/app_input.dart';
 import '../../features/chat/widgets/message_bubble.dart';
 import '../../features/chat/widgets/streaming_bubble.dart';
@@ -17,7 +15,6 @@ import '../../features/companion/companion_pulse.dart';
 import '../../features/companion/companion_context_pill.dart';
 import '../../features/companion/companion_toast.dart';
 import '../../features/settings/settings_screen.dart';
-import '../../core/widgets/ea_widgets.dart';
 import '../../core/motion/motion.dart';
 
 enum DesktopSidebarItem {

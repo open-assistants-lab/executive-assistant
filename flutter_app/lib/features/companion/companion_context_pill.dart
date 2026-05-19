@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_typography.dart';
-import '../../theme/app_radius.dart';
 import '../../providers/companion_provider.dart';
 
 class CompanionContextPill extends ConsumerWidget {

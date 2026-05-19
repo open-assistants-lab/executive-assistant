@@ -3,12 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/agent_provider.dart';
 import '../../providers/workspace_provider.dart';
-import '../../models/message.dart';
 import 'widgets/message_bubble.dart';
 import 'widgets/streaming_bubble.dart';
 import 'widgets/reasoning_bubble.dart';
 import 'widgets/tool_call_card.dart';
-import 'widgets/approval_sheet.dart';
 import 'widgets/chat_input.dart';
 import 'widgets/error_bar.dart';
 import 'widgets/connection_banner.dart';
@@ -22,7 +20,6 @@ class ChatScreen extends ConsumerStatefulWidget {
 
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _scrollController = ScrollController();
-  bool _sheetShowing = false;
   bool _restoringScroll = false;
 
   @override
@@ -83,21 +80,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
-  Future<void> _showApprovalSheet(Map<String, ToolCallDisplay> pending) async {
-    if (_sheetShowing) return;
-    _sheetShowing = true;
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => ApprovalSheet(pendingApprovals: pending),
-    );
-    _sheetShowing = false;
-  }
-
   @override
   void dispose() {
-    _sheetShowing = false;
     _scrollController.dispose();
     super.dispose();
   }
@@ -117,11 +101,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
       if (next.status == ChatStatus.streaming) {
         _scrollToBottom();
-      }
-      if (next.status == ChatStatus.awaitingApproval &&
-          prev?.status != ChatStatus.awaitingApproval) {
-        if (!mounted) return;
-        _showApprovalSheet(next.pendingApprovals);
       }
     });
 

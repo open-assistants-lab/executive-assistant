@@ -274,6 +274,179 @@ class ApiClient {
     }
   }
 
+  // ─── Subagents ───
+
+  Future<List<dynamic>> listSubagents({String? workspaceId}) async {
+    final extra = <String, String>{};
+    if (workspaceId != null) extra['workspace_id'] = workspaceId;
+    final response = await _get(Uri.parse(_buildUrl('/subagents', extra)));
+    final data = await _handleResponse(response);
+    return data['agents'] as List<dynamic>? ?? [];
+  }
+
+  Future<Map<String, dynamic>> createSubagent({
+    required String name,
+    required String description,
+    String? model,
+    String scope = 'user',
+    List<String>? tools,
+    List<String>? skills,
+    String? systemPrompt,
+    int maxLlmCalls = 50,
+    double costLimitUsd = 1.0,
+    int timeoutSeconds = 300,
+    Map<String, dynamic>? providerOptions,
+    Map<String, dynamic>? outputSchema,
+    String? handoffInstructions,
+    String? artifactPolicy,
+    String? workspaceId,
+  }) async {
+    final extra = <String, String>{};
+    if (workspaceId != null) extra['workspace_id'] = workspaceId;
+    final response = await _post(
+      Uri.parse(_buildUrl('/subagents', extra)),
+      body: jsonEncode({
+        'name': name,
+        'description': description,
+        if (model != null) 'model': model,
+        'scope': scope,
+        if (tools != null) 'tools': tools,
+        if (skills != null) 'skills': skills,
+        if (systemPrompt != null) 'system_prompt': systemPrompt,
+        'max_llm_calls': maxLlmCalls,
+        'cost_limit_usd': costLimitUsd,
+        'timeout_seconds': timeoutSeconds,
+        if (providerOptions != null) 'provider_options': providerOptions,
+        if (outputSchema != null) 'output_schema': outputSchema,
+        if (handoffInstructions != null)
+          'handoff_instructions': handoffInstructions,
+        if (artifactPolicy != null) 'artifact_policy': artifactPolicy,
+      }),
+    );
+    return _handleResponse(response);
+  }
+
+  Future<void> updateSubagent(
+    String name, {
+    String? description,
+    String? model,
+    List<String>? tools,
+    List<String>? skills,
+    String? systemPrompt,
+    int? maxLlmCalls,
+    double? costLimitUsd,
+    int? timeoutSeconds,
+    String? workspaceId,
+  }) async {
+    final extra = <String, String>{};
+    if (workspaceId != null) extra['workspace_id'] = workspaceId;
+    final encodedName = Uri.encodeComponent(name);
+    final response = await _patch(
+      Uri.parse(_buildUrl('/subagents/$encodedName', extra)),
+      body: jsonEncode({
+        if (description != null) 'description': description,
+        if (model != null) 'model': model,
+        if (tools != null) 'tools': tools,
+        if (skills != null) 'skills': skills,
+        if (systemPrompt != null) 'system_prompt': systemPrompt,
+        if (maxLlmCalls != null) 'max_llm_calls': maxLlmCalls,
+        if (costLimitUsd != null) 'cost_limit_usd': costLimitUsd,
+        if (timeoutSeconds != null) 'timeout_seconds': timeoutSeconds,
+      }),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(response.statusCode, response.body);
+    }
+  }
+
+  Future<void> deleteSubagent(
+    String name, {
+    String? workspaceId,
+  }) async {
+    final extra = <String, String>{};
+    if (workspaceId != null) extra['workspace_id'] = workspaceId;
+    final encodedName = Uri.encodeComponent(name);
+    final response = await _delete(
+      Uri.parse(_buildUrl('/subagents/$encodedName', extra)),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(response.statusCode, response.body);
+    }
+  }
+
+  Future<Map<String, dynamic>> startSubagent(
+    String name, {
+    required String task,
+    String? parentId,
+    String? workspaceId,
+  }) async {
+    final extra = <String, String>{};
+    if (workspaceId != null) extra['workspace_id'] = workspaceId;
+    final encodedName = Uri.encodeComponent(name);
+    final response = await _post(
+      Uri.parse(_buildUrl('/subagents/$encodedName/start', extra)),
+      body: jsonEncode({
+        'task': task,
+        if (parentId != null) 'parent_id': parentId,
+      }),
+    );
+    return _handleResponse(response);
+  }
+
+  Future<List<dynamic>> listSubagentJobs({
+    String? status,
+    String? workspaceId,
+  }) async {
+    final extra = <String, String>{};
+    if (status != null) extra['status'] = status;
+    if (workspaceId != null) extra['workspace_id'] = workspaceId;
+    final response = await _get(Uri.parse(_buildUrl('/subagents/jobs', extra)));
+    final data = await _handleResponse(response);
+    return data['jobs'] as List<dynamic>? ?? [];
+  }
+
+  Future<Map<String, dynamic>> getSubagentJob(
+    String jobId, {
+    String? workspaceId,
+  }) async {
+    final extra = <String, String>{};
+    if (workspaceId != null) extra['workspace_id'] = workspaceId;
+    final response = await _get(
+      Uri.parse(_buildUrl('/subagents/jobs/$jobId', extra)),
+    );
+    return _handleResponse(response);
+  }
+
+  Future<void> cancelSubagentJob(
+    String jobId, {
+    String? workspaceId,
+  }) async {
+    final extra = <String, String>{};
+    if (workspaceId != null) extra['workspace_id'] = workspaceId;
+    await _post(
+      Uri.parse(_buildUrl('/subagents/jobs/$jobId/cancel', extra)),
+    );
+  }
+
+  Future<void> instructSubagentJob(
+    String jobId, {
+    required String instruction,
+    String? workspaceId,
+  }) async {
+    final extra = <String, String>{};
+    if (workspaceId != null) extra['workspace_id'] = workspaceId;
+    await _post(
+      Uri.parse(_buildUrl('/subagents/jobs/$jobId/instructions', extra)),
+      body: jsonEncode({'instruction': instruction}),
+    );
+  }
+
+  Future<List<String>> listToolNames() async {
+    final response = await _get(Uri.parse(_buildUrl('/tools/names')));
+    final data = await _handleResponse(response);
+    return List<String>.from(data['tools'] ?? []);
+  }
+
   // ─── Conversation ───
 
   Future<List<dynamic>> getConversation({
