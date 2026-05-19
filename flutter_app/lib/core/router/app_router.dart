@@ -115,13 +115,13 @@ class _PlaceholderScreen extends StatelessWidget {
           Icon(
             icon,
             size: 48,
-            color: AppColors.textDim,
+            color: context.tokens.colors.textTertiary,
           ),
           const SizedBox(height: 16),
           Text(
             '$title — Coming Soon',
-            style: AppTypography.sectionTitle.copyWith(
-              color: AppColors.textDim,
+            style: context.tokens.typography.textTheme.headlineMedium!.copyWith(
+              color: context.tokens.colors.textTertiary,
             ),
           ),
         ],
