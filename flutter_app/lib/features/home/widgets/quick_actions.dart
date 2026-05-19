@@ -16,20 +16,20 @@ class QuickActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.screenEdge,
+      padding: EdgeInsets.symmetric(
+        horizontal: context.tokens.spacing.xl,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'Quick Actions',
-            style: AppTypography.sectionTitle.copyWith(fontSize: 16),
+            style: context.tokens.typography.textTheme.headlineMedium!.copyWith(fontSize: 16),
           ),
-          const SizedBox(height: AppSpacing.itemGap),
+          SizedBox(height: context.tokens.spacing.sm),
           Wrap(
-            spacing: AppSpacing.itemGap,
-            runSpacing: AppSpacing.itemGap,
+            spacing: context.tokens.spacing.sm,
+            runSpacing: context.tokens.spacing.sm,
             children: [
               _ActionChip(
                 icon: Icons.reply,
@@ -69,14 +69,14 @@ class _ActionChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return ActionChip(
       onPressed: onTap,
-      avatar: Icon(icon, size: 16, color: AppColors.accent),
+      avatar: Icon(icon, size: 16, color: context.tokens.colors.accent),
       label: Text(label),
-      labelStyle: AppTypography.chip.copyWith(color: AppColors.primary),
+      labelStyle: context.tokens.typography.textTheme.labelSmall!.copyWith(color: context.tokens.colors.accent),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.chip),
-        side: const BorderSide(color: AppColors.border),
+        borderRadius: BorderRadius.circular(context.tokens.radius.md),
+        side: BorderSide(color: context.tokens.colors.borderDefault),
       ),
-      backgroundColor: AppColors.background,
+      backgroundColor: context.tokens.colors.bgCanvas,
     );
   }
 }

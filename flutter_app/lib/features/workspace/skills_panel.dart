@@ -64,23 +64,23 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
     });
 
     return Container(
-      color: AppColors.background,
+      color: context.tokens.colors.bgCanvas,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             height: 52,
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: AppColors.divider)),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: context.tokens.colors.borderSubtle)),
             ),
             child: Row(
               children: [
-                Icon(Icons.bolt, size: 18, color: AppColors.accent),
+                Icon(Icons.bolt, size: 18, color: context.tokens.colors.accent),
                 const SizedBox(width: 8),
                 Text(
                   'Skills',
-                  style: AppTypography.sectionTitle.copyWith(fontSize: 15),
+                  style: context.tokens.typography.textTheme.headlineMedium!.copyWith(fontSize: 15),
                 ),
                 const Spacer(),
                 if (_loading && _skills.isNotEmpty)
@@ -92,8 +92,8 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
                 const SizedBox(width: 4),
                 Text(
                   '${_skills.length}',
-                  style: AppTypography.caption.copyWith(
-                    color: AppColors.textDim,
+                  style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+                    color: context.tokens.colors.textTertiary,
                   ),
                 ),
                 const SizedBox(width: 4),
@@ -102,13 +102,13 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
                   child: Icon(
                     Icons.refresh,
                     size: 16,
-                    color: AppColors.textDim,
+                    color: context.tokens.colors.textTertiary,
                   ),
                 ),
                 const SizedBox(width: 8),
                 InkWell(
                   onTap: _showCreateDialog,
-                  child: Icon(Icons.add, size: 18, color: AppColors.textDim),
+                  child: Icon(Icons.add, size: 18, color: context.tokens.colors.textTertiary),
                 ),
               ],
             ),
@@ -132,7 +132,7 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
             children: [
               Text(
                 _error!,
-                style: AppTypography.caption.copyWith(color: AppColors.danger),
+                style: context.tokens.typography.textTheme.bodySmall!.copyWith(color: context.tokens.colors.error),
               ),
               const SizedBox(height: 8),
               OutlinedButton(
@@ -149,11 +149,11 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.bolt_outlined, size: 40, color: AppColors.textDim),
+            Icon(Icons.bolt_outlined, size: 40, color: context.tokens.colors.textTertiary),
             const SizedBox(height: 8),
             Text(
               'No skills',
-              style: AppTypography.caption.copyWith(color: AppColors.textDim),
+              style: context.tokens.typography.textTheme.bodySmall!.copyWith(color: context.tokens.colors.textTertiary),
             ),
           ],
         ),
@@ -410,7 +410,7 @@ class _SkillTile extends StatelessWidget {
       title: Row(
         children: [
           Expanded(
-            child: Text(name, style: AppTypography.body.copyWith(fontSize: 13)),
+            child: Text(name, style: context.tokens.typography.textTheme.bodyLarge!.copyWith(fontSize: 13)),
           ),
           _ScopeBadge(label: scope),
         ],
@@ -419,7 +419,7 @@ class _SkillTile extends StatelessWidget {
         description.isEmpty ? 'No description' : description,
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
-        style: AppTypography.caption.copyWith(fontSize: 11),
+        style: context.tokens.typography.textTheme.bodySmall!.copyWith(fontSize: 11),
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -451,14 +451,14 @@ class _ScopeBadge extends StatelessWidget {
       margin: const EdgeInsets.only(left: 8),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: AppColors.accent.withAlpha(18),
+        color: context.tokens.colors.accent.withAlpha(18),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
         label,
-        style: AppTypography.caption.copyWith(
+        style: context.tokens.typography.textTheme.bodySmall!.copyWith(
           fontSize: 10,
-          color: AppColors.accent,
+          color: context.tokens.colors.accent,
         ),
       ),
     );

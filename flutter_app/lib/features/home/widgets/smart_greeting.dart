@@ -18,24 +18,24 @@ class SmartGreeting extends StatelessWidget {
     final day = DateTime.now().day;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.screenEdge,
-        vertical: AppSpacing.cardPadding,
+      padding: EdgeInsets.symmetric(
+        horizontal: context.tokens.spacing.xl,
+        vertical: context.tokens.spacing.md,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             greeting,
-            style: AppTypography.screenTitle.copyWith(
-              color: AppColors.primary,
+            style: context.tokens.typography.textTheme.displayLarge!.copyWith(
+              color: context.tokens.colors.accent,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             '$dayName, $month $day',
-            style: AppTypography.body.copyWith(
-              color: AppColors.textSecondary,
+            style: context.tokens.typography.textTheme.bodyLarge!.copyWith(
+              color: context.tokens.colors.textSecondary,
             ),
           ),
         ],

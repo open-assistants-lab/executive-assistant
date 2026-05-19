@@ -19,29 +19,29 @@ class StatusCards extends StatelessWidget {
       height: 110,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.screenEdge,
+        padding: EdgeInsets.symmetric(
+          horizontal: context.tokens.spacing.xl,
         ),
         children: [
           _StatusCard(
             icon: Icons.mail_outline,
             value: unreadEmails,
             label: 'Unread',
-            color: AppColors.accent,
+            color: context.tokens.colors.accent,
           ),
-          const SizedBox(width: AppSpacing.betweenCards),
+          SizedBox(width: context.tokens.spacing.xxl),
           _StatusCard(
             icon: Icons.check_circle_outline,
             value: dueTasks,
             label: 'Due',
-            color: AppColors.warning,
+            color: context.tokens.colors.warning,
           ),
-          const SizedBox(width: AppSpacing.betweenCards),
+          SizedBox(width: context.tokens.spacing.xxl),
           _StatusCard(
             icon: Icons.smart_toy_outlined,
             value: activeSubagents,
             label: 'Active',
-            color: AppColors.primary,
+            color: context.tokens.colors.accent,
           ),
         ],
       ),
@@ -66,11 +66,11 @@ class _StatusCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: 140,
-      padding: const EdgeInsets.all(AppSpacing.cardPadding),
+      padding: EdgeInsets.all(context.tokens.spacing.md),
       decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        border: Border.all(color: AppColors.border),
+        color: context.tokens.colors.bgCanvas,
+        borderRadius: BorderRadius.circular(context.tokens.radius.lg),
+        border: Border.all(color: context.tokens.colors.borderDefault),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -80,7 +80,7 @@ class _StatusCard extends StatelessWidget {
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(AppRadius.chip),
+              borderRadius: BorderRadius.circular(context.tokens.radius.md),
             ),
             child: Icon(icon, size: 20, color: color),
           ),
@@ -90,13 +90,13 @@ class _StatusCard extends StatelessWidget {
             children: [
               Text(
                 '$value',
-                style: AppTypography.metric.copyWith(color: color),
+                style: context.tokens.typography.textTheme.headlineSmall!.copyWith(color: color),
               ),
               const SizedBox(width: 6),
               Text(
                 label,
-                style: AppTypography.caption.copyWith(
-                  color: AppColors.textSecondary,
+                style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+                  color: context.tokens.colors.textSecondary,
                 ),
               ),
             ],

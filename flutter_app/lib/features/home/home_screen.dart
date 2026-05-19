@@ -90,7 +90,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         dueTasks: 2,
                         activeSubagents: 1,
                       ),
-                      const SizedBox(height: AppSpacing.componentDefault),
+                      SizedBox(height: context.tokens.spacing.lg),
                       QuickActions(
                         onDraftReply: () => ref
                             .read(agentProvider.notifier)
@@ -102,24 +102,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             .read(agentProvider.notifier)
                             .sendMessage('What\'s on my schedule today?'),
                       ),
-                      const SizedBox(height: AppSpacing.betweenSections),
+                      SizedBox(height: context.tokens.spacing.xxxl),
                     ],
                   ),
                 ),
                 if (hasMessages) ...[
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.screenEdge,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: context.tokens.spacing.xl,
                       ),
                       child: Text(
                         'Conversation',
-                        style: AppTypography.sectionTitle.copyWith(fontSize: 16),
+                        style: context.tokens.typography.textTheme.headlineMedium!.copyWith(fontSize: 16),
                       ),
                     ),
                   ),
-                  const SliverToBoxAdapter(
-                    child: SizedBox(height: AppSpacing.itemGap),
+                  SliverToBoxAdapter(
+                    child: SizedBox(height: context.tokens.spacing.sm),
                   ),
                   _buildMessageSliver(state),
                 ] else
@@ -155,8 +155,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
 
     return SliverPadding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.screenEdge,
+      padding: EdgeInsets.symmetric(
+        horizontal: context.tokens.spacing.xl,
       ),
       sliver: SliverList(delegate: SliverChildListDelegate(items)),
     );
@@ -171,25 +171,25 @@ class _DesktopHome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppSpacing.screenEdge),
+      padding: EdgeInsets.all(context.tokens.spacing.xl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SmartGreeting(),
-          const SizedBox(height: AppSpacing.componentDefault),
+          SizedBox(height: context.tokens.spacing.lg),
           const StatusCards(
             unreadEmails: 3,
             dueTasks: 2,
             activeSubagents: 1,
           ),
-          const SizedBox(height: AppSpacing.componentDefault),
+          SizedBox(height: context.tokens.spacing.lg),
           const QuickActions(),
-          const SizedBox(height: AppSpacing.betweenSections),
+          SizedBox(height: context.tokens.spacing.xxxl),
           Text(
             'Recent Activity',
-            style: AppTypography.sectionTitle.copyWith(fontSize: 16),
+            style: context.tokens.typography.textTheme.headlineMedium!.copyWith(fontSize: 16),
           ),
-          const SizedBox(height: AppSpacing.componentDefault),
+          SizedBox(height: context.tokens.spacing.lg),
           if (state.messages.isEmpty)
             Center(
               child: Padding(
@@ -197,12 +197,12 @@ class _DesktopHome extends StatelessWidget {
                 child: Column(
                   children: [
                     Icon(Icons.chat_bubble_outline,
-                        size: 48, color: AppColors.textDim),
+                        size: 48, color: context.tokens.colors.textTertiary),
                     const SizedBox(height: 16),
                     Text(
                       'Use the chat panel to get started',
                       style:
-                          AppTypography.body.copyWith(color: AppColors.textDim),
+                          context.tokens.typography.textTheme.bodyLarge!.copyWith(color: context.tokens.colors.textTertiary),
                     ),
                   ],
                 ),
@@ -225,12 +225,12 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.auto_awesome, size: 48, color: AppColors.textDim),
+            Icon(Icons.auto_awesome, size: 48, color: context.tokens.colors.textTertiary),
             const SizedBox(height: 16),
             Text(
               'How can I help you today?',
-              style: AppTypography.sectionTitle.copyWith(
-                color: AppColors.textDim,
+              style: context.tokens.typography.textTheme.headlineMedium!.copyWith(
+                color: context.tokens.colors.textTertiary,
                 fontSize: 18,
               ),
             ),
