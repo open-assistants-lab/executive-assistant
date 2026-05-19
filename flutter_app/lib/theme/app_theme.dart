@@ -1,13 +1,88 @@
 import 'package:flutter/material.dart';
+
 import 'app_colors.dart';
 import 'app_typography.dart';
 import 'app_spacing.dart';
 import 'app_radius.dart';
-
 export 'app_colors.dart';
 export 'app_typography.dart';
 export 'app_spacing.dart';
 export 'app_radius.dart';
+
+import 'tokens/colors.dart';
+import 'tokens/typography.dart';
+import 'tokens/spacing.dart';
+import 'tokens/radius.dart';
+import 'tokens/motion.dart';
+
+@immutable
+class EaTokens extends ThemeExtension<EaTokens> {
+  final EaColors colors;
+  final EaTypography typography;
+  final EaSpacing spacing;
+  final EaRadius radius;
+  final EaMotion motion;
+  final Brightness brightness;
+
+  const EaTokens({
+    required this.colors,
+    required this.typography,
+    required this.spacing,
+    required this.radius,
+    required this.motion,
+    required this.brightness,
+  });
+
+  bool get isDark => brightness == Brightness.dark;
+
+  factory EaTokens.dark() {
+    return EaTokens(
+      colors: EaColors.dark,
+      typography: EaTypography.build(Brightness.dark),
+      spacing: EaSpacing.standard,
+      radius: EaRadius.standard,
+      motion: EaMotion.standard,
+      brightness: Brightness.dark,
+    );
+  }
+
+  factory EaTokens.light() {
+    return EaTokens(
+      colors: EaColors.light,
+      typography: EaTypography.build(Brightness.light),
+      spacing: EaSpacing.standard,
+      radius: EaRadius.standard,
+      motion: EaMotion.standard,
+      brightness: Brightness.light,
+    );
+  }
+
+  @override
+  EaTokens copyWith({
+    EaColors? colors,
+    EaTypography? typography,
+    EaSpacing? spacing,
+    EaRadius? radius,
+    EaMotion? motion,
+    Brightness? brightness,
+  }) {
+    return EaTokens(
+      colors: colors ?? this.colors,
+      typography: typography ?? this.typography,
+      spacing: spacing ?? this.spacing,
+      radius: radius ?? this.radius,
+      motion: motion ?? this.motion,
+      brightness: brightness ?? this.brightness,
+    );
+  }
+
+  @override
+  EaTokens lerp(EaTokens? other, double t) => this;
+}
+
+extension EaTokensBuildContext on BuildContext {
+  EaTokens get tokens => Theme.of(this).extension<EaTokens>()!;
+}
 
 class AppTheme {
   AppTheme._();
