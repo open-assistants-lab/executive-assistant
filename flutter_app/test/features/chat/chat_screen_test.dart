@@ -8,7 +8,6 @@ import 'package:executive_assistant/services/ws_client.dart';
 import 'package:executive_assistant/services/api_client.dart';
 import 'package:executive_assistant/providers/agent_provider.dart';
 import 'package:executive_assistant/features/chat/chat_screen.dart';
-import 'package:go_router/go_router.dart';
 
 class MockWsClient extends Mock implements WsClient {}
 
@@ -167,7 +166,7 @@ void main() {
       }));
       await tester.pump(); await tester.pump(const Duration(milliseconds: 100));
 
-      expect(find.text('Needs Approval'), findsOneWidget);
+      expect(find.text('Tool requires approval'), findsOneWidget);
       expect(find.text('Approve'), findsOneWidget);
       expect(find.text('Reject'), findsOneWidget);
     });

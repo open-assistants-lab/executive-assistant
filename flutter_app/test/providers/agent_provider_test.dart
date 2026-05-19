@@ -11,12 +11,8 @@ class MockWsClient extends Mock implements WsClient {}
 class MockApiClient extends Mock implements ApiClient {}
 
 void _registerFallbacks() {
-  registerFallbackValue(
-    StreamController<WsMessage>.broadcast(),
-  );
-  registerFallbackValue(
-    StreamController<ConnectionStatus>.broadcast(),
-  );
+  registerFallbackValue(StreamController<WsMessage>.broadcast());
+  registerFallbackValue(StreamController<ConnectionStatus>.broadcast());
 }
 
 void main() {
@@ -103,15 +99,17 @@ void main() {
     });
 
     test('rejectToolCall delegates to wsClient', () {
-      when(() => mockWs.rejectToolCall(any(), reason: any(named: 'reason')))
-          .thenReturn(null);
+      when(
+        () => mockWs.rejectToolCall(any(), reason: any(named: 'reason')),
+      ).thenReturn(null);
       notifier.rejectToolCall('c2', reason: 'nope');
       verify(() => mockWs.rejectToolCall('c2', reason: 'nope')).called(1);
     });
 
     test('rejectToolCall sets idle when no pending remain', () {
-      when(() => mockWs.rejectToolCall(any(), reason: any(named: 'reason')))
-          .thenReturn(null);
+      when(
+        () => mockWs.rejectToolCall(any(), reason: any(named: 'reason')),
+      ).thenReturn(null);
       notifier.rejectToolCall('x');
       expect(notifier.state.status, ChatStatus.idle);
     });
@@ -178,17 +176,21 @@ void main() {
       statusCtrl.add(ConnectionStatus.connected);
       await Future.delayed(Duration.zero);
 
-      msgCtrl.add(WsMessage(type: 'text_delta', data: {
-        'type': 'text_delta',
-        'content': 'Hello',
-      }));
+      msgCtrl.add(
+        WsMessage(
+          type: 'text_delta',
+          data: {'type': 'text_delta', 'content': 'Hello'},
+        ),
+      );
       await Future.delayed(Duration.zero);
       expect(notifier.state.streamingText, 'Hello');
 
-      msgCtrl.add(WsMessage(type: 'text_delta', data: {
-        'type': 'text_delta',
-        'content': ' world',
-      }));
+      msgCtrl.add(
+        WsMessage(
+          type: 'text_delta',
+          data: {'type': 'text_delta', 'content': ' world'},
+        ),
+      );
       await Future.delayed(Duration.zero);
       expect(notifier.state.streamingText, 'Hello world');
     });
@@ -197,22 +199,37 @@ void main() {
       statusCtrl.add(ConnectionStatus.connected);
       await Future.delayed(Duration.zero);
 
-      msgCtrl.add(WsMessage(type: 'tool_input_start', data: {
-        'type': 'tool_input_start',
-        'tool': 'email_send',
-        'call_id': 'c1',
-        'args': {},
-      }));
-      msgCtrl.add(WsMessage(type: 'tool_input_delta', data: {
-        'type': 'tool_input_delta',
-        'call_id': 'c1',
-        'content': '{"to":"boss@example.com"}',
-      }));
-      msgCtrl.add(WsMessage(type: 'tool_input_end', data: {
-        'type': 'tool_input_end',
-        'call_id': 'c1',
-        'tool': 'email_send',
-      }));
+      msgCtrl.add(
+        WsMessage(
+          type: 'tool_input_start',
+          data: {
+            'type': 'tool_input_start',
+            'tool': 'email_send',
+            'call_id': 'c1',
+            'args': {},
+          },
+        ),
+      );
+      msgCtrl.add(
+        WsMessage(
+          type: 'tool_input_delta',
+          data: {
+            'type': 'tool_input_delta',
+            'call_id': 'c1',
+            'content': '{"to":"boss@example.com"}',
+          },
+        ),
+      );
+      msgCtrl.add(
+        WsMessage(
+          type: 'tool_input_end',
+          data: {
+            'type': 'tool_input_end',
+            'call_id': 'c1',
+            'tool': 'email_send',
+          },
+        ),
+      );
       await Future.delayed(Duration.zero);
 
       expect(notifier.state.activeToolCalls, hasLength(1));
@@ -221,32 +238,44 @@ void main() {
       });
     });
 
-    test('ignores stream events from previous workspace after switching', () async {
-      when(() => mockWs.sendMessage(any(), workspaceId: any(named: 'workspaceId')))
-          .thenReturn(null);
-      when(() => mockApi.getConversation(
+    test(
+      'ignores stream events from previous workspace after switching',
+      () async {
+        when(
+          () =>
+              mockWs.sendMessage(any(), workspaceId: any(named: 'workspaceId')),
+        ).thenReturn(null);
+        when(
+          () => mockApi.getConversation(
             limit: any(named: 'limit'),
             workspaceId: any(named: 'workspaceId'),
-          )).thenAnswer((_) async => []);
-      statusCtrl.add(ConnectionStatus.connected);
-      await Future.delayed(Duration.zero);
+          ),
+        ).thenAnswer((_) async => []);
+        statusCtrl.add(ConnectionStatus.connected);
+        await Future.delayed(Duration.zero);
 
-      notifier.setWorkspaceId('test-12');
-      notifier.sendMessage('how is the weather today');
-      notifier.setWorkspaceId('test');
-      notifier.clearHistory();
+        notifier.setWorkspaceId('test-12');
+        notifier.sendMessage('how is the weather today');
+        notifier.setWorkspaceId('test');
+        notifier.clearHistory();
 
-      msgCtrl.add(WsMessage(type: 'tool_input_start', data: {
-        'type': 'tool_input_start',
-        'tool': 'web_search',
-        'call_id': 'weather-call',
-        'args': {'query': 'weather today'},
-      }));
-      await Future.delayed(Duration.zero);
+        msgCtrl.add(
+          WsMessage(
+            type: 'tool_input_start',
+            data: {
+              'type': 'tool_input_start',
+              'tool': 'web_search',
+              'call_id': 'weather-call',
+              'args': {'query': 'weather today'},
+            },
+          ),
+        );
+        await Future.delayed(Duration.zero);
 
-      expect(notifier.state.activeToolCalls, isEmpty);
-      expect(notifier.state.status, ChatStatus.idle);
-    });
+        expect(notifier.state.activeToolCalls, isEmpty);
+        expect(notifier.state.status, ChatStatus.idle);
+      },
+    );
 
     test('clearHistory marks history as loading', () async {
       notifier.clearHistory(loading: true);
@@ -254,87 +283,177 @@ void main() {
       expect(notifier.state.loadingHistory, isTrue);
     });
 
-    test('restores in-progress tool calls after switching away and back', () async {
-      when(() => mockWs.sendMessage(any(), workspaceId: any(named: 'workspaceId')))
-          .thenReturn(null);
-      when(() => mockApi.getConversation(
+    test(
+      'restores in-progress tool calls after switching away and back',
+      () async {
+        when(
+          () =>
+              mockWs.sendMessage(any(), workspaceId: any(named: 'workspaceId')),
+        ).thenReturn(null);
+        when(
+          () => mockApi.getConversation(
             limit: any(named: 'limit'),
             workspaceId: any(named: 'workspaceId'),
-          )).thenAnswer((_) async => []);
-      statusCtrl.add(ConnectionStatus.connected);
-      await Future.delayed(Duration.zero);
+          ),
+        ).thenAnswer((_) async => []);
+        statusCtrl.add(ConnectionStatus.connected);
+        await Future.delayed(Duration.zero);
 
-      notifier.setWorkspaceId('test-12');
-      notifier.sendMessage('are you sure');
-      msgCtrl.add(WsMessage(type: 'tool_input_start', data: {
-        'type': 'tool_input_start',
-        'workspace_id': 'test-12',
-        'tool': 'web_search',
-        'call_id': 'search-1',
-        'args': {'query': 'weather'},
-      }));
-      await Future.delayed(Duration.zero);
-      expect(notifier.state.activeToolCalls, hasLength(1));
+        notifier.setWorkspaceId('test-12');
+        notifier.sendMessage('are you sure');
+        msgCtrl.add(
+          WsMessage(
+            type: 'tool_input_start',
+            data: {
+              'type': 'tool_input_start',
+              'workspace_id': 'test-12',
+              'tool': 'web_search',
+              'call_id': 'search-1',
+              'args': {'query': 'weather'},
+            },
+          ),
+        );
+        await Future.delayed(Duration.zero);
+        expect(notifier.state.activeToolCalls, hasLength(1));
 
-      notifier.setWorkspaceId('test');
-      notifier.clearHistory(loading: true);
-      expect(notifier.state.activeToolCalls, isEmpty);
+        notifier.setWorkspaceId('test');
+        notifier.clearHistory(loading: true);
+        expect(notifier.state.activeToolCalls, isEmpty);
 
-      notifier.setWorkspaceId('test-12');
+        notifier.setWorkspaceId('test-12');
 
-      expect(notifier.state.activeToolCalls, hasLength(1));
-      expect(notifier.state.activeToolCalls.single.toolName, 'web_search');
-    });
+        expect(notifier.state.activeToolCalls, hasLength(1));
+        expect(notifier.state.activeToolCalls.single.toolName, 'web_search');
+      },
+    );
 
-    test('splits assistant text into separate bubbles around tool calls', () async {
-      statusCtrl.add(ConnectionStatus.connected);
-      await Future.delayed(Duration.zero);
+    test(
+      'ignores history response after switching to another workspace',
+      () async {
+        final oldWorkspaceResponse = Completer<List<Map<String, dynamic>>>();
+        final currentWorkspaceResponse =
+            Completer<List<Map<String, dynamic>>>();
+        when(
+          () => mockApi.getConversation(
+            limit: any(named: 'limit'),
+            workspaceId: 'test2',
+          ),
+        ).thenAnswer((_) => oldWorkspaceResponse.future);
+        when(
+          () => mockApi.getConversation(
+            limit: any(named: 'limit'),
+            workspaceId: 'test12345',
+          ),
+        ).thenAnswer((_) => currentWorkspaceResponse.future);
 
-      msgCtrl.add(WsMessage(type: 'text_delta', data: {
-        'type': 'text_delta',
-        'content': 'First segment.',
-      }));
-      msgCtrl.add(WsMessage(type: 'tool_input_start', data: {
-        'type': 'tool_input_start',
-        'tool': 'web_search',
-        'call_id': 'search-1',
-        'args': {'query': 'weather'},
-      }));
-      msgCtrl.add(WsMessage(type: 'tool_result', data: {
-        'type': 'tool_result',
-        'tool': 'web_search',
-        'call_id': 'search-1',
-        'result_preview': 'Sunny',
-      }));
-      msgCtrl.add(WsMessage(type: 'text_delta', data: {
-        'type': 'text_delta',
-        'content': 'Second segment.',
-      }));
-      msgCtrl.add(WsMessage(type: 'done', data: {
-        'type': 'done',
-        'response': 'First segment.Second segment.',
-      }));
-      await Future.delayed(Duration.zero);
+        notifier.setWorkspaceId('test2');
+        final oldLoad = notifier.loadHistory();
+        notifier.setWorkspaceId('test12345');
+        notifier.clearHistory(loading: true);
+        final currentLoad = notifier.loadHistory();
 
-      expect(notifier.state.messages.map((m) => m.role), [
-        'assistant',
-        'tool',
-        'assistant',
-      ]);
-      expect(notifier.state.messages[0].content, 'First segment.');
-      expect(notifier.state.messages[2].content, 'Second segment.');
-    });
+        currentWorkspaceResponse.complete([
+          {
+            'role': 'user',
+            'content': 'message from test12345',
+            'timestamp': DateTime.now().toIso8601String(),
+            'metadata': {'workspace_id': 'test12345'},
+          },
+        ]);
+        await currentLoad;
+
+        oldWorkspaceResponse.complete([
+          {
+            'role': 'user',
+            'content': 'message from test2',
+            'timestamp': DateTime.now().toIso8601String(),
+            'metadata': {'workspace_id': 'test2'},
+          },
+          {
+            'role': 'assistant',
+            'content': 'second message from test2',
+            'timestamp': DateTime.now().toIso8601String(),
+            'metadata': {'workspace_id': 'test2'},
+          },
+        ]);
+        await oldLoad;
+
+        expect(notifier.state.messages.map((m) => m.content), [
+          'message from test12345',
+        ]);
+        expect(notifier.state.loadingHistory, isFalse);
+      },
+    );
+
+    test(
+      'splits assistant text into separate bubbles around tool calls',
+      () async {
+        statusCtrl.add(ConnectionStatus.connected);
+        await Future.delayed(Duration.zero);
+
+        msgCtrl.add(
+          WsMessage(
+            type: 'text_delta',
+            data: {'type': 'text_delta', 'content': 'First segment.'},
+          ),
+        );
+        msgCtrl.add(
+          WsMessage(
+            type: 'tool_input_start',
+            data: {
+              'type': 'tool_input_start',
+              'tool': 'web_search',
+              'call_id': 'search-1',
+              'args': {'query': 'weather'},
+            },
+          ),
+        );
+        msgCtrl.add(
+          WsMessage(
+            type: 'tool_result',
+            data: {
+              'type': 'tool_result',
+              'tool': 'web_search',
+              'call_id': 'search-1',
+              'result_preview': 'Sunny',
+            },
+          ),
+        );
+        msgCtrl.add(
+          WsMessage(
+            type: 'text_delta',
+            data: {'type': 'text_delta', 'content': 'Second segment.'},
+          ),
+        );
+        msgCtrl.add(
+          WsMessage(
+            type: 'done',
+            data: {'type': 'done', 'response': 'First segment.Second segment.'},
+          ),
+        );
+        await Future.delayed(Duration.zero);
+
+        expect(notifier.state.messages.map((m) => m.role), [
+          'assistant',
+          'tool',
+          'assistant',
+        ]);
+        expect(notifier.state.messages[0].content, 'First segment.');
+        expect(notifier.state.messages[2].content, 'Second segment.');
+      },
+    );
 
     test('done event finalizes message', () async {
       statusCtrl.add(ConnectionStatus.connected);
-      msgCtrl.add(WsMessage(type: 'text_delta', data: {
-        'type': 'text_delta',
-        'content': 'Result',
-      }));
-      msgCtrl.add(WsMessage(type: 'done', data: {
-        'type': 'done',
-        'response': '',
-      }));
+      msgCtrl.add(
+        WsMessage(
+          type: 'text_delta',
+          data: {'type': 'text_delta', 'content': 'Result'},
+        ),
+      );
+      msgCtrl.add(
+        WsMessage(type: 'done', data: {'type': 'done', 'response': ''}),
+      );
       await Future.delayed(Duration.zero);
 
       final last = notifier.state.messages.last;
@@ -346,10 +465,12 @@ void main() {
 
     test('error event sets error state', () async {
       statusCtrl.add(ConnectionStatus.connected);
-      msgCtrl.add(WsMessage(type: 'error', data: {
-        'type': 'error',
-        'message': 'Something broke',
-      }));
+      msgCtrl.add(
+        WsMessage(
+          type: 'error',
+          data: {'type': 'error', 'message': 'Something broke'},
+        ),
+      );
       await Future.delayed(Duration.zero);
       expect(notifier.state.status, ChatStatus.error);
       expect(notifier.state.error, 'Something broke');
@@ -397,12 +518,17 @@ void main() {
 
     test('interrupt populates pendingApprovals', () async {
       statusCtrl.add(ConnectionStatus.connected);
-      msgCtrl.add(WsMessage(type: 'interrupt', data: {
-        'type': 'interrupt',
-        'call_id': 'c99',
-        'tool': 'email_send',
-        'args': {'to': 'boss@example.com'},
-      }));
+      msgCtrl.add(
+        WsMessage(
+          type: 'interrupt',
+          data: {
+            'type': 'interrupt',
+            'call_id': 'c99',
+            'tool': 'email_send',
+            'args': {'to': 'boss@example.com'},
+          },
+        ),
+      );
       await Future.delayed(Duration.zero);
       expect(notifier.state.status, ChatStatus.awaitingApproval);
       expect(notifier.state.pendingApprovals.containsKey('c99'), isTrue);
@@ -411,70 +537,142 @@ void main() {
 
     test('text_delta after interrupt preserves awaitingApproval', () async {
       statusCtrl.add(ConnectionStatus.connected);
-      msgCtrl.add(WsMessage(type: 'interrupt', data: {
-        'type': 'interrupt',
-        'call_id': 'c1',
-        'tool': 'subagent_create',
-        'args': {'name': 'test'},
-      }));
-      msgCtrl.add(WsMessage(type: 'text_delta', data: {
-        'type': 'text_delta',
-        'content': 'Approval needed...',
-      }));
+      msgCtrl.add(
+        WsMessage(
+          type: 'interrupt',
+          data: {
+            'type': 'interrupt',
+            'call_id': 'c1',
+            'tool': 'subagent_create',
+            'args': {'name': 'test'},
+          },
+        ),
+      );
+      msgCtrl.add(
+        WsMessage(
+          type: 'text_delta',
+          data: {'type': 'text_delta', 'content': 'Approval needed...'},
+        ),
+      );
       await Future.delayed(Duration.zero);
       expect(notifier.state.status, ChatStatus.awaitingApproval);
     });
 
     test('tool_start after interrupt preserves awaitingApproval', () async {
       statusCtrl.add(ConnectionStatus.connected);
-      msgCtrl.add(WsMessage(type: 'interrupt', data: {
-        'type': 'interrupt',
-        'call_id': 'c1',
-        'tool': 'subagent_create',
-        'args': {'name': 'test'},
-      }));
-      msgCtrl.add(WsMessage(type: 'tool_start', data: {
-        'type': 'tool_start',
-        'call_id': 'c2',
-        'tool': 'subagent_list',
-        'args': {},
-      }));
+      msgCtrl.add(
+        WsMessage(
+          type: 'interrupt',
+          data: {
+            'type': 'interrupt',
+            'call_id': 'c1',
+            'tool': 'subagent_create',
+            'args': {'name': 'test'},
+          },
+        ),
+      );
+      msgCtrl.add(
+        WsMessage(
+          type: 'tool_start',
+          data: {
+            'type': 'tool_start',
+            'call_id': 'c2',
+            'tool': 'subagent_list',
+            'args': {},
+          },
+        ),
+      );
       await Future.delayed(Duration.zero);
       expect(notifier.state.status, ChatStatus.awaitingApproval);
     });
 
     test('reasoning after interrupt preserves awaitingApproval', () async {
       statusCtrl.add(ConnectionStatus.connected);
-      msgCtrl.add(WsMessage(type: 'interrupt', data: {
-        'type': 'interrupt',
-        'call_id': 'c1',
-        'tool': 'subagent_create',
-        'args': {'name': 'test'},
-      }));
-      msgCtrl.add(WsMessage(type: 'reasoning', data: {
-        'type': 'reasoning',
-        'content': 'thinking...',
-      }));
+      msgCtrl.add(
+        WsMessage(
+          type: 'interrupt',
+          data: {
+            'type': 'interrupt',
+            'call_id': 'c1',
+            'tool': 'subagent_create',
+            'args': {'name': 'test'},
+          },
+        ),
+      );
+      msgCtrl.add(
+        WsMessage(
+          type: 'reasoning',
+          data: {'type': 'reasoning', 'content': 'thinking...'},
+        ),
+      );
       await Future.delayed(Duration.zero);
       expect(notifier.state.status, ChatStatus.awaitingApproval);
     });
 
     test('tool_call after interrupt preserves awaitingApproval', () async {
       statusCtrl.add(ConnectionStatus.connected);
-      msgCtrl.add(WsMessage(type: 'interrupt', data: {
-        'type': 'interrupt',
-        'call_id': 'c1',
-        'tool': 'subagent_create',
-        'args': {'name': 'test'},
-      }));
-      msgCtrl.add(WsMessage(type: 'tool_call', data: {
-        'type': 'tool_call',
-        'call_id': 'c2',
-        'tool': 'subagent_list',
-        'args': {},
-      }));
+      msgCtrl.add(
+        WsMessage(
+          type: 'interrupt',
+          data: {
+            'type': 'interrupt',
+            'call_id': 'c1',
+            'tool': 'subagent_create',
+            'args': {'name': 'test'},
+          },
+        ),
+      );
+      msgCtrl.add(
+        WsMessage(
+          type: 'tool_call',
+          data: {
+            'type': 'tool_call',
+            'call_id': 'c2',
+            'tool': 'subagent_list',
+            'args': {},
+          },
+        ),
+      );
       await Future.delayed(Duration.zero);
       expect(notifier.state.status, ChatStatus.awaitingApproval);
     });
+
+    test(
+      'done after interrupt preserves awaitingApproval and pendingApprovals',
+      () async {
+        statusCtrl.add(ConnectionStatus.connected);
+        msgCtrl.add(
+          WsMessage(
+            type: 'interrupt',
+            data: {
+              'type': 'interrupt',
+              'call_id': 'c1',
+              'tool': 'shell_execute',
+              'args': {'command': 'rm -rf'},
+            },
+          ),
+        );
+        msgCtrl.add(
+          WsMessage(
+            type: 'text_delta',
+            data: {
+              'type': 'text_delta',
+              'content': 'I need your approval for this...',
+            },
+          ),
+        );
+        msgCtrl.add(
+          WsMessage(type: 'done', data: {'type': 'done', 'response': ''}),
+        );
+        await Future.delayed(Duration.zero);
+
+        expect(notifier.state.status, ChatStatus.awaitingApproval);
+        expect(notifier.state.pendingApprovals.containsKey('c1'), isTrue);
+        expect(
+          notifier.state.pendingApprovals['c1']!.toolName,
+          'shell_execute',
+        );
+      },
+    );
   });
 }
