@@ -5,9 +5,7 @@ import '../../providers/agent_provider.dart';
 import '../../providers/workspace_provider.dart';
 import '../../providers/chat_tab_provider.dart';
 import '../../widgets/app_input.dart';
-import '../../features/chat/widgets/message_bubble.dart';
-import '../../features/chat/widgets/streaming_bubble.dart';
-import '../../features/chat/widgets/tool_call_card.dart';
+import '../../features/chat/widgets/chat_message_list.dart';
 import '../../features/chat/widgets/chat_input.dart';
 import '../../features/chat/widgets/error_bar.dart';
 import '../../features/chat/widgets/connection_banner.dart';
@@ -553,27 +551,19 @@ class _PanelMessageList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final items = <Widget>[];
-    for (final msg in state.messages) {
-      items.add(MessageBubble(message: msg));
-    }
-    if (state.status == ChatStatus.streaming &&
-        state.streamingText.isNotEmpty) {
-      items.add(StreamingBubble(text: state.streamingText));
-    }
-    for (final tc in state.activeToolCalls) {
-      items.add(ToolCallCard(toolCall: tc));
-    }
-    if (state.messages.isNotEmpty) {
-      items.insert(
-        0,
-        CompanionContextPill(
-          activeWorkspaceId: ref.watch(activeChatTabProvider),
-        ),
-      );
-    }
-    if (items.isEmpty) {
-      return Center(
+    return ChatMessageList(
+      messages: state.messages,
+      isStreaming: state.status == ChatStatus.streaming,
+      streamingText: state.streamingText,
+      reasoningText: state.reasoningText,
+      activeToolCalls: state.activeToolCalls,
+      scrollController: scrollController,
+      header: state.messages.isNotEmpty
+          ? CompanionContextPill(
+              activeWorkspaceId: ref.watch(activeChatTabProvider),
+            )
+          : null,
+      emptyBuilder: (_) => Center(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.screenEdge),
           child: Text(
@@ -581,16 +571,11 @@ class _PanelMessageList extends ConsumerWidget {
             style: AppTypography.body.copyWith(color: AppColors.textDim),
           ),
         ),
-      );
-    }
-    return ListView(
-      key: const ValueKey('desktop-chat-message-list'),
-      controller: scrollController,
+      ),
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.cardPadding,
         vertical: AppSpacing.itemGap,
       ),
-      children: items,
     );
   }
 }

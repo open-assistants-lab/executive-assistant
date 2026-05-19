@@ -3,10 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/agent_provider.dart';
 import '../../providers/workspace_provider.dart';
-import 'widgets/message_bubble.dart';
-import 'widgets/streaming_bubble.dart';
-import 'widgets/reasoning_bubble.dart';
-import 'widgets/tool_call_card.dart';
+import 'widgets/chat_message_list.dart';
 import 'widgets/chat_input.dart';
 import 'widgets/error_bar.dart';
 import 'widgets/connection_banner.dart';
@@ -166,33 +163,15 @@ class _MessageList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = <Widget>[];
-
-    for (final msg in state.messages) {
-      items.add(MessageBubble(message: msg));
-    }
-
-    if (state.status == ChatStatus.streaming &&
-        state.streamingText.isNotEmpty) {
-      items.add(StreamingBubble(text: state.streamingText));
-    }
-
-    if (state.reasoningText.isNotEmpty) {
-      items.add(ReasoningBubble(content: state.reasoningText));
-    }
-
-    for (final tc in state.activeToolCalls) {
-      if (tc.resultPreview == null) {
-        items.add(ToolCallCard(toolCall: tc));
-      }
-    }
-
-    if (items.isEmpty && state.loadingHistory) {
-      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-    }
-
-    if (items.isEmpty) {
-      return Center(
+    return ChatMessageList(
+      messages: state.messages,
+      isStreaming: state.status == ChatStatus.streaming,
+      streamingText: state.streamingText,
+      reasoningText: state.reasoningText,
+      activeToolCalls: state.activeToolCalls,
+      scrollController: scrollController,
+      isLoading: state.loadingHistory,
+      emptyBuilder: (_) => Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -204,16 +183,7 @@ class _MessageList extends StatelessWidget {
             ),
           ],
         ),
-      );
-    }
-
-    return ListView(
-      controller: scrollController,
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.screenEdge,
-        vertical: AppSpacing.cardPadding,
       ),
-      children: items,
     );
   }
 }
