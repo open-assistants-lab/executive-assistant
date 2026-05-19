@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:executive_assistant/providers/agent_provider.dart';
+import '../../theme/app_theme.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -223,7 +224,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         leading: Icon(
           isActive ? Icons.radio_button_checked : Icons.radio_button_off,
           size: 18,
-          color: isActive ? Theme.of(context).colorScheme.primary : Colors.grey,
+          color: isActive ? context.tokens.colors.accent : context.tokens.colors.textSecondary,
         ),
         title: Text(name, style: const TextStyle(fontSize: 14)),
         subtitle: Text(
@@ -280,7 +281,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         style: TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w600,
-          color: Theme.of(context).colorScheme.primary,
+          color: context.tokens.colors.accent,
         ),
       ),
     );
@@ -357,7 +358,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            style: FilledButton.styleFrom(backgroundColor: context.tokens.colors.error),
             child: const Text('Delete all'),
           ),
         ],

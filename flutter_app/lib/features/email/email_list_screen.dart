@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:executive_assistant/providers/agent_provider.dart';
+import '../../theme/app_theme.dart';
 
 
 class EmailListScreen extends ConsumerStatefulWidget {
@@ -68,17 +69,17 @@ class _EmailListScreenState extends ConsumerState<EmailListScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _emails.isEmpty
-              ? const Center(
+              ? Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.mail_outline, size: 64, color: Colors.grey),
+                      Icon(Icons.mail_outline, size: 64, color: context.tokens.colors.textSecondary),
                       SizedBox(height: 16),
-                      Text('No emails yet', style: TextStyle(color: Colors.grey)),
+                      Text('No emails yet', style: TextStyle(color: context.tokens.colors.textSecondary)),
                       SizedBox(height: 8),
                       Text(
                         'Connect Gmail in Settings to get started',
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                        style: TextStyle(color: context.tokens.colors.textSecondary, fontSize: 12),
                       ),
                     ],
                   ),
@@ -91,15 +92,16 @@ class _EmailListScreenState extends ConsumerState<EmailListScreen> {
                     itemBuilder: (context, index) {
                       final email = _emails[index] as Map<String, dynamic>;
                       final isRead = email['is_read'] == true;
+                      final tokens = context.tokens;
                       return ListTile(
                         leading: CircleAvatar(
                           backgroundColor: isRead
-                              ? Colors.grey.shade200
+                              ? tokens.colors.textSecondary.withValues(alpha: 0.2)
                               : Theme.of(context).colorScheme.primaryContainer,
                           child: Icon(
                             isRead ? Icons.mail_outline : Icons.mail,
                             size: 20,
-                            color: isRead ? Colors.grey : Colors.black87,
+                            color: isRead ? tokens.colors.textSecondary : tokens.colors.textPrimary,
                           ),
                         ),
                         title: Text(
@@ -122,7 +124,7 @@ class _EmailListScreenState extends ConsumerState<EmailListScreen> {
                             ),
                             Text(
                               _formatDate(email['received_at'] ?? ''),
-                              style: const TextStyle(fontSize: 11, color: Colors.grey),
+                              style: TextStyle(fontSize: 11, color: tokens.colors.textSecondary),
                             ),
                           ],
                         ),
