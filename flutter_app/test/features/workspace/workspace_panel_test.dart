@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:executive_assistant/theme/app_theme.dart';
 
 class MockApiClient extends Mock implements ApiClient {}
 
@@ -39,6 +40,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
+          theme: AppTheme.dark,
           home: Scaffold(
             body: WorkspacePanel(
               refreshInterval: const Duration(seconds: 1),
@@ -81,6 +83,7 @@ void main() {
           currentWorkspaceIdProvider.overrideWith((ref) => 'sales'),
         ],
         child: MaterialApp(
+          theme: AppTheme.dark,
           home: Scaffold(
             body: WorkspacePanel(
               refreshInterval: const Duration(days: 1),
@@ -160,6 +163,7 @@ void main() {
       UncontrolledProviderScope(
         container: container,
         child: MaterialApp(
+          theme: AppTheme.dark,
           home: Scaffold(
             body: WorkspacePanel(
               refreshInterval: const Duration(days: 1),
@@ -228,6 +232,7 @@ void main() {
       UncontrolledProviderScope(
         container: container,
         child: MaterialApp(
+          theme: AppTheme.dark,
           home: Scaffold(
             body: WorkspacePanel(
               refreshInterval: const Duration(days: 1),
@@ -278,7 +283,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const MaterialApp(home: Scaffold(body: SkillsPanel())),
+        child: MaterialApp(theme: AppTheme.dark, home: Scaffold(body: SkillsPanel())),
       ),
     );
     await tester.pump();
@@ -324,7 +329,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const MaterialApp(home: Scaffold(body: SkillsPanel())),
+        child: MaterialApp(theme: AppTheme.dark, home: Scaffold(body: SkillsPanel())),
       ),
     );
     await tester.pump();
@@ -379,7 +384,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const MaterialApp(home: Scaffold(body: SkillsPanel())),
+        child: MaterialApp(theme: AppTheme.dark, home: Scaffold(body: SkillsPanel())),
       ),
     );
     await tester.pump();
@@ -454,7 +459,7 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const MaterialApp(home: Scaffold(body: SkillsPanel())),
+          child: MaterialApp(theme: AppTheme.dark, home: Scaffold(body: SkillsPanel())),
         ),
       );
       await tester.pump();
@@ -504,7 +509,7 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const MaterialApp(home: Scaffold(body: SkillsPanel())),
+          child: MaterialApp(theme: AppTheme.dark, home: Scaffold(body: SkillsPanel())),
         ),
       );
       await tester.pump();
@@ -574,7 +579,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const MaterialApp(home: Scaffold(body: SubagentsPanel())),
+        child: MaterialApp(theme: AppTheme.dark, home: Scaffold(body: SubagentsPanel())),
       ),
     );
     await tester.pump();
@@ -672,7 +677,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const MaterialApp(home: Scaffold(body: SubagentsPanel())),
+        child: MaterialApp(theme: AppTheme.dark, home: Scaffold(body: SubagentsPanel())),
       ),
     );
     await tester.pump();
