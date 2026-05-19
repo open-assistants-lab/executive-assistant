@@ -33,8 +33,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/workspace',
             name: 'files',
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: WorkspacePanel(),
+            pageBuilder: (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const WorkspacePanel(),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+              transitionDuration: EaMotion.standard.fluid,
             ),
           ),
           GoRoute(
@@ -44,36 +49,45 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               key: state.pageKey,
               child: const EmailListScreen(),
               transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                return SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0.15, 0),
-                    end: Offset.zero,
-                  ).chain(CurveTween(curve: Curves.easeInOutCubic)).animate(animation),
-                  child: FadeTransition(opacity: animation, child: child),
-                );
+                return FadeTransition(opacity: animation, child: child);
               },
-              transitionDuration: EaMotion.standard.intuitive,
+              transitionDuration: EaMotion.standard.fluid,
             ),
           ),
           GoRoute(
             path: '/tasks',
             name: 'tasks',
-            pageBuilder: (context, state) => NoTransitionPage(
+            pageBuilder: (context, state) => CustomTransitionPage(
+              key: state.pageKey,
               child: _PlaceholderScreen(title: 'Tasks', icon: Icons.check_circle_outline),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+              transitionDuration: EaMotion.standard.fluid,
             ),
           ),
           GoRoute(
             path: '/contacts',
             name: 'contacts',
-            pageBuilder: (context, state) => NoTransitionPage(
+            pageBuilder: (context, state) => CustomTransitionPage(
+              key: state.pageKey,
               child: _PlaceholderScreen(title: 'Contacts', icon: Icons.contacts_outlined),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+              transitionDuration: EaMotion.standard.fluid,
             ),
           ),
           GoRoute(
             path: '/more',
             name: 'more',
-            pageBuilder: (context, state) => NoTransitionPage(
+            pageBuilder: (context, state) => CustomTransitionPage(
+              key: state.pageKey,
               child: _PlaceholderScreen(title: 'More', icon: Icons.more_horiz),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+              transitionDuration: EaMotion.standard.fluid,
             ),
           ),
         ],
