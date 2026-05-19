@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/animations.dart';
 import '../../../theme/app_theme.dart';
 import '../../../models/message.dart';
 import 'message_bubble.dart';
@@ -65,8 +66,13 @@ class ChatMessageList extends StatelessWidget {
       items.add(header!);
     }
 
-    for (final msg in messages) {
-      items.add(MessageBubble(message: msg));
+    for (var i = 0; i < messages.length; i++) {
+      items.add(
+        EaAnimations.staggeredEntry(
+          index: i,
+          child: MessageBubble(message: messages[i]),
+        ),
+      );
     }
 
     if (reasoningText.isNotEmpty) {
