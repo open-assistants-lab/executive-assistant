@@ -49,6 +49,11 @@ dev = [
     "networkx>=3.0",
     "python-louvain>=0.16",
 ]
+benchmark = [
+    "pytest-benchmark>=4.0.0",
+    "pytest-timeout>=2.3.0",
+    "numpy>=1.24.0",
+]
 
 [project.scripts]
 ea = "src.__main__:main"
