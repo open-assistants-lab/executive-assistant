@@ -8,8 +8,6 @@ import 'services/instrumented_app.dart';
 import 'services/test_instrumentation.dart';
 import 'theme/app_theme.dart';
 
-final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.dark);
-
 void main() {
   runZonedGuarded(() {
     runApp(

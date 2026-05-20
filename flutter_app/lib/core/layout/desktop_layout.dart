@@ -213,12 +213,29 @@ class _Sidebar extends ConsumerWidget {
             ),
           ),
           const Divider(height: 1),
-          _SidebarItem(
-            item: DesktopSidebarItem.settings,
-            selected: false,
-            onTap: () => _showSettings(context),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: tokens.spacing.md, vertical: tokens.spacing.xs),
+            child: Row(
+              children: [
+                _SidebarItem(
+                  item: DesktopSidebarItem.settings,
+                  selected: false,
+                  onTap: () => _showSettings(context),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: Icon(
+                    tokens.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                    size: 18,
+                    color: tokens.colors.textSecondary,
+                  ),
+                  onPressed: () => ref.read(themeModeProvider.notifier).toggle(),
+                  tooltip: tokens.isDark ? 'Switch to light mode' : 'Switch to dark mode',
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: tokens.spacing.sm),
         ],
       ),
     );
