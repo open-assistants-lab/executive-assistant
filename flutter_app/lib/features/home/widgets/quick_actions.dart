@@ -24,7 +24,7 @@ class QuickActions extends StatelessWidget {
         children: [
           Text(
             'Quick Actions',
-            style: context.tokens.typography.textTheme.headlineMedium!.copyWith(fontSize: 16),
+            style: context.tokens.typography.textTheme.headlineMedium!.copyWith(fontSize: 16, color: context.tokens.colors.textPrimary),
           ),
           SizedBox(height: context.tokens.spacing.sm),
           Wrap(
@@ -32,17 +32,17 @@ class QuickActions extends StatelessWidget {
             runSpacing: context.tokens.spacing.sm,
             children: [
               _ActionChip(
-                icon: Icons.reply,
+                icon: Symbols.reply,
                 label: 'Draft reply',
                 onTap: onDraftReply,
               ),
               _ActionChip(
-                icon: Icons.summarize,
+                icon: Symbols.summarize,
                 label: 'Summarize',
                 onTap: onSummarize,
               ),
               _ActionChip(
-                icon: Icons.calendar_today,
+                icon: Symbols.calendar_today,
                 label: 'Schedule',
                 onTap: onSchedule,
               ),

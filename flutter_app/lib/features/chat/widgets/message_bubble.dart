@@ -21,7 +21,8 @@ class MessageBubble extends StatelessWidget {
 
     final tokens = context.tokens;
     final isUser = message.role == 'user';
-    final userBubbleColor = tokens.isDark ? tokens.colors.accentMuted : tokens.colors.accent;
+    final userBubbleColor = tokens.isDark ? const Color(0xFF3A3A3A) : const Color(0xFF2A2A2A);
+    final userBubbleTextColor = const Color(0xFFFFFFFF);
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: LayoutBuilder(
@@ -46,7 +47,7 @@ class MessageBubble extends StatelessWidget {
             child: SelectableText(
               message.content,
               style: tokens.typography.textTheme.bodyLarge?.copyWith(
-                color: isUser ? tokens.colors.textInverse : tokens.colors.textPrimary,
+                color: isUser ? userBubbleTextColor : tokens.colors.textPrimary,
               ),
             ),
           );
@@ -76,7 +77,7 @@ class _InlineToolBadge extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.build_outlined, size: 12, color: tokens.colors.textTertiary),
+              Icon(Symbols.build, size: 12, color: tokens.colors.textTertiary),
               SizedBox(width: tokens.spacing.xs),
               Text(
                 toolName,
@@ -112,7 +113,7 @@ class ToolCallChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            hasResult ? Icons.check_circle : Icons.build,
+            hasResult ? Symbols.check_circle : Symbols.build,
             size: 14,
             color: tokens.colors.textPrimary,
           ),

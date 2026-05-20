@@ -32,7 +32,7 @@ class ToolCallCard extends StatelessWidget {
       child: Row(
         children: [
           Icon(
-            hasResult ? Icons.check_circle : Icons.sync,
+            hasResult ? Symbols.check_circle : Symbols.sync,
             size: 16,
             color: statusColor,
           ),
@@ -60,7 +60,7 @@ class ToolCallCard extends StatelessWidget {
             ),
           ),
           if (hasResult)
-            Icon(Icons.expand_more, size: 16, color: tokens.colors.textTertiary),
+            Icon(Symbols.expand_more, size: 16, color: tokens.colors.textTertiary),
         ],
       ),
     );

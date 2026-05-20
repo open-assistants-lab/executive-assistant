@@ -99,15 +99,15 @@ class _MemoryPanelState extends ConsumerState<MemoryPanel> {
   IconData _typeIcon(String type) {
     switch (type.toLowerCase()) {
       case 'fact':
-        return Icons.lightbulb_outline;
+        return Symbols.lightbulb;
       case 'preference':
-        return Icons.tune;
+        return Symbols.tune;
       case 'insight':
-        return Icons.insights;
+        return Symbols.insights;
       case 'event':
-        return Icons.event;
+        return Symbols.event;
       default:
-        return Icons.psychology_outlined;
+        return Symbols.psychology;
     }
   }
 
@@ -142,7 +142,7 @@ class _MemoryPanelState extends ConsumerState<MemoryPanel> {
             ),
             child: Row(
               children: [
-                Icon(Icons.psychology_outlined, size: 18, color: AppColors.accent),
+                Icon(Symbols.psychology, size: 18, color: AppColors.accent),
                 const SizedBox(width: 8),
                 Text(
                   'Memory',
@@ -161,7 +161,7 @@ class _MemoryPanelState extends ConsumerState<MemoryPanel> {
                     borderRadius: BorderRadius.circular(4),
                     child: Padding(
                       padding: const EdgeInsets.all(4),
-                      child: Icon(Icons.refresh, size: 16, color: AppColors.textSecondary),
+                      child: Icon(Symbols.refresh, size: 16, color: AppColors.textSecondary),
                     ),
                   ),
                 ),
@@ -198,14 +198,14 @@ class _MemoryPanelState extends ConsumerState<MemoryPanel> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.cloud_off, size: 40, color: AppColors.textDim),
+              Icon(Symbols.cloud_off, size: 40, color: AppColors.textDim),
               const SizedBox(height: 12),
               Text(_error!, textAlign: TextAlign.center,
                   style: AppTypography.caption.copyWith(color: AppColors.danger)),
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: () => _load(),
-                icon: const Icon(Icons.refresh, size: 16),
+                icon: const Icon(Symbols.refresh, size: 16),
                 label: const Text('Retry'),
               ),
             ],
@@ -219,7 +219,7 @@ class _MemoryPanelState extends ConsumerState<MemoryPanel> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.psychology_outlined, size: 48, color: AppColors.textDim),
+            Icon(Symbols.psychology, size: 48, color: AppColors.textDim),
             const SizedBox(height: 12),
             Text('No memories yet',
                 style: AppTypography.body.copyWith(color: AppColors.textDim)),
@@ -291,7 +291,7 @@ class _MemoryPanelState extends ConsumerState<MemoryPanel> {
                 ),
                 if (id != null)
                   IconButton(
-                    icon: Icon(Icons.delete_outline, size: 16,
+                    icon: Icon(Symbols.delete, size: 16,
                         color: AppColors.textDim),
                     onPressed: () => _deleteMemory(id as int),
                     padding: EdgeInsets.zero,

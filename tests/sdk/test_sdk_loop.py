@@ -92,6 +92,23 @@ def echo(text: str = "hello") -> str:
 
 
 @tool
+def context_probe(user_id: str = "default_user", workspace_id: str = "personal") -> str:
+    """Return the execution context ids."""
+    return json.dumps({"user_id": user_id, "workspace_id": workspace_id})
+
+
+@tool
+def destructive_context_probe(
+    user_id: str = "default_user", workspace_id: str = "personal"
+) -> str:
+    """Destructive context probe."""
+    return json.dumps({"user_id": user_id, "workspace_id": workspace_id})
+
+
+destructive_context_probe.annotations = ToolAnnotations(destructive=True)
+
+
+@tool
 def add(a: int = 0, b: int = 0) -> str:
     """Add two numbers."""
     return str(a + b)
@@ -563,6 +580,37 @@ class TestAgentLoopHITL:
 
         assert len(result) >= 2
 
+    async def test_interrupt_args_use_runtime_context_ids(self):
+        provider = MockProvider(
+            responses=[
+                Message.assistant(
+                    content="",
+                    tool_calls=[
+                        ToolCall(
+                            id="c1",
+                            name="destructive_context_probe",
+                            arguments={
+                                "user_id": "default_user",
+                                "workspace_id": "personal",
+                            },
+                        ),
+                    ],
+                ),
+            ]
+        )
+        loop = AgentLoop(
+            provider=provider,
+            tools=[destructive_context_probe],
+            user_id="real_user",
+            workspace_id="test12345",
+        )
+
+        result = await loop.run([Message.user("Create subagent")])
+
+        interrupt_result = next(m for m in result if m.role == "tool")
+        content = json.loads(interrupt_result.content)
+        assert content["args"] == {"user_id": "real_user", "workspace_id": "test12345"}
+
     async def test_interrupt_on_destructive_tool_stream(self):
         """run_stream yields interrupt chunk when a destructive tool is called."""
         provider = MockProvider()
@@ -824,6 +872,28 @@ class TestToolDefinition:
         assert isinstance(result, ToolResult)
         assert result.content == "hello"
         assert not result.is_error
+
+    async def test_tool_context_ids_override_model_arguments(self):
+        """Model-supplied context ids cannot override runtime user/workspace."""
+        loop = AgentLoop(
+            provider=MockProvider(),
+            tools=[context_probe],
+            user_id="real_user",
+            workspace_id="subagent-test",
+        )
+
+        result = await loop._execute_tool(
+            ToolCall(
+                id="c1",
+                name="context_probe",
+                arguments={"user_id": "fake_user", "workspace_id": "invalid workspace"},
+            )
+        )
+
+        assert json.loads(result.content) == {
+            "user_id": "real_user",
+            "workspace_id": "subagent-test",
+        }
 
     async def test_tool_result_from_raw(self):
         """ToolResult.from_raw wraps strings and passes through ToolResult."""

@@ -120,6 +120,12 @@ def find_item(name: Optional[str]) -> Item | None:
 - **Constants**: `UPPER_SNAKE_CASE` (e.g., `MAX_RETRIES`, `DEFAULT_TIMEOUT`)
 - **Private members**: `_leading_underscore` (e.g., `_internal_state`)
 
+### Flutter Icons
+- Always use **Material Symbols** (`Symbols.xxx` from `package:material_symbols_icons/symbols.dart`) — never `Icons.xxx` from Material Icons
+- Drop style suffixes (`_outlined`, `_rounded`, `_sharp`) — Material Symbols uses outlined as default
+- Special mappings: `warning_amber` → `warning`, `radio_button_off` → `radio_button_unchecked`
+- For clean imports, `export 'package:material_symbols_icons/symbols.dart'` is re-exported via `app_theme.dart`
+
 ### Tool Naming Pattern
 All tools must follow `category_{verb}` pattern:
 ```python

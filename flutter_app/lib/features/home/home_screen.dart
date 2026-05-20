@@ -114,7 +114,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ),
                       child: Text(
                         'Conversation',
-                        style: context.tokens.typography.textTheme.headlineMedium!.copyWith(fontSize: 16),
+                        style: context.tokens.typography.textTheme.headlineMedium!.copyWith(fontSize: 16, color: context.tokens.colors.textPrimary),
                       ),
                     ),
                   ),
@@ -187,7 +187,7 @@ class _DesktopHome extends StatelessWidget {
           SizedBox(height: context.tokens.spacing.xxxl),
           Text(
             'Recent Activity',
-            style: context.tokens.typography.textTheme.headlineMedium!.copyWith(fontSize: 16),
+            style: context.tokens.typography.textTheme.headlineMedium!.copyWith(fontSize: 16, color: context.tokens.colors.textPrimary),
           ),
           SizedBox(height: context.tokens.spacing.lg),
           if (state.messages.isEmpty)
@@ -196,7 +196,7 @@ class _DesktopHome extends StatelessWidget {
                 padding: const EdgeInsets.all(48),
                 child: Column(
                   children: [
-                    Icon(Icons.chat_bubble_outline,
+                    Icon(Symbols.chat_bubble,
                         size: 48, color: context.tokens.colors.textTertiary),
                     const SizedBox(height: 16),
                     Text(
@@ -225,7 +225,7 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.auto_awesome, size: 48, color: context.tokens.colors.textTertiary),
+            Icon(Symbols.auto_awesome, size: 48, color: context.tokens.colors.textTertiary),
             const SizedBox(height: 16),
             Text(
               'How can I help you today?',

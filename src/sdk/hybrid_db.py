@@ -406,6 +406,9 @@ class HybridDB:
         )
 
     def register_duckdb_table(self, table: str) -> bool:
+        if not self._duckdb_path or self._duckdb_conn is None:
+            return False
+
         meta = self._table_meta(table)
         if not meta:
             logger.warning("duckdb.register_missing_table", {"table": table}, user_id="system")

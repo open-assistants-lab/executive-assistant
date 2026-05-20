@@ -83,7 +83,7 @@ class _ApprovalBar extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.warning_amber, size: 16, color: tokens.colors.warning),
+              Icon(Symbols.warning, size: 16, color: tokens.colors.warning),
               SizedBox(width: tokens.spacing.sm),
               Text(
                 'Tool requires approval',
@@ -99,7 +99,7 @@ class _ApprovalBar extends StatelessWidget {
             padding: EdgeInsets.only(bottom: tokens.spacing.xs),
             child: Text(
               tc.toolName,
-              style: tokens.typography.textTheme.headlineMedium?.copyWith(fontSize: 15),
+              style: tokens.typography.textTheme.headlineMedium?.copyWith(fontSize: 15, color: tokens.colors.textPrimary),
             ),
           )),
           SizedBox(height: tokens.spacing.sm),

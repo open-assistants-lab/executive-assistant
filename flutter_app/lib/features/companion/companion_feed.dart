@@ -80,7 +80,7 @@ class _CompanionFeedState extends ConsumerState<CompanionFeed> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (paused) ...[
-                      Icon(Icons.pause_circle, size: 60, color: context.tokens.colors.textTertiary),
+                      Icon(Symbols.pause_circle, size: 60, color: context.tokens.colors.textTertiary),
                       const SizedBox(height: 16),
                       Text(
                         'Companion is paused',
@@ -97,11 +97,11 @@ class _CompanionFeedState extends ConsumerState<CompanionFeed> {
                           ref.read(companionPausedProvider.notifier).state = false;
                           ref.read(companionNotifierProvider.notifier).resume();
                         },
-                        icon: const Icon(Icons.play_arrow, size: 18),
+                        icon: const Icon(Symbols.play_arrow, size: 18),
                         label: const Text('Resume companion'),
                       ),
                     ] else ...[
-                      Icon(Icons.bubble_chart_outlined, size: 60, color: context.tokens.colors.accent),
+                      Icon(Symbols.bubble_chart, size: 60, color: context.tokens.colors.accent),
                       const SizedBox(height: 16),
                       Text(
                         "I'm watching across your workspaces.",
@@ -165,9 +165,9 @@ class _CompanionFeedState extends ConsumerState<CompanionFeed> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
-          Icon(Icons.wb_sunny_outlined, size: 20, color: context.tokens.colors.accent),
+          Icon(Symbols.wb_sunny, size: 20, color: context.tokens.colors.accent),
           const SizedBox(width: 8),
-          Text('Companion', style: context.tokens.typography.textTheme.bodyLarge!.copyWith(fontWeight: FontWeight.w600)),
+          Text('Companion', style: context.tokens.typography.textTheme.bodyLarge!.copyWith(fontWeight: FontWeight.w600, color: context.tokens.colors.textPrimary)),
           const Spacer(),
           status.when(
             data: (s) => Text(
@@ -189,7 +189,7 @@ class _CompanionFeedState extends ConsumerState<CompanionFeed> {
       child: Row(
         children: [
           Icon(
-            paused ? Icons.circle_outlined : Icons.circle,
+            paused ? Symbols.circle : Symbols.circle,
             size: 8,
             color: paused ? context.tokens.colors.textTertiary : context.tokens.colors.success,
           ),
@@ -279,15 +279,15 @@ class CompanionEntry extends StatelessWidget {
   IconData _categoryIcon(String category) {
     switch (category) {
       case 'email':
-        return Icons.mail_outline;
+        return Symbols.mail;
       case 'deadline':
-        return Icons.calendar_today;
+        return Symbols.calendar_today;
       case 'checkin':
-        return Icons.chat_bubble_outline;
+        return Symbols.chat_bubble;
       case 'urgent':
-        return Icons.warning_amber_rounded;
+        return Symbols.warning;
       default:
-        return Icons.notifications_outlined;
+        return Symbols.notifications;
     }
   }
 
@@ -377,7 +377,7 @@ class CompanionEntry extends StatelessWidget {
               onTap: onDismiss,
               child: Padding(
                 padding: const EdgeInsets.only(left: 8),
-                child: Icon(Icons.close, size: 14, color: context.tokens.colors.textTertiary),
+                child: Icon(Symbols.close, size: 14, color: context.tokens.colors.textTertiary),
               ),
             ),
         ],

@@ -62,7 +62,7 @@ class _EaChipState extends State<EaChip> {
                 SizedBox(width: t.spacing.xs),
                 GestureDetector(
                   onTap: widget.onDismiss,
-                  child: Icon(Icons.close, size: 12, color: textColor),
+                  child: Icon(Symbols.close, size: 12, color: textColor),
                 ),
               ],
             ],

@@ -102,7 +102,7 @@ class _CompanionToastOverlayState extends ConsumerState<CompanionToastOverlay>
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.warning_amber_rounded, size: 18, color: context.tokens.colors.warning),
+                  Icon(Symbols.warning, size: 18, color: context.tokens.colors.warning),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(

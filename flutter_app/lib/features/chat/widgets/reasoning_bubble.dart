@@ -39,7 +39,7 @@ class _ReasoningBubbleState extends State<ReasoningBubble> {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.psychology_outlined,
+                    Icon(Symbols.psychology,
                         size: 16, color: tokens.colors.textTertiary),
                     SizedBox(width: tokens.spacing.sm),
                     Text(
@@ -53,7 +53,7 @@ class _ReasoningBubbleState extends State<ReasoningBubble> {
                     AnimatedRotation(
                       turns: _expanded ? 0.5 : 0.0,
                       duration: const Duration(milliseconds: 200),
-                      child: Icon(Icons.expand_more,
+                      child: Icon(Symbols.expand_more,
                           size: 18, color: tokens.colors.textTertiary),
                     ),
                   ],

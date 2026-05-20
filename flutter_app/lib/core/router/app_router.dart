@@ -59,7 +59,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             name: 'tasks',
             pageBuilder: (context, state) => CustomTransitionPage(
               key: state.pageKey,
-              child: _PlaceholderScreen(title: 'Tasks', icon: Icons.check_circle_outline),
+              child: _PlaceholderScreen(title: 'Tasks', icon: Symbols.check_circle),
               transitionsBuilder: (context, animation, secondaryAnimation, child) {
                 return FadeTransition(opacity: animation, child: child);
               },
@@ -71,7 +71,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             name: 'contacts',
             pageBuilder: (context, state) => CustomTransitionPage(
               key: state.pageKey,
-              child: _PlaceholderScreen(title: 'Contacts', icon: Icons.contacts_outlined),
+              child: _PlaceholderScreen(title: 'Contacts', icon: Symbols.contacts),
               transitionsBuilder: (context, animation, secondaryAnimation, child) {
                 return FadeTransition(opacity: animation, child: child);
               },
@@ -83,7 +83,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             name: 'more',
             pageBuilder: (context, state) => CustomTransitionPage(
               key: state.pageKey,
-              child: _PlaceholderScreen(title: 'More', icon: Icons.more_horiz),
+              child: _PlaceholderScreen(title: 'More', icon: Symbols.more_horiz),
               transitionsBuilder: (context, animation, secondaryAnimation, child) {
                 return FadeTransition(opacity: animation, child: child);
               },
@@ -104,7 +104,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 class _PlaceholderScreen extends StatelessWidget {
   final String title;
   final IconData icon;
-  const _PlaceholderScreen({required this.title, this.icon = Icons.construction});
+  const _PlaceholderScreen({required this.title, this.icon = Symbols.construction});
 
   @override
   Widget build(BuildContext context) {

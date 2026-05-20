@@ -259,6 +259,8 @@ async def ws_conversation(websocket: WebSocket):
     user_id = "default_user"
     workspace_id = "personal"
     verbose = False
+    current_model: str | None = None
+    current_provider_keys: dict[str, str] | None = None
     pending_container: list = [None]
 
     try:
@@ -294,11 +296,24 @@ async def ws_conversation(websocket: WebSocket):
             if isinstance(msg, ApproveMessage):
                 if pending_container[0]:
                     tool_name = pending_container[0].get("tool", "unknown")
-                    args = pending_container[0].get("args", {})
-                    loop = await get_sdk_loop(user_id, workspace_id)
-                    args_key = (tool_name, json.dumps(args, sort_keys=True))
-                    loop._approved_tools.add(args_key)
+                    loop = await get_sdk_loop(
+                        user_id,
+                        workspace_id,
+                        model=current_model,
+                        provider_keys=current_provider_keys,
+                    )
+                    loop._approved_tool_names.add(tool_name)
                     pending_container[0] = None
+                    conversation = get_message_store(user_id, workspace_id)
+                    retry_msgs = _messages_from_conversation(
+                        conversation.get_messages_with_summary(50)
+                    )
+                    retry_msgs.append(Message.user(f"approve: please proceed with {tool_name}"))
+                    await _run_agent_stream(
+                        websocket, user_id, retry_msgs, conversation, session_id,
+                        pending_ref=pending_container, workspace_id=workspace_id,
+                        model=current_model, provider_keys=current_provider_keys,
+                    )
                 continue
 
             if isinstance(msg, RejectMessage):
@@ -320,13 +335,25 @@ async def ws_conversation(websocket: WebSocket):
 
             if isinstance(msg, EditAndApproveMessage):
                 if pending_container[0]:
-                    pending_container[0]["args"] = msg.edited_args
-                    await websocket.send_json(
-                        DoneMessage(
-                            response=f"Edited and approved: {pending_container[0].get('tool', 'unknown')}"
-                        ).model_dump()
+                    tool_name = pending_container[0].get("tool", "unknown")
+                    loop = await get_sdk_loop(
+                        user_id,
+                        workspace_id,
+                        model=current_model,
+                        provider_keys=current_provider_keys,
                     )
+                    loop._approved_tool_names.add(tool_name)
                     pending_container[0] = None
+                    conversation = get_message_store(user_id, workspace_id)
+                    retry_msgs = _messages_from_conversation(
+                        conversation.get_messages_with_summary(50)
+                    )
+                    retry_msgs.append(Message.user(f"approved: proceed with {tool_name} with edited args: {msg.edited_args}"))
+                    await _run_agent_stream(
+                        websocket, user_id, retry_msgs, conversation, session_id,
+                        pending_ref=pending_container, workspace_id=workspace_id,
+                        model=current_model, provider_keys=current_provider_keys,
+                    )
                 else:
                     await websocket.send_json(
                         ErrorMessage(
@@ -345,6 +372,8 @@ async def ws_conversation(websocket: WebSocket):
             verbose = getattr(msg, "verbose", verbose)
             msg_model: str | None = getattr(msg, "model", None)
             msg_provider_keys: dict[str, str] | None = getattr(msg, "provider_keys", None)
+            current_model = msg_model
+            current_provider_keys = msg_provider_keys
 
             if not hasattr(msg, "content"):
                 continue
@@ -355,13 +384,10 @@ async def ws_conversation(websocket: WebSocket):
             # If user types "approve" while a tool is pending, trigger retry
             if pending_container[0] and content.strip().lower() in ("approve", "yes", "accept"):
                 tool_name = pending_container[0].get("tool", "unknown")
-                args = pending_container[0].get("args", {})
-                loop = await get_sdk_loop(user_id, workspace_id)
-                args_key = (tool_name, json.dumps(args, sort_keys=True))
-                loop._approved_tools.add(args_key)
-                conversation.add_message("user", content, metadata={"workspace_id": workspace_id})
+                loop = await get_sdk_loop(user_id, workspace_id, model=msg_model, provider_keys=msg_provider_keys)
+                loop._approved_tool_names.add(tool_name)
                 pending_container[0] = None
-                # Fall through to normal agent run — agent will retry the tool
+                # Fall through — the message is added below once
 
             import time
             t0 = time.monotonic()
@@ -399,7 +425,6 @@ async def ws_conversation(websocket: WebSocket):
             # After stream finishes: if a tool was interrupted, wait for approval
             while pending_container[0] is not None:
                 tool_name = pending_container[0].get("tool", "unknown")
-                args = pending_container[0].get("args", {})
                 try:
                     raw = await asyncio.wait_for(websocket.receive_text(), timeout=300)
                 except (TimeoutError, WebSocketDisconnect):
@@ -410,10 +435,18 @@ async def ws_conversation(websocket: WebSocket):
                 except json.JSONDecodeError:
                     continue
                 msg_type = data.get("type", "")
-                if msg_type in ("approve_tool", "approve"):
-                    loop = await get_sdk_loop(user_id, workspace_id)
-                    args_key = (tool_name, json.dumps(args, sort_keys=True))
-                    loop._approved_tools.add(args_key)
+                content = data.get("content", "")
+                is_approve = msg_type in ("approve_tool", "approve") or (
+                    msg_type == "user_message"
+                    and content.strip().lower() in ("approve", "approved", "yes", "accept")
+                )
+                is_reject = msg_type in ("reject_tool", "reject") or (
+                    msg_type == "user_message"
+                    and content.strip().lower() in ("reject", "rejected", "no", "deny")
+                )
+                if is_approve:
+                    loop = await get_sdk_loop(user_id, workspace_id, model=msg_model, provider_keys=msg_provider_keys)
+                    loop._approved_tool_names.add(tool_name)
                     pending_container[0] = None
                     # Retry with approval context
                     retry_msgs = _messages_from_conversation(
@@ -425,7 +458,7 @@ async def ws_conversation(websocket: WebSocket):
                         pending_ref=pending_container, workspace_id=workspace_id,
                         model=msg_model, provider_keys=msg_provider_keys,
                     )
-                elif msg_type in ("reject_tool", "reject"):
+                elif is_reject:
                     pending_container[0] = None
                     break
 

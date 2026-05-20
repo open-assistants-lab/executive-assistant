@@ -77,7 +77,7 @@ class ApprovalSheet extends ConsumerWidget {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.warning_amber,
+                                  Icon(Symbols.warning,
                                       size: 14, color: AppColors.warning),
                                   const SizedBox(width: 4),
                                   Text(
@@ -128,7 +128,7 @@ class _ApprovalCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.build_circle_outlined,
+              Icon(Symbols.build_circle,
                   size: 20, color: AppColors.accent),
               const SizedBox(width: 8),
               Expanded(

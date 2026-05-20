@@ -258,6 +258,26 @@ class ApiClient {
     return _handleResponse(response);
   }
 
+  Future<Map<String, dynamic>> updateSkill(
+    String name, {
+    String? description,
+    String? content,
+    String scope = 'user',
+    String? workspaceId,
+  }) async {
+    final extra = <String, String>{};
+    if (workspaceId != null) extra['workspace_id'] = workspaceId;
+    final encodedName = Uri.encodeComponent(name);
+    final body = <String, dynamic>{'scope': scope};
+    if (description != null) body['description'] = description;
+    if (content != null) body['content'] = content;
+    final response = await _put(
+      Uri.parse(_buildUrl('/skills/$encodedName', extra)),
+      body: jsonEncode(body),
+    );
+    return _handleResponse(response);
+  }
+
   Future<void> deleteSkill(
     String name, {
     String scope = 'user',

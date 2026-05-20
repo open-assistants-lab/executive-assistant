@@ -137,11 +137,11 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
           ),
           child: Row(
             children: [
-              Icon(Icons.folder, size: 18, color: context.tokens.colors.accent),
+              Icon(Symbols.folder, size: 18, color: context.tokens.colors.accent),
               const SizedBox(width: 8),
               Text(
                 'Files',
-                style: context.tokens.typography.textTheme.headlineMedium!.copyWith(fontSize: 15),
+                style: context.tokens.typography.textTheme.headlineMedium!.copyWith(fontSize: 15, color: context.tokens.colors.textPrimary),
               ),
               const Spacer(),
               if (_loading && _files.isNotEmpty)
@@ -158,7 +158,7 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
               const SizedBox(width: 4),
               InkWell(
                 onTap: _loadFiles,
-                child: Icon(Icons.refresh, size: 16, color: context.tokens.colors.textTertiary),
+                child: Icon(Symbols.refresh, size: 16, color: context.tokens.colors.textTertiary),
               ),
             ],
           ),
@@ -195,7 +195,7 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.folder_open, size: 40, color: context.tokens.colors.textTertiary),
+            Icon(Symbols.folder_open, size: 40, color: context.tokens.colors.textTertiary),
             const SizedBox(height: 8),
             Text(
               'No files',
@@ -216,14 +216,14 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
         return ListTile(
           dense: true,
           leading: Icon(
-            isDir ? Icons.folder : Icons.description,
+            isDir ? Symbols.folder : Symbols.description,
             size: 18,
             color: isDir ? context.tokens.colors.warning : context.tokens.colors.textSecondary,
           ),
-          title: Text(name, style: context.tokens.typography.textTheme.bodyLarge!.copyWith(fontSize: 13)),
+          title: Text(name, style: context.tokens.typography.textTheme.bodyLarge!.copyWith(fontSize: 13, color: context.tokens.colors.textPrimary)),
           subtitle: Text(
             isDir ? 'Folder' : _formatSize(size),
-            style: context.tokens.typography.textTheme.bodySmall!.copyWith(fontSize: 11),
+            style: context.tokens.typography.textTheme.bodySmall!.copyWith(fontSize: 11, color: context.tokens.colors.textSecondary),
           ),
         );
       },
@@ -250,24 +250,24 @@ class _BottomTabs extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           _BottomTabButton(
-            icon: Icons.folder_outlined,
-            activeIcon: Icons.folder,
+            icon: Symbols.folder,
+            activeIcon: Symbols.folder,
             selected: selected == _WorkspacePanelTab.files,
             tooltip: 'Files',
             onTap: () => onSelected(_WorkspacePanelTab.files),
           ),
           const SizedBox(width: 8),
           _BottomTabButton(
-            icon: Icons.bolt_outlined,
-            activeIcon: Icons.bolt,
+            icon: Symbols.bolt,
+            activeIcon: Symbols.bolt,
             selected: selected == _WorkspacePanelTab.skills,
             tooltip: 'Skills',
             onTap: () => onSelected(_WorkspacePanelTab.skills),
           ),
           const SizedBox(width: 8),
           _BottomTabButton(
-            icon: Icons.smart_toy_outlined,
-            activeIcon: Icons.smart_toy,
+            icon: Symbols.smart_toy,
+            activeIcon: Symbols.smart_toy,
             selected: selected == _WorkspacePanelTab.subagents,
             tooltip: 'Subagents',
             onTap: () => onSelected(_WorkspacePanelTab.subagents),

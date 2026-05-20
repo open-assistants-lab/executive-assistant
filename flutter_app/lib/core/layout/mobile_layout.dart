@@ -42,23 +42,23 @@ class MobileLayout extends ConsumerWidget {
         },
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(Icons.chat_outlined),
-            activeIcon: Icon(Icons.chat),
+            icon: Icon(Symbols.chat),
+            activeIcon: Icon(Symbols.chat),
             label: 'Home',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.mail_outlined),
-            activeIcon: Icon(Icons.mail),
+            icon: Icon(Symbols.mail),
+            activeIcon: Icon(Symbols.mail),
             label: 'Email',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.check_circle_outline),
-            activeIcon: Icon(Icons.check_circle),
+            icon: Icon(Symbols.check_circle),
+            activeIcon: Icon(Symbols.check_circle),
             label: 'Tasks',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.more_horiz),
-            activeIcon: Icon(Icons.more_horiz),
+            icon: Icon(Symbols.more_horiz),
+            activeIcon: Icon(Symbols.more_horiz),
             label: 'More',
           ),
         ],

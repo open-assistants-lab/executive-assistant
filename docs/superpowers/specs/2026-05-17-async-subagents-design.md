@@ -21,7 +21,7 @@ The repo already has a strong subagent foundation:
 
 Current gaps:
 
-- `subagent_start` uses explicit async wording and returns a job ID.
+- `subagent_invoke` appears async in wording but blocks until completion.
 - No dynamic per-invocation overrides for prompt/tools/skills/model/provider options.
 - Skill lookup does not consistently use workspace-aware registry behavior.
 - `mcp_config` is persisted but not clearly wired into subagent runtime.
@@ -41,9 +41,10 @@ Build async configurable subagents:
 - Dynamic prompt, tools, skills, model, provider options, limits.
 - True async `subagent_start` returning a job ID immediately.
 - `subagent_check`, `subagent_tasks`, `subagent_instruct`, `subagent_cancel`.
+- Async job claiming with a desktop-first path and server-safe durability boundaries.
 - Frozen config snapshot per job.
 - Mandatory middleware for visibility/control.
-- Mandatory `memory_search` tool.
+- Mandatory `memory_search` tool only; other memory tools are not exposed to subagents.
 - Runtime denial of all `subagent_*` tools.
 
 ### Not In V1
@@ -168,6 +169,8 @@ Roles:
 
 `ProgressMiddleware` and `InstructionMiddleware` are required because async workers must remain visible and controllable.
 
+`ObservationMiddleware` is required only after it is committed as stable runtime code. If implementation begins before that middleware is available, add it as a prerequisite task rather than silently omitting it.
+
 ---
 
 ## Tool Resolution
@@ -175,30 +178,49 @@ Roles:
 Subagents can use tools like the main agent, but with strict recursion prevention.
 
 ```text
-always denied:
+base tools:
+  all native tools
+
+always removed:
   subagent_*
+  memory_* except memory_search
+  destructive skill-management tools: skill_create, skill_delete, skill_update
 
 always included:
   memory_search
+  skills_load when AgentDef.skills is non-empty
 
 tools_allowlist = null:
-  all native tools - subagent_* + memory_search
+  base tools - always removed + always included
 
 tools_allowlist = [...]:
-  tools_allowlist - subagent_* + memory_search
+  tools_allowlist - always removed + always included
 
 tools_denylist:
   removes denied tools
   but cannot remove memory_search
-  and cannot re-enable subagent_*
+  cannot remove required skills_load when AgentDef.skills is non-empty
+  cannot re-enable subagent_* or blocked memory/skill-management tools
 ```
 
 Rules:
 
 - `memory_search` is mandatory and cannot be denied.
+- `memory_search` is the only memory-related tool exposed to subagents in v1.
+- Other memory tools such as `memory_search_all`, `memory_search_insights`, and related nonfunctional/legacy memory variants should be removed from the subagent runtime surface and cleaned up separately if unused elsewhere.
 - `subagent_*` tools are always denied at runtime, regardless of persisted config.
+- `skills_load` is mandatory when a subagent has configured skills, because skills use progressive disclosure.
+- `skills_list` and `skills_search` are optional. `skill_create`, `skill_delete`, and future destructive skill-management tools are denied by default.
 - Unknown tool names should be rejected on create/update, not silently ignored.
-- Denylist wins over allowlist for all tools except mandatory `memory_search`.
+- Deterministic resolution order:
+  1. Start from allowlist if present, otherwise all native tools.
+  2. Remove all `subagent_*` tools.
+  3. Remove all `memory_*` tools except `memory_search`.
+  4. Remove destructive skill-management tools.
+  5. Remove `tools_denylist` entries.
+  6. Add mandatory `memory_search` back.
+  7. Add mandatory `skills_load` back when `AgentDef.skills` is non-empty.
+  8. Reject unknown names before saving definitions.
 
 ---
 
@@ -208,10 +230,15 @@ Subagents can be configured with a list of skill names.
 
 Rules:
 
-- Skills resolve workspace-aware.
+- Skills resolve workspace-aware using the same skills redesign rules as the main agent: user skills plus current workspace skills, including `workspace_id="personal"`, with workspace overriding user by name.
+- Bundled seed skills live in `src/skills_seed/`; `src/skills/` is not the seed source.
 - Unknown skill names fail validation on create/update.
-- Full skill content is injected into the subagent system prompt in v1.
-- Progressive skill loading inside subagents can be considered later, but v1 favors predictable explicit injection.
+- Subagents use progressive disclosure, not eager full-content injection:
+  - Stage 1: subagent system prompt includes selected skill names and descriptions only.
+  - Stage 2: subagent can call `skills_load(name)` to load full instructions.
+  - Stage 3: subagent can load skill resources on demand, sandboxed to the skill root.
+- `skills_load` is allowed for subagents, but `skill_create`/destructive skill-management tools are excluded unless explicitly enabled in a future design.
+- If a subagent has configured skills, `skills_load` is automatically available even when a strict tool allowlist is configured.
 
 ---
 
@@ -236,7 +263,7 @@ Rules:
 
 ## Async Runtime Tools
 
-Use new tool names only. Do not keep old invoke/progress aliases because the product has not launched.
+Use new tool names only. Do not keep old `subagent_invoke` / `subagent_progress` aliases because the product has not launched. The implementation must remove the old tools and update all relevant code, tests, prompts, documentation, and evaluation fixtures that reference them.
 
 ### Management Tools
 
@@ -310,7 +337,7 @@ V1 does not need `waiting_for_approval` unless subagent HITL is implemented. If 
 
 ## Background Execution
 
-Current start behavior should use true async background execution.
+Current `subagent_invoke` blocks. V1 should use true async background execution.
 
 ```text
 subagent_start
@@ -321,11 +348,17 @@ subagent_start
 
 Implementation notes:
 
-- Keep an in-process task registry for currently running jobs.
 - WorkQueueDB remains source of truth.
-- On app startup, mark stale `running`/`cancelling` jobs as `failed: interrupted by restart`.
-- Do not attempt recovery in v1.
-- Cancellation is cooperative. Long-running tools may not stop until the next model call.
+- Desktop/local v1 may spawn an in-process `asyncio` runner immediately after enqueue.
+- The runner must still claim the job row before execution so the design remains server-safe.
+- For server/multi-worker mode, durable claiming is required before enabling multiple workers.
+- Do not rely on an in-process registry as the source of truth. An in-process registry may track local task handles for cancellation, but job ownership must be persisted in SQLite.
+- Add durable job-claim fields such as `claimed_by`, `claimed_at`, and `heartbeat_at`.
+- Starting a job must atomically claim a `pending` row before running it, for example with a conditional update: `UPDATE ... SET status='running', claimed_by=?, claimed_at=?, heartbeat_at=? WHERE id=? AND status='pending'`.
+- Background workers should heartbeat while running. In desktop/local mode, heartbeat can be minimal but the schema should support it.
+- On startup, jobs in `running` or `cancelling` with a stale heartbeat are marked `failed: interrupted by restart` or reclaimed according to the final implementation choice. V1 default: mark stale jobs failed; do not attempt recovery.
+- `subagent_start` may enqueue and immediately spawn a local runner, but the runner must still acquire the durable claim before execution.
+- Cancellation is cooperative. Long-running tools may not stop until the next middleware/tool boundary.
 
 ---
 
@@ -349,6 +382,7 @@ POST   /subagents/jobs/{job_id}/cancel
 Rules:
 
 - All routes require `user_id` and `workspace_id` context.
+- In authenticated deployments, `user_id` comes from auth/session context, not a trusted query parameter. Query/body `user_id` is allowed only for local development compatibility and must not allow cross-user access.
 - Definitions are workspace-scoped.
 - Job routes read/write durable work queue rows.
 - Start returns immediately with `job_id`.
@@ -367,6 +401,7 @@ Validate on create/update:
 - Skills exist and resolve in workspace/user skill registry.
 - `subagent_*` tools are rejected if provided.
 - `memory_search` cannot be removed.
+- Memory tools other than `memory_search` are rejected for subagent definitions.
 - Limits are within sane ranges.
 - Timeout is positive and bounded.
 
@@ -388,7 +423,8 @@ Validate on start:
 | Subagent tries to use `subagent_*` | Tool unavailable at runtime. |
 | Cancel requested while pending/running | Mark `cancelling`; final `cancelled` when observed. |
 | Cancel requested after terminal state | Return current terminal state; no-op. |
-| App restarts while job running | Mark stale running jobs failed on startup. |
+| App/process restarts while job running | Mark stale running jobs failed after heartbeat timeout in v1. |
+| Two processes try to run same job | Exactly one process wins the durable claim; the loser returns current job status. |
 | Model/provider unavailable | Job fails early with config error. |
 | Output too large | Truncate human output, preserve `truncated=true`; future artifacts can store full output. |
 
@@ -432,9 +468,14 @@ This should be a separate implementation cycle.
 - `AgentDef` validation for new fields.
 - Tool allowlist/denylist resolution.
 - Mandatory `memory_search` inclusion.
+- Mandatory `skills_load` inclusion when configured skills are present.
+- Rejection/removal of all non-`memory_search` memory tools from subagent runtime.
+- Rejection/removal of destructive skill-management tools from subagent runtime.
 - Mandatory `subagent_*` exclusion.
 - Config snapshot freezing.
 - Background start returns before job completion.
+- Multi-process-safe claim prevents double execution of one job.
+- Stale heartbeat cleanup marks interrupted jobs failed.
 - Status transitions.
 
 ### Integration Tests
@@ -452,6 +493,7 @@ This should be a separate implementation cycle.
 - Start/check/tasks/instruct/cancel job routes.
 - Validation failures for unknown tool/skill/model.
 - Workspace scoping.
+- Removal of old `subagent_invoke` and `subagent_progress` tool/API references.
 
 ---
 

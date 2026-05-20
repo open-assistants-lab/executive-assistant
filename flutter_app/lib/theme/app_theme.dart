@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+export 'package:material_symbols_icons/symbols.dart';
+
 export 'app_colors.dart';
 export 'app_typography.dart';
 export 'app_spacing.dart';
@@ -127,6 +129,8 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: tokens.colors.bgField,
+        labelStyle: tokens.typography.textTheme.bodySmall?.copyWith(color: tokens.colors.textSecondary),
+        hintStyle: tokens.typography.textTheme.bodySmall?.copyWith(color: tokens.colors.textTertiary),
         border: OutlineInputBorder(
           borderRadius: tokens.radius.smAll,
           borderSide: BorderSide(color: tokens.colors.borderDefault),

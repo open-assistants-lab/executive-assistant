@@ -168,6 +168,7 @@ class AgentLoop:
             self._handoff_tool_names.add(h.tool_name)
 
         self._approved_tools: set[tuple[str, str]] = set()
+        self._approved_tool_names: set[str] = set()
 
     def register_tool(self, tool_def: ToolDefinition) -> None:
         if self._registry.has(tool_def.name):
@@ -184,11 +185,12 @@ class AgentLoop:
     def _should_interrupt(self, tc: ToolCall) -> bool:
         tool_def = self._registry.get(tc.name)
         if tool_def and tool_def.annotations.destructive and not tool_def.annotations.read_only:
+            if tc.name in self._approved_tool_names:
+                return False
             if tc.arguments:
                 args_key = (tc.name, json.dumps(tc.arguments, sort_keys=True))
-                approved = getattr(self, "_approved_tools", set())
-                if args_key in approved:
-                    approved.discard(args_key)
+                if args_key in self._approved_tools:
+                    self._approved_tools.discard(args_key)
                     return False
             return True
         return False
@@ -236,19 +238,7 @@ class AgentLoop:
         if tool_def is None:
             return ToolResult(content=f"Unknown tool: {tc.name}", is_error=True)
 
-        if self.user_id:
-            props = tool_def.parameters.get("properties", {})
-            if "user_id" in props:
-                current = tc.arguments.get("user_id")
-                uid_default = props["user_id"].get("default", "")
-                if current is None or current == "" or current == uid_default:
-                    tc = ToolCall(id=tc.id, name=tc.name, arguments={**tc.arguments, "user_id": self.user_id})
-            if "workspace_id" in props:
-                current = tc.arguments.get("workspace_id")
-                ws_default = props["workspace_id"].get("default", "")
-                if current is None or current == "" or current == ws_default:
-                    ws = getattr(self, "workspace_id", "personal")
-                    tc = ToolCall(id=tc.id, name=tc.name, arguments={**tc.arguments, "workspace_id": ws})
+        tc = self._with_runtime_context(tc)
 
         try:
             if tool_def._coroutine:
@@ -262,6 +252,20 @@ class AgentLoop:
         except Exception as e:
             logger.error(f"tool_execution_error tool={tc.name}: {e}")
             return ToolResult(content=str(e), is_error=True)
+
+    def _with_runtime_context(self, tc: ToolCall) -> ToolCall:
+        tool_def = self._registry.get(tc.name)
+        if tool_def is None or not self.user_id:
+            return tc
+        props = tool_def.parameters.get("properties", {})
+        args = dict(tc.arguments)
+        if "user_id" in props:
+            args["user_id"] = self.user_id
+        if "workspace_id" in props:
+            args["workspace_id"] = getattr(self, "workspace_id", "personal")
+        if args == tc.arguments:
+            return tc
+        return ToolCall(id=tc.id, name=tc.name, arguments=args)
 
     async def _execute_single_tool(self, tc: ToolCall, state: AgentState) -> None:
         """Execute a single tool call with guardrails, hooks, and middleware, add result to state."""
@@ -651,8 +655,10 @@ class AgentLoop:
                     )
                 break
 
+            effective_tool_calls = [self._with_runtime_context(tc) for tc in response.tool_calls]
+
             # Classify tool calls: parallel-safe, sequential, interrupts
-            parallel_safe, sequential, interrupts = self._classify_tool_calls(response.tool_calls)
+            parallel_safe, sequential, interrupts = self._classify_tool_calls(effective_tool_calls)
 
             # Handle interrupts: add interrupt tool_result messages (not executed)
             for tc in interrupts:
@@ -904,7 +910,7 @@ class AgentLoop:
                     "sdk.deduped_tool_calls removed %d duplicates",
                     len(stream_tool_calls) - len(deduped_calls),
                 )
-            stream_tool_calls = deduped_calls
+            stream_tool_calls = [self._with_runtime_context(tc) for tc in deduped_calls]
 
             # Record tool calls AFTER dedup so only unique names are reported
             all_tool_calls.extend([{"name": tc.name, "call_id": tc.id} for tc in stream_tool_calls])
@@ -988,6 +994,11 @@ class AgentLoop:
         elif canonical == "tool_input_start":
             if in_text_block:
                 yield StreamChunk.text_end()
+            chunk_args = chunk.args
+            if isinstance(chunk_args, dict):
+                chunk_args = self._with_runtime_context(
+                    ToolCall(id=chunk.call_id or "", name=chunk.tool or "", arguments=chunk_args)
+                ).arguments
             if chunk.call_id:
                 tool_calls_map[len(tool_calls_map)] = {
                     "id": chunk.call_id,
@@ -997,12 +1008,12 @@ class AgentLoop:
             yield StreamChunk.tool_input_start(
                 tool=chunk.tool or "",
                 call_id=chunk.call_id or "",
-                args=chunk.args,
+                args=chunk_args,
             )
             yield StreamChunk.tool_start(
                 tool=chunk.tool or "",
                 call_id=chunk.call_id or "",
-                args=chunk.args,
+                args=chunk_args,
             )
 
         elif canonical == "tool_input_delta":

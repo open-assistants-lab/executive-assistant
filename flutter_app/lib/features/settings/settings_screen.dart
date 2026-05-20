@@ -139,7 +139,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       appBar: AppBar(
         title: const Text('Settings'),
         leading: IconButton(
-          icon: const Icon(Icons.close),
+          icon: const Icon(Symbols.close),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
@@ -147,12 +147,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           _sectionHeader('Server'),
-          _tile('Host', _host, Icons.dns_outlined, readOnly: true),
-          _tile('Port', '$_port', Icons.numbers_outlined, readOnly: true),
+          _tile('Host', _host, Symbols.dns, readOnly: true),
+          _tile('Port', '$_port', Symbols.numbers, readOnly: true),
           _tile(
             'API Key',
             _apiKey.isEmpty ? 'Not set' : '••••••••',
-            Icons.key_outlined,
+            Symbols.key,
             onTap: _editApiKey,
           ),
           const Divider(height: 32),
@@ -162,7 +162,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             controller: _searchCtrl,
             decoration: const InputDecoration(
               hintText: 'Search providers or models...',
-              prefixIcon: Icon(Icons.search, size: 18),
+              prefixIcon: Icon(Symbols.search, size: 18),
               isDense: true,
               border: OutlineInputBorder(),
             ),
@@ -179,7 +179,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const Divider(height: 32),
           _sectionHeader('Connectors'),
           ListTile(
-            leading: const Icon(Icons.mail_outlined),
+            leading: const Icon(Symbols.mail),
             title: const Text('Google Workspace'),
             subtitle: const Text('Gmail, Drive, Calendar'),
             dense: true,
@@ -189,7 +189,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.cloud_outlined),
+            leading: const Icon(Symbols.cloud),
             title: const Text('Microsoft 365'),
             subtitle: const Text('Coming soon'),
             dense: true,
@@ -197,15 +197,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const Divider(height: 32),
           _sectionHeader('Memory & Storage'),
           ListTile(
-            leading: const Icon(Icons.delete_outline),
+            leading: const Icon(Symbols.delete),
             title: const Text('Clear all memory'),
             onTap: _clearMemory,
             dense: true,
           ),
           const Divider(height: 32),
           _sectionHeader('About'),
-          _tile('Version', '0.1.0', Icons.info_outline, readOnly: true),
-          _tile('Default Model', _selectedModel, Icons.tag, readOnly: true),
+          _tile('Version', '0.1.0', Symbols.info, readOnly: true),
+          _tile('Default Model', _selectedModel, Symbols.tag, readOnly: true),
           const SizedBox(height: 32),
         ],
       ),
@@ -222,7 +222,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       return ExpansionTile(
         initiallyExpanded: isActive,
         leading: Icon(
-          isActive ? Icons.radio_button_checked : Icons.radio_button_off,
+          isActive ? Symbols.radio_button_checked : Symbols.radio_button_unchecked,
           size: 18,
           color: isActive ? context.tokens.colors.accent : context.tokens.colors.textSecondary,
         ),
@@ -299,7 +299,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       leading: Icon(icon, color: color),
       title: Text(title),
       subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
-      trailing: readOnly ? null : const Icon(Icons.chevron_right, size: 18),
+      trailing: readOnly ? null : const Icon(Symbols.chevron_right, size: 18),
       onTap: readOnly ? null : onTap,
       dense: true,
     );

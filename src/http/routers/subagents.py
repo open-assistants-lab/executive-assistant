@@ -10,7 +10,20 @@ from pydantic import BaseModel, Field, ValidationError
 
 from src.sdk.subagent_models import AgentDef, TaskStatus
 
+tools_router = APIRouter(tags=["tools"])
+
 router = APIRouter(prefix="/subagents", tags=["subagents"])
+
+
+@tools_router.get("/tools/names")
+async def list_tool_names(
+    user_id: str = Query("default_user"),
+    workspace_id: str = Query("personal"),
+):
+    from src.sdk.native_tools import get_native_tool_names
+
+    names = sorted(get_native_tool_names())
+    return {"tools": names, "count": len(names)}
 
 
 class SubagentCreateRequest(BaseModel):
@@ -89,19 +102,27 @@ async def list_subagents(
 
     _validate_context_ids(user_id, workspace_id)
     coordinator = get_coordinator(user_id, workspace_id)
-    defs = await coordinator.list_defs()
+    scoped_defs = await coordinator.list_defs_with_scope()
 
     return {
-        "subagents": [
+        "agents": [
             {
                 "name": d.name,
                 "description": d.description or "",
                 "model": d.model,
                 "tools": d.tools,
                 "skills": d.skills,
-                "is_system": False,
+                "system_prompt": d.system_prompt,
+                "max_llm_calls": d.max_llm_calls,
+                "cost_limit_usd": d.cost_limit_usd,
+                "timeout_seconds": d.timeout_seconds,
+                "provider_options": d.provider_options,
+                "output_schema": d.output_schema,
+                "handoff_instructions": d.handoff_instructions,
+                "artifact_policy": d.artifact_policy,
+                "scope": scope,
             }
-            for d in defs
+            for d, scope in scoped_defs
         ]
     }
 

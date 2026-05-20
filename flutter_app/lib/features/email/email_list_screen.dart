@@ -61,7 +61,7 @@ class _EmailListScreenState extends ConsumerState<EmailListScreen> {
               ),
             ),
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Symbols.refresh),
             onPressed: _loadEmails,
           ),
         ],
@@ -73,7 +73,7 @@ class _EmailListScreenState extends ConsumerState<EmailListScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.mail_outline, size: 64, color: context.tokens.colors.textSecondary),
+                      Icon(Symbols.mail, size: 64, color: context.tokens.colors.textSecondary),
                       SizedBox(height: 16),
                       Text('No emails yet', style: TextStyle(color: context.tokens.colors.textSecondary)),
                       SizedBox(height: 8),
@@ -99,7 +99,7 @@ class _EmailListScreenState extends ConsumerState<EmailListScreen> {
                               ? tokens.colors.textSecondary.withValues(alpha: 0.2)
                               : Theme.of(context).colorScheme.primaryContainer,
                           child: Icon(
-                            isRead ? Icons.mail_outline : Icons.mail,
+                            isRead ? Symbols.mail : Symbols.mail,
                             size: 20,
                             color: isRead ? tokens.colors.textSecondary : tokens.colors.textPrimary,
                           ),

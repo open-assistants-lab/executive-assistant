@@ -76,11 +76,11 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
             ),
             child: Row(
               children: [
-                Icon(Icons.bolt, size: 18, color: context.tokens.colors.accent),
+                Icon(Symbols.bolt, size: 18, color: context.tokens.colors.accent),
                 const SizedBox(width: 8),
                 Text(
                   'Skills',
-                  style: context.tokens.typography.textTheme.headlineMedium!.copyWith(fontSize: 15),
+                  style: context.tokens.typography.textTheme.headlineMedium!.copyWith(fontSize: 15, color: context.tokens.colors.textPrimary),
                 ),
                 const Spacer(),
                 if (_loading && _skills.isNotEmpty)
@@ -100,7 +100,7 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
                 InkWell(
                   onTap: _loadSkills,
                   child: Icon(
-                    Icons.refresh,
+                    Symbols.refresh,
                     size: 16,
                     color: context.tokens.colors.textTertiary,
                   ),
@@ -108,7 +108,7 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
                 const SizedBox(width: 8),
                 InkWell(
                   onTap: _showCreateDialog,
-                  child: Icon(Icons.add, size: 18, color: context.tokens.colors.textTertiary),
+                  child: Icon(Symbols.add, size: 18, color: context.tokens.colors.textTertiary),
                 ),
               ],
             ),
@@ -149,7 +149,7 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.bolt_outlined, size: 40, color: context.tokens.colors.textTertiary),
+            Icon(Symbols.bolt, size: 40, color: context.tokens.colors.textTertiary),
             const SizedBox(height: 8),
             Text(
               'No skills',
@@ -164,45 +164,138 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
       itemCount: _skills.length,
       itemBuilder: (_, i) => _SkillTile(
         skill: _skills[i],
-        onView: () => _showDetail(_skills[i]['name']?.toString() ?? ''),
+        onEdit: () => _showEditDialog(_skills[i]),
         onDelete: () => _confirmDelete(_skills[i]),
       ),
     );
   }
 
-  Future<void> _showDetail(String name) async {
+  Future<void> _showEditDialog(Map<String, dynamic> skill) async {
+    final name = skill['name']?.toString() ?? '';
     if (name.isEmpty) return;
     final workspaceId = ref.read(currentWorkspaceIdProvider);
-    showDialog(
+    final defaultScope = _scopeOf(skill);
+    final detail = await ref
+        .read(apiClientProvider)
+        .getSkillDetail(name, workspaceId: workspaceId);
+    final descriptionCtrl = TextEditingController(
+      text: detail['description']?.toString() ?? skill['description']?.toString() ?? '',
+    );
+    final contentCtrl = TextEditingController(
+      text: detail['content']?.toString() ?? '',
+    );
+    var scope = defaultScope;
+    var submitting = false;
+
+    final t = context.tokens;
+    final updated = await showDialog<bool>(
       context: context,
-      builder: (ctx) => FutureBuilder<Map<String, dynamic>>(
-        future: ref
-            .read(apiClientProvider)
-            .getSkillDetail(name, workspaceId: workspaceId),
-        builder: (ctx, snapshot) {
-          final content = snapshot.data?['content']?.toString() ?? '';
-          return AlertDialog(
-            title: Text(name),
-            content: SizedBox(
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Text('Edit $name', style: t.typography.textTheme.titleLarge?.copyWith(color: t.colors.textPrimary)),
+          content: SingleChildScrollView(
+            child: SizedBox(
               width: 520,
-              child: snapshot.connectionState == ConnectionState.waiting
-                  ? const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: descriptionCtrl,
+                    style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
+                    decoration: const InputDecoration(
+                      labelText: 'Description',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: contentCtrl,
+                    style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
+                    minLines: 6,
+                    maxLines: 10,
+                    decoration: const InputDecoration(
+                      labelText: 'Content',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: scope,
+                    decoration: const InputDecoration(
+                      labelText: 'Scope',
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'user', child: Text('User')),
+                      DropdownMenuItem(
+                        value: 'workspace',
+                        child: Text('Workspace'),
+                      ),
+                    ],
+                    onChanged: submitting
+                        ? null
+                        : (value) {
+                            if (value != null) {
+                              setDialogState(() => scope = value);
+                            }
+                          },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: submitting ? null : () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: submitting
+                  ? null
+                  : () async {
+                      if (ref.read(currentWorkspaceIdProvider) != workspaceId) {
+                        if (!ctx.mounted) return;
+                        ScaffoldMessenger.of(ctx).showSnackBar(
+                          const SnackBar(
+                            content: Text('Workspace changed; edit cancelled.'),
+                          ),
+                        );
+                        Navigator.pop(ctx, false);
+                        return;
+                      }
+                      setDialogState(() => submitting = true);
+                      try {
+                        await ref
+                            .read(apiClientProvider)
+                            .updateSkill(
+                              name,
+                              description: descriptionCtrl.text.trim(),
+                              content: contentCtrl.text,
+                              scope: scope,
+                              workspaceId: workspaceId,
+                            );
+                        if (ctx.mounted) Navigator.pop(ctx, true);
+                      } catch (e) {
+                        if (!ctx.mounted) return;
+                        setDialogState(() => submitting = false);
+                        ScaffoldMessenger.of(ctx).showSnackBar(
+                          SnackBar(content: Text('Update failed: $e')),
+                        );
+                      }
+                    },
+              child: submitting
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : snapshot.hasError
-                  ? Text('Cannot load skill: ${snapshot.error}')
-                  : SingleChildScrollView(child: SelectableText(content)),
+                  : const Text('Save'),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Close'),
-              ),
-            ],
-          );
-        },
+          ],
+        ),
       ),
     );
+
+    descriptionCtrl.dispose();
+    contentCtrl.dispose();
+    if (updated == true) await _loadSkills();
   }
 
   Future<void> _confirmDelete(Map<String, dynamic> skill) async {
@@ -213,9 +306,10 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete skill?'),
+        title: Text('Delete skill?', style: context.tokens.typography.textTheme.titleLarge?.copyWith(color: context.tokens.colors.textPrimary)),
         content: Text(
           'Delete $name from ${scope == 'workspace' ? 'workspace' : 'user'} skills?',
+          style: context.tokens.typography.textTheme.bodyMedium?.copyWith(color: context.tokens.colors.textPrimary),
         ),
         actions: [
           TextButton(
@@ -259,11 +353,12 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
     var scope = defaultScope;
     var submitting = false;
 
+    final t = context.tokens;
     final created = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('New Skill'),
+          title: Text('New Skill', style: t.typography.textTheme.titleLarge?.copyWith(color: t.colors.textPrimary)),
           content: SingleChildScrollView(
             child: SizedBox(
               width: 520,
@@ -272,35 +367,34 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
                 children: [
                   TextField(
                     controller: nameCtrl,
+                    style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
                     decoration: const InputDecoration(
                       labelText: 'Name',
-                      border: OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: descriptionCtrl,
+                    style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
                     decoration: const InputDecoration(
                       labelText: 'Description',
-                      border: OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: contentCtrl,
+                    style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
                     minLines: 6,
                     maxLines: 10,
                     decoration: const InputDecoration(
                       labelText: 'Content',
-                      border: OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
-                    initialValue: scope,
+                    value: scope,
                     decoration: const InputDecoration(
                       labelText: 'Scope',
-                      border: OutlineInputBorder(),
                     ),
                     items: const [
                       DropdownMenuItem(value: 'user', child: Text('User')),
@@ -391,12 +485,12 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
 
 class _SkillTile extends StatelessWidget {
   final Map<String, dynamic> skill;
-  final VoidCallback onView;
+  final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const _SkillTile({
     required this.skill,
-    required this.onView,
+    required this.onEdit,
     required this.onDelete,
   });
 
@@ -407,10 +501,11 @@ class _SkillTile extends StatelessWidget {
     final scope = skill['scope']?.toString() == 'workspace' ? 'ws' : 'user';
     return ListTile(
       dense: true,
+      onTap: onEdit,
       title: Row(
         children: [
           Expanded(
-            child: Text(name, style: context.tokens.typography.textTheme.bodyLarge!.copyWith(fontSize: 13)),
+            child: Text(name, style: context.tokens.typography.textTheme.bodyLarge!.copyWith(fontSize: 13, color: context.tokens.colors.textPrimary)),
           ),
           _ScopeBadge(label: scope),
         ],
@@ -419,19 +514,19 @@ class _SkillTile extends StatelessWidget {
         description.isEmpty ? 'No description' : description,
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
-        style: context.tokens.typography.textTheme.bodySmall!.copyWith(fontSize: 11),
+        style: context.tokens.typography.textTheme.bodySmall!.copyWith(fontSize: 11, color: context.tokens.colors.textSecondary),
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
-            tooltip: 'View skill',
-            icon: const Icon(Icons.visibility_outlined, size: 18),
-            onPressed: onView,
+            tooltip: 'Edit skill',
+            icon: const Icon(Symbols.edit, size: 18),
+            onPressed: onEdit,
           ),
           IconButton(
             tooltip: 'Delete skill',
-            icon: const Icon(Icons.delete_outline, size: 18),
+            icon: const Icon(Symbols.delete, size: 18),
             onPressed: onDelete,
           ),
         ],

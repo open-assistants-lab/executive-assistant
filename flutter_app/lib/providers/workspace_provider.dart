@@ -122,6 +122,10 @@ class WorkspaceNotifier extends StateNotifier<String> {
     final url = Uri.parse('http://$host/workspaces/$id?user_id=$userId');
     try {
       await http.delete(url);
+      final currentId = ref.read(currentWorkspaceIdProvider);
+      if (id == currentId) {
+        await switchWorkspace('personal', 'Personal');
+      }
       ref.invalidate(workspaceListProvider);
     } catch (_) {}
   }

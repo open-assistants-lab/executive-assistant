@@ -6,6 +6,7 @@ import tempfile
 from datetime import UTC, date, datetime
 from unittest import mock
 
+from src.sdk.hybrid_db import HybridDB
 from src.storage.messages import MessageStore
 
 
@@ -121,6 +122,22 @@ def test_message_table_has_chronological_indexes() -> None:
 
     assert "idx_messages_ts" in names
     assert "idx_messages_role" in names
+
+
+def test_message_store_initializes_when_duckdb_unavailable() -> None:
+    def disable_duckdb(db: HybridDB) -> None:
+        db._duckdb_path = ""
+        db._duckdb_synced_tables = {}
+        db._duckdb_conn = None
+
+    with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(
+        HybridDB, "_init_duckdb", disable_duckdb
+    ):
+        store = MessageStore("test_user", base_dir=temp_dir)
+
+        row_id = store.add_message("user", "hello")
+
+    assert row_id > 0
 
 
 def test_has_summary_uses_count_not_full_row_query() -> None:

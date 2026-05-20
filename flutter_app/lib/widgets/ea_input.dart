@@ -141,14 +141,14 @@ class EaSearchField extends StatelessWidget {
       hint: hint ?? 'Search...',
       onChanged: onChanged,
       onSubmitted: onSubmitted,
-      prefixIcon: const Icon(Icons.search, size: 16),
+      prefixIcon: const Icon(Symbols.search, size: 16),
       suffixIcon: controller != null && controller!.text.isNotEmpty
           ? GestureDetector(
               onTap: () {
                 controller!.clear();
                 onChanged?.call('');
               },
-              child: const Icon(Icons.close, size: 16),
+              child: const Icon(Symbols.close, size: 16),
             )
           : null,
     );

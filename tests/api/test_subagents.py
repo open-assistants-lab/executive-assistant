@@ -15,7 +15,7 @@ class TestSubagentsEndpoints:
         )
         assert r.status_code == 200
         data = r.json()
-        assert "subagents" in data
+        assert "agents" in data
 
     def test_list_subagent_jobs(self, client, test_user_id):
         r = client.get(

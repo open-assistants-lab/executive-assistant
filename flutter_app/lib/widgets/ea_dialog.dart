@@ -48,7 +48,7 @@ Future<T?> showEaDialog<T>({
                       GestureDetector(
                         onTap: () => Navigator.of(context).pop(),
                         child: Icon(
-                          Icons.close,
+                          Symbols.close,
                           size: 18,
                           color: t.colors.textTertiary,
                         ),

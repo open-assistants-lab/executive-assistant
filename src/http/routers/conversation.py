@@ -40,13 +40,7 @@ def _persist_tool_messages(conversation, tool_events: list[dict]) -> None:
 async def get_conversation(user_id: str = "default_user", limit: int = 100, workspace_id: str = "personal"):
     """Get conversation history filtered by workspace."""
     conversation = get_message_store(user_id, workspace_id)
-    messages = conversation.get_recent_messages(limit)
-    print(f"[DEBUG-CONV] total_messages={len(messages)} ws={workspace_id}")
-    if messages:
-        print(f"[DEBUG-CONV] first_ws={(messages[0].metadata or {}).get('workspace_id','NONE')}")
-    messages = _filter_by_workspace(messages, workspace_id)
-    print(f"[DEBUG-CONV] after_filter={len(messages)}")
-    messages = _filter_by_workspace(messages, workspace_id)
+    messages = conversation.get_recent_messages_for_workspace(workspace_id, limit)
 
     return {
         "messages": [

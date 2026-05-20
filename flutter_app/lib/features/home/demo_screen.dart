@@ -73,7 +73,7 @@ class _DemoScreenState extends ConsumerState<DemoScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
-                                Icons.smart_toy,
+                                Symbols.smart_toy,
                                 size: 56,
                                 color: AppColors.accent.withAlpha(80),
                               ),
@@ -146,7 +146,7 @@ class _ChatHeader extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.smart_toy, size: 20, color: AppColors.accent),
+          Icon(Symbols.smart_toy, size: 20, color: AppColors.accent),
           const SizedBox(width: 8),
           Text(
             'Assistant',
@@ -196,7 +196,7 @@ class _ContextPanel extends StatelessWidget {
                   style: AppTypography.sectionTitle.copyWith(fontSize: 15),
                 ),
                 const Spacer(),
-                Icon(Icons.push_pin, size: 16, color: AppColors.textDim),
+                Icon(Symbols.push_pin, size: 16, color: AppColors.textDim),
               ],
             ),
           ),
@@ -214,7 +214,7 @@ class _ContextPanel extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.dashboard_outlined, size: 40, color: AppColors.textDim),
+            Icon(Symbols.dashboard, size: 40, color: AppColors.textDim),
             const SizedBox(height: 12),
             Text(
               'Contextual panel',
@@ -239,7 +239,7 @@ class _ContextPanel extends StatelessWidget {
       children: [
         // Stats card
         _ContextCard(
-          icon: Icons.analytics_outlined,
+          icon: Symbols.analytics,
           title: 'Session Stats',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -254,7 +254,7 @@ class _ContextPanel extends StatelessWidget {
         const SizedBox(height: AppSpacing.itemGap),
         // Latest response
         _ContextCard(
-          icon: Icons.psychology_outlined,
+          icon: Symbols.psychology,
           title: 'Latest Response',
           child: Text(
             assistantMsgs.isNotEmpty
@@ -271,7 +271,7 @@ class _ContextPanel extends StatelessWidget {
         const SizedBox(height: AppSpacing.itemGap),
         // Quick hints
         _ContextCard(
-          icon: Icons.lightbulb_outlined,
+          icon: Symbols.lightbulb,
           title: 'Try asking',
           child: Column(
             children: [

@@ -241,6 +241,23 @@ class MessageStore:
         messages = self._rows_to_messages(rows)
         return list(reversed(messages))
 
+    def get_recent_messages_for_workspace(
+        self, workspace_id: str = "personal", count: int = 100
+    ) -> list[Message]:
+        if workspace_id == "personal":
+            where = "COALESCE(json_extract(metadata, '$.workspace_id'), 'personal') = ?"
+        else:
+            where = "json_extract(metadata, '$.workspace_id') = ?"
+        rows = self.db.query(
+            "messages",
+            where=where,
+            params=(workspace_id,),
+            order_by="ts DESC",
+            limit=count,
+        )
+        messages = self._rows_to_messages(rows)
+        return list(reversed(messages))
+
     def get_messages_with_summary(self, limit: int = 50) -> list[Message]:
         summary_rows = self.db.query(
             "messages", where="role = 'summary'", order_by="id DESC", limit=1
@@ -275,6 +292,36 @@ class MessageStore:
     def count_messages(self, start_date: date | None = None, end_date: date | None = None) -> int:
         where, params = _date_filter_bounds(start_date, end_date)
         return self.db.count("messages", where=where, params=params)
+
+    def delete_messages_for_workspace(self, workspace_id: str) -> int:
+        if workspace_id == "personal":
+            where = "COALESCE(json_extract(metadata, '$.workspace_id'), 'personal') = ?"
+        else:
+            where = "json_extract(metadata, '$.workspace_id') = ?"
+        rows = self.db.query("messages", where=where, params=(workspace_id,))
+        ids = [r["id"] for r in rows]
+
+        if ids:
+            with self.db._connect() as cur:
+                placeholders = ",".join("?" for _ in ids)
+                cur.execute(
+                    f"DELETE FROM messages WHERE id IN ({placeholders})", ids,
+                )
+                cur.execute(
+                    f"DELETE FROM _journal WHERE app_table = 'messages' AND row_id IN ({placeholders})",
+                    ids,
+                )
+            if self.db._chroma is not None:
+                try:
+                    self.db._chroma.delete(
+                        collection_name="messages_content",
+                        ids=[str(i) for i in ids],
+                    )
+                except Exception:
+                    pass
+            self.db.sync_duckdb_table("messages")
+
+        return len(ids)
 
     def clear(self) -> None:
         with self.db._connect() as cur:

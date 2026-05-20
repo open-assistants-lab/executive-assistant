@@ -71,11 +71,11 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
       ),
       child: Row(
         children: [
-          Icon(Icons.smart_toy_outlined, size: 18, color: context.tokens.colors.accent),
+          Icon(Symbols.smart_toy, size: 18, color: context.tokens.colors.accent),
           const SizedBox(width: 8),
           Text(
             'Subagents',
-            style: context.tokens.typography.textTheme.headlineMedium!.copyWith(fontSize: 15),
+            style: context.tokens.typography.textTheme.headlineMedium!.copyWith(fontSize: 15, color: context.tokens.colors.textPrimary),
           ),
           const Spacer(),
           if (state.loading && state.agents.isNotEmpty)
@@ -92,12 +92,12 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
           const SizedBox(width: 4),
           InkWell(
             onTap: _load,
-            child: Icon(Icons.refresh, size: 16, color: context.tokens.colors.textTertiary),
+            child: Icon(Symbols.refresh, size: 16, color: context.tokens.colors.textTertiary),
           ),
           const SizedBox(width: 8),
           InkWell(
             onTap: _showCreateDialog,
-            child: Icon(Icons.add, size: 18, color: context.tokens.colors.textTertiary),
+            child: Icon(Symbols.add, size: 18, color: context.tokens.colors.textTertiary),
           ),
         ],
       ),
@@ -131,7 +131,7 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.smart_toy_outlined, size: 40, color: context.tokens.colors.textTertiary),
+            Icon(Symbols.smart_toy, size: 40, color: context.tokens.colors.textTertiary),
             const SizedBox(height: 8),
             Text(
               'No subagents yet',
@@ -161,7 +161,7 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
           agent: agent,
           runningJobs: runningJobs,
           onStart: () => _showStartDialog(agent),
-          onDetail: () => _showDetailDialog(agent),
+          onEdit: () => _showEditDialog(agent),
           onDelete: () => _confirmDelete(agent),
         );
       },
@@ -184,11 +184,17 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
     var submitting = false;
     String? nameError;
     Set<String> selectedTools = {};
+    Set<String> selectedSkills = {};
 
     List<String>? allTools;
+    List<String>? allSkills;
     try {
       allTools = await ref.read(apiClientProvider).listToolNames();
       selectedTools = allTools.toSet();
+    } catch (_) {}
+    try {
+      final skillsJson = await ref.read(apiClientProvider).listSkills();
+      allSkills = skillsJson.map((s) => s['name']?.toString() ?? '').where((n) => n.isNotEmpty).toList();
     } catch (_) {}
     if (!mounted) {
       nameCtrl.dispose();
@@ -198,11 +204,12 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
       return;
     }
 
+    final t = context.tokens;
     final created = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Create Subagent'),
+          title: Text('Create Subagent', style: t.typography.textTheme.titleLarge?.copyWith(color: t.colors.textPrimary)),
           content: SingleChildScrollView(
             child: SizedBox(
               width: 480,
@@ -211,11 +218,11 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
                 children: [
                   TextField(
                     controller: nameCtrl,
+                    style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
                     decoration: InputDecoration(
                       labelText: 'Name *',
                       hintText: 'my-researcher',
                       errorText: nameError,
-                      border: const OutlineInputBorder(),
                     ),
                     onChanged: (_) =>
                         setDialogState(() => nameError = null),
@@ -223,41 +230,43 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
                   const SizedBox(height: 10),
                   TextField(
                     controller: descriptionCtrl,
+                    style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
                     decoration: const InputDecoration(
                       labelText: 'Description *',
                       hintText: 'Researches topics and summarizes',
-                      border: OutlineInputBorder(),
                     ),
                     maxLines: 2,
                   ),
                   const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _ScopeSelector(
-                          value: scope,
-                          onChanged: (v) => setDialogState(() => scope = v),
-                          enabled: !submitting,
-                        ),
-                      ),
+                  DropdownButtonFormField<String>(
+                    value: scope,
+                    decoration: const InputDecoration(
+                      labelText: 'Scope',
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'user', child: Text('User')),
+                      DropdownMenuItem(value: 'workspace', child: Text('Workspace')),
                     ],
+                    onChanged: submitting ? null : (v) {
+                      if (v != null) setDialogState(() => scope = v);
+                    },
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: modelCtrl,
+                    style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
                     decoration: const InputDecoration(
                       labelText: 'Model',
                       hintText: 'deepseek:deepseek-v4-flash',
-                      border: OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: systemPromptCtrl,
+                    style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
                     maxLines: 3,
                     decoration: const InputDecoration(
                       labelText: 'System prompt (optional)',
-                      border: OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -349,9 +358,9 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
                                     value: selectedTools.contains(t),
                                     title: Text(
                                       t,
-                                      style: context.tokens.typography.textTheme.bodySmall!.copyWith(
-                                        fontSize: 12,
-                                      ),
+                                  style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+                                    fontSize: 12, color: context.tokens.colors.textSecondary,
+                                  ),
                                     ),
                                     onChanged: (v) {
                                       setDialogState(() {
@@ -363,6 +372,77 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
                                         } else {
                                           selectedTools = selectedTools
                                               .difference({t});
+                                        }
+                                      });
+                                    },
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        ),
+                      ],
+                      if (allSkills != null) ...[
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Text(
+                              'Skills',
+                              style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+                                color: context.tokens.colors.textSecondary,
+                              ),
+                            ),
+                            const Spacer(),
+                            InkWell(
+                              onTap: () => setDialogState(
+                                () => selectedSkills = allSkills!.toSet(),
+                              ),
+                              child: Text(
+                                'All',
+                                style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+                                  color: context.tokens.colors.accent,
+                                ),
+                              ),
+                            ),
+                            Text(' / ',
+                                style: TextStyle(color: context.tokens.colors.textTertiary)),
+                            InkWell(
+                              onTap: () => setDialogState(
+                                () => selectedSkills = {},
+                              ),
+                              child: Text(
+                                'Clear',
+                                style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+                                  color: context.tokens.colors.accent,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        SizedBox(
+                          height: 120,
+                          child: ListView(
+                            children: allSkills
+                                .map(
+                                  (s) => CheckboxListTile(
+                                    dense: true,
+                                    value: selectedSkills.contains(s),
+                                    title: Text(
+                                      s,
+                                  style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+                                    fontSize: 12, color: context.tokens.colors.textSecondary,
+                                  ),
+                                    ),
+                                    onChanged: (v) {
+                                      setDialogState(() {
+                                        if (v == true) {
+                                          selectedSkills = {
+                                            ...selectedSkills,
+                                            s,
+                                          };
+                                        } else {
+                                          selectedSkills = selectedSkills
+                                              .difference({s});
                                         }
                                       });
                                     },
@@ -429,6 +509,9 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
                                       (allTools?.length ?? 0)
                                   ? null
                                   : selectedTools.toList(),
+                              skills: selectedSkills.isEmpty
+                                  ? null
+                                  : selectedSkills.toList(),
                             );
                         if (ctx.mounted) Navigator.pop(ctx, true);
                       } catch (e) {
@@ -463,11 +546,12 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
     final taskCtrl = TextEditingController();
     var submitting = false;
 
+    final t = context.tokens;
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: Text('Start ${agent.name}'),
+          title: Text('Start ${agent.name}', style: t.typography.textTheme.titleLarge?.copyWith(color: t.colors.textPrimary)),
           content: SizedBox(
             width: 400,
             child: TextField(
@@ -475,10 +559,10 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
               autofocus: true,
               minLines: 3,
               maxLines: 6,
+              style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
               decoration: const InputDecoration(
                 labelText: 'Task',
                 hintText: 'What should the subagent do?',
-                border: OutlineInputBorder(),
               ),
             ),
           ),
@@ -523,114 +607,6 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
     taskCtrl.dispose();
   }
 
-  void _showDetailDialog(SubagentAgentDef agent) {
-    final state = ref.read(subagentProvider);
-    final agentJobs =
-        state.activeJobs.values.where((j) => j.agentName == agent.name).toList()
-          ..sort((a, b) => (b.createdAt ?? '').compareTo(a.createdAt ?? ''));
-
-    var selectedJobId = agentJobs.isNotEmpty ? agentJobs.first.jobId : null;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          titlePadding: const EdgeInsets.fromLTRB(20, 16, 8, 0),
-          title: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  agent.name,
-                  style: context.tokens.typography.textTheme.headlineMedium!.copyWith(fontSize: 18),
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.edit_outlined, size: 18),
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  _showEditDialog(agent);
-                },
-                tooltip: 'Edit',
-              ),
-              IconButton(
-                icon: const Icon(Icons.close, size: 18),
-                onPressed: () => Navigator.pop(ctx),
-              ),
-            ],
-          ),
-          content: SizedBox(
-            width: 520,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _DetailInfoRow(agent: agent),
-                  const Divider(),
-                  if (agentJobs.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: Center(
-                        child: Text(
-                          'No jobs yet',
-                          style: context.tokens.typography.textTheme.bodySmall!.copyWith(
-                            color: context.tokens.colors.textTertiary,
-                          ),
-                        ),
-                      ),
-                    )
-                  else
-                    ...agentJobs.map(
-                      (job) => _JobCard(
-                        job: job,
-                        isSelected: job.jobId == selectedJobId,
-                        onSelect: () =>
-                            setDialogState(() => selectedJobId = job.jobId),
-                        onCancel: () async {
-                          await ref
-                              .read(subagentProvider.notifier)
-                              .cancelJob(
-                                job.jobId,
-                                workspaceId: job.workspaceId,
-                              );
-                        },
-                        onInstruct: () => _showInstructDialog(job, ctx),
-                      ),
-                    ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      FilledButton.icon(
-                        icon: const Icon(Icons.play_arrow, size: 16),
-                        label: const Text('Start new task'),
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          _showStartDialog(agent);
-                        },
-                      ),
-                      const Spacer(),
-                      OutlinedButton.icon(
-                        icon: const Icon(Icons.delete_outline, size: 16),
-                        label: const Text('Delete agent'),
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          _confirmDelete(agent);
-                        },
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: context.tokens.colors.error,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Future<void> _showEditDialog(SubagentAgentDef agent) async {
     final descriptionCtrl = TextEditingController(text: agent.description);
     final modelCtrl = TextEditingController(text: agent.model ?? '');
@@ -642,11 +618,26 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
     var timeoutSeconds = agent.timeoutSeconds;
     var submitting = false;
 
+    Set<String> selectedTools = agent.tools?.toSet() ?? {};
+    Set<String> selectedSkills = agent.skills?.toSet() ?? {};
+
+    List<String>? allTools;
+    List<String>? allSkills;
+    try {
+      allTools = await ref.read(apiClientProvider).listToolNames();
+      if (selectedTools.isEmpty) selectedTools = allTools.toSet();
+    } catch (_) {}
+    try {
+      final skillsJson = await ref.read(apiClientProvider).listSkills();
+      allSkills = skillsJson.map((s) => s['name']?.toString() ?? '').where((n) => n.isNotEmpty).toList();
+    } catch (_) {}
+
+    final t = context.tokens;
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: Text('Edit ${agent.name}'),
+          title: Text('Edit ${agent.name}', style: t.typography.textTheme.titleLarge?.copyWith(color: t.colors.textPrimary)),
           content: SingleChildScrollView(
             child: SizedBox(
               width: 480,
@@ -655,27 +646,27 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
                 children: [
                   TextField(
                     controller: descriptionCtrl,
+                    style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
                     decoration: const InputDecoration(
                       labelText: 'Description',
-                      border: OutlineInputBorder(),
                     ),
                     maxLines: 2,
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: modelCtrl,
+                    style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
                     decoration: const InputDecoration(
                       labelText: 'Model',
-                      border: OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: systemPromptCtrl,
+                    style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
                     maxLines: 3,
                     decoration: const InputDecoration(
                       labelText: 'System prompt (optional)',
-                      border: OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -710,6 +701,149 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
                       ),
                     ],
                   ),
+                  if (allTools != null) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Text(
+                          'Tools',
+                          style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+                            color: context.tokens.colors.textSecondary,
+                          ),
+                        ),
+                        const Spacer(),
+                        InkWell(
+                          onTap: () => setDialogState(
+                            () => selectedTools = allTools!.toSet(),
+                          ),
+                          child: Text(
+                            'All',
+                            style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+                              color: context.tokens.colors.accent,
+                            ),
+                          ),
+                        ),
+                        Text(' / ',
+                            style: TextStyle(color: context.tokens.colors.textTertiary)),
+                        InkWell(
+                          onTap: () => setDialogState(
+                            () => selectedTools = {},
+                          ),
+                          child: Text(
+                            'Clear',
+                            style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+                              color: context.tokens.colors.accent,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    SizedBox(
+                      height: 120,
+                      child: ListView(
+                        children: allTools
+                            .where((t) => !t.startsWith('subagent_'))
+                            .map(
+                              (t) => CheckboxListTile(
+                                dense: true,
+                                value: selectedTools.contains(t),
+                                title: Text(
+                                  t,
+                              style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+                                fontSize: 12, color: context.tokens.colors.textSecondary,
+                              ),
+                                ),
+                                onChanged: (v) {
+                                  setDialogState(() {
+                                    if (v == true) {
+                                      selectedTools = {
+                                        ...selectedTools,
+                                        t,
+                                      };
+                                    } else {
+                                      selectedTools = selectedTools
+                                          .difference({t});
+                                    }
+                                  });
+                                },
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                  ],
+                  if (allSkills != null) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Text(
+                          'Skills',
+                          style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+                            color: context.tokens.colors.textSecondary,
+                          ),
+                        ),
+                        const Spacer(),
+                        InkWell(
+                          onTap: () => setDialogState(
+                            () => selectedSkills = allSkills!.toSet(),
+                          ),
+                          child: Text(
+                            'All',
+                            style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+                              color: context.tokens.colors.accent,
+                            ),
+                          ),
+                        ),
+                        Text(' / ',
+                            style: TextStyle(color: context.tokens.colors.textTertiary)),
+                        InkWell(
+                          onTap: () => setDialogState(
+                            () => selectedSkills = {},
+                          ),
+                          child: Text(
+                            'Clear',
+                            style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+                              color: context.tokens.colors.accent,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    SizedBox(
+                      height: 120,
+                      child: ListView(
+                        children: allSkills
+                            .map(
+                              (s) => CheckboxListTile(
+                                dense: true,
+                                value: selectedSkills.contains(s),
+                                title: Text(
+                                  s,
+                              style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+                                fontSize: 12, color: context.tokens.colors.textSecondary,
+                              ),
+                                ),
+                                onChanged: (v) {
+                                  setDialogState(() {
+                                    if (v == true) {
+                                      selectedSkills = {
+                                        ...selectedSkills,
+                                        s,
+                                      };
+                                    } else {
+                                      selectedSkills = selectedSkills
+                                          .difference({s});
+                                    }
+                                  });
+                                },
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -739,6 +873,13 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
                               maxLlmCalls: maxLlmCalls,
                               costLimitUsd: costLimitUsd,
                               timeoutSeconds: timeoutSeconds,
+                              tools: selectedTools.length ==
+                                      (allTools?.length ?? 0)
+                                  ? null
+                                  : selectedTools.toList(),
+                              skills: selectedSkills.isEmpty
+                                  ? null
+                                  : selectedSkills.toList(),
                             );
                         if (ctx.mounted) Navigator.pop(ctx, true);
                         await _load();
@@ -773,9 +914,10 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete subagent?'),
+        title: Text('Delete subagent?', style: context.tokens.typography.textTheme.titleLarge?.copyWith(color: context.tokens.colors.textPrimary)),
         content: Text(
           'Delete ${agent.name}? This will also cancel any running jobs.',
+          style: context.tokens.typography.textTheme.bodyMedium?.copyWith(color: context.tokens.colors.textPrimary),
         ),
         actions: [
           TextButton(
@@ -802,90 +944,20 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
     }
   }
 
-  Future<void> _showInstructDialog(
-    SubagentJob job,
-    BuildContext dialogCtx,
-  ) async {
-    final instructionCtrl = TextEditingController();
-    var submitting = false;
-
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Send Instruction'),
-          content: SizedBox(
-            width: 400,
-            child: TextField(
-              controller: instructionCtrl,
-              autofocus: true,
-              minLines: 2,
-              maxLines: 4,
-              decoration: const InputDecoration(
-                labelText: 'Instruction',
-                hintText: 'e.g., focus on Sydney weather',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: submitting ? null : () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: submitting
-                  ? null
-                  : () async {
-                      final text = instructionCtrl.text.trim();
-                      if (text.isEmpty) return;
-                      setDialogState(() => submitting = true);
-                      try {
-                        await ref
-                            .read(subagentProvider.notifier)
-                            .instructJob(
-                              job.jobId,
-                              text,
-                              workspaceId: job.workspaceId,
-                            );
-                        if (ctx.mounted) Navigator.pop(ctx);
-                      } catch (e) {
-                        if (!ctx.mounted) return;
-                        setDialogState(() => submitting = false);
-                        ScaffoldMessenger.of(ctx).showSnackBar(
-                          SnackBar(content: Text('Instruct failed: $e')),
-                        );
-                      }
-                    },
-              child: submitting
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Send'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    instructionCtrl.dispose();
-  }
 }
 
 class _SubagentTile extends ConsumerWidget {
   final SubagentAgentDef agent;
   final List<SubagentJob> runningJobs;
   final VoidCallback onStart;
-  final VoidCallback onDetail;
+  final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const _SubagentTile({
     required this.agent,
     required this.runningJobs,
     required this.onStart,
-    required this.onDetail,
+    required this.onEdit,
     required this.onDelete,
   });
 
@@ -902,12 +974,13 @@ class _SubagentTile extends ConsumerWidget {
 
     return ListTile(
       dense: true,
+      onTap: onEdit,
       title: Row(
         children: [
           Expanded(
             child: Text(
               agent.name,
-              style: context.tokens.typography.textTheme.bodyLarge!.copyWith(fontSize: 13),
+              style: context.tokens.typography.textTheme.bodyLarge!.copyWith(fontSize: 13, color: context.tokens.colors.textPrimary),
             ),
           ),
           _ScopeBadge(label: agent.scope),
@@ -922,7 +995,7 @@ class _SubagentTile extends ConsumerWidget {
             agent.description.isEmpty ? 'No description' : agent.description,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: context.tokens.typography.textTheme.bodySmall!.copyWith(fontSize: 11),
+            style: context.tokens.typography.textTheme.bodySmall!.copyWith(fontSize: 11, color: context.tokens.colors.textSecondary),
           ),
           if (progressMsg != null)
             Text(
@@ -942,7 +1015,7 @@ class _SubagentTile extends ConsumerWidget {
           if (hasRunning)
             IconButton(
               tooltip: 'Cancel job',
-              icon: const Icon(Icons.stop_circle_outlined, size: 18),
+              icon: const Icon(Symbols.stop_circle, size: 18),
               color: context.tokens.colors.warning,
               onPressed: () {
                 ref
@@ -956,18 +1029,18 @@ class _SubagentTile extends ConsumerWidget {
           else
             IconButton(
               tooltip: 'Start task',
-              icon: const Icon(Icons.play_arrow_outlined, size: 18),
+              icon: const Icon(Symbols.play_arrow, size: 18),
               onPressed: onStart,
             ),
           IconButton(
-            tooltip: 'Details',
-            icon: const Icon(Icons.visibility_outlined, size: 18),
-            onPressed: onDetail,
+            tooltip: 'Edit',
+            icon: const Icon(Symbols.edit, size: 18),
+            onPressed: onEdit,
           ),
           if (!hasRunning)
             IconButton(
               tooltip: 'Delete',
-              icon: const Icon(Icons.delete_outline, size: 18),
+              icon: const Icon(Symbols.delete, size: 18),
               onPressed: onDelete,
             ),
         ],
@@ -1035,41 +1108,6 @@ class _StatusBadge extends StatelessWidget {
   }
 }
 
-class _ScopeSelector extends StatelessWidget {
-  final String value;
-  final ValueChanged<String> onChanged;
-  final bool enabled;
-
-  const _ScopeSelector({
-    required this.value,
-    required this.onChanged,
-    this.enabled = true,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        const Text('Scope:', style: TextStyle(fontSize: 13)),
-        const SizedBox(width: 8),
-        Radio<String>(
-          value: 'user',
-          groupValue: value,
-          onChanged: enabled ? (v) => onChanged(v!) : null,
-        ),
-        const Text('User', style: TextStyle(fontSize: 13)),
-        const SizedBox(width: 8),
-        Radio<String>(
-          value: 'workspace',
-          groupValue: value,
-          onChanged: enabled ? (v) => onChanged(v!) : null,
-        ),
-        const Text('Workspace', style: TextStyle(fontSize: 13)),
-      ],
-    );
-  }
-}
-
 class _NumberField extends StatelessWidget {
   final String label;
   final num value;
@@ -1088,9 +1126,9 @@ class _NumberField extends StatelessWidget {
     return TextField(
       controller: TextEditingController(text: value.toString())
         ..selection = TextSelection.collapsed(offset: value.toString().length),
+      style: DefaultTextStyle.of(context).style.copyWith(fontSize: 13, color: context.tokens.colors.textPrimary),
       decoration: InputDecoration(
         labelText: label,
-        border: const OutlineInputBorder(),
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       ),
@@ -1098,7 +1136,6 @@ class _NumberField extends StatelessWidget {
         decimal: isDouble,
         signed: false,
       ),
-      style: const TextStyle(fontSize: 13),
       onChanged: (s) {
         final parsed = isDouble ? double.tryParse(s) : int.tryParse(s);
         if (parsed != null && parsed > 0) onChanged(parsed);
@@ -1107,206 +1144,4 @@ class _NumberField extends StatelessWidget {
   }
 }
 
-class _DetailInfoRow extends StatelessWidget {
-  final SubagentAgentDef agent;
 
-  const _DetailInfoRow({required this.agent});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            _ScopeBadge(label: agent.scope),
-            const SizedBox(width: 8),
-            if (agent.model != null)
-              Text(
-                agent.model!,
-                style: context.tokens.typography.textTheme.bodySmall!.copyWith(fontSize: 11),
-              ),
-          ],
-        ),
-        if (agent.description.isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Text(
-            agent.description,
-            style: context.tokens.typography.textTheme.bodyLarge!.copyWith(fontSize: 13),
-          ),
-        ],
-        const SizedBox(height: 8),
-        if (agent.tools != null)
-          Wrap(
-            spacing: 4,
-            runSpacing: 2,
-            children: agent.tools!
-                .map(
-                  (t) => Chip(
-                    label: Text(t, style: const TextStyle(fontSize: 10)),
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.zero,
-                    labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-                  ),
-                )
-                .toList(),
-          ),
-        const SizedBox(height: 4),
-        Text(
-          'Max calls: ${agent.maxLlmCalls}  |  Cost: \$${agent.costLimitUsd}  |  Timeout: ${agent.timeoutSeconds}s',
-          style: context.tokens.typography.textTheme.bodySmall!.copyWith(fontSize: 10),
-        ),
-      ],
-    );
-  }
-}
-
-class _JobCard extends StatelessWidget {
-  final SubagentJob job;
-  final bool isSelected;
-  final VoidCallback onSelect;
-  final VoidCallback onCancel;
-  final VoidCallback onInstruct;
-
-  const _JobCard({
-    required this.job,
-    required this.isSelected,
-    required this.onSelect,
-    required this.onCancel,
-    required this.onInstruct,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final progress = job.progress;
-    final phase = progress?['phase']?.toString();
-    final message = progress?['message']?.toString();
-    final steps = progress?['steps_completed'] as int?;
-
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      color: isSelected ? context.tokens.colors.accentMuted : null,
-      child: InkWell(
-        onTap: onSelect,
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      job.task,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: context.tokens.typography.textTheme.bodyLarge!.copyWith(fontSize: 12),
-                    ),
-                  ),
-                  _StatusBadge(label: job.status),
-                ],
-              ),
-              const SizedBox(height: 4),
-              if (phase != null || message != null) ...[
-                Text(
-                  phase != null && message != null
-                      ? '$phase: $message'
-                      : phase ?? message ?? '',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: context.tokens.typography.textTheme.bodySmall!.copyWith(fontSize: 11),
-                ),
-                const SizedBox(height: 2),
-              ],
-              if (steps != null)
-                Text(
-                  'Step $steps',
-                  style: context.tokens.typography.textTheme.bodySmall!.copyWith(
-                    fontSize: 10,
-                    color: context.tokens.colors.textTertiary,
-                  ),
-                ),
-              if (job.result != null && job.isTerminal)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    job.result!.length > 100
-                        ? '${job.result!.substring(0, 100)}...'
-                        : job.result!,
-                    style: context.tokens.typography.textTheme.bodySmall!.copyWith(
-                      fontSize: 10,
-                      color: context.tokens.colors.success,
-                    ),
-                  ),
-                ),
-              if (job.error != null && job.isTerminal)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    job.error!,
-                    style: context.tokens.typography.textTheme.bodySmall!.copyWith(
-                      fontSize: 10,
-                      color: context.tokens.colors.error,
-                    ),
-                  ),
-                ),
-              if (job.instructions.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    '📝 ${job.instructions.length} instruction(s)',
-                    style: context.tokens.typography.textTheme.bodySmall!.copyWith(
-                      fontSize: 10,
-                      color: context.tokens.colors.textTertiary,
-                    ),
-                  ),
-                ),
-              if (job.isRunning)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextButton.icon(
-                        icon: const Icon(Icons.stop, size: 14),
-                        label: const Text(
-                          'Cancel',
-                          style: TextStyle(fontSize: 11),
-                        ),
-                        onPressed: onCancel,
-                        style: TextButton.styleFrom(
-                          foregroundColor: context.tokens.colors.warning,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      TextButton.icon(
-                        icon: const Icon(Icons.edit_note, size: 14),
-                        label: const Text(
-                          'Instruct',
-                          style: TextStyle(fontSize: 11),
-                        ),
-                        onPressed: onInstruct,
-                        style: TextButton.styleFrom(
-                          foregroundColor: context.tokens.colors.accent,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}

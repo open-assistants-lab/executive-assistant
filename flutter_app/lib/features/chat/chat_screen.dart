@@ -112,10 +112,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     final isConnected = state.connected;
     final statusIcon = isConnected
-        ? Icons.cloud_done
+        ? Symbols.cloud_done
         : state.status == ChatStatus.disconnected
-        ? Icons.cloud_off
-        : Icons.cloud_sync;
+        ? Symbols.cloud_off
+        : Symbols.cloud_sync;
     final tokens = context.tokens;
     final statusColor = isConnected
         ? tokens.colors.success
@@ -145,6 +145,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             child: _MessageList(
               state: state,
               scrollController: _scrollController,
+              workspaceId: wsId,
             ),
           ),
           if (state.status == ChatStatus.error && state.error != null)
@@ -159,12 +160,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 class _MessageList extends StatelessWidget {
   final ChatState state;
   final ScrollController scrollController;
+  final String workspaceId;
 
-  const _MessageList({required this.state, required this.scrollController});
+  const _MessageList({required this.state, required this.scrollController, required this.workspaceId});
 
   @override
   Widget build(BuildContext context) {
     return ChatMessageList(
+      key: ValueKey('chat_list_$workspaceId'),
       messages: state.messages,
       isStreaming: state.status == ChatStatus.streaming,
       streamingText: state.streamingText,
@@ -176,7 +179,7 @@ class _MessageList extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.chat_bubble_outline, size: 48, color: context.tokens.colors.textTertiary),
+            Icon(Symbols.chat_bubble, size: 48, color: context.tokens.colors.textTertiary),
             SizedBox(height: context.tokens.spacing.lg),
             Text(
               'Send a message to start',

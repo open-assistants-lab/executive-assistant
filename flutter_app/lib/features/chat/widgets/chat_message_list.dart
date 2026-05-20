@@ -67,10 +67,14 @@ class ChatMessageList extends StatelessWidget {
     }
 
     for (var i = 0; i < messages.length; i++) {
+      final msg = messages[i];
       items.add(
-        EaAnimations.staggeredEntry(
-          index: i,
-          child: MessageBubble(message: messages[i]),
+        KeyedSubtree(
+          key: ValueKey('msg_${msg.id}_${msg.content.hashCode}'),
+          child: EaAnimations.staggeredEntry(
+            index: i,
+            child: MessageBubble(message: msg),
+          ),
         ),
       );
     }

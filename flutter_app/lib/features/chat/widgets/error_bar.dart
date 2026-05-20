@@ -19,7 +19,7 @@ class ErrorBar extends ConsumerWidget {
       color: tokens.colors.error.withValues(alpha: 0.08),
       child: Row(
         children: [
-          Icon(Icons.error_outline, size: 18, color: tokens.colors.error),
+          Icon(Symbols.error, size: 18, color: tokens.colors.error),
           SizedBox(width: tokens.spacing.sm),
           Expanded(
             child: Text(
@@ -32,7 +32,7 @@ class ErrorBar extends ConsumerWidget {
             ),
           ),
           IconButton(
-            icon: Icon(Icons.close, size: 16, color: tokens.colors.error),
+            icon: Icon(Symbols.close, size: 16, color: tokens.colors.error),
             constraints: BoxConstraints(minWidth: 28, minHeight: 28),
             padding: EdgeInsets.zero,
             onPressed: () => ref.read(agentProvider.notifier).clearError(),

@@ -17,6 +17,7 @@ from src.http.routers import (
     memories_router,
     skills_router,
     subagents_router,
+    tools_router,
     # todos_router,
     workspace_router,
     workspaces_router,
@@ -97,6 +98,7 @@ app.include_router(workspace_router)
 app.include_router(workspaces_router)
 app.include_router(skills_router)
 app.include_router(subagents_router)
+app.include_router(tools_router)
 app.include_router(ws_router)
 
 # ConnectKit OAuth + catalog routers (safe if connectkit not installed)

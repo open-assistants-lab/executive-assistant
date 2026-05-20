@@ -86,9 +86,14 @@ async def update_workspace(workspace_id: str, req: UpdateWorkspaceRequest):
 
 
 @router.delete("/{workspace_id}")
-async def delete_workspace_endpoint(workspace_id: str):
+async def delete_workspace_endpoint(workspace_id: str, user_id: str = "default_user"):
     ws = load_workspace(workspace_id)
     if ws is None or ws.id == "personal":
         return {"error": "Cannot delete"}, 400
+
+    from src.storage.messages import get_message_store
+    store = get_message_store(user_id, workspace_id)
+    deleted_count = store.delete_messages_for_workspace(ws.id)
+
     _delete_ws(ws.id)
-    return {"status": "deleted"}
+    return {"status": "deleted", "messages_deleted": deleted_count}

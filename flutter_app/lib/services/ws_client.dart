@@ -275,8 +275,6 @@ class WsClient {
         _safeAddMessage(msg);
         break;
       case 'tool_end':
-        final callId = msg['call_id']?.toString() ?? '';
-        _pendingApprovals.remove(callId);
         _safeAddMessage(msg);
         break;
       default:

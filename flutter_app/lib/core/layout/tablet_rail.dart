@@ -57,7 +57,7 @@ class _TabletRail extends ConsumerWidget {
                 children: [
                   // Add workspace button
                   _RailIcon(
-                    icon: Icons.add,
+                    icon: Symbols.add,
                     tooltip: 'New workspace',
                     isActive: false,
                     onTap: () => _showCreateDialog(context, ref),
@@ -78,6 +78,7 @@ class _TabletRail extends ConsumerWidget {
                       onTap: () {
                         ref.read(currentWorkspaceIdProvider.notifier).state = id;
                       },
+                      onLongPress: () => _confirmDeleteWorkspace(context, ref, id, name),
                       tokens: tokens,
                     );
                   }),
@@ -94,7 +95,7 @@ class _TabletRail extends ConsumerWidget {
             child: Column(
               children: [
                 _RailIcon(
-                  icon: Icons.settings_outlined,
+                  icon: Symbols.settings,
                   tooltip: 'Settings',
                   isActive: false,
                   onTap: () => _showSettings(context),
@@ -102,7 +103,7 @@ class _TabletRail extends ConsumerWidget {
                 ),
                 const SizedBox(height: 4),
                 _RailIcon(
-                  icon: tokens.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                  icon: tokens.isDark ? Symbols.light_mode : Symbols.dark_mode,
                   tooltip: tokens.isDark ? 'Switch to light mode' : 'Switch to dark mode',
                   isActive: false,
                   onTap: () => ref.read(themeModeProvider.notifier).toggle(),
@@ -119,15 +120,16 @@ class _TabletRail extends ConsumerWidget {
 
   void _showCreateDialog(BuildContext context, WidgetRef ref) {
     final nameCtrl = TextEditingController();
+    final t = context.tokens;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('New Workspace'),
+        title: Text('New Workspace', style: t.typography.textTheme.titleLarge?.copyWith(color: t.colors.textPrimary)),
         content: TextField(
           controller: nameCtrl,
+          style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
           decoration: const InputDecoration(
             hintText: 'Workspace name',
-            border: OutlineInputBorder(),
           ),
         ),
         actions: [
@@ -150,6 +152,35 @@ class _TabletRail extends ConsumerWidget {
     );
   }
 
+  void _confirmDeleteWorkspace(BuildContext context, WidgetRef ref, String id, String name) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        final t = ctx.tokens;
+        return AlertDialog(
+          title: Text('Delete workspace?', style: t.typography.textTheme.titleLarge?.copyWith(color: t.colors.textPrimary)),
+          content: Text(
+            'Delete "$name"? This will also delete all associated conversation messages.',
+            style: t.typography.textTheme.bodyMedium?.copyWith(color: t.colors.textPrimary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                ref.read(workspaceNotifierProvider.notifier).deleteWorkspace(id);
+              },
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _showSettings(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -166,6 +197,7 @@ class _RailIcon extends StatelessWidget {
   final String? tooltip;
   final bool isActive;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
   final EaTokens tokens;
 
   const _RailIcon({
@@ -174,6 +206,7 @@ class _RailIcon extends StatelessWidget {
     this.tooltip,
     required this.isActive,
     required this.onTap,
+    this.onLongPress,
     required this.tokens,
   });
 
@@ -213,6 +246,7 @@ class _RailIcon extends StatelessWidget {
     if (onTap != null) {
       return InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         borderRadius: tokens.radius.mdAll,
         child: child,
       );

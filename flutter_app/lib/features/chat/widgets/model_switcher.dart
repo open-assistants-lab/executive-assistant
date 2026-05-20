@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import '../../../providers/agent_provider.dart';
@@ -207,7 +208,7 @@ class _ModelSwitcherState extends ConsumerState<ModelSwitcher> {
             ),
             const SizedBox(width: 2),
             Icon(
-              hasKeys ? Icons.expand_more : Icons.add_circle_outline,
+              hasKeys ? Symbols.expand_more : Symbols.add_circle,
               size: 14,
               color: isDark ? const Color(0x80FFFFFF) : const Color(0x80000000),
             ),
@@ -264,7 +265,7 @@ class _ModelPickerSheet extends StatelessWidget {
                 ),
                 const Spacer(),
                 IconButton(
-                  icon: const Icon(Icons.settings_outlined, size: 20),
+                  icon: const Icon(Symbols.settings, size: 20),
                   onPressed: () {
                     Navigator.pop(context);
                     showModalBottomSheet(
@@ -366,7 +367,7 @@ class _ModelRow extends StatelessWidget {
               ),
             ),
             if (isSelected)
-              Icon(Icons.check, size: 18, color: theme.colorScheme.primary),
+              Icon(Symbols.check, size: 18, color: theme.colorScheme.primary),
           ],
         ),
       ),

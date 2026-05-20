@@ -32,7 +32,7 @@ class CompanionContextPill extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(
           children: [
-            Icon(Icons.lightbulb_outline, size: 14, color: context.tokens.colors.accent),
+            Icon(Symbols.lightbulb, size: 14, color: context.tokens.colors.accent),
             const SizedBox(width: 8),
             Expanded(
               child: Text(

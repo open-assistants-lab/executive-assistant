@@ -17,20 +17,20 @@ import '../../features/settings/settings_screen.dart';
 
 enum DesktopSidebarItem {
   email(
-    icon: Icons.mail_outlined,
-    activeIcon: Icons.mail,
+    icon: Symbols.mail,
+    activeIcon: Symbols.mail,
     label: 'Email',
     path: '/email',
   ),
   workspace(
-    icon: Icons.folder_outlined,
-    activeIcon: Icons.folder,
+    icon: Symbols.folder,
+    activeIcon: Symbols.folder,
     label: 'Workspace',
     path: '/workspace',
   ),
   settings(
-    icon: Icons.settings_outlined,
-    activeIcon: Icons.settings,
+    icon: Symbols.settings,
+    activeIcon: Symbols.settings,
     label: 'Settings',
     path: '/settings',
   );
@@ -127,7 +127,7 @@ class _Sidebar extends ConsumerWidget {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
-                                  Icons.add,
+                                  Symbols.add,
                                   size: 24,
                                   color: tokens.colors.textTertiary,
                                 ),
@@ -150,7 +150,7 @@ class _Sidebar extends ConsumerWidget {
                         ListTile(
                           dense: true,
                           leading: Icon(
-                            Icons.add,
+                            Symbols.add,
                             size: 16,
                             color: tokens.colors.textTertiary,
                           ),
@@ -197,6 +197,23 @@ class _Sidebar extends ConsumerWidget {
                                       : tokens.colors.textSecondary,
                                 ),
                               ),
+                              trailing: PopupMenuButton<String>(
+                                icon: Icon(Symbols.more_horiz,
+                                  size: 16,
+                                  color: tokens.colors.textTertiary,
+                                ),
+                                onSelected: (value) {
+                                  if (value == 'delete') {
+                                    _confirmDeleteWorkspace(context, ref, id, name);
+                                  }
+                                },
+                                itemBuilder: (_) => [
+                                  const PopupMenuItem(
+                                    value: 'delete',
+                                    child: Text('Delete'),
+                                  ),
+                                ],
+                              ),
                               selected: isActive,
                               selectedTileColor: tokens.colors.bgElevated,
                               hoverColor: tokens.colors.bgElevated,
@@ -225,7 +242,7 @@ class _Sidebar extends ConsumerWidget {
                 const Spacer(),
                 IconButton(
                   icon: Icon(
-                    tokens.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                    tokens.isDark ? Symbols.light_mode : Symbols.dark_mode,
                     size: 18,
                     color: tokens.colors.textSecondary,
                   ),
@@ -243,15 +260,16 @@ class _Sidebar extends ConsumerWidget {
 
   void _showCreateDialog(BuildContext context, WidgetRef ref) {
     final nameCtrl = TextEditingController();
+    final t = context.tokens;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('New Workspace'),
+        title: Text('New Workspace', style: t.typography.textTheme.titleLarge?.copyWith(color: t.colors.textPrimary)),
         content: TextField(
           controller: nameCtrl,
+          style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
           decoration: const InputDecoration(
             hintText: 'Workspace name',
-            border: OutlineInputBorder(),
           ),
         ),
         actions: [
@@ -282,6 +300,35 @@ class _Sidebar extends ConsumerWidget {
       isScrollControlled: true,
       useSafeArea: true,
       builder: (_) => const SettingsScreen(),
+    );
+  }
+
+  void _confirmDeleteWorkspace(BuildContext context, WidgetRef ref, String id, String name) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        final t = ctx.tokens;
+        return AlertDialog(
+          title: Text('Delete workspace?', style: t.typography.textTheme.titleLarge?.copyWith(color: t.colors.textPrimary)),
+          content: Text(
+            'Delete "$name"? This will also delete all associated conversation messages.',
+            style: t.typography.textTheme.bodyMedium?.copyWith(color: t.colors.textPrimary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                ref.read(workspaceNotifierProvider.notifier).deleteWorkspace(id);
+              },
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -534,7 +581,7 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
                                   .read(chatTabNotifierProvider.notifier)
                                   .closeTab(e.key),
                               child: Icon(
-                                Icons.close,
+                                Symbols.close,
                                 size: 10,
                                 color: tokens.colors.textTertiary,
                               ),

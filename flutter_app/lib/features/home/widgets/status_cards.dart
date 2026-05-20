@@ -24,21 +24,21 @@ class StatusCards extends StatelessWidget {
         ),
         children: [
           _StatusCard(
-            icon: Icons.mail_outline,
+            icon: Symbols.mail,
             value: unreadEmails,
             label: 'Unread',
             color: context.tokens.colors.accent,
           ),
           SizedBox(width: context.tokens.spacing.xxl),
           _StatusCard(
-            icon: Icons.check_circle_outline,
+            icon: Symbols.check_circle,
             value: dueTasks,
             label: 'Due',
             color: context.tokens.colors.warning,
           ),
           SizedBox(width: context.tokens.spacing.xxl),
           _StatusCard(
-            icon: Icons.smart_toy_outlined,
+            icon: Symbols.smart_toy,
             value: activeSubagents,
             label: 'Active',
             color: context.tokens.colors.accent,

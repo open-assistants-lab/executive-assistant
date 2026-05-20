@@ -20,26 +20,31 @@ class AppSearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = context.tokens;
     return Container(
       height: 36,
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: tokens.colors.bgField,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.divider),
       ),
       child: TextField(
         controller: controller,
         onTap: onTap,
         onChanged: onChanged,
         onSubmitted: onSubmitted,
-        style: AppTypography.body.copyWith(fontSize: 13),
+        textAlignVertical: TextAlignVertical.center,
+        style: tokens.typography.textTheme.bodyMedium?.copyWith(
+          fontSize: 13, color: tokens.colors.textPrimary,
+        ),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: AppTypography.caption.copyWith(fontSize: 13, color: AppColors.textDim),
-          prefixIcon: Icon(Icons.search, size: 16, color: AppColors.textDim),
+          hintStyle: tokens.typography.textTheme.bodySmall?.copyWith(fontSize: 13, color: tokens.colors.textTertiary),
+          prefixIcon: Icon(Symbols.search, size: 16, color: tokens.colors.textTertiary),
           border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
           isDense: true,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         ),
       ),
     );
@@ -90,58 +95,67 @@ class _AppChatFieldState extends State<AppChatField> {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = context.tokens;
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.cardPadding,
         vertical: AppSpacing.itemGap,
       ),
-      decoration: const BoxDecoration(
-        color: AppColors.background,
-        border: Border(top: BorderSide(color: AppColors.divider)),
+      decoration: BoxDecoration(
+        color: tokens.colors.bgCanvas,
+        border: Border(top: BorderSide(color: tokens.colors.borderSubtle)),
       ),
       child: Row(
         children: [
           Expanded(
             child: Container(
               decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.divider),
+                color: tokens.colors.bgField,
+                borderRadius: BorderRadius.circular(tokens.radius.md),
               ),
+              clipBehavior: Clip.antiAlias,
               child: TextField(
                 controller: _controller,
                 focusNode: _focusNode,
                 enabled: widget.enabled,
-                style: AppTypography.body.copyWith(fontSize: 13),
+                textAlignVertical: TextAlignVertical.center,
+                style: tokens.typography.textTheme.bodyMedium?.copyWith(
+                  fontSize: 13, color: tokens.colors.textPrimary,
+                ),
                 decoration: InputDecoration(
                   hintText: widget.hint,
-                  hintStyle: AppTypography.caption.copyWith(
-                    fontSize: 13, color: AppColors.textDim,
+                  hintStyle: tokens.typography.textTheme.bodySmall?.copyWith(
+                    fontSize: 13, color: tokens.colors.textTertiary,
                   ),
                   suffixIcon: widget.sending
                       ? IconButton(
-                          icon: const Icon(Icons.stop_rounded, size: 18),
+                          icon: const Icon(Symbols.stop, size: 18),
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                           onPressed: widget.onCancel,
                         )
                       : !widget.enabled
                           ? IconButton(
-                              icon: const Icon(Icons.refresh, size: 18),
+                              icon: const Icon(Symbols.refresh, size: 18),
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                               tooltip: 'Reconnect',
                               onPressed: widget.onReconnect,
                             )
                           : IconButton(
-                              icon: Icon(Icons.send_rounded, size: 20, color: AppColors.accent),
+                              icon: Icon(Symbols.send, size: 20, color: tokens.colors.textPrimary),
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                               onPressed: _send,
                             ),
+                  suffixIconConstraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                   border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  errorBorder: InputBorder.none,
+                  disabledBorder: InputBorder.none,
                   isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
                 onSubmitted: (_) => _send(),
               ),

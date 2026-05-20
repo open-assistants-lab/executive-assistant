@@ -115,6 +115,25 @@ async def test_run_sdk_agent_stream_does_not_mutate_system_message(monkeypatch):
     assert recorded[0].content == "base"
 
 
+async def test_get_sdk_loop_reuses_provider_key_loop_for_runtime_state(monkeypatch):
+    runner._loop_cache.clear()
+    created = []
+
+    async def fake_create_sdk_loop(*args, **kwargs):
+        loop = object()
+        created.append(loop)
+        return loop
+
+    monkeypatch.setattr(runner, "create_sdk_loop", fake_create_sdk_loop)
+
+    keys = {"openai": "test-key"}
+    first = await runner.get_sdk_loop("u", "ws", model="openai:gpt-4.1", provider_keys=keys)
+    second = await runner.get_sdk_loop("u", "ws", model="openai:gpt-4.1", provider_keys=keys)
+
+    assert second is first
+    assert created == [first]
+
+
 def test_reset_sdk_loop_removes_all_model_specific_workspace_loops(monkeypatch):
     runner._loop_cache.clear()
     runner._loop_cache["u:ws:default"] = object()

@@ -12,8 +12,8 @@ void main() {
           home: Builder(builder: (context) {
             final tokens = context.tokens;
             expect(tokens.isDark, true);
-            expect(tokens.colors.bgCanvas, const Color(0xFF0A0A0F));
-            expect(tokens.colors.accent, const Color(0xFF6C5CE7));
+            expect(tokens.colors.bgCanvas, const Color(0xFF0A0A0A));
+            expect(tokens.colors.accent, const Color(0xFFD4D4D4));
             expect(tokens.typography.textTheme.bodyLarge?.fontSize, 16);
             expect(tokens.spacing.lg, 16);
             expect(tokens.radius.md, 10);
@@ -34,8 +34,8 @@ void main() {
           home: Builder(builder: (context) {
             final tokens = context.tokens;
             expect(tokens.isDark, false);
-            expect(tokens.colors.bgCanvas, const Color(0xFFF8F8FA));
-            expect(tokens.colors.accent, const Color(0xFF5E4ED6));
+            expect(tokens.colors.bgCanvas, const Color(0xFFF8F8F8));
+            expect(tokens.colors.accent, const Color(0xFF2A2A2A));
             return const SizedBox();
           }),
         ),

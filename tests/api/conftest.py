@@ -1,6 +1,7 @@
 """Shared fixtures for API contract tests."""
 
 import os
+import tempfile
 
 import pytest
 from fastapi.testclient import TestClient
@@ -8,8 +9,22 @@ from fastapi.testclient import TestClient
 os.environ.setdefault("USER_ID", "test_api_user")
 
 
+@pytest.fixture(scope="session", autouse=True)
+def isolated_data_path():
+    """Keep API contract tests from reading or deleting local app data."""
+    with tempfile.TemporaryDirectory() as data_path:
+        os.environ["DEPLOYMENT_DATA_PATH"] = data_path
+
+        from src.config import reload_settings
+        from src.storage.messages import _stores
+
+        reload_settings()
+        _stores.clear()
+        yield data_path
+
+
 @pytest.fixture(scope="session")
-def app():
+def app(isolated_data_path):
     """Create FastAPI app for testing."""
     from src.http.main import app
 

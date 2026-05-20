@@ -6,7 +6,7 @@ from src.http.routers.email import router as email_router
 from src.http.routers.health import router as health_router
 from src.http.routers.memories import router as memories_router
 from src.http.routers.skills import router as skills_router
-from src.http.routers.subagents import router as subagents_router
+from src.http.routers.subagents import router as subagents_router, tools_router as tools_router
 
 # from src.http.routers.todos import router as todos_router
 from src.http.routers.workspace import router as workspace_router
@@ -24,4 +24,5 @@ __all__ = [
     "workspaces_router",
     "skills_router",
     "subagents_router",
+    "tools_router",
 ]
