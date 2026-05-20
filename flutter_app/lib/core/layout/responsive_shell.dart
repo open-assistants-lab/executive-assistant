@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../constants/breakpoints.dart';
 import 'mobile_layout.dart';
 import 'desktop_layout.dart';
+import 'tablet_rail.dart';
 
 class ResponsiveShell extends StatelessWidget {
   final Widget child;
@@ -14,6 +15,9 @@ class ResponsiveShell extends StatelessWidget {
       builder: (context, constraints) {
         if (constraints.maxWidth >= Breakpoints.desktop) {
           return DesktopLayout(child: child);
+        }
+        if (constraints.maxWidth >= Breakpoints.mobile) {
+          return TabletRailLayout(child: child);
         }
         return MobileLayout(child: child);
       },
