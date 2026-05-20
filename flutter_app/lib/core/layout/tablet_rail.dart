@@ -14,15 +14,17 @@ class TabletRailLayout extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = context.tokens;
 
-    return Row(
-      children: [
-        // 64px rail sidebar
-        _TabletRail(tokens: tokens),
-        // Divider
-        Container(width: 1, color: tokens.colors.borderSubtle),
-        // Content area
-        Expanded(child: child),
-      ],
+    return Scaffold(
+      body: Row(
+        children: [
+          // 64px rail sidebar
+          _TabletRail(tokens: tokens),
+          // Divider
+          Container(width: 1, color: tokens.colors.borderSubtle),
+          // Content area
+          Expanded(child: child),
+        ],
+      ),
     );
   }
 }
