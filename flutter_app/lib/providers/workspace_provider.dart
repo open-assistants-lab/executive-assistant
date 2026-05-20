@@ -126,6 +126,7 @@ class WorkspaceNotifier extends StateNotifier<String> {
       if (id == currentId) {
         await switchWorkspace('personal', 'Personal');
       }
+      ref.read(agentProvider.notifier).removeWorkspaceState(id);
       ref.invalidate(workspaceListProvider);
     } catch (_) {}
   }

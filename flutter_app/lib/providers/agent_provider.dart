@@ -101,6 +101,10 @@ class AgentNotifier extends StateNotifier<ChatState> {
 
   bool hasWorkspaceState(String id) => _workspaceStates.containsKey(id);
 
+  void removeWorkspaceState(String id) {
+    _workspaceStates.remove(id);
+  }
+
   void _setState(ChatState next) {
     state = next;
     _workspaceStates[_workspaceId] = next;
