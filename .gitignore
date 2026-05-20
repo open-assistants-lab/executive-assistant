@@ -70,3 +70,6 @@ flutter_app/ios/.symlinks/
 data/evaluations/
 .DS_Store
 .firecrawl/
+
+# Benchmark results
+results/
