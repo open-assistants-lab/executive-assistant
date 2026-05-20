@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/subagent.dart';
 import '../../providers/agent_provider.dart';
 import '../../providers/workspace_provider.dart';
 import '../../theme/app_theme.dart';
+import 'widgets/ea_list_tile.dart';
 
 class SkillsPanel extends ConsumerStatefulWidget {
   const SkillsPanel({super.key});
@@ -13,6 +15,7 @@ class SkillsPanel extends ConsumerStatefulWidget {
 
 class _SkillsPanelState extends ConsumerState<SkillsPanel> {
   List<Map<String, dynamic>> _skills = [];
+  List<SubagentAgentDef>? _allAgents;
   bool _loading = true;
   String? _error;
   int _loadSequence = 0;
@@ -40,8 +43,24 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
           ref.read(currentWorkspaceIdProvider) != requestedWorkspaceId) {
         return;
       }
+      List<SubagentAgentDef>? agents;
+      try {
+        final agentsJson = await ref
+            .read(apiClientProvider)
+            .listSubagents(workspaceId: requestedWorkspaceId);
+        agents = agentsJson
+            .map((j) => SubagentAgentDef.fromJson(j as Map<String, dynamic>))
+            .toList();
+      } catch (_) {}
+
+      if (!mounted ||
+          requestId != _loadSequence ||
+          ref.read(currentWorkspaceIdProvider) != requestedWorkspaceId) {
+        return;
+      }
       setState(() {
         _skills = skills.whereType<Map<String, dynamic>>().toList();
+        _allAgents = agents;
         _loading = false;
       });
     } catch (e) {
@@ -119,6 +138,11 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
     );
   }
 
+  int _usageCount(String skillName) {
+    if (_allAgents == null) return 0;
+    return _allAgents!.where((a) => a.skills?.contains(skillName) == true).length;
+  }
+
   Widget _buildBody() {
     if (_loading && _skills.isEmpty) {
       return const Center(child: CircularProgressIndicator(strokeWidth: 2));
@@ -162,11 +186,32 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
     return ListView.builder(
       padding: EdgeInsets.zero,
       itemCount: _skills.length,
-      itemBuilder: (_, i) => _SkillTile(
-        skill: _skills[i],
-        onEdit: () => _showEditDialog(_skills[i]),
-        onDelete: () => _confirmDelete(_skills[i]),
-      ),
+      itemBuilder: (_, i) {
+        final skill = _skills[i];
+        final name = skill['name']?.toString() ?? '';
+        final description = skill['description']?.toString() ?? '';
+        final scope = _scopeOf(skill);
+        final usageCount = _usageCount(name);
+        return EaListTile(
+          leading: Icon(Symbols.bolt, size: 18, color: context.tokens.colors.accent),
+          title: name,
+          subtitle: usageCount > 0 ? 'used by $usageCount agents' : (description.isNotEmpty ? description : null),
+          trailingBadges: [
+            _ScopeBadge(label: scope),
+          ],
+          trailingActions: [
+            IconButton(
+              icon: Icon(Symbols.edit, size: 16),
+              onPressed: () => _showEditDialog(skill),
+            ),
+            IconButton(
+              icon: Icon(Symbols.delete, size: 16),
+              onPressed: () => _confirmDelete(skill),
+            ),
+          ],
+          onTap: () => _showEditDialog(skill),
+        );
+      },
     );
   }
 
@@ -480,58 +525,6 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
   String _scopeOf(Map<String, dynamic> skill) {
     final raw = skill['scope']?.toString() ?? 'user';
     return raw == 'ws' ? 'workspace' : raw;
-  }
-}
-
-class _SkillTile extends StatelessWidget {
-  final Map<String, dynamic> skill;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-
-  const _SkillTile({
-    required this.skill,
-    required this.onEdit,
-    required this.onDelete,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final name = skill['name']?.toString() ?? '';
-    final description = skill['description']?.toString() ?? '';
-    final scope = skill['scope']?.toString() == 'workspace' ? 'ws' : 'user';
-    return ListTile(
-      dense: true,
-      onTap: onEdit,
-      title: Row(
-        children: [
-          Expanded(
-            child: Text(name, style: context.tokens.typography.textTheme.bodyLarge!.copyWith(fontSize: 13, color: context.tokens.colors.textPrimary)),
-          ),
-          _ScopeBadge(label: scope),
-        ],
-      ),
-      subtitle: Text(
-        description.isEmpty ? 'No description' : description,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: context.tokens.typography.textTheme.bodySmall!.copyWith(fontSize: 11, color: context.tokens.colors.textSecondary),
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            tooltip: 'Edit skill',
-            icon: const Icon(Symbols.edit, size: 18),
-            onPressed: onEdit,
-          ),
-          IconButton(
-            tooltip: 'Delete skill',
-            icon: const Icon(Symbols.delete, size: 18),
-            onPressed: onDelete,
-          ),
-        ],
-      ),
-    );
   }
 }
 
