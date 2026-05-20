@@ -96,6 +96,8 @@ class SummarizationMiddleware(Middleware):
                 total += self.count_tokens(json.dumps(tc.arguments))
         if msg.role == "tool" and msg.name:
             total += self.count_tokens(msg.name)
+        if msg.reasoning:
+            total += self.count_tokens(msg.reasoning)
         return total
 
     def _total_tokens(self, messages: list[Message]) -> int:

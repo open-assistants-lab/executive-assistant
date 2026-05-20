@@ -194,6 +194,73 @@ class TestSDKSummarizationMiddleware:
         tool_count = mw._count_message_tokens(tool_msg)
         assert tool_count > simple_count
 
+    def test_sdk_summarization_reasoning_tokens_included(self):
+        from src.sdk.messages import Message
+        from src.sdk.middleware_summarization import SummarizationMiddleware
+
+        mw = SummarizationMiddleware(trigger_tokens=8000, keep_tokens=2000)
+
+        no_reasoning = Message.assistant(
+            content="The answer is 42.",
+        )
+        with_reasoning = Message.assistant(
+            content="The answer is 42.",
+            reasoning="Let me think step by step. First, I need to consider the question. "
+            "The user is asking about the meaning of life, the universe, and everything. "
+            "According to Douglas Adams' Hitchhiker's Guide to the Galaxy, "
+            "the answer is 42. This was computed by Deep Thought "
+            "after 7.5 million years of calculation.",
+        )
+
+        no_reasoning_count = mw._count_message_tokens(no_reasoning)
+        with_reasoning_count = mw._count_message_tokens(with_reasoning)
+
+        assert with_reasoning_count > no_reasoning_count, (
+            f"Message with reasoning ({with_reasoning_count}) should have more tokens "
+            f"than message without ({no_reasoning_count})"
+        )
+
+
+    @pytest.mark.asyncio
+    async def test_sdk_summarization_callback_invoked_on_summarize(self):
+        from unittest.mock import AsyncMock
+        from src.sdk.messages import Message
+        from src.sdk.middleware_summarization import SummarizationMiddleware
+        from src.sdk.state import AgentState
+
+        callback = AsyncMock()
+        mw = SummarizationMiddleware(
+            trigger_tokens=10,
+            keep_tokens=5,
+            on_summarize=callback,
+        )
+
+        summary_text = (
+            "This is a test summary of the conversation. It covers the key topics discussed "
+            "including user preferences, decisions made, and action items identified. "
+            "The user asked about various subjects and the assistant provided helpful responses. "
+            "Several important facts were established during this exchange. "
+            "The conversation covered multiple topics and reached several conclusions. "
+            "Key points included the user's preferences for concise answers and structured responses. "
+            "The assistant demonstrated the ability to handle complex queries. "
+            "Overall this was a productive exchange that achieved its objectives. "
+            "The summary captures all essential information for future reference. "
+            "Nothing important was omitted from this conversation summary."
+        )
+        assert len(summary_text) >= 200, f"Summary too short: {len(summary_text)} chars"
+
+        mw._generate_summary = AsyncMock(return_value=summary_text)
+
+        msgs = [Message.user(f"Message number {i} about various topics.") for i in range(20)]
+        state = AgentState(messages=msgs)
+
+        result = await mw.abefore_model(state)
+
+        assert result is not None
+        assert "messages" in result
+        callback.assert_awaited_once()
+        callback.assert_awaited_with(summary_text)
+
 
 class TestWSProtocolConformance:
     """WS protocol must handle all message types consistently."""

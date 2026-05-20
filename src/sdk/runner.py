@@ -17,6 +17,8 @@ in the skills_list tool description dynamically, not in the system prompt.
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 from typing import Any
 
 from src.app_logging import get_logger
@@ -33,6 +35,20 @@ logger = get_logger()
 
 _loop_cache: dict[str, AgentLoop] = {}
 _loop_lock = asyncio.Lock()
+
+
+def _loop_cache_key(
+    user_id: str,
+    workspace_id: str,
+    model: str | None,
+    provider_keys: dict[str, str] | None = None,
+) -> str:
+    key = f"{user_id}:{workspace_id}:{model or 'default'}"
+    if provider_keys:
+        encoded = json.dumps(provider_keys, sort_keys=True, separators=(",", ":"))
+        key_hash = hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:16]
+        key = f"{key}:keys:{key_hash}"
+    return key
 
 
 def _seed_default_workspace() -> None:
@@ -174,11 +190,30 @@ async def create_sdk_loop(user_id: str, workspace_id: str = "personal", model: s
     middlewares: list[Any] = []
 
     if summary_config.enabled:
+        from src.storage.messages import get_message_store
+
+        async def _persist_summary(content: str) -> None:
+            try:
+                store = get_message_store(user_id, workspace_id)
+                store.add_summary_message(content)
+                logger.info(
+                    "summarization.persisted",
+                    {"summary_length": len(content)},
+                    user_id=user_id,
+                )
+            except Exception as e:
+                logger.warning(
+                    "summarization.persist_failed",
+                    {"error": str(e)},
+                    user_id=user_id,
+                )
+
         middlewares.append(
             SummarizationMiddleware(
                 trigger_tokens=summary_config.trigger_tokens,
                 keep_tokens=summary_config.keep_tokens,
                 model=model_str,
+                on_summarize=_persist_summary,
             )
         )
 
@@ -222,14 +257,12 @@ async def create_sdk_loop(user_id: str, workspace_id: str = "personal", model: s
 
 async def get_sdk_loop(user_id: str, workspace_id: str = "personal", model: str | None = None, provider_keys: dict[str, str] | None = None) -> AgentLoop:
     """Get or create an AgentLoop for a user+workspace+model (cached)."""
-    if provider_keys:
-        loop = await create_sdk_loop(user_id, workspace_id, model=model, provider_keys=provider_keys)
-        logger.info("sdk_runner.loop_created_uncached", {"user_id": user_id, "workspace_id": workspace_id, "model": model}, user_id=user_id)
-        return loop
-    cache_key = f"{user_id}:{workspace_id}:{model or 'default'}"
+    cache_key = _loop_cache_key(user_id, workspace_id, model, provider_keys)
     async with _loop_lock:
         if cache_key not in _loop_cache:
-            _loop_cache[cache_key] = await create_sdk_loop(user_id, workspace_id, model=model)
+            _loop_cache[cache_key] = await create_sdk_loop(
+                user_id, workspace_id, model=model, provider_keys=provider_keys
+            )
             logger.info("sdk_runner.loop_created", {"user_id": user_id, "workspace_id": workspace_id, "model": model}, user_id=user_id)
         return _loop_cache[cache_key]
 
