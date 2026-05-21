@@ -1,33 +1,6 @@
 # Subagent Jobs Results & Skills Tree View
 
 Date: 2026-05-21
-**Status:** Needs Revision Before Implementation
-
-## Peer Review Verdict
-
-**Verdict:** The core idea (expandable job history, result dialog, structured skill selector) is sound and the changes are narrowly scoped. However, the spec contains three factual errors against the current codebase that must be corrected before implementation:
-
-### Blocking Findings
-
-- **`GroupedTreeSelector<String>` widget does not exist.** The spec claims "Already exists at `widgets/tree_selector.dart`" but no such file or class exists in the Flutter codebase. Grep for `GroupedTreeSelector`, `treeSelector`, `TreeSelector`, and glob for `tree_selector.dart` all returned zero results. This widget must be **created**, not referenced as existing. The spec should either add the widget to the file changes table or remove the claim.
-- **"Capabilities" wording does not exist anywhere.** The spec says to rename "Skills & Capabilities" → "Skills" in create/edit dialogs, but grep for `capabilities` / `Capabilities` across the entire Flutter codebase returned zero matches. The current skill selector is already labeled "Skills" at lines 389 and 781 of `subagents_panel.dart`. No renaming work is needed.
-- **The skills selector is already interactive.** The spec describes the old disabled tool picker pattern but the skills picker (`CheckboxListTile` list at lines 425-444 and 817-839) uses real state via `selectedSkills` with working `onChanged` callbacks. It is not the same as the tool picker (which is `value: true, onChanged: null`). The upgrade to a `GroupedTreeSelector` is about UX polish (grouping/search), not fixing a broken widget.
-
-### Non-Blocking Observations
-
-- **Result dialog data model.** `SubagentJob.result` is typed `String?` (`subagent.dart:68`), populated from `json['result']?.toString()`. The backend `_serialize_job` returns parsed JSON via `_parse_json_field` (`subagents.py:82`), which returns a dict for JSON result objects. `?.toString()` on a dict produces `"Instance of '...'"`, which is a pre-existing bug. The result dialog will need to handle this correctly (either parse the JSON string on the Flutter side or read the raw backend response before `.toString()` mangles it).
-- **Per-agent pruning scope change** is well-identified. Currently `_pruneTerminalJobs` at line 173 keeps `_maxTerminalJobs = 10` globally. Changing to per-agent is the right design.
-- **`_pruneTerminalJobs` already clears terminal jobs during polling** (called at lines 126, 170, 238). The "Clear completed" action should also call this with an agent-specific filter.
-- **No new REST endpoints** are needed. The spec correctly relies on existing polling and endpoints.
-- **Token system exists and is used.** `context.tokens.colors.bgCanvas` is used at line 54 of `subagents_panel.dart`. The spec's requirement for `context.tokens`-exclusive access is consistent.
-
-### Recommended Correction
-
-Replace the `GroupedTreeSelector` + "Capabilities" fixes with concrete widget creation work. The central changes are:
-1. Create a `GroupedTreeSelector<String>` widget (new file in `lib/widgets/tree_selector.dart` or populate `lib/features/workspace/widgets/`).
-2. Implement expandable job sections and result dialog as designed.
-3. Change `_pruneTerminalJobs` from global to per-agent (adding `expandedAgentName` to state).
-4. Fix `SubagentJob.result` handling from backend response.
 
 ## Problem
 
