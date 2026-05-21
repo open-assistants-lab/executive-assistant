@@ -57,6 +57,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         final target = saved.isInfinite ? max : saved.clamp(0, max).toDouble();
         if (max > 0) {
           _scrollController.jumpTo(target);
+          final newOffset = _scrollController.position.extentAfter <= 2
+              ? double.infinity
+              : _scrollController.offset;
+          final ws = ref.read(currentWorkspaceIdProvider);
+          ref.read(workspaceScrollPositions.notifier).state = {
+            ...ref.read(workspaceScrollPositions),
+            ws: newOffset,
+          };
         }
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _restoringScroll = false;
