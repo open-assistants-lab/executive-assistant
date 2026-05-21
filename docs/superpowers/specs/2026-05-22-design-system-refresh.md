@@ -1,0 +1,342 @@
+# Design System Refresh — Linear-inspired with Deep Emerald
+
+**Status:** Draft — pending user review
+**Date:** 2026-05-22
+**Owner:** UX / Frontend
+
+---
+
+## Goal
+
+Transform the Flutter app from "Material Design defaults with custom colors" into a cohesive, premium product with the precision and restraint of Linear, anchored by a Deep Emerald accent.
+
+The current app uses light grey as its "accent" (`#D4D4D4`), which gives it no visual identity. Every screen reads as generic. This refresh fixes the foundation (color, type, spacing, motion) then rebuilds the chat surface, then polishes components.
+
+## Non-Goals
+
+- Restructuring information architecture (navigation, panels, screens stay where they are)
+- Adding new features
+- Light-mode redesign (we keep light mode functional but optimize dark mode first; light mode gets a parallel palette derived from the dark one)
+- Replacing Material widgets wholesale (we override theme; we don't rewrite Buttons/Inputs from scratch unless necessary)
+- Custom icon set (we keep Material Symbols — they pair well with this aesthetic)
+
+## Aesthetic North Star
+
+**Linear** — engineering precision applied to a personal-assistant context.
+
+Signature traits we adopt:
+- Pure near-black canvas, calibrated grey scale, **one** bold accent used sparingly
+- Inter typography, tight letter-spacing (`-0.011em`), small-caps labels
+- 6/8/10/12px radii (never round)
+- 1px borders for separation, no shadows in dark mode
+- 150–200ms ease-out micro-interactions everywhere
+- Press-state: scale to 0.97
+- Keyboard-first ergonomics
+
+## Tokens — The Foundation
+
+All tokens live in `flutter_app/lib/theme/tokens/` and flow through `EaTokens` (the existing structure is sound; we replace values).
+
+### Color (`tokens/colors.dart`)
+
+**Dark mode (primary):**
+
+| Token | Value | Use |
+|---|---|---|
+| `bgCanvas` | `#08090A` | Root background |
+| `bgSurface` | `#0E0F11` | Cards, panels, raised surfaces |
+| `bgElevated` | `#131416` | Hover states, dialogs, popovers |
+| `bgField` | `#1A1B1E` | Input backgrounds |
+| `textPrimary` | `#E6E6E6` | Body text |
+| `textSecondary` | `#9B9B9B` | Subtitles, meta |
+| `textTertiary` | `#6B6B6B` | Disabled, deep meta |
+| `textInverse` | `#08090A` | Text on accent buttons |
+| `accent` | `#239766` | Primary actions, focus, active state |
+| `accentHover` | `#2EAD78` | Hover state of accent |
+| `accentMuted` | `#0D2B22` | Accent backgrounds (user bubble fill) |
+| `borderSubtle` | `#1F1F22` | Internal dividers, card borders |
+| `borderDefault` | `#2A2B2E` | Visible borders, input borders |
+| `borderAccent` | `rgba(35,151,102,0.4)` | Focused inputs, accent borders |
+| `success` | `#3DBC83` | (Same hue family as accent for cohesion) |
+| `warning` | `#E0A04B` | Warm amber, not yellow |
+| `error` | `#E55B5B` | Confident red, not Material's harsh red |
+| `info` | `#5B95E0` | Calm blue |
+
+**Light mode (parallel):**
+
+| Token | Value |
+|---|---|
+| `bgCanvas` | `#FAFAFA` |
+| `bgSurface` | `#FFFFFF` |
+| `bgElevated` | `#F3F3F3` |
+| `bgField` | `#F0F0F0` |
+| `textPrimary` | `#0E0F11` |
+| `textSecondary` | `#5B5B5B` |
+| `textTertiary` | `#9B9B9B` |
+| `accent` | `#1B7A52` *(darker for AA contrast on white)* |
+| `accentHover` | `#15633F` |
+| `accentMuted` | `#E6F4ED` |
+| `borderSubtle` | `#E8E8E8` |
+| `borderDefault` | `#D4D4D4` |
+| `borderAccent` | `rgba(27,122,82,0.4)` |
+
+### Typography (`tokens/typography.dart`)
+
+Font: **Inter** (already supported by Flutter; bundle as asset or use system fallback).
+
+| Token | Size | Weight | Letter-spacing | Line-height | Use |
+|---|---|---|---|---|---|
+| `displayLarge` | 28px | 600 | -0.02em | 1.2 | Screen titles |
+| `displayMedium` | 22px | 600 | -0.015em | 1.25 | Section headers |
+| `titleLarge` | 17px | 600 | -0.012em | 1.3 | Card titles, dialog titles |
+| `titleMedium` | 15px | 500 | -0.011em | 1.4 | List items, settings rows |
+| `titleSmall` | 13px | 500 | -0.005em | 1.4 | Panel headers, tab labels |
+| `bodyLarge` | 14px | 400 | -0.011em | 1.6 | **Chat body, primary reading text** |
+| `bodyMedium` | 13px | 400 | -0.005em | 1.55 | Secondary content, descriptions |
+| `bodySmall` | 12px | 400 | 0 | 1.5 | Tool cards, meta |
+| `labelLarge` | 13px | 500 | -0.005em | 1.4 | Button labels |
+| `labelMedium` | 11px | 600 | 0.04em | 1.3 | Small-caps tags (uppercase) |
+| `labelSmall` | 10px | 600 | 0.1em | 1.3 | Section labels (uppercase) — "Assistant", "Tool call" |
+| `code` | 12.5px | 400 | 0 | 1.5 | Monospace (SF Mono fallback) |
+
+The `labelSmall` is the "Linear small-caps label" — used for AI role indicators, tool category badges, status tags.
+
+### Spacing (`tokens/spacing.dart`)
+
+Keep current 4px base unit; adjust the named scale for tighter rhythm:
+
+| Token | Value | Use |
+|---|---|---|
+| `xxs` | 2 | Micro gaps |
+| `xs` | 4 | Tight inline gaps |
+| `sm` | 8 | Default inline gaps, button padding y |
+| `md` | 12 | Component padding |
+| `lg` | 16 | Card padding, section gaps |
+| `xl` | 20 | Generous padding |
+| `xxl` | 28 | Screen edges (was `screenEdge`) |
+| `xxxl` | 40 | Section breaks |
+
+### Radius (`tokens/radius.dart`)
+
+Linear's exact scale:
+
+| Token | Value | Use |
+|---|---|---|
+| `none` | 0 | Sharp edges |
+| `xs` | 4 | Tags, chips |
+| `sm` | 6 | **Buttons**, small inputs |
+| `md` | 8 | **Cards, message bubbles**, inputs |
+| `lg` | 10 | Panels, larger cards |
+| `xl` | 12 | Dialogs, modals |
+| `full` | 999 | Avatars, pills |
+
+### Motion (`tokens/motion.dart`)
+
+Replace whatever's there with Linear's interaction model:
+
+| Token | Value | Use |
+|---|---|---|
+| `instant` | 0ms | No animation (reduce-motion) |
+| `fast` | 120ms | Hover, focus rings |
+| `base` | 180ms | **Standard transitions** (panels, dialogs) |
+| `slow` | 280ms | Page transitions, large layout shifts |
+| `pressScale` | 0.97 | Scale-on-press value |
+| `curveStandard` | `Cubic(0.2, 0, 0, 1)` | Default ease-out (Linear's curve) |
+| `curveEntrance` | `Cubic(0.16, 1, 0.3, 1)` | Springy entrance |
+| `curveExit` | `Cubic(0.4, 0, 1, 1)` | Sharp exit |
+
+## Chat Surface — The Heart
+
+The chat is where 80% of the app's feel lives. We redesign it from the ground up.
+
+### Layout
+
+**User messages:**
+- Right-aligned, max-width 75% of container
+- Background `accentMuted` (`#0D2B22` dark, `#E6F4ED` light)
+- Border `1px solid borderAccent` (subtle emerald glow)
+- Radius `md` (8px)
+- Padding `12px 16px`
+- Text style: `bodyLarge` in `textPrimary`
+
+**AI messages (flat, no bubble):**
+- Left-aligned, max-width 85% of container
+- No background, no border
+- Padding `8px 0` (vertical breathing room only)
+- Above the text: small-caps role label
+  - Markup: small dot (`accent` color, 6px) + text "ASSISTANT" in `labelSmall` (uppercase, tracked)
+  - Color: `textTertiary` for the text
+- Text style: `bodyLarge` in `textPrimary`
+- Markdown rendering: clean, no decorative borders on code blocks, just `bgField` background
+
+**Streaming AI message:**
+- Same as AI message, but the role label dot pulses (1.2s opacity 0.4 → 1.0 → 0.4 loop)
+- Optional: blinking cursor at end of streaming text (1px wide, 14px tall, `accent` color)
+
+**Reasoning block:**
+- Collapsed by default, shown as `bgSurface` card with `borderSubtle` border
+- Radius `md`, padding `12px 16px`
+- Header: small-caps "REASONING" label + chevron, click to expand
+- Body when expanded: monospace font, `textSecondary`, `bodySmall`
+
+**Tool call cards:**
+- Background `bgSurface`, border `borderSubtle`, radius `md`
+- Compact header row: small accent icon + tool name (monospace) + status badge on right
+- Expandable body for args/result (collapsed by default)
+- Status badges:
+  - Running: dot + "Running" in `accent`
+  - Success: small check + "Done" in `textSecondary`
+  - Error: small X + "Failed" in `error`
+
+**Spacing between turns:** `lg` (16px) vertical gap.
+
+### Streaming Animation
+
+When AI text streams in:
+- New characters fade in (opacity 0 → 1) over 100ms
+- No character-by-character bounce or typewriter effect (that's gimmicky for an executive assistant)
+- When streaming completes, the cursor fades out over 200ms
+
+### Empty state
+
+When a workspace has no messages:
+- Centered, vertical layout
+- Subtle accent dot (12px circle, `accent` color, 0.6 opacity)
+- Below: subtitle in `textSecondary` — "Ask anything. I'm here to help."
+- Below that: 3 suggestion chips in a row (e.g., "Summarize my emails", "What's on my calendar?", "Add a todo")
+  - Chips: `bgSurface` + `borderSubtle` border, radius `sm`, `bodySmall`, padding `8px 12px`
+  - On hover: border becomes `borderAccent`
+
+### Input
+
+- Background `bgField`, border `borderDefault`, radius `md`
+- Focus state: border `borderAccent`, no shadow
+- Send button: square (32x32), radius `sm`, `accent` background when input non-empty, `accentMuted` when empty
+- Inline shortcuts row above input (when empty): small chips for "/" commands, model selector
+
+## Component Polish — Beyond Chat
+
+### Buttons
+
+Replace Material defaults with three button variants:
+
+1. **Primary** — `accent` background, `textInverse` text, padding `8px 14px`, radius `sm`
+2. **Secondary** — transparent background, `borderDefault` border, `textPrimary` text
+3. **Ghost** — no border, no bg, `textPrimary` text, hover `bgSurface`
+
+All buttons:
+- `labelLarge` typography (13px, 500 weight)
+- Scale to 0.97 on press, 180ms `curveStandard`
+- Focus ring: 2px `borderAccent`, offset 2px
+- Disabled: 40% opacity
+
+### Cards
+
+- Background `bgSurface`
+- Border `1px solid borderSubtle`
+- Radius `md` (8px)
+- Padding `lg` (16px)
+- Hover (when interactive): border becomes `borderDefault`, 120ms transition
+
+### Tabs (workspace tabs in chat panel)
+
+- Active: `textPrimary`, `accent` 2px underline (instead of full background)
+- Inactive: `textTertiary`, no underline
+- Hover: `textSecondary`
+- Padding: `8px 12px`, `titleSmall` typography
+- Underline animates with `base` duration on tab switch
+
+### Sidebar items
+
+- Active: `bgSurface` background, `textPrimary`, accent 3px left bar
+- Inactive: transparent background, `textSecondary`
+- Hover: `bgSurface` background, `textPrimary`
+- Padding: `10px 12px`, radius `sm`
+- Icon size 18px, gap 10px
+
+### Dialogs
+
+- Background `bgElevated`
+- Border `1px solid borderDefault`
+- Radius `xl` (12px)
+- No shadow in dark mode; use border for separation
+- Backdrop: pure black 60% opacity
+- Entrance animation: scale 0.96 → 1.0, opacity 0 → 1, 200ms `curveEntrance`
+
+### Inputs
+
+- Background `bgField`
+- Border `1px solid borderDefault`
+- Radius `md`
+- Padding `10px 14px`
+- Focus: `borderAccent` border, no shadow, 120ms transition
+- Placeholder: `textTertiary`
+- Disabled: 50% opacity
+
+## Animations & Micro-interactions
+
+Replace `staggeredEntry` (the current "messages slide in" animation) with simpler, more sophisticated motion:
+
+- **New message arrival**: fade-in only (200ms, no translation)
+- **Tool call expansion**: height + opacity, 180ms `curveStandard`
+- **Panel open/close**: slide + fade, 200ms `curveEntrance` in, 150ms `curveExit` out
+- **Hover transitions**: 120ms `curveStandard` on all interactive elements
+- **Press states**: scale 0.97, 100ms `curveStandard`
+- **Focus rings**: appear instantly (no transition), disappear with 150ms fade
+
+**Reduced-motion**: when OS setting is on, all animations become 0ms.
+
+## Implementation Plan (high-level — detailed plan written separately)
+
+Three phases, each independently shippable:
+
+### Phase 1 — Foundation (tokens + theme)
+- Replace `tokens/colors.dart`, `tokens/typography.dart`, `tokens/spacing.dart`, `tokens/radius.dart`, `tokens/motion.dart`
+- Update `AppTheme._build()` to wire new colors into Material ColorScheme
+- Bundle Inter font as asset (if not using system)
+- Visual smoke test: every screen still renders without breaking
+
+### Phase 2 — Chat surface rebuild
+- `MessageBubble` — split into `UserBubble` (with bubble) and `AssistantMessage` (flat)
+- `StreamingBubble` — flat, with pulsing role-label dot
+- `ReasoningBubble` — collapsed card with small-caps header
+- `ToolCallCard` — new compact design with status badges
+- Empty state with suggestion chips
+- Input redesign
+- Remove `staggeredEntry`, replace with simple fade-in
+
+### Phase 3 — Component polish
+- Button variants (Primary/Secondary/Ghost)
+- Tab redesign (underline-based)
+- Sidebar redesign (left-bar active state)
+- Dialog redesign (no shadow, borders only)
+- Input components across the app
+- Verify every screen feels consistent
+
+## Out of Scope (Tracked for Later)
+
+- Custom illustrations / mascots
+- Animated logo / loading screens
+- Theme switcher UI (we keep dark default, light works but no user-facing toggle in this refresh)
+- New onboarding flow
+- Marketing surfaces (landing pages, etc.)
+- Mobile (we optimize for desktop/macOS first; mobile inherits but isn't tuned)
+
+## Success Criteria
+
+- **Cohesion**: every screen visibly belongs to the same product family
+- **Identity**: emerald accent is recognizable as "ours" without being overbearing
+- **Density**: comfortable to read for 30+ minutes without eye strain (Balanced 14px proven by Notion/Claude.ai)
+- **Polish**: no element feels like a default; everything has been considered
+- **Performance**: no animation costs >16ms per frame; reduced-motion respected
+- **A11y**: contrast ratios AA minimum for all text/UI pairs, AAA for body text in dark mode
+
+## Risks
+
+- **Inter font licensing**: Inter is OFL-licensed and free; bundling adds ~300KB to app size. Mitigation: use system fonts as fallback, lazy-bundle Inter.
+- **Existing widget assumptions**: some components hard-code colors or sizes. Mitigation: Phase 1 ends with a smoke test pass; we fix breakages before Phase 2.
+- **Light mode parity**: light mode is parallel but less battle-tested. Mitigation: explicitly tested in Phase 3, scoped as "functional, not polished" for this refresh.
+
+## Open Questions
+
+None — all major decisions resolved in brainstorming. Implementation specifics (per-widget) will be handled in the implementation plan.
