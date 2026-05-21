@@ -21,6 +21,10 @@ class JobResultDialog extends ConsumerWidget {
       _ => t.colors.textTertiary,
     };
 
+    final costStr = job.result?.isNotEmpty == true && job.result!.contains('cost_usd')
+        ? _extractField(job.result!, 'cost_usd')
+        : '';
+
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
       child: SizedBox(
@@ -59,13 +63,14 @@ class JobResultDialog extends ConsumerWidget {
                   _metaChip(context, 'Status', job.status, statusColor),
                   if (job.startedAt != null && job.completedAt != null)
                     _metaChip(context, 'Duration', _formatDuration(job.startedAt!, job.completedAt!), t.colors.textSecondary),
-                  _metaChip(context, 'Agent', job.agentName, t.colors.accent),
+                  if (job.agentName.isNotEmpty)
+                    _metaChip(context, 'Agent', job.agentName, t.colors.accent),
                   if (job.result?.isNotEmpty == true && job.result!.contains('llm_calls'))
                     _metaChip(context, 'LLM calls', _extractField(job.result!, 'llm_calls'), t.colors.textSecondary),
-                  if (job.result?.isNotEmpty == true && job.result!.contains('cost_usd'))
-                    _metaChip(context, 'Cost', '\$${_extractField(job.result!, 'cost_usd')}', t.colors.textSecondary),
+                  if (costStr.isNotEmpty)
+                    _metaChip(context, 'Cost', '\$$costStr', t.colors.textSecondary),
                   if (job.createdAt != null)
-                    _metaChip(context, 'Created', job.createdAt!, t.colors.textTertiary),
+                    _metaChip(context, 'Created', _formatDate(job.createdAt!), t.colors.textTertiary),
                 ],
               ),
             ),
@@ -201,7 +206,6 @@ class JobResultDialog extends ConsumerWidget {
   }
 
   Widget _metaChip(BuildContext context, String label, String value, Color color) {
-    final t = context.tokens;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -223,9 +227,21 @@ class JobResultDialog extends ConsumerWidget {
       if (diff.inSeconds < 60) return '${diff.inSeconds}s';
       return '${diff.inMinutes}m ${diff.inSeconds % 60}s';
     } catch (_) {
-      return '';
+      return 'unknown';
     }
   }
+
+  String _formatDate(String iso) {
+    try {
+      final dt = DateTime.parse(iso);
+      return '${_month(dt.month)} ${dt.day}, ${dt.year}';
+    } catch (_) {
+      return iso;
+    }
+  }
+
+  String _month(int m) =>
+      ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1];
 
   String _extractField(String jsonStr, String field) {
     try {

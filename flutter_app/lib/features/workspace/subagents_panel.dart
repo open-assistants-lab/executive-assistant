@@ -6,6 +6,7 @@ import '../../providers/subagent_provider.dart';
 import '../../providers/workspace_provider.dart';
 import '../../theme/app_theme.dart';
 import 'widgets/ea_list_tile.dart';
+import 'widgets/job_result_dialog.dart';
 import 'widgets/tree_selector.dart';
 
 final _nameRegex = RegExp(r'^[a-zA-Z0-9_-]+$');
@@ -173,39 +174,45 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
             ? (runningJobs.first.status == 'cancelling' ? 'cancelling' : 'running')
             : 'idle';
         final skillChips = _skillChips(agent.skills);
-        return EaListTile(
-          leading: Icon(Symbols.smart_toy, size: 18, color: context.tokens.colors.accent),
-          title: agent.name,
-          subtitle: agent.description.isEmpty ? null : agent.description,
-          chips: skillChips.isEmpty ? null : skillChips,
-          trailingBadges: [
-            _ScopeBadge(label: agent.scope),
-            _StatusBadge(label: statusLabel),
-          ],
-          trailingActions: [
-            if (hasRunning)
-              IconButton(
-                icon: Icon(Symbols.stop_circle, size: 16, color: context.tokens.colors.warning),
-                onPressed: () => ref
-                    .read(subagentProvider.notifier)
-                    .cancelJob(runningJobs.first.jobId, workspaceId: runningJobs.first.workspaceId),
-              )
-            else
-              IconButton(
-                icon: Icon(Symbols.play_arrow, size: 16),
-                onPressed: () => _showStartDialog(agent),
-              ),
-            IconButton(
-              icon: Icon(Symbols.edit, size: 16),
-              onPressed: () => _showEditDialog(agent),
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            EaListTile(
+              leading: Icon(Symbols.smart_toy, size: 18, color: context.tokens.colors.accent),
+              title: agent.name,
+              subtitle: agent.description.isEmpty ? null : agent.description,
+              chips: skillChips.isEmpty ? null : skillChips,
+              trailingBadges: [
+                _ScopeBadge(label: agent.scope),
+                _StatusBadge(label: statusLabel),
+              ],
+              trailingActions: [
+                if (hasRunning)
+                  IconButton(
+                    icon: Icon(Symbols.stop_circle, size: 16, color: context.tokens.colors.warning),
+                    onPressed: () => ref
+                        .read(subagentProvider.notifier)
+                        .cancelJob(runningJobs.first.jobId, workspaceId: runningJobs.first.workspaceId),
+                  )
+                else
+                  IconButton(
+                    icon: Icon(Symbols.play_arrow, size: 16),
+                    onPressed: () => _showStartDialog(agent),
+                  ),
+                IconButton(
+                  icon: Icon(Symbols.edit, size: 16),
+                  onPressed: () => _showEditDialog(agent),
+                ),
+                if (!hasRunning)
+                  IconButton(
+                    icon: Icon(Symbols.delete, size: 16),
+                    onPressed: () => _confirmDelete(agent),
+                  ),
+              ],
+              onTap: () => ref.read(subagentProvider.notifier).toggleAgentExpand(agent.name),
             ),
-            if (!hasRunning)
-              IconButton(
-                icon: Icon(Symbols.delete, size: 16),
-                onPressed: () => _confirmDelete(agent),
-              ),
+            if (state.expandedAgentName == agent.name) _buildJobSection(state, agent),
           ],
-          onTap: () => _showEditDialog(agent),
         );
       },
     );
@@ -314,7 +321,7 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
                   const SizedBox(height: 14),
                   Row(
                     children: [
-                      Text('Skills & Capabilities',
+                      Text('Skills',
                         style: t.typography.textTheme.headlineMedium?.copyWith(
                           fontSize: 14, color: t.colors.textPrimary,
                         )),
@@ -322,25 +329,14 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
                   ),
                   const SizedBox(height: 8),
                   if (allSkills != null) ...[
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      children: [
-                        ...selectedSkills.map((s) => Chip(
-                          label: Text(s, style: const TextStyle(fontSize: 11)),
-                          backgroundColor: t.colors.accentMuted,
-                          deleteIcon: Icon(Symbols.close, size: 14, color: t.colors.accent),
-                          onDeleted: () => setDialogState(() => selectedSkills = Set<String>.from(selectedSkills)..remove(s)),
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          visualDensity: VisualDensity.compact,
-                        )),
-                        ActionChip(
-                          label: Text('+ Add all', style: TextStyle(fontSize: 11, color: t.colors.accent)),
-                          onPressed: () => setDialogState(() => selectedSkills = allSkills!.toSet()),
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ],
+                    SizedBox(
+                      height: 180,
+                      child: GroupedTreeSelector<String>(
+                        groups: _groupSkills(allSkills),
+                        selected: selectedSkills,
+                        onChanged: (v) => setDialogState(() => selectedSkills = v),
+                        searchHint: 'Filter skills...',
+                      ),
                     ),
                     const SizedBox(height: 10),
                   ],
@@ -616,7 +612,7 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
                   const SizedBox(height: 14),
                   Row(
                     children: [
-                      Text('Skills & Capabilities',
+                      Text('Skills',
                         style: t.typography.textTheme.headlineMedium?.copyWith(
                           fontSize: 14, color: t.colors.textPrimary,
                         )),
@@ -624,25 +620,14 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
                   ),
                   const SizedBox(height: 8),
                   if (allSkills != null) ...[
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      children: [
-                        ...selectedSkills.map((s) => Chip(
-                          label: Text(s, style: const TextStyle(fontSize: 11)),
-                          backgroundColor: t.colors.accentMuted,
-                          deleteIcon: Icon(Symbols.close, size: 14, color: t.colors.accent),
-                          onDeleted: () => setDialogState(() => selectedSkills = Set<String>.from(selectedSkills)..remove(s)),
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          visualDensity: VisualDensity.compact,
-                        )),
-                        ActionChip(
-                          label: Text('+ Add all', style: TextStyle(fontSize: 11, color: t.colors.accent)),
-                          onPressed: () => setDialogState(() => selectedSkills = allSkills!.toSet()),
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ],
+                    SizedBox(
+                      height: 180,
+                      child: GroupedTreeSelector<String>(
+                        groups: _groupSkills(allSkills),
+                        selected: selectedSkills,
+                        onChanged: (v) => setDialogState(() => selectedSkills = v),
+                        searchHint: 'Filter skills...',
+                      ),
                     ),
                     const SizedBox(height: 10),
                   ],
@@ -800,6 +785,180 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
     }
   }
 
+  List<TreeSelectorGroup<String>> _groupSkills(List<String> skills) {
+    final sorted = List<String>.from(skills)..sort();
+    return [
+      TreeSelectorGroup<String>(
+        label: 'All Skills',
+        items: sorted.map((s) => TreeSelectorItem(label: s, value: s)).toList(),
+      ),
+    ];
+  }
+
+  String _formatRelativeTime(String iso) {
+    try {
+      final dt = DateTime.parse(iso);
+      final now = DateTime.now();
+      final diff = now.difference(dt);
+      if (diff.inSeconds < 60) return '${diff.inSeconds}s ago';
+      if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+      if (diff.inHours < 24) return '${diff.inHours}h ago';
+      if (diff.inDays < 7) return '${diff.inDays}d ago';
+      return '${dt.month}/${dt.day}';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  Widget _buildJobSection(SubagentPanelState state, SubagentAgentDef agent) {
+    final t = context.tokens;
+    final terminalJobs = state.activeJobs.values
+        .where((j) => j.agentName == agent.name && j.isTerminal)
+        .toList()
+      ..sort((a, b) => (b.createdAt ?? '').compareTo(a.createdAt ?? ''));
+
+    return Container(
+      decoration: BoxDecoration(
+        color: t.colors.bgElevated,
+        border: Border(bottom: BorderSide(color: t.colors.borderSubtle)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Divider(height: 1, color: t.colors.borderSubtle),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 8, 4),
+            child: Row(
+              children: [
+                Text(
+                  'Jobs (${terminalJobs.length})',
+                  style: t.typography.textTheme.bodySmall?.copyWith(
+                    color: t.colors.textSecondary,
+                    fontSize: 11,
+                  ),
+                ),
+                const Spacer(),
+                if (terminalJobs.isNotEmpty)
+                  TextButton(
+                  onPressed: () => ref.read(subagentProvider.notifier).clearCompletedJobs(agent.name),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    'Clear completed',
+                    style: t.typography.textTheme.bodySmall?.copyWith(
+                      color: t.colors.accent,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (terminalJobs.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+              child: Text(
+                'No completed jobs',
+                style: t.typography.textTheme.bodySmall?.copyWith(
+                  color: t.colors.textTertiary,
+                  fontSize: 11,
+                ),
+              ),
+            )
+          else
+            ...terminalJobs.map((job) => _buildJobRow(job)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildJobRow(SubagentJob job) {
+    final t = context.tokens;
+    final statusIcon = switch (job.status) {
+      'completed' => Symbols.check_circle,
+      'failed' => Symbols.error,
+      'cancelled' => Symbols.warning,
+      _ => Symbols.circle,
+    };
+    final statusColor = switch (job.status) {
+      'completed' => t.colors.success,
+      'failed' => t.colors.error,
+      'cancelled' => t.colors.warning,
+      _ => t.colors.textTertiary,
+    };
+    final durationText = job.createdAt != null
+        ? _formatRelativeTime(job.createdAt!)
+        : '';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Row(
+        children: [
+          Icon(statusIcon, size: 14, color: statusColor),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  job.task,
+                  style: t.typography.textTheme.bodySmall?.copyWith(
+                    color: t.colors.textPrimary,
+                    fontSize: 12,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (durationText.isNotEmpty)
+                  Text(
+                    durationText,
+                    style: t.typography.textTheme.bodySmall?.copyWith(
+                      color: t.colors.textTertiary,
+                      fontSize: 10,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              color: statusColor.withAlpha(18),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              job.status,
+              style: TextStyle(fontSize: 10, color: statusColor, height: 1.2),
+            ),
+          ),
+          const SizedBox(width: 6),
+          TextButton(
+            onPressed: () => showDialog(
+              context: context,
+              builder: (_) => JobResultDialog(job: job),
+            ),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(
+              'View',
+              style: t.typography.textTheme.bodySmall?.copyWith(
+                color: t.colors.accent,
+                fontSize: 11,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ScopeBadge extends StatelessWidget {
