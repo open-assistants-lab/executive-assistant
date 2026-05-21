@@ -423,8 +423,10 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
     final offset = extentAfter <= _nearBottomThreshold
         ? -1.0
         : _scrollController.offset;
+    final currentState = ref.read(workspaceScrollPositions);
+    if (currentState[ws] == offset) return;
     ref.read(workspaceScrollPositions.notifier).state = {
-      ...ref.read(workspaceScrollPositions),
+      ...currentState,
       ws: offset,
     };
     debugPrint(
