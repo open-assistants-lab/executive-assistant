@@ -102,7 +102,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
 
     ref.listen<String>(currentWorkspaceIdProvider, (prev, next) {
-      if (prev == next) return;
+      if (prev == null || prev == next) return;
+      // Save the leaving workspace's scroll position before switchWorkspace
+      // clears history and resets the ListView offset to 0.
+      if (_scrollController.hasClients) {
+        final positions = ref.read(workspaceScrollPositions);
+        final offset =
+            _scrollController.position.extentAfter <= 2
+                ? double.infinity
+                : _scrollController.offset;
+        ref.read(workspaceScrollPositions.notifier).state = {
+          ...positions,
+          prev: offset,
+        };
+      }
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           _restoreScrollPosition(next);
