@@ -4,39 +4,16 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'agent_provider.dart';
 
-Map<String, double> _cachedScrollPositions = {};
-
+// Scroll positions are no longer persisted - workspace switching always
+// scrolls to the bottom (latest message), matching Slack/Discord UX.
+// We clean up any stale prefs from older versions on startup.
 Future<void> loadScrollPositionsFromPrefs() async {
-  final prefs = await SharedPreferences.getInstance();
-  final raw = prefs.getString('scroll_positions');
-  if (raw != null) {
-    _cachedScrollPositions = Map<String, double>.from(jsonDecode(raw));
-  }
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('scroll_positions');
+  } catch (_) {}
 }
 
-final workspaceScrollPositions = NotifierProvider<_ScrollPositionsNotifier, Map<String, double>>(
-  _ScrollPositionsNotifier.new,
-);
-
-class _ScrollPositionsNotifier extends Notifier<Map<String, double>> {
-  @override
-  Map<String, double> build() {
-    return Map<String, double>.from(_cachedScrollPositions);
-  }
-
-  @override
-  set state(Map<String, double> value) {
-    super.state = value;
-    _persist();
-  }
-
-  Future<void> _persist() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('scroll_positions', jsonEncode(state));
-    } catch (_) {}
-  }
-}
 final workspaceModelOverridesProvider = StateProvider<Map<String, String?>>(
   (ref) => {},
 );

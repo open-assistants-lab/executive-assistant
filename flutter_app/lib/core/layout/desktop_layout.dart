@@ -399,96 +399,31 @@ class _ChatPanel extends ConsumerStatefulWidget {
 
 class _ChatPanelState extends ConsumerState<_ChatPanel> {
   final _scrollController = ScrollController();
-  String _activeWorkspace = 'personal';
-  bool _restoringScroll = false;
+  bool _pendingScrollToBottom = false;
+
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_onScroll);
     ref.read(agentProvider.notifier).connect();
-  }
-
-  void _onScroll() {
-    if (_restoringScroll) {
-      debugPrint('[SCROLL-BLOCKED] restoring=$_restoringScroll');
-      return;
-    }
-    if (!_scrollController.hasClients) return;
-    final maxExtent = _scrollController.position.maxScrollExtent;
-    if (maxExtent <= 0) return;
-    final ws = ref.read(activeChatTabProvider);
-    final extentAfter = _scrollController.position.extentAfter;
-    final offset = extentAfter == 0.0
-        ? -1.0
-        : _scrollController.offset;
-    final currentState = ref.read(workspaceScrollPositions);
-    if (currentState[ws] == offset) return;
-    ref.read(workspaceScrollPositions.notifier).state = {
-      ...currentState,
-      ws: offset,
-    };
-    debugPrint(
-      '[SCROLL-SAVE _ChatPanel] ws=$ws extentAfter=$extentAfter offset=$offset max=$maxExtent',
-    );
-  }
-
-  Future<void> _restoreScrollPosition(String workspaceId) async {
-    _restoringScroll = true;
-    final saved = ref.read(workspaceScrollPositions)[workspaceId];
-    debugPrint(
-      '[SCROLL-RESTORE _ChatPanel] ws=$workspaceId saved=$saved mounted=$mounted hasClients=${_scrollController.hasClients}',
-    );
-    if (saved != null && mounted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_scrollController.hasClients) {
-          debugPrint(
-            '[SCROLL-RESTORE _ChatPanel] FAIL: mounted=$mounted hasClients=${_scrollController.hasClients}',
-          );
-          _restoringScroll = false;
-          return;
-        }
-        final max = _scrollController.position.maxScrollExtent;
-        final offset = _scrollController.offset;
-        final target = saved == -1.0 ? max : saved.clamp(0, max).toDouble();
-        debugPrint('[SCROLL-RESTORE _ChatPanel] jumping to $target max=$max currentOffset=$offset');
-        if (max > 0) {
-          _scrollController.jumpTo(target);
-          // Position may have changed since saved was written (stale SharedPreferences value).
-          // Write the actual position we landed at so _onScroll being blocked doesn't leave
-          // a stale position that could be read on the next restore cycle.
-          final newOffset = _scrollController.position.extentAfter == 0.0
-              ? -1.0
-              : _scrollController.offset;
-          final ws = ref.read(activeChatTabProvider);
-          ref.read(workspaceScrollPositions.notifier).state = {
-            ...ref.read(workspaceScrollPositions),
-            ws: newOffset,
-          };
-          debugPrint('[SCROLL-RESTORE _ChatPanel] post-jump save ws=$ws newOffset=$newOffset');
-        } else {
-          debugPrint('[SCROLL-RESTORE _ChatPanel] SKIP jump: max=$max');
-        }
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _restoringScroll = false;
-          debugPrint('[SCROLL-RESTORE _ChatPanel] done restoring, saving enabled');
-        });
-      });
-    } else {
-      debugPrint(
-        '[SCROLL-RESTORE _ChatPanel] no saved position, scrolling to bottom. restoring=$_restoringScroll',
-      );
-      _restoringScroll = false;
-      _scrollToBottom();
-    }
   }
 
   void _scrollToBottom() {
     if (!_scrollController.hasClients) return;
+    // Schedule across multiple frames to handle:
+    // 1. ListView rebuild with new messages (frame 1)
+    // 2. Layout settles, maxScrollExtent stabilizes (frame 2)
+    // 3. Final scroll position locked in (frame 3)
+    void jump() {
+      if (!mounted || !_scrollController.hasClients) return;
+      final max = _scrollController.position.maxScrollExtent;
+      if (max > 0) _scrollController.jumpTo(max);
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      if (_scrollController.hasClients) {
-        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-      }
+      jump();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        jump();
+        WidgetsBinding.instance.addPostFrameCallback((_) => jump());
+      });
     });
   }
 
@@ -506,42 +441,23 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
     final activeTab = ref.watch(activeChatTabProvider);
 
     ref.listen<String>(activeChatTabProvider, (prev, next) {
-      debugPrint('[TAB-SWITCH] prev=$prev next=$next hasClients=${_scrollController.hasClients} restoring=$_restoringScroll');
       if (prev != null && prev != next) {
-        if (_scrollController.hasClients) {
-          final extentAfter = _scrollController.position.extentAfter;
-          final currentOffset = _scrollController.offset;
-          final maxExt = _scrollController.position.maxScrollExtent;
-          final positions = ref.read(workspaceScrollPositions);
-          final existing = positions[prev];
-          final atBottom = extentAfter == 0.0;
-          final offset = atBottom || existing == -1.0
-              ? -1.0
-              : currentOffset;
-          debugPrint('[SCROLL-SAVE-EXPLICIT] leaving=$prev extentAfter=$extentAfter offset=$currentOffset max=$maxExt existing=$existing atBottom=$atBottom saving=$offset');
-          ref.read(workspaceScrollPositions.notifier).state = {
-            ...positions,
-            prev: offset,
-          };
-        } else {
-          debugPrint('[SCROLL-SAVE-EXPLICIT] SKIP leaving=$prev no clients');
-        }
-        _restoringScroll = true;
+        _pendingScrollToBottom = true;
+        // Fire scroll-to-bottom now too in case messages are already loaded.
+        _scrollToBottom();
       }
-      _activeWorkspace = next;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        debugPrint('[TAB-RESTORE-FRAME] ws=$next hasClients=${_scrollController.hasClients} _activeWorkspace=$_activeWorkspace mounted=$mounted');
-        if (mounted && _activeWorkspace == next) {
-          _restoreScrollPosition(next);
-        }
-      });
     });
 
     ref.listen<ChatState>(agentProvider, (prev, next) {
+      if (_pendingScrollToBottom && next.messages.isNotEmpty) {
+        _pendingScrollToBottom = false;
+        _scrollToBottom();
+        return;
+      }
       if (next.messages.isNotEmpty &&
           prev?.messages.isEmpty == true &&
           next.status == ChatStatus.idle) {
-        _restoreScrollPosition(_activeWorkspace);
+        _scrollToBottom();
         return;
       }
       if (next.status == ChatStatus.streaming) {
