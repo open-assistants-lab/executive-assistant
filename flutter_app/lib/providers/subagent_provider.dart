@@ -11,6 +11,7 @@ class SubagentPanelState {
   final bool loading;
   final String? error;
   final int loadSequence;
+  final String? expandedAgentName;
 
   const SubagentPanelState({
     this.agents = const [],
@@ -18,6 +19,7 @@ class SubagentPanelState {
     this.loading = false,
     this.error,
     this.loadSequence = 0,
+    this.expandedAgentName,
   });
 
   SubagentPanelState copyWith({
@@ -26,6 +28,7 @@ class SubagentPanelState {
     bool? loading,
     Object? error = _errorSentinel,
     int? loadSequence,
+    String? Function()? expandedAgentName,
   }) {
     return SubagentPanelState(
       agents: agents ?? this.agents,
@@ -33,6 +36,7 @@ class SubagentPanelState {
       loading: loading ?? this.loading,
       error: identical(error, _errorSentinel) ? this.error : error as String?,
       loadSequence: loadSequence ?? this.loadSequence,
+      expandedAgentName: expandedAgentName != null ? expandedAgentName() : this.expandedAgentName,
     );
   }
 
@@ -170,29 +174,49 @@ class SubagentNotifier extends StateNotifier<SubagentPanelState> {
     _pruneTerminalJobs();
   }
 
+  void toggleAgentExpand(String agentName) {
+    if (state.expandedAgentName == agentName) {
+      state = state.copyWith(expandedAgentName: () => null);
+    } else {
+      state = state.copyWith(expandedAgentName: () => agentName);
+    }
+  }
+
   void _pruneTerminalJobs() {
-    final terminal = <String, SubagentJob>{};
+    final agentJobs = <String, List<MapEntry<String, SubagentJob>>>{};
     final active = <String, SubagentJob>{};
     for (final entry in state.activeJobs.entries) {
       if (entry.value.isTerminal) {
-        terminal[entry.key] = entry.value;
+        agentJobs.putIfAbsent(entry.value.agentName, () => []);
+        agentJobs[entry.value.agentName]!.add(entry);
       } else {
         active[entry.key] = entry.value;
       }
     }
-
-    if (terminal.length > _maxTerminalJobs) {
-      final sorted = terminal.entries.toList()
+    final kept = <String, SubagentJob>{};
+    for (final group in agentJobs.entries) {
+      final sorted = group.value
         ..sort((a, b) => (a.value.createdAt ?? '')
             .compareTo(b.value.createdAt ?? ''));
-      final kept = sorted.skip(sorted.length - _maxTerminalJobs);
-      state = state.copyWith(
-        activeJobs: {
-          ...active,
-          for (final e in kept) e.key: e.value,
-        },
+      final limited = sorted.skip(
+        sorted.length > _maxTerminalJobs ? sorted.length - _maxTerminalJobs : 0,
       );
+      for (final e in limited) {
+        kept[e.key] = e.value;
+      }
     }
+    state = state.copyWith(activeJobs: {...active, ...kept});
+  }
+
+  void clearCompletedJobs(String agentName) {
+    final remaining = <String, SubagentJob>{};
+    for (final entry in state.activeJobs.entries) {
+      if (entry.value.agentName == agentName && entry.value.isTerminal) {
+        continue;
+      }
+      remaining[entry.key] = entry.value;
+    }
+    state = state.copyWith(activeJobs: remaining);
   }
 
   Future<void> pollJob(String jobId) async {

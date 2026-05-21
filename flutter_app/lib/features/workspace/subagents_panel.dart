@@ -5,6 +5,9 @@ import '../../providers/agent_provider.dart';
 import '../../providers/subagent_provider.dart';
 import '../../providers/workspace_provider.dart';
 import '../../theme/app_theme.dart';
+import 'widgets/ea_list_tile.dart';
+import 'widgets/job_result_dialog.dart';
+import 'widgets/tree_selector.dart';
 
 final _nameRegex = RegExp(r'^[a-zA-Z0-9_-]+$');
 const _nameValidationMessage =
@@ -104,6 +107,15 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
     );
   }
 
+  List<Widget> _skillChips(List<String>? skills) {
+    if (skills == null || skills.isEmpty) return [];
+    final chips = skills.take(3).map((s) => _ChipLabel(label: s));
+    if (skills.length > 3) {
+      return [...chips, _ChipLabel(label: '+${skills.length - 3}')];
+    }
+    return [...chips];
+  }
+
   Widget _buildBody(SubagentPanelState state) {
     if (!_initialized && state.loading) {
       return const Center(child: CircularProgressIndicator(strokeWidth: 2));
@@ -157,12 +169,50 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
         final runningJobs = state.activeJobs.values
             .where((j) => j.agentName == agent.name && !j.isTerminal)
             .toList();
-        return _SubagentTile(
-          agent: agent,
-          runningJobs: runningJobs,
-          onStart: () => _showStartDialog(agent),
-          onEdit: () => _showEditDialog(agent),
-          onDelete: () => _confirmDelete(agent),
+        final hasRunning = runningJobs.isNotEmpty;
+        final statusLabel = hasRunning
+            ? (runningJobs.first.status == 'cancelling' ? 'cancelling' : 'running')
+            : 'idle';
+        final skillChips = _skillChips(agent.skills);
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            EaListTile(
+              leading: Icon(Symbols.smart_toy, size: 18, color: context.tokens.colors.accent),
+              title: agent.name,
+              subtitle: agent.description.isEmpty ? null : agent.description,
+              chips: skillChips.isEmpty ? null : skillChips,
+              trailingBadges: [
+                _ScopeBadge(label: agent.scope),
+                _StatusBadge(label: statusLabel),
+              ],
+              trailingActions: [
+                if (hasRunning)
+                  IconButton(
+                    icon: Icon(Symbols.stop_circle, size: 16, color: context.tokens.colors.warning),
+                    onPressed: () => ref
+                        .read(subagentProvider.notifier)
+                        .cancelJob(runningJobs.first.jobId, workspaceId: runningJobs.first.workspaceId),
+                  )
+                else
+                  IconButton(
+                    icon: Icon(Symbols.play_arrow, size: 16),
+                    onPressed: () => _showStartDialog(agent),
+                  ),
+                IconButton(
+                  icon: Icon(Symbols.edit, size: 16),
+                  onPressed: () => _showEditDialog(agent),
+                ),
+                if (!hasRunning)
+                  IconButton(
+                    icon: Icon(Symbols.delete, size: 16),
+                    onPressed: () => _confirmDelete(agent),
+                  ),
+              ],
+              onTap: () => ref.read(subagentProvider.notifier).toggleAgentExpand(agent.name),
+            ),
+            if (state.expandedAgentName == agent.name) _buildJobSection(state, agent),
+          ],
         );
       },
     );
@@ -177,7 +227,6 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
     final modelCtrl = TextEditingController();
     final systemPromptCtrl = TextEditingController();
     var scope = defaultScope;
-    var advancedExpanded = false;
     var maxLlmCalls = 50;
     var costLimitUsd = 1.0;
     var timeoutSeconds = 300;
@@ -269,12 +318,51 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
                       labelText: 'System prompt (optional)',
                     ),
                   ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Text('Skills',
+                        style: t.typography.textTheme.headlineMedium?.copyWith(
+                          fontSize: 14, color: t.colors.textPrimary,
+                        )),
+                    ],
+                  ),
                   const SizedBox(height: 8),
+                  if (allSkills != null) ...[
+                    SizedBox(
+                      height: 180,
+                      child: GroupedTreeSelector<String>(
+                        groups: _groupSkills(allSkills),
+                        selected: selectedSkills,
+                        onChanged: (v) => setDialogState(() => selectedSkills = v),
+                        searchHint: 'Filter skills...',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  if (allTools != null) ...[
+                    Text('Tools',
+                      style: t.typography.textTheme.bodySmall?.copyWith(
+                        color: t.colors.textSecondary,
+                      )),
+                    const SizedBox(height: 4),
+                    SizedBox(
+                      height: 180,
+                      child: GroupedTreeSelector<String>(
+                        groups: _groupTools(allTools),
+                        selected: selectedTools,
+                        onChanged: (v) => setDialogState(() => selectedTools = v),
+                        searchHint: 'Filter tools...',
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
                   ExpansionTile(
-                    title: const Text('Advanced'),
-                    initiallyExpanded: advancedExpanded,
-                    onExpansionChanged: (v) =>
-                        setDialogState(() => advancedExpanded = v),
+                    title: Text('Limits',
+                      style: t.typography.textTheme.bodySmall?.copyWith(
+                        color: t.colors.textSecondary,
+                      )),
+                    initiallyExpanded: false,
                     children: [
                       Row(
                         children: [
@@ -282,8 +370,7 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
                             child: _NumberField(
                               label: 'Max LLM calls',
                               value: maxLlmCalls,
-                              onChanged: (v) =>
-                                  setDialogState(() => maxLlmCalls = v as int),
+                              onChanged: (v) => setDialogState(() => maxLlmCalls = v as int),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -292,9 +379,7 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
                               label: 'Cost limit (\$)',
                               value: costLimitUsd,
                               isDouble: true,
-                              onChanged: (v) => setDialogState(
-                                () => costLimitUsd = v as double,
-                              ),
+                              onChanged: (v) => setDialogState(() => costLimitUsd = v as double),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -302,156 +387,11 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
                             child: _NumberField(
                               label: 'Timeout (s)',
                               value: timeoutSeconds,
-                              onChanged: (v) => setDialogState(
-                                () => timeoutSeconds = v as int,
-                              ),
+                              onChanged: (v) => setDialogState(() => timeoutSeconds = v as int),
                             ),
                           ),
                         ],
                       ),
-                      if (allTools != null) ...[
-                        const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Text(
-                              'Tools',
-                              style: context.tokens.typography.textTheme.bodySmall!.copyWith(
-                                color: context.tokens.colors.textSecondary,
-                              ),
-                            ),
-                            const Spacer(),
-                            InkWell(
-                              onTap: () => setDialogState(
-                                () => selectedTools = allTools!.toSet(),
-                              ),
-                              child: Text(
-                                'All',
-                                style: context.tokens.typography.textTheme.bodySmall!.copyWith(
-                                  color: context.tokens.colors.accent,
-                                ),
-                              ),
-                            ),
-                            Text(' / ',
-                                style: TextStyle(color: context.tokens.colors.textTertiary)),
-                            InkWell(
-                              onTap: () => setDialogState(
-                                () => selectedTools = {},
-                              ),
-                              child: Text(
-                                'Clear',
-                                style: context.tokens.typography.textTheme.bodySmall!.copyWith(
-                                  color: context.tokens.colors.accent,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        SizedBox(
-                          height: 120,
-                          child: ListView(
-                            children: allTools
-                                .where((t) => !t.startsWith('subagent_'))
-                                .map(
-                                  (t) => CheckboxListTile(
-                                    dense: true,
-                                    value: selectedTools.contains(t),
-                                    title: Text(
-                                      t,
-                                  style: context.tokens.typography.textTheme.bodySmall!.copyWith(
-                                    fontSize: 12, color: context.tokens.colors.textSecondary,
-                                  ),
-                                    ),
-                                    onChanged: (v) {
-                                      setDialogState(() {
-                                        if (v == true) {
-                                          selectedTools = {
-                                            ...selectedTools,
-                                            t,
-                                          };
-                                        } else {
-                                          selectedTools = selectedTools
-                                              .difference({t});
-                                        }
-                                      });
-                                    },
-                                  ),
-                                )
-                                .toList(),
-                          ),
-                        ),
-                      ],
-                      if (allSkills != null) ...[
-                        const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Text(
-                              'Skills',
-                              style: context.tokens.typography.textTheme.bodySmall!.copyWith(
-                                color: context.tokens.colors.textSecondary,
-                              ),
-                            ),
-                            const Spacer(),
-                            InkWell(
-                              onTap: () => setDialogState(
-                                () => selectedSkills = allSkills!.toSet(),
-                              ),
-                              child: Text(
-                                'All',
-                                style: context.tokens.typography.textTheme.bodySmall!.copyWith(
-                                  color: context.tokens.colors.accent,
-                                ),
-                              ),
-                            ),
-                            Text(' / ',
-                                style: TextStyle(color: context.tokens.colors.textTertiary)),
-                            InkWell(
-                              onTap: () => setDialogState(
-                                () => selectedSkills = {},
-                              ),
-                              child: Text(
-                                'Clear',
-                                style: context.tokens.typography.textTheme.bodySmall!.copyWith(
-                                  color: context.tokens.colors.accent,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        SizedBox(
-                          height: 120,
-                          child: ListView(
-                            children: allSkills
-                                .map(
-                                  (s) => CheckboxListTile(
-                                    dense: true,
-                                    value: selectedSkills.contains(s),
-                                    title: Text(
-                                      s,
-                                  style: context.tokens.typography.textTheme.bodySmall!.copyWith(
-                                    fontSize: 12, color: context.tokens.colors.textSecondary,
-                                  ),
-                                    ),
-                                    onChanged: (v) {
-                                      setDialogState(() {
-                                        if (v == true) {
-                                          selectedSkills = {
-                                            ...selectedSkills,
-                                            s,
-                                          };
-                                        } else {
-                                          selectedSkills = selectedSkills
-                                              .difference({s});
-                                        }
-                                      });
-                                    },
-                                  ),
-                                )
-                                .toList(),
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ],
@@ -669,181 +609,82 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
                       labelText: 'System prompt (optional)',
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 14),
                   Row(
                     children: [
-                      Expanded(
-                        child: _NumberField(
-                          label: 'Max LLM calls',
-                          value: maxLlmCalls,
-                          onChanged: (v) =>
-                              setDialogState(() => maxLlmCalls = v as int),
-                        ),
+                      Text('Skills',
+                        style: t.typography.textTheme.headlineMedium?.copyWith(
+                          fontSize: 14, color: t.colors.textPrimary,
+                        )),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (allSkills != null) ...[
+                    SizedBox(
+                      height: 180,
+                      child: GroupedTreeSelector<String>(
+                        groups: _groupSkills(allSkills),
+                        selected: selectedSkills,
+                        onChanged: (v) => setDialogState(() => selectedSkills = v),
+                        searchHint: 'Filter skills...',
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _NumberField(
-                          label: 'Cost limit (\$)',
-                          value: costLimitUsd,
-                          isDouble: true,
-                          onChanged: (v) =>
-                              setDialogState(() => costLimitUsd = v as double),
-                        ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  if (allTools != null) ...[
+                    Text('Tools',
+                      style: t.typography.textTheme.bodySmall?.copyWith(
+                        color: t.colors.textSecondary,
+                      )),
+                    const SizedBox(height: 4),
+                    SizedBox(
+                      height: 180,
+                      child: GroupedTreeSelector<String>(
+                        groups: _groupTools(allTools),
+                        selected: selectedTools,
+                        onChanged: (v) => setDialogState(() => selectedTools = v),
+                        searchHint: 'Filter tools...',
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _NumberField(
-                          label: 'Timeout (s)',
-                          value: timeoutSeconds,
-                          onChanged: (v) =>
-                              setDialogState(() => timeoutSeconds = v as int),
-                        ),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
+                  ExpansionTile(
+                    title: Text('Limits',
+                      style: t.typography.textTheme.bodySmall?.copyWith(
+                        color: t.colors.textSecondary,
+                      )),
+                    initiallyExpanded: false,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _NumberField(
+                              label: 'Max LLM calls',
+                              value: maxLlmCalls,
+                              onChanged: (v) => setDialogState(() => maxLlmCalls = v as int),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _NumberField(
+                              label: 'Cost limit (\$)',
+                              value: costLimitUsd,
+                              isDouble: true,
+                              onChanged: (v) => setDialogState(() => costLimitUsd = v as double),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _NumberField(
+                              label: 'Timeout (s)',
+                              value: timeoutSeconds,
+                              onChanged: (v) => setDialogState(() => timeoutSeconds = v as int),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                  if (allTools != null) ...[
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Text(
-                          'Tools',
-                          style: context.tokens.typography.textTheme.bodySmall!.copyWith(
-                            color: context.tokens.colors.textSecondary,
-                          ),
-                        ),
-                        const Spacer(),
-                        InkWell(
-                          onTap: () => setDialogState(
-                            () => selectedTools = allTools!.toSet(),
-                          ),
-                          child: Text(
-                            'All',
-                            style: context.tokens.typography.textTheme.bodySmall!.copyWith(
-                              color: context.tokens.colors.accent,
-                            ),
-                          ),
-                        ),
-                        Text(' / ',
-                            style: TextStyle(color: context.tokens.colors.textTertiary)),
-                        InkWell(
-                          onTap: () => setDialogState(
-                            () => selectedTools = {},
-                          ),
-                          child: Text(
-                            'Clear',
-                            style: context.tokens.typography.textTheme.bodySmall!.copyWith(
-                              color: context.tokens.colors.accent,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    SizedBox(
-                      height: 120,
-                      child: ListView(
-                        children: allTools
-                            .where((t) => !t.startsWith('subagent_'))
-                            .map(
-                              (t) => CheckboxListTile(
-                                dense: true,
-                                value: selectedTools.contains(t),
-                                title: Text(
-                                  t,
-                              style: context.tokens.typography.textTheme.bodySmall!.copyWith(
-                                fontSize: 12, color: context.tokens.colors.textSecondary,
-                              ),
-                                ),
-                                onChanged: (v) {
-                                  setDialogState(() {
-                                    if (v == true) {
-                                      selectedTools = {
-                                        ...selectedTools,
-                                        t,
-                                      };
-                                    } else {
-                                      selectedTools = selectedTools
-                                          .difference({t});
-                                    }
-                                  });
-                                },
-                              ),
-                            )
-                            .toList(),
-                      ),
-                    ),
-                  ],
-                  if (allSkills != null) ...[
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Text(
-                          'Skills',
-                          style: context.tokens.typography.textTheme.bodySmall!.copyWith(
-                            color: context.tokens.colors.textSecondary,
-                          ),
-                        ),
-                        const Spacer(),
-                        InkWell(
-                          onTap: () => setDialogState(
-                            () => selectedSkills = allSkills!.toSet(),
-                          ),
-                          child: Text(
-                            'All',
-                            style: context.tokens.typography.textTheme.bodySmall!.copyWith(
-                              color: context.tokens.colors.accent,
-                            ),
-                          ),
-                        ),
-                        Text(' / ',
-                            style: TextStyle(color: context.tokens.colors.textTertiary)),
-                        InkWell(
-                          onTap: () => setDialogState(
-                            () => selectedSkills = {},
-                          ),
-                          child: Text(
-                            'Clear',
-                            style: context.tokens.typography.textTheme.bodySmall!.copyWith(
-                              color: context.tokens.colors.accent,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    SizedBox(
-                      height: 120,
-                      child: ListView(
-                        children: allSkills
-                            .map(
-                              (s) => CheckboxListTile(
-                                dense: true,
-                                value: selectedSkills.contains(s),
-                                title: Text(
-                                  s,
-                              style: context.tokens.typography.textTheme.bodySmall!.copyWith(
-                                fontSize: 12, color: context.tokens.colors.textSecondary,
-                              ),
-                                ),
-                                onChanged: (v) {
-                                  setDialogState(() {
-                                    if (v == true) {
-                                      selectedSkills = {
-                                        ...selectedSkills,
-                                        s,
-                                      };
-                                    } else {
-                                      selectedSkills = selectedSkills
-                                          .difference({s});
-                                    }
-                                  });
-                                },
-                              ),
-                            )
-                            .toList(),
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -944,105 +785,176 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
     }
   }
 
-}
-
-class _SubagentTile extends ConsumerWidget {
-  final SubagentAgentDef agent;
-  final List<SubagentJob> runningJobs;
-  final VoidCallback onStart;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-
-  const _SubagentTile({
-    required this.agent,
-    required this.runningJobs,
-    required this.onStart,
-    required this.onEdit,
-    required this.onDelete,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final hasRunning = runningJobs.isNotEmpty;
-    final latestJob = hasRunning
-        ? runningJobs.first
-        : (runningJobs.isNotEmpty ? runningJobs.first : null);
-    final statusLabel = hasRunning
-        ? (runningJobs.first.status == 'cancelling' ? 'cancelling' : 'running')
-        : 'idle';
-    final progressMsg = latestJob?.progress?['message']?.toString();
-
-    return ListTile(
-      dense: true,
-      onTap: onEdit,
-      title: Row(
-        children: [
-          Expanded(
-            child: Text(
-              agent.name,
-              style: context.tokens.typography.textTheme.bodyLarge!.copyWith(fontSize: 13, color: context.tokens.colors.textPrimary),
-            ),
-          ),
-          _ScopeBadge(label: agent.scope),
-          const SizedBox(width: 4),
-          _StatusBadge(label: statusLabel),
-        ],
+  List<TreeSelectorGroup<String>> _groupSkills(List<String> skills) {
+    final sorted = List<String>.from(skills)..sort();
+    return [
+      TreeSelectorGroup<String>(
+        label: 'All Skills',
+        items: sorted.map((s) => TreeSelectorItem(label: s, value: s)).toList(),
       ),
-      subtitle: Column(
+    ];
+  }
+
+  String _formatRelativeTime(String iso) {
+    try {
+      final dt = DateTime.parse(iso);
+      final now = DateTime.now();
+      final diff = now.difference(dt);
+      if (diff.inSeconds < 60) return '${diff.inSeconds}s ago';
+      if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+      if (diff.inHours < 24) return '${diff.inHours}h ago';
+      if (diff.inDays < 7) return '${diff.inDays}d ago';
+      return '${dt.month}/${dt.day}';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  Widget _buildJobSection(SubagentPanelState state, SubagentAgentDef agent) {
+    final t = context.tokens;
+    final terminalJobs = state.activeJobs.values
+        .where((j) => j.agentName == agent.name && j.isTerminal)
+        .toList()
+      ..sort((a, b) => (b.createdAt ?? '').compareTo(a.createdAt ?? ''));
+
+    return Container(
+      decoration: BoxDecoration(
+        color: t.colors.bgElevated,
+        border: Border(bottom: BorderSide(color: t.colors.borderSubtle)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            agent.description.isEmpty ? 'No description' : agent.description,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: context.tokens.typography.textTheme.bodySmall!.copyWith(fontSize: 11, color: context.tokens.colors.textSecondary),
-          ),
-          if (progressMsg != null)
-            Text(
-              progressMsg,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: context.tokens.typography.textTheme.bodySmall!.copyWith(
-                fontSize: 10,
-                color: context.tokens.colors.accent,
-              ),
+          Divider(height: 1, color: t.colors.borderSubtle),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 8, 4),
+            child: Row(
+              children: [
+                Text(
+                  'Jobs (${terminalJobs.length})',
+                  style: t.typography.textTheme.bodySmall?.copyWith(
+                    color: t.colors.textSecondary,
+                    fontSize: 11,
+                  ),
+                ),
+                const Spacer(),
+                if (terminalJobs.isNotEmpty)
+                  TextButton(
+                  onPressed: () => ref.read(subagentProvider.notifier).clearCompletedJobs(agent.name),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    'Clear completed',
+                    style: t.typography.textTheme.bodySmall?.copyWith(
+                      color: t.colors.accent,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ],
             ),
-        ],
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (hasRunning)
-            IconButton(
-              tooltip: 'Cancel job',
-              icon: const Icon(Symbols.stop_circle, size: 18),
-              color: context.tokens.colors.warning,
-              onPressed: () {
-                ref
-                    .read(subagentProvider.notifier)
-                    .cancelJob(
-                      runningJobs.first.jobId,
-                      workspaceId: runningJobs.first.workspaceId,
-                    );
-              },
+          ),
+          if (terminalJobs.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+              child: Text(
+                'No completed jobs',
+                style: t.typography.textTheme.bodySmall?.copyWith(
+                  color: t.colors.textTertiary,
+                  fontSize: 11,
+                ),
+              ),
             )
           else
-            IconButton(
-              tooltip: 'Start task',
-              icon: const Icon(Symbols.play_arrow, size: 18),
-              onPressed: onStart,
+            ...terminalJobs.map((job) => _buildJobRow(job)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildJobRow(SubagentJob job) {
+    final t = context.tokens;
+    final statusIcon = switch (job.status) {
+      'completed' => Symbols.check_circle,
+      'failed' => Symbols.error,
+      'cancelled' => Symbols.warning,
+      _ => Symbols.circle,
+    };
+    final statusColor = switch (job.status) {
+      'completed' => t.colors.success,
+      'failed' => t.colors.error,
+      'cancelled' => t.colors.warning,
+      _ => t.colors.textTertiary,
+    };
+    final durationText = job.createdAt != null
+        ? _formatRelativeTime(job.createdAt!)
+        : '';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Row(
+        children: [
+          Icon(statusIcon, size: 14, color: statusColor),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  job.task,
+                  style: t.typography.textTheme.bodySmall?.copyWith(
+                    color: t.colors.textPrimary,
+                    fontSize: 12,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (durationText.isNotEmpty)
+                  Text(
+                    durationText,
+                    style: t.typography.textTheme.bodySmall?.copyWith(
+                      color: t.colors.textTertiary,
+                      fontSize: 10,
+                    ),
+                  ),
+              ],
             ),
-          IconButton(
-            tooltip: 'Edit',
-            icon: const Icon(Symbols.edit, size: 18),
-            onPressed: onEdit,
           ),
-          if (!hasRunning)
-            IconButton(
-              tooltip: 'Delete',
-              icon: const Icon(Symbols.delete, size: 18),
-              onPressed: onDelete,
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              color: statusColor.withAlpha(18),
+              borderRadius: BorderRadius.circular(4),
             ),
+            child: Text(
+              job.status,
+              style: TextStyle(fontSize: 10, color: statusColor, height: 1.2),
+            ),
+          ),
+          const SizedBox(width: 6),
+          TextButton(
+            onPressed: () => showDialog(
+              context: context,
+              builder: (_) => JobResultDialog(job: job),
+            ),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(
+              'View',
+              style: t.typography.textTheme.bodySmall?.copyWith(
+                color: t.colors.accent,
+                fontSize: 11,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1140,6 +1052,58 @@ class _NumberField extends StatelessWidget {
         final parsed = isDouble ? double.tryParse(s) : int.tryParse(s);
         if (parsed != null && parsed > 0) onChanged(parsed);
       },
+    );
+  }
+}
+
+List<TreeSelectorGroup<String>> _groupTools(List<String> tools) {
+  final groups = <String, List<String>>{};
+  for (final tool in tools) {
+    String prefix;
+    if (tool.startsWith('mcp__')) {
+      prefix = 'mcp';
+    } else if (tool.contains('_')) {
+      prefix = tool.split('_').first;
+    } else {
+      prefix = 'other';
+    }
+    groups.putIfAbsent(prefix, () => []);
+    groups[prefix]!.add(tool);
+  }
+  final sortedKeys = groups.keys.toList()..sort();
+  return sortedKeys.map((key) {
+    final items = groups[key]!..sort();
+    return TreeSelectorGroup<String>(
+      label: key,
+      items: items.map((t) {
+        final prefix = '${key}_';
+        final displayName = t.startsWith(prefix) ? t.substring(prefix.length) : t;
+        return TreeSelectorItem(label: displayName, value: t);
+      }).toList(),
+    );
+  }).toList();
+}
+
+class _ChipLabel extends StatelessWidget {
+  final String label;
+  const _ChipLabel({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        color: t.colors.accentMuted,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: t.typography.textTheme.bodySmall?.copyWith(
+          fontSize: 10,
+          color: t.colors.accent,
+        ),
+      ),
     );
   }
 }

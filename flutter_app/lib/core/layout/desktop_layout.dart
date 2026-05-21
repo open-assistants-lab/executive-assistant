@@ -401,7 +401,6 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
   final _scrollController = ScrollController();
   String _activeWorkspace = 'personal';
   bool _restoringScroll = false;
-
   @override
   void initState() {
     super.initState();
@@ -410,20 +409,26 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
   }
 
   void _onScroll() {
-    if (_restoringScroll) return;
+    if (_restoringScroll) {
+      debugPrint('[SCROLL-BLOCKED] restoring=$_restoringScroll');
+      return;
+    }
     if (!_scrollController.hasClients) return;
     final maxExtent = _scrollController.position.maxScrollExtent;
     if (maxExtent <= 0) return;
     final ws = ref.read(activeChatTabProvider);
-    final offset = _scrollController.position.extentAfter <= 2
-        ? double.infinity
+    final extentAfter = _scrollController.position.extentAfter;
+    final offset = extentAfter == 0.0
+        ? -1.0
         : _scrollController.offset;
+    final currentState = ref.read(workspaceScrollPositions);
+    if (currentState[ws] == offset) return;
     ref.read(workspaceScrollPositions.notifier).state = {
-      ...ref.read(workspaceScrollPositions),
+      ...currentState,
       ws: offset,
     };
     debugPrint(
-      '[SCROLL-SAVE _ChatPanel] ws=$ws offset=${offset.toStringAsFixed(0)} max=$maxExtent',
+      '[SCROLL-SAVE _ChatPanel] ws=$ws extentAfter=$extentAfter offset=$offset max=$maxExtent',
     );
   }
 
@@ -431,7 +436,7 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
     _restoringScroll = true;
     final saved = ref.read(workspaceScrollPositions)[workspaceId];
     debugPrint(
-      '[SCROLL-RESTORE _ChatPanel] ws=$workspaceId saved=$saved mounted=$mounted',
+      '[SCROLL-RESTORE _ChatPanel] ws=$workspaceId saved=$saved mounted=$mounted hasClients=${_scrollController.hasClients}',
     );
     if (saved != null && mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -443,18 +448,34 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
           return;
         }
         final max = _scrollController.position.maxScrollExtent;
-        final target = saved.isInfinite ? max : saved.clamp(0, max).toDouble();
-        debugPrint('[SCROLL-RESTORE _ChatPanel] jumping to $target max=$max');
+        final offset = _scrollController.offset;
+        final target = saved == -1.0 ? max : saved.clamp(0, max).toDouble();
+        debugPrint('[SCROLL-RESTORE _ChatPanel] jumping to $target max=$max currentOffset=$offset');
         if (max > 0) {
           _scrollController.jumpTo(target);
+          // Position may have changed since saved was written (stale SharedPreferences value).
+          // Write the actual position we landed at so _onScroll being blocked doesn't leave
+          // a stale position that could be read on the next restore cycle.
+          final newOffset = _scrollController.position.extentAfter == 0.0
+              ? -1.0
+              : _scrollController.offset;
+          final ws = ref.read(activeChatTabProvider);
+          ref.read(workspaceScrollPositions.notifier).state = {
+            ...ref.read(workspaceScrollPositions),
+            ws: newOffset,
+          };
+          debugPrint('[SCROLL-RESTORE _ChatPanel] post-jump save ws=$ws newOffset=$newOffset');
+        } else {
+          debugPrint('[SCROLL-RESTORE _ChatPanel] SKIP jump: max=$max');
         }
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _restoringScroll = false;
+          debugPrint('[SCROLL-RESTORE _ChatPanel] done restoring, saving enabled');
         });
       });
     } else {
       debugPrint(
-        '[SCROLL-RESTORE _ChatPanel] no saved position, scrolling to bottom',
+        '[SCROLL-RESTORE _ChatPanel] no saved position, scrolling to bottom. restoring=$_restoringScroll',
       );
       _restoringScroll = false;
       _scrollToBottom();
@@ -485,27 +506,31 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
     final activeTab = ref.watch(activeChatTabProvider);
 
     ref.listen<String>(activeChatTabProvider, (prev, next) {
+      debugPrint('[TAB-SWITCH] prev=$prev next=$next hasClients=${_scrollController.hasClients} restoring=$_restoringScroll');
       if (prev != null && prev != next) {
-        // Explicitly save the leaving workspace's scroll position RIGHT NOW,
-        // before switchWorkspace's clearHistory corrupts the ListView and resets offset to 0.
         if (_scrollController.hasClients) {
+          final extentAfter = _scrollController.position.extentAfter;
+          final currentOffset = _scrollController.offset;
+          final maxExt = _scrollController.position.maxScrollExtent;
           final positions = ref.read(workspaceScrollPositions);
           final existing = positions[prev];
-          final offset =
-              _scrollController.position.extentAfter <= 2 ||
-                  existing?.isInfinite == true
-              ? double.infinity
-              : _scrollController.offset;
+          final atBottom = extentAfter == 0.0;
+          final offset = atBottom || existing == -1.0
+              ? -1.0
+              : currentOffset;
+          debugPrint('[SCROLL-SAVE-EXPLICIT] leaving=$prev extentAfter=$extentAfter offset=$currentOffset max=$maxExt existing=$existing atBottom=$atBottom saving=$offset');
           ref.read(workspaceScrollPositions.notifier).state = {
             ...positions,
             prev: offset,
           };
-          debugPrint('[SCROLL-SAVE-EXPLICIT] leaving=$prev offset=$offset');
+        } else {
+          debugPrint('[SCROLL-SAVE-EXPLICIT] SKIP leaving=$prev no clients');
         }
         _restoringScroll = true;
       }
       _activeWorkspace = next;
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        debugPrint('[TAB-RESTORE-FRAME] ws=$next hasClients=${_scrollController.hasClients} _activeWorkspace=$_activeWorkspace mounted=$mounted');
         if (mounted && _activeWorkspace == next) {
           _restoreScrollPosition(next);
         }

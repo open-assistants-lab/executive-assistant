@@ -29,13 +29,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void _onScroll() {
     if (_restoringScroll) return;
     if (!_scrollController.hasClients) return;
-    if (_scrollController.position.maxScrollExtent <= 0) return;
+    final maxExtent = _scrollController.position.maxScrollExtent;
+    if (maxExtent <= 0) return;
     final ws = ref.read(currentWorkspaceIdProvider);
-    final offset = _scrollController.position.extentAfter <= 2
-        ? double.infinity
+    final extentAfter = _scrollController.position.extentAfter;
+    final offset = extentAfter == 0.0
+        ? -1.0
         : _scrollController.offset;
+    final currentState = ref.read(workspaceScrollPositions);
+    if (currentState[ws] == offset) return;
     ref.read(workspaceScrollPositions.notifier).state = {
-      ...ref.read(workspaceScrollPositions),
+      ...currentState,
       ws: offset,
     };
   }
@@ -54,9 +58,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           return;
         }
         final max = _scrollController.position.maxScrollExtent;
-        final target = saved.isInfinite ? max : saved.clamp(0, max).toDouble();
+        final target = saved == -1.0 ? max : saved.clamp(0, max).toDouble();
         if (max > 0) {
           _scrollController.jumpTo(target);
+          final newOffset = _scrollController.position.extentAfter == 0.0
+              ? -1.0
+              : _scrollController.offset;
+          final ws = ref.read(currentWorkspaceIdProvider);
+          ref.read(workspaceScrollPositions.notifier).state = {
+            ...ref.read(workspaceScrollPositions),
+            ws: newOffset,
+          };
         }
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _restoringScroll = false;
@@ -102,7 +114,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
 
     ref.listen<String>(currentWorkspaceIdProvider, (prev, next) {
-      if (prev == next) return;
+      if (prev == null || prev == next) return;
+      // Save the leaving workspace's scroll position before switchWorkspace
+      // clears history and resets the ListView offset to 0.
+      if (_scrollController.hasClients) {
+        final positions = ref.read(workspaceScrollPositions);
+        final extentAfter = _scrollController.position.extentAfter;
+        final offset = extentAfter == 0.0
+            ? -1.0
+            : _scrollController.offset;
+        ref.read(workspaceScrollPositions.notifier).state = {
+          ...positions,
+          prev: offset,
+        };
+      }
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           _restoreScrollPosition(next);
