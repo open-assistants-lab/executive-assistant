@@ -401,8 +401,6 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
   final _scrollController = ScrollController();
   String _activeWorkspace = 'personal';
   bool _restoringScroll = false;
-  static const double _nearBottomThreshold = 20.0;
-
   @override
   void initState() {
     super.initState();
@@ -420,7 +418,7 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
     if (maxExtent <= 0) return;
     final ws = ref.read(activeChatTabProvider);
     final extentAfter = _scrollController.position.extentAfter;
-    final offset = extentAfter <= _nearBottomThreshold
+    final offset = extentAfter == 0.0
         ? -1.0
         : _scrollController.offset;
     final currentState = ref.read(workspaceScrollPositions);
@@ -458,7 +456,7 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
           // Position may have changed since saved was written (stale SharedPreferences value).
           // Write the actual position we landed at so _onScroll being blocked doesn't leave
           // a stale position that could be read on the next restore cycle.
-          final newOffset = _scrollController.position.extentAfter <= _nearBottomThreshold
+          final newOffset = _scrollController.position.extentAfter == 0.0
               ? -1.0
               : _scrollController.offset;
           final ws = ref.read(activeChatTabProvider);
@@ -516,7 +514,7 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
           final maxExt = _scrollController.position.maxScrollExtent;
           final positions = ref.read(workspaceScrollPositions);
           final existing = positions[prev];
-          final atBottom = extentAfter <= _nearBottomThreshold;
+          final atBottom = extentAfter == 0.0;
           final offset = atBottom || existing == -1.0
               ? -1.0
               : currentOffset;

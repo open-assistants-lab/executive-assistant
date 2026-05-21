@@ -18,7 +18,6 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _scrollController = ScrollController();
   bool _restoringScroll = false;
-  static const double _nearBottomThreshold = 20.0;
 
   @override
   void initState() {
@@ -34,7 +33,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (maxExtent <= 0) return;
     final ws = ref.read(currentWorkspaceIdProvider);
     final extentAfter = _scrollController.position.extentAfter;
-    final offset = extentAfter <= _nearBottomThreshold
+    final offset = extentAfter == 0.0
         ? -1.0
         : _scrollController.offset;
     final currentState = ref.read(workspaceScrollPositions);
@@ -62,7 +61,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         final target = saved == -1.0 ? max : saved.clamp(0, max).toDouble();
         if (max > 0) {
           _scrollController.jumpTo(target);
-          final newOffset = _scrollController.position.extentAfter <= _nearBottomThreshold
+          final newOffset = _scrollController.position.extentAfter == 0.0
               ? -1.0
               : _scrollController.offset;
           final ws = ref.read(currentWorkspaceIdProvider);
@@ -121,7 +120,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       if (_scrollController.hasClients) {
         final positions = ref.read(workspaceScrollPositions);
         final extentAfter = _scrollController.position.extentAfter;
-        final offset = extentAfter <= _nearBottomThreshold
+        final offset = extentAfter == 0.0
             ? -1.0
             : _scrollController.offset;
         ref.read(workspaceScrollPositions.notifier).state = {
