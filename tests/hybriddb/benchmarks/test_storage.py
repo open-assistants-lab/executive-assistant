@@ -3,8 +3,6 @@
 import os
 from pathlib import Path
 
-import pytest
-
 from .helpers import generate_docs
 
 
@@ -27,7 +25,7 @@ def test_db_file_growth(benchmark, db, scale):
 
     def _measure():
         db.insert_batch("bench_storage", docs, sync=False)
-        return _dir_size(db._db_path)
+        return os.path.getsize(db._db_path)
 
     size = benchmark(_measure)
     assert size > 0
@@ -56,7 +54,7 @@ def test_total_storage(benchmark, db, scale):
 
     def _measure():
         db.insert_batch("bench_storage", docs, sync=True)
-        sqlite_size = _dir_size(db._db_path)
+        sqlite_size = os.path.getsize(db._db_path)
         chroma_size = (
             _dir_size(db._vector_path) if os.path.isdir(db._vector_path) else 0
         )

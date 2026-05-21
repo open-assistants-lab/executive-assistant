@@ -5,13 +5,13 @@ import time
 
 import pytest
 
-from .helpers import generate_docs
+from .helpers import SearchMode, generate_docs
 
 
 def _reader_worker(db, stop, results):
     while not stop.is_set():
         try:
-            db.search("bench_concurrent", "hello", search_type="keyword")
+            db.search("bench_concurrent", "content", "hello", mode=SearchMode.KEYWORD)
             results["reads"] += 1
         except Exception:
             pass
@@ -24,7 +24,7 @@ def _writer_worker(db, stop, results, doc_id_counter):
                 cid = doc_id_counter["val"]
                 doc_id_counter["val"] += 1
             doc = {"id": str(cid), "content": f"concurrent test doc {cid}"}
-            db.insert("bench_concurrent", doc)
+            db.insert("bench_concurrent", doc, sync=False)
             results["writes"] += 1
         except Exception:
             pass
@@ -32,8 +32,8 @@ def _writer_worker(db, stop, results, doc_id_counter):
 
 @pytest.fixture
 def concurrent_db(db, scale):
-    db.create_table("bench_concurrent", {"content": "LONGTEXT"})
-    docs = generate_docs(scale.n_docs, [{"name": "content", "type": "LONGTEXT"}])
+    db.create_table("bench_concurrent", {"content": "TEXT"})
+    docs = generate_docs(scale.n_docs, [{"name": "content", "type": "TEXT"}])
     db.insert_batch("bench_concurrent", docs, sync=False)
     return db
 

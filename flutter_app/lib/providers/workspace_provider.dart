@@ -4,9 +4,37 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'agent_provider.dart';
 
-final workspaceScrollPositions = StateProvider<Map<String, double>>(
-  (ref) => {},
+Map<String, double> _cachedScrollPositions = {};
+
+Future<void> loadScrollPositionsFromPrefs() async {
+  final prefs = await SharedPreferences.getInstance();
+  final raw = prefs.getString('scroll_positions');
+  if (raw != null) {
+    _cachedScrollPositions = Map<String, double>.from(jsonDecode(raw));
+  }
+}
+
+final workspaceScrollPositions = NotifierProvider<_ScrollPositionsNotifier, Map<String, double>>(
+  _ScrollPositionsNotifier.new,
 );
+
+class _ScrollPositionsNotifier extends Notifier<Map<String, double>> {
+  @override
+  Map<String, double> build() {
+    return Map<String, double>.from(_cachedScrollPositions);
+  }
+
+  @override
+  set state(Map<String, double> value) {
+    super.state = value;
+    _persist();
+  }
+
+  Future<void> _persist() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('scroll_positions', jsonEncode(state));
+  }
+}
 final workspaceModelOverridesProvider = StateProvider<Map<String, String?>>(
   (ref) => {},
 );

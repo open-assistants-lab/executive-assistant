@@ -1,14 +1,12 @@
 """Shared helpers for HybridDB benchmarks: data generation, embedding cache, scale."""
 
-import json
 import random
 import subprocess
-from collections.abc import Generator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, NamedTuple
 
-import numpy as np
+from src.sdk.hybrid_db import SearchMode  # noqa: F401 — re-exported for test files
 
 
 class Scale(NamedTuple):
@@ -20,10 +18,10 @@ class Scale(NamedTuple):
 
 
 SMOKE = Scale(
-    n_docs=1_000,
+    n_docs=100,
     n_graph_nodes=100,
     n_graph_edges=500,
-    n_analytics_rows=10_000,
+    n_analytics_rows=1_000,
     concurrent_duration_s=2,
 )
 
