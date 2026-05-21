@@ -401,6 +401,7 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
   final _scrollController = ScrollController();
   String _activeWorkspace = 'personal';
   bool _restoringScroll = false;
+  static const double _nearBottomThreshold = 20.0;
 
   @override
   void initState() {
@@ -419,8 +420,8 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
     if (maxExtent <= 0) return;
     final ws = ref.read(activeChatTabProvider);
     final extentAfter = _scrollController.position.extentAfter;
-    final offset = extentAfter <= 2
-        ? double.infinity
+    final offset = extentAfter <= _nearBottomThreshold
+        ? -1.0
         : _scrollController.offset;
     ref.read(workspaceScrollPositions.notifier).state = {
       ...ref.read(workspaceScrollPositions),
@@ -448,15 +449,15 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
         }
         final max = _scrollController.position.maxScrollExtent;
         final offset = _scrollController.offset;
-        final target = saved.isInfinite ? max : saved.clamp(0, max).toDouble();
+        final target = saved == -1.0 ? max : saved.clamp(0, max).toDouble();
         debugPrint('[SCROLL-RESTORE _ChatPanel] jumping to $target max=$max currentOffset=$offset');
         if (max > 0) {
           _scrollController.jumpTo(target);
           // Position may have changed since saved was written (stale SharedPreferences value).
           // Write the actual position we landed at so _onScroll being blocked doesn't leave
           // a stale position that could be read on the next restore cycle.
-          final newOffset = _scrollController.position.extentAfter <= 2
-              ? double.infinity
+          final newOffset = _scrollController.position.extentAfter <= _nearBottomThreshold
+              ? -1.0
               : _scrollController.offset;
           final ws = ref.read(activeChatTabProvider);
           ref.read(workspaceScrollPositions.notifier).state = {
@@ -513,9 +514,9 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
           final maxExt = _scrollController.position.maxScrollExtent;
           final positions = ref.read(workspaceScrollPositions);
           final existing = positions[prev];
-          final atBottom = extentAfter <= 2;
-          final offset = atBottom || existing?.isInfinite == true
-              ? double.infinity
+          final atBottom = extentAfter <= _nearBottomThreshold;
+          final offset = atBottom || existing == -1.0
+              ? -1.0
               : currentOffset;
           debugPrint('[SCROLL-SAVE-EXPLICIT] leaving=$prev extentAfter=$extentAfter offset=$currentOffset max=$maxExt existing=$existing atBottom=$atBottom saving=$offset');
           ref.read(workspaceScrollPositions.notifier).state = {

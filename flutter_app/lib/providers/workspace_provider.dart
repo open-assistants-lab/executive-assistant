@@ -31,8 +31,10 @@ class _ScrollPositionsNotifier extends Notifier<Map<String, double>> {
   }
 
   Future<void> _persist() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('scroll_positions', jsonEncode(state));
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('scroll_positions', jsonEncode(state));
+    } catch (_) {}
   }
 }
 final workspaceModelOverridesProvider = StateProvider<Map<String, String?>>(
