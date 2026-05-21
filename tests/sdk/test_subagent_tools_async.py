@@ -284,7 +284,92 @@ def test_subagent_update_rejects_validation_errors_before_save(monkeypatch):
     assert validated["tools"] == ["not_a_tool"]
 
 
-class TestAsyncBridgeRecovery:
+def test_subagent_delegate_registered():
+    from src.sdk.native_tools import get_native_tools
+
+    names = {t.name for t in get_native_tools()}
+    assert "subagent_delegate" in names
+
+
+@pytest.mark.asyncio
+async def test_subagent_delegate_returns_output(monkeypatch):
+    from src.sdk.tools_core import subagent as mod
+
+    class FakeCoordinator:
+        def load_def(self, name):
+            return object()
+
+        async def delegate(self, agent_name, task, parent_id=None, timeout_seconds=None):
+            return "finished work"
+
+    monkeypatch.setattr(
+        mod, "get_coordinator", lambda user_id, workspace_id: FakeCoordinator(), raising=False
+    )
+    result = await mod.subagent_delegate.ainvoke(
+        {
+            "agent_name": "worker",
+            "task": "do work",
+            "user_id": "u",
+            "workspace_id": "w",
+        }
+    )
+    assert result == "finished work"
+
+
+@pytest.mark.asyncio
+async def test_subagent_delegate_error_for_nonexistent_agent(monkeypatch):
+    from src.sdk.tools_core import subagent as mod
+
+    class FakeCoordinator:
+        def load_def(self, name):
+            return None
+
+    monkeypatch.setattr(
+        mod, "get_coordinator", lambda user_id, workspace_id: FakeCoordinator(), raising=False
+    )
+    result = await mod.subagent_delegate.ainvoke(
+        {
+            "agent_name": "nobody",
+            "task": "do work",
+            "user_id": "u",
+        }
+    )
+    assert "not found" in result
+
+
+@pytest.mark.asyncio
+async def test_subagent_delegate_timeout(monkeypatch):
+    from src.sdk.tools_core import subagent as mod
+
+    class FakeCoordinator:
+        def load_def(self, name):
+            return object()
+
+        async def delegate(self, agent_name, task, parent_id=None, timeout_seconds=None):
+            raise TimeoutError("timed out")
+
+    monkeypatch.setattr(
+        mod, "get_coordinator", lambda user_id, workspace_id: FakeCoordinator(), raising=False
+    )
+    result = await mod.subagent_delegate.ainvoke(
+        {
+            "agent_name": "slow",
+            "task": "do work",
+            "user_id": "u",
+            "timeout_seconds": 1,
+        }
+    )
+    assert "Timeout" in result
+
+
+def test_subagent_delegate_is_parallel_safe():
+    """Verify annotations mark it as read_only so it runs in parallel batch."""
+    from src.sdk.tools_core import subagent as mod
+
+    ann = mod.subagent_delegate.annotations
+    assert ann.read_only is True
+    assert ann.idempotent is True
+    assert ann.destructive is False
     def test_run_async_respects_timeout(self):
         import asyncio
         from unittest import mock

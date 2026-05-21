@@ -380,6 +380,61 @@ subagent_start.annotations = ToolAnnotations(title="Start Subagent", open_world=
 
 
 @tool
+async def subagent_delegate(
+    agent_name: str,
+    task: str,
+    user_id: str,
+    workspace_id: str = "personal",
+    parent_id: str | None = None,
+    timeout_seconds: int = 120,
+) -> str:
+    """Run a subagent and wait for the result. Returns the subagent's output.
+
+    Unlike subagent_start which fires and forgets, this tool blocks until
+    the subagent completes and returns the result inline. Use this when
+    you need the subagent's output to continue your work.
+
+    Multiple subagent_delegate calls in the same turn run in parallel.
+
+    For long-running tasks (>2 min), use subagent_start instead so the
+    user can continue chatting while the subagent works.
+
+    Args:
+        agent_name: Name of the subagent to run
+        task: Task description/prompt for the subagent
+        user_id: The user ID (required)
+        workspace_id: Workspace ID (defaults to current workspace)
+        parent_id: Correlation ID to group related tasks
+        timeout_seconds: Maximum seconds to wait (default 120)
+
+    Returns:
+        The subagent's output text
+    """
+    coordinator = get_coordinator(user_id, workspace_id)
+
+    existing = coordinator.load_def(agent_name)
+    if existing is None:
+        return f"Error: Subagent '{agent_name}' not found. Create it first with subagent_create."
+
+    try:
+        result = await coordinator.delegate(
+            agent_name, task, parent_id=parent_id,
+            timeout_seconds=timeout_seconds,
+        )
+        return result
+    except Exception as e:
+        return f"Error running '{agent_name}': {type(e).__name__}: {e}"
+
+
+subagent_delegate.annotations = ToolAnnotations(
+    title="Run Subagent (wait for result)",
+    read_only=True,
+    idempotent=True,
+    open_world=True,
+)
+
+
+@tool
 def subagent_list(user_id: str, workspace_id: str = "personal") -> str:
     """List all subagents for the user and their active tasks.
 

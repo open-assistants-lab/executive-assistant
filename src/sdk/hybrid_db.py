@@ -16,7 +16,7 @@ import struct
 import tempfile
 import threading
 from collections import defaultdict
-from collections.abc import Generator
+from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from enum import Enum
@@ -1155,6 +1155,10 @@ class HybridDB:
         ids: list[int] = []
         with self._connect() as cur:
             now = _now_iso()
+            has_auto_id = self._has_autoincrement_id(table)
+
+            # Phase 1: insert all rows, collect IDs
+            row_builders: list[tuple[dict[str, Any], int]] = []
             for data in rows:
                 filtered = {k: v for k, v in data.items() if k in meta["columns"]}
                 columns = list(filtered.keys())
@@ -1166,19 +1170,21 @@ class HybridDB:
                     values,
                 )
                 internal_rowid = cur.lastrowid
-                has_auto_id = self._has_autoincrement_id(table)
 
                 if has_auto_id:
                     user_pk = internal_rowid
-                    row = dict(cur.execute(f"SELECT * FROM {table} WHERE id = ?", (user_pk,)).fetchone())
                 elif "id" in filtered:
                     user_pk = filtered["id"]
-                    row = dict(cur.execute(f"SELECT * FROM {table} WHERE id = ?", (user_pk,)).fetchone())
                 else:
-                    assert internal_rowid is not None
                     user_pk = internal_rowid
-                    row = dict(cur.execute(f"SELECT * FROM {table} WHERE rowid = ?", (internal_rowid,)).fetchone())
                 ids.append(user_pk)
+                row_builders.append((filtered, internal_rowid))
+
+            # Phase 2: construct row dicts from inserted data (avoids N individual SELECTs)
+            for filtered, internal_rowid in row_builders:
+                row = dict(filtered)
+                if has_auto_id:
+                    row.setdefault("id", internal_rowid)
 
                 metadata = self._row_to_metadata(table, row)
                 for col in self._get_longtext_columns(table):
@@ -1222,14 +1228,13 @@ class HybridDB:
             row = dict(cur.execute(f"SELECT * FROM {table} WHERE id = ?", (row_id,)).fetchone())
 
             metadata = self._row_to_metadata(table, row)
+            now = _now_iso()
             for col in self._get_longtext_columns(table):
-                now = _now_iso()
                 cur.execute(
                     "INSERT INTO _journal (app_table, row_id, column_name, op, data, metadata, created_at) "
                     "VALUES (?, ?, ?, 'update', ?, ?, ?)",
                     (table, internal_rowid, col, row.get(col, ""), json.dumps(metadata), now),
                 )
-            now = _now_iso()
             cur.execute(
                 "INSERT INTO _journal (app_table, row_id, op, data, created_at) "
                 "VALUES (?, ?, 'row_update', ?, ?)",
@@ -1250,14 +1255,13 @@ class HybridDB:
             if cur.rowcount == 0:
                 return False
 
+            now = _now_iso()
             for col in self._get_longtext_columns(table):
-                now = _now_iso()
                 cur.execute(
                     "INSERT INTO _journal (app_table, row_id, column_name, op, created_at) "
                     "VALUES (?, ?, ?, 'delete', ?)",
                     (table, internal_rowid, col, now),
                 )
-            now = _now_iso()
             cur.execute(
                 "INSERT INTO _journal (app_table, row_id, op, created_at) "
                 "VALUES (?, ?, 'row_delete', ?)",
@@ -1723,11 +1727,11 @@ class HybridDB:
         if direction not in ("in", "out", "both"):
             raise ValueError("direction must be 'in', 'out', or 'both'")
 
-        base_params = (start_id, start_id, start_id)
+        params: list[Any] = [start_id, start_id, start_id]
         type_filter = ""
         if type:
             type_filter = " AND e.type = ?"
-            base_params = base_params + (type,)
+            params.append(type)
 
         sql = f"""
             WITH RECURSIVE graph_path(node_id, depth, path, cum_cost) AS (
@@ -1764,7 +1768,7 @@ class HybridDB:
             GROUP BY node_id
             ORDER BY depth, cum_cost
         """
-        return self.raw_query(sql, base_params)
+        return self.raw_query(sql, tuple(params))
 
     def decay_edges(self) -> int:
         self._invalidate_nx_cache()
@@ -2146,7 +2150,7 @@ class HybridDB:
         except (ValueError, TypeError):
             return 0.0
 
-    def _fetch_rows_by_ids(self, table: str, ids: list[int | str]) -> dict[int | str, dict]:
+    def _fetch_rows_by_ids(self, table: str, ids: Sequence[int | str]) -> dict[int | str, dict]:
         if not ids:
             return {}
         has_auto_id = self._has_autoincrement_id(table)

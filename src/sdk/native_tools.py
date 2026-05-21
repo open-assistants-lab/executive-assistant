@@ -88,6 +88,7 @@ from src.sdk.tools_core.subagent import (
     subagent_cancel,
     subagent_check,
     subagent_create,
+    subagent_delegate,
     subagent_delete,
     subagent_instruct,
     subagent_list,
@@ -95,6 +96,7 @@ from src.sdk.tools_core.subagent import (
     subagent_tasks,
     subagent_update,
 )
+from src.sdk.tools_core.summarize import summarize_session
 from src.sdk.tools_core.time import time_get
 from src.sdk.tools_core.web import web_fetch, web_search
 from src.sdk.tools_core.workspace import (
@@ -177,6 +179,7 @@ def _register_all() -> None:
     registry.register(app_search_hybrid)
 
     registry.register(subagent_create)
+    registry.register(subagent_delegate)
     registry.register(subagent_start)
     registry.register(subagent_check)
     registry.register(subagent_tasks)
@@ -185,6 +188,7 @@ def _register_all() -> None:
     registry.register(subagent_cancel)
     registry.register(subagent_delete)
     registry.register(subagent_update)
+    registry.register(summarize_session)
 
     registry.register(workspace_create)
     registry.register(workspace_list)

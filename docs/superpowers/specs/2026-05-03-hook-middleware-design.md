@@ -98,8 +98,9 @@ class Middleware(ABC):
     async def aon_user_prompt(self, state, prompt: str) -> dict | None: ...
     async def aon_interrupt(self, state, tool_call: ToolCall) -> str | None: ...
     async def aon_error(self, state, error: Exception, phase: str) -> dict | None: ...
-    async def abefore_summarize(self, state, old_messages: list[Message]) -> dict | None: ...
-    async def aafter_summarize(self, state, summary: str, new_message_count: int) -> dict | None: ...
+
+    # Note: abefore_summarize / aafter_summarize were proposed but removed after
+    # peer review — SummarizationMiddleware._on_summarize callback is sufficient.
 ```
 
 ### Matcher Filtering
@@ -107,6 +108,17 @@ class Middleware(ABC):
 `matcher` is a pipe-delimited list of tool names or a regex pattern. Evaluated in `_run_hooks`:
 
 ```python
+def _matches(pattern: str, tool_name: str) -> bool:
+    """Check if tool_name matches a pipe-delimited glob or regex pattern."""
+    if "|" in pattern:
+        return any(_matches(p.strip(), tool_name) for p in pattern.split("|"))
+    if pattern.startswith("re:"):
+        import re
+        return bool(re.search(pattern[3:], tool_name))
+    import fnmatch
+    return fnmatch.fnmatch(tool_name, pattern)
+
+
 async def _run_hooks(self, hook_name: str, state: AgentState, tool_name: str | None = None) -> None:
     for mw in self.middlewares:
         method = getattr(mw, hook_name, None)
@@ -145,13 +157,14 @@ user_middleware:
 
 | Hook | Where in `run()` | Where in `run_stream()` |
 |---|---|---|
-| `aon_user_prompt` | Line 573, before `abefore_agent` | Line 698, before `abefore_agent` |
-| `abefore_tool` | `_execute_single_tool:261`, `_execute_tool_batch` | `_execute_single_tool_streaming:370`, `_execute_tool_batch_streaming` |
-| `aafter_tool` | After `_execute_tool` returns, before `add_message` | Same |
-| `aon_interrupt` | Line 650, interrupt classification | Line 898, interrupt classification |
-| `aon_error` | Line 627 (LLM error), tool error blocks | Line 832 (LLM stream error) |
-| `abefore_summarize` | N/A (SummarizationMiddleware.abefore_model) | N/A |
-| `aafter_summarize` | N/A | N/A |
+| `aon_user_prompt` | `_run_impl` before `abefore_agent` call | `run_stream` before `abefore_agent` call |
+| `abefore_tool` | At start of `_execute_single_tool`, after `wrap_tool_call` loop | Same in `_execute_single_tool_streaming` |
+| `aafter_tool` | After tool execution returns, before `Message.tool_result` is added to state | Same in streaming variants |
+| `aon_interrupt` | In the interrupt classification block, before creating interrupt `ToolResult` messages | Same location in `_run_stream_inner` |
+| `aon_error` | In `except ProviderContextOverflowError` and `except Exception` handlers in `_run_impl` | Same handler locations in `_run_stream_inner` |
+
+**Note:** These are structural locations, not line numbers. Line numbers change as the codebase evolves.
+
 
 ---
 
@@ -171,12 +184,12 @@ user_middleware:
 | Stop | Existing `after_agent` |
 | StopFailure | New `on_error` (phase="llm") |
 | SubagentStart/Stop | Existing `ProgressMiddleware` / `InstructionMiddleware` |
-| PreCompact / PostCompact | New `before_summarize` / `after_summarize` |
 | Notification, FileChanged, ConfigChange, CwdChanged | N/A (OS-level, not agent-level) |
 | Setup, WorktreeCreate/Remove | N/A (product-specific) |
 
-**Coverage:** 15 of 27 events map to existing or new middleware hooks. The remaining 12 are either
-OS-level (Notification, FileChanged), product-specific (Worktree), or don't apply (no slash commands).
+**Coverage:** 13 of 27 events map to existing or new middleware hooks. PreCompact/PostCompact are
+excluded — `SummarizationMiddleware._on_summarize` callback covers that use case. The remaining 12
+are either OS-level (Notification, FileChanged), product-specific (Worktree), or don't apply (no slash commands).
 
 ---
 
@@ -373,9 +386,8 @@ from the four tool methods. This is actually cleaner — only 2 injection points
 
 ### Benchmarks from code inspection
 
-| Metric | Current (2 middlewares) | With 7 hook points + 3 user mw |
+| Metric | Current (2 middlewares) | With 5 hook points + 3 user mw |
 |---|---|---|
-| Hook dispatch calls per iteration | 2 (`abefore_model` + `aafter_model`) | 4 (`abefore_model` + `aafter_model` + per-tool hooks) |
 | `wrap_tool_call` calls per tool | 2 sync calls | 0 (consolidated into `abefore_tool`) |
 | Per-tool overhead | ~5μs | ~150μs (2 async calls with matcher check × 3 middlewares) |
 | Full run (20 tools, 5 iterations) | <1ms | ~3ms |
@@ -423,7 +435,7 @@ Negligible compared to provider creation (~100ms) and MCP tool discovery (~500ms
 
 | Component | Lines | Complexity | Risk |
 |---|---|---|---|
-| ABC hook stubs (7 new methods) | ~40 | Trivial | None |
+| ABC hook stubs (5 new methods) | ~30 | Trivial | None |
 | `_run_hooks` matcher support | ~15 | Low | None |
 | `before_tool` injection (4 tool methods) | ~20 | Medium | Merge conflicts |
 | `after_tool` injection (4 tool methods) | ~30 | Medium | Needs new dispatch pattern |
@@ -434,7 +446,7 @@ Negligible compared to provider creation (~100ms) and MCP tool discovery (~500ms
 | Bug fix: `wrap_tool_call` error handling | Move to `_run_hooks` | Low | None |
 | User middleware discovery | ~80 | Medium | Import edge cases |
 | Tests | ~200 | — | — |
-| **Total** | **~400** | — | — |
+| **Total** | **~380** | — | — |
 
 ---
 
@@ -462,9 +474,32 @@ The deep code trace confirms this is the right approach:
 1. Fix pre-existing bugs (error handling + missing stream hook) — prerequisite
 2. Add `on_user_prompt`, `before_tool`, `after_tool` hooks with matcher support — core value
 3. Consolidate `wrap_tool_call` into `before_tool` — simplification
-4. Add `on_interrupt`, `on_error`, `before_summarize`, `after_summarize` — completes coverage
+4. Add `on_interrupt`, `on_error` — completes coverage
 5. Implement user middleware discovery — unlocks extensibility
 6. Write user-facing docs with examples — adoption
+
+> **Note:** `abefore_summarize` / `aafter_summarize` were proposed but removed after peer review (2026-05-21).
+> `SummarizationMiddleware._on_summarize` callback is sufficient — no ABC hooks needed.
+
+---
+
+## Peer Review Verdict (2026-05-21)
+
+**Status: Design sound, ready for implementation. Pre-existing bug findings are the most valuable output.**
+
+| # | Issue | Severity | Status |
+|---|-------|----------|--------|
+| 1 | `aafter_model` missing in streaming path — line 723 | Pre-existing bug | Confirmed — fix is prerequisite |
+| 2 | `wrap_tool_call` has no error handling in all 4 tool methods | Pre-existing bug | Confirmed — move to `_run_hooks` dispatch |
+| 3 | `_run_hooks` signature change impacts 8 call sites | Migration cost | Low — default `tool_name=None` is backward compat |
+| 4 | `after_tool` needs separate dispatch from `_run_hooks` | API design | Accepted — documented in Finding 5 |
+| 5 | `wrap_tool_call` → `before_tool` deprecation path underspecified | Design gap | Needs decision on alias vs migration |
+| 6 | No security sandbox for user middleware discovery | Risk | Documented but not mitigated — decide per deployment model |
+| 7 | `_matches()` function implementation undefined | Design gap | Needs implementation — recommend `fnmatch`-style glob first |
+
+**Simplification:** `abefore_summarize` / `aafter_summarize` removed from the proposal (5 hooks instead of 7).
+SummarizationMiddleware already has `_on_summarize` callback for post-summarization behavior. No existing
+middleware needs to hook into summarization. If needed, users can subclass `SummarizationMiddleware`.
 
 ---
 
@@ -472,3 +507,4 @@ The deep code trace confirms this is the right approach:
 
 - **2026-05-03:** Draft created. Exploring extending Middleware ABC + user discovery vs Claude Code external hooks.
 - **2026-05-03:** Deep re-evaluation completed. Code trace found 2 pre-existing bugs, 4 duplicate tool-execution paths, overlapping `wrap_tool_call`/`before_tool` concerns. Recommendation confirmed: extend Middleware ABC, no external process hooks. Performance concern dismissed (150μs vs 5s LLM latency).
+- **2026-05-21:** Peer review completed. `abefore_summarize` / `aafter_summarize` removed (5 hooks remain). 2 pre-existing bugs confirmed. 3 design gaps documented. Security risk noted but not mitigated.

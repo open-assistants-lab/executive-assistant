@@ -51,6 +51,11 @@ class ModelInfo:
     status: str | None = None
 
 
+class ProviderContextOverflowError(Exception):
+    """Raised when the LLM API returns a 413 or context-too-large error."""
+    pass
+
+
 class LLMProvider(ABC):
     """Abstract base class for all LLM providers.
 

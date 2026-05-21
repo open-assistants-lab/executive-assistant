@@ -7,6 +7,8 @@ Reimplements LangChain's SummarizationMiddleware from scratch:
 - Summary generation via AgentLoop.run_single()
 - Callback on successful summary
 - Duplicate prevention guard
+- Tool output pruning before summarization
+- Force summarization for overflow recovery and manual /summarize
 """
 
 from __future__ import annotations
@@ -26,11 +28,36 @@ logger = get_logger()
 
 SummaryCallback = Callable[[str], Awaitable[None]] | Callable[[str], Any]
 
-SUMMARY_SYSTEM_PROMPT = (
-    "You are a conversation summarizer. Produce a concise summary that preserves "
-    "all key facts, decisions, user preferences, and action items. "
-    "Write in third person. Be specific and preserve proper nouns."
-)
+SUMMARY_SYSTEM_PROMPT = """Your task is to create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions.
+
+This summary should be thorough in capturing technical details, code patterns, and architectural decisions that would be essential for continuing development work without losing context.
+
+Before providing your final summary, wrap your analysis in <analysis> tags to organize your thoughts and ensure you've covered all necessary points. In your analysis process:
+
+1. Chronologically analyze each message and section of the conversation. For each section thoroughly identify:
+   - The user's explicit requests and intents
+   - Your approach to addressing the user's requests
+   - Key decisions, technical concepts and code patterns
+   - Specific details like file names, full code snippets, function signatures, file edits, etc
+2. Double-check for technical accuracy and completeness, addressing each required element thoroughly.
+
+Your summary should include the following sections:
+
+1. ## Accomplished
+   What was completed since the last summary. List specific files modified, functions changed, tests added.
+
+2. ## Current State
+   What is in progress right now. What the user was last working on. What the last message was about.
+
+3. ## Files & Architecture
+   All files that have been touched. Their purposes. Key architectural decisions made.
+
+4. ## Next Steps
+   What the user was about to do next. Any explicit TODO items. Unresolved issues or bugs.
+
+5. ## Constraints & Preferences
+   User preferences, coding style constraints, performance requirements, or any other context that would be harmful to forget.
+"""
 
 SUMMARY_USER_TEMPLATE = (
     "Summarize the following conversation segment in 200-500 words:\n\n{conversation}"
@@ -111,6 +138,66 @@ class SummarizationMiddleware(Middleware):
             lines.append(f"{role}: {content}")
         return "\n\n".join(lines)
 
+    def _prune_tool_outputs(self, messages: list[Message], keep_tokens: int) -> list[Message]:
+        """Replace old tool outputs with token-count placeholders.
+
+        Messages within the keep_tokens window are left intact.
+        Older messages with role=='tool' get their content replaced with
+        a short placeholder to save tokens during summarization.
+        """
+        recent_tokens = 0
+        boundary = len(messages)
+        for i in range(len(messages) - 1, -1, -1):
+            t = self._count_message_tokens(messages[i])
+            if recent_tokens + t > keep_tokens and i < len(messages) - 1:
+                boundary = i + 1
+                break
+            recent_tokens += t
+
+        pruned = list(messages)
+        for i in range(boundary):
+            if pruned[i].role == "tool":
+                original_tokens = self._count_message_tokens(pruned[i])
+                pruned[i] = Message(
+                    role="tool",
+                    content=f"[pruned: {original_tokens} tokens of tool output]",
+                    name=pruned[i].name,
+                    tool_call_id=pruned[i].tool_call_id,
+                )
+            elif pruned[i].role == "assistant" and pruned[i].tool_calls:
+                pruned[i] = Message(
+                    role="assistant",
+                    content=pruned[i].content,
+                    tool_calls=pruned[i].tool_calls,
+                )
+        return pruned
+
+    def _split_messages(
+        self, messages: list[Message], keep_tokens: int | None = None
+    ) -> tuple[list[Message], list[Message]]:
+        """Split messages into 'old' (to summarize) and 'recent' (keep as-is).
+
+        The split boundary is computed from keep_tokens.
+        System messages are excluded from the 'old' list.
+        """
+        tokens_to_keep = keep_tokens if keep_tokens is not None else self.keep_tokens
+        recent_tokens = 0
+        split_idx = len(messages)
+
+        for i in range(len(messages) - 1, -1, -1):
+            msg_tokens = self._count_message_tokens(messages[i])
+            if recent_tokens + msg_tokens > tokens_to_keep and i < len(messages) - 1:
+                split_idx = i + 1
+                break
+            recent_tokens += msg_tokens
+        else:
+            split_idx = 1
+
+        old_messages = messages[:split_idx]
+        system_messages = [m for m in old_messages if m.role == "system"]
+        non_system_old = [m for m in old_messages if m.role != "system"]
+        return non_system_old, list(system_messages) + list(messages[split_idx:])
+
     async def _generate_summary(self, conversation_text: str) -> str | None:
         try:
             from src.sdk.loop import AgentLoop
@@ -137,6 +224,48 @@ class SummarizationMiddleware(Middleware):
             )
             return None
 
+    async def force_summarize(self, state: AgentState, instructions: str | None = None) -> bool:
+        """Force summarization even if token count is below threshold.
+
+        Called by overflow recovery or /summarize command.
+        Returns True if summarization was performed.
+
+        If instructions are provided, they are prepended to the summary
+        prompt to focus the summary on specific areas.
+        """
+        messages = state.messages
+        pruned = self._prune_tool_outputs(messages, self.keep_tokens)
+        total_tokens = self._total_tokens(pruned)
+
+        if total_tokens < 1000:
+            return False
+
+        old_messages, recent_messages = self._split_messages(pruned)
+        conversation_text = self._messages_to_conversation_text(old_messages)
+
+        if instructions:
+            conversation_text = f"[Focus: {instructions}]\n\n{conversation_text}"
+
+        summary = await self._generate_summary(conversation_text)
+        if summary is None:
+            return False
+
+        new_messages = [
+            Message.system(f"## Summary of previous conversation\n\n{summary}"),
+            *recent_messages,
+        ]
+        state.messages = new_messages
+
+        if self._on_summarize is not None:
+            try:
+                result = self._on_summarize(summary)
+                if hasattr(result, "__await__"):
+                    await result
+            except Exception:
+                pass
+
+        return True
+
     async def abefore_model(self, state: AgentState) -> dict[str, Any] | None:
         messages = state.messages
         current_msg_count = len(messages)
@@ -149,7 +278,9 @@ class SummarizationMiddleware(Middleware):
             )
             return None
 
-        total_tokens = self._total_tokens(messages)
+        # Prune old tool outputs before counting tokens
+        pruned = self._prune_tool_outputs(messages, self.keep_tokens)
+        total_tokens = self._total_tokens(pruned)
 
         if total_tokens <= self.trigger_tokens:
             return None
@@ -185,14 +316,12 @@ class SummarizationMiddleware(Middleware):
             )
             return None
 
-        old_messages = messages[:split_idx]
-        system_messages = [m for m in old_messages if m.role == "system"]
-        non_system_old = [m for m in old_messages if m.role != "system"]
+        old_messages, recent_messages = self._split_messages(pruned)
 
-        if not non_system_old:
+        if not old_messages:
             return None
 
-        conversation_text = self._messages_to_conversation_text(non_system_old)
+        conversation_text = self._messages_to_conversation_text(old_messages)
         summary_content = await self._generate_summary(conversation_text)
 
         if summary_content is None:
@@ -227,7 +356,7 @@ class SummarizationMiddleware(Middleware):
 
         summary_msg = Message.system(f"## Conversation Summary\n\n{summary_content}")
 
-        new_messages = list(system_messages) + [summary_msg] + list(messages[split_idx:])
+        new_messages = [summary_msg] + list(recent_messages)
 
         self._last_summary_msg_count = len(new_messages)
 

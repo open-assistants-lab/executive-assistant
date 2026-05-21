@@ -260,6 +260,12 @@ class SubagentCoordinator:
         task: str,
         parent_id: str | None = None,
     ) -> str:
+        """DEPRECATED: Use delegate() instead.
+
+        This method skips validate_agent_def() and returns task_id instead of
+        result output. Kept for backward compatibility but delegates should use
+        delegate() for new code.
+        """
         agent_def = self.load_def(agent_name)
         if agent_def is None:
             raise ValueError(f"Subagent '{agent_name}' not found. Create it first with subagent_create.")
@@ -288,6 +294,63 @@ class SubagentCoordinator:
                 await self._set_cancelled_if_requested(task_id, db)
 
         return task_id
+
+    async def delegate(
+        self,
+        agent_name: str,
+        task: str,
+        parent_id: str | None = None,
+        timeout_seconds: int | None = None,
+    ) -> str:
+        """Run a subagent synchronously and return the result string.
+
+        Like invoke() but with agent-def validation and full middleware stack.
+        Unlike start(), this blocks until the subagent completes.
+        No claim_task or heartbeat needed — runs in-process.
+
+        The effective timeout is min(timeout_seconds, agent_def.timeout_seconds).
+        """
+        agent_def = self.load_def(agent_name)
+        if agent_def is None:
+            raise ValueError(
+                f"Subagent '{agent_name}' not found. "
+                f"Create it first with subagent_create."
+            )
+
+        errors = validate_agent_def(agent_def, user_id=self.user_id, workspace_id=self.workspace_id)
+        if errors:
+            raise ValueError("Invalid subagent definition: " + "; ".join(errors))
+
+        effective_timeout = min(
+            timeout_seconds or agent_def.timeout_seconds,
+            agent_def.timeout_seconds,
+        )
+
+        db = await self._get_db()
+        task_id = await db.insert_task(agent_name, task, agent_def, parent_id)
+
+        try:
+            result: SubagentResult = await asyncio.wait_for(
+                self._run_loop(task_id, agent_def, task, db),
+                timeout=effective_timeout,
+            )
+            completed = await db.set_completed(task_id, result)
+            if not completed:
+                await self._set_cancelled_if_requested(task_id, db)
+            return result.output
+        except TaskCancelledError:
+            await db.set_cancelled(task_id)
+            return "Cancelled: subagent was cancelled during execution."
+        except TimeoutError:
+            failed = await db.set_failed(task_id, f"timeout after {effective_timeout}s")
+            if not failed:
+                await self._set_cancelled_if_requested(task_id, db)
+            return f"Timeout: subagent did not complete within {effective_timeout}s."
+        except Exception as e:
+            failed = await db.set_failed(task_id, f"{type(e).__name__}: {e}")
+            if not failed:
+                await self._set_cancelled_if_requested(task_id, db)
+            return f"Error: {type(e).__name__}: {e}"
 
     async def start(
         self,

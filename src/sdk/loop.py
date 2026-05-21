@@ -25,6 +25,7 @@ import asyncio
 import json
 import logging
 from collections.abc import AsyncIterator
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any
 
@@ -38,7 +39,7 @@ from src.sdk.guardrails import (
 from src.sdk.handoffs import Handoff
 from src.sdk.messages import Message, StreamChunk, ToolCall, Usage
 from src.sdk.middleware import Middleware
-from src.sdk.providers.base import LLMProvider, ModelCost
+from src.sdk.providers.base import LLMProvider, ModelCost, ProviderContextOverflowError
 from src.sdk.state import AgentState
 from src.sdk.subagent_models import TaskCancelledError
 from src.sdk.tools import ToolDefinition, ToolRegistry, ToolResult
@@ -46,6 +47,25 @@ from src.sdk.tracing import SpanType, TraceProvider
 from src.sdk.validation import repair_tool_call
 
 logger = logging.getLogger(__name__)
+
+_current_agent_loop: ContextVar["AgentLoop | None"] = ContextVar("_current_agent_loop", default=None)
+
+
+def get_current_agent_loop() -> "AgentLoop | None":
+    """Return the currently active AgentLoop, or None if not inside a run.
+
+    Set at the start of run() and run_stream(), cleared on exit.
+    Used by tools like summarize_session to access the active loop.
+    """
+    return _current_agent_loop.get()
+
+
+def _last_user_message(messages: list[Message]) -> Message | None:
+    """Return the last non-tool, non-system message from the user."""
+    for msg in reversed(messages):
+        if msg.role == "user":
+            return msg
+    return None
 
 DEFAULT_MAX_ITERATIONS = 25
 DEFAULT_MAX_LLM_CALLS = 50
@@ -286,7 +306,10 @@ class AgentLoop:
         # Use middleware (_add_middleware) for tool interception instead.
 
         for mw in self.middlewares:
-            tc.arguments = mw.wrap_tool_call(tc.name, tc.arguments)
+            try:
+                tc.arguments = mw.wrap_tool_call(tc.name, tc.arguments)
+            except Exception:
+                logger.warning(f"wrap_tool_call error in {mw.name} for {tc.name}", exc_info=True)
 
         if self.trace_provider:
             async with self.trace_provider.start_span(SpanType.TOOL_EXECUTION, tc.name) as span:
@@ -332,7 +355,10 @@ class AgentLoop:
 
             tc_args = dict(tc.arguments)
             for mw in self.middlewares:
-                tc_args = mw.wrap_tool_call(tc.name, tc_args)
+                try:
+                    tc_args = mw.wrap_tool_call(tc.name, tc_args)
+                except Exception:
+                    logger.warning(f"wrap_tool_call error in {mw.name} for {tc.name}", exc_info=True)
 
             tc_with_args = ToolCall(id=tc.id, name=tc.name, arguments=tc_args)
 
@@ -395,7 +421,10 @@ class AgentLoop:
             return
 
         for mw in self.middlewares:
-            tc.arguments = mw.wrap_tool_call(tc.name, tc.arguments)
+            try:
+                tc.arguments = mw.wrap_tool_call(tc.name, tc.arguments)
+            except Exception:
+                logger.warning(f"wrap_tool_call error in {mw.name} for {tc.name}", exc_info=True)
 
         if self.trace_provider:
             async with self.trace_provider.start_span(
@@ -444,7 +473,10 @@ class AgentLoop:
 
             tc_args = dict(tc.arguments)
             for mw in self.middlewares:
-                tc_args = mw.wrap_tool_call(tc.name, tc_args)
+                try:
+                    tc_args = mw.wrap_tool_call(tc.name, tc_args)
+                except Exception:
+                    logger.warning(f"wrap_tool_call error in {mw.name} for {tc.name}", exc_info=True)
 
             tc_with_args = ToolCall(id=tc.id, name=tc.name, arguments=tc_args)
 
@@ -577,8 +609,23 @@ class AgentLoop:
                 logger.warning(f"tool_guardrail_error name={guardrail.name}: {e}")
         return None
 
+    def find_middleware(self, mw_type: type) -> Any | None:
+        """Return the first middleware matching the given type, or None."""
+        for mw in self.middlewares:
+            if isinstance(mw, mw_type):
+                return mw
+        return None
+
     async def run(self, messages: list[Message]) -> list[Message]:
         """Run the agent loop to completion. Returns final message list."""
+        token = _current_agent_loop.set(self)
+        try:
+            return await self._run_impl(messages)
+        finally:
+            _current_agent_loop.reset(token)
+
+    async def _run_impl(self, messages: list[Message]) -> list[Message]:
+        """Internal run implementation (wrapped by run() for ContextVar lifecycle)."""
         state = AgentState(messages=list(messages))
         cost_tracker = CostTracker()
 
@@ -597,48 +644,75 @@ class AgentLoop:
                 state.add_message(Message.assistant(content=f"Run limit reached: {limit_reason}"))
                 break
 
-            await self._run_hooks("abefore_model", state)
+            overflow_retries = 0
+            llm_success = False
+            while overflow_retries < 3 and not llm_success:
+                await self._run_hooks("abefore_model", state)
 
-            prepared = self._prepare_messages(state)
-            tools = self._registry.list_tools() or None
+                prepared = self._prepare_messages(state)
+                tools = self._registry.list_tools() or None
 
-            try:
-                if self.trace_provider:
-                    async with self.trace_provider.start_span(
-                        SpanType.LLM_CALL, f"llm_call_{iteration}"
-                    ) as span:
+                try:
+                    if self.trace_provider:
+                        async with self.trace_provider.start_span(
+                            SpanType.LLM_CALL, f"llm_call_{iteration}"
+                        ) as span:
+                            response = await self.provider.chat(
+                                prepared,
+                                tools=tools,
+                                model=None,
+                                provider_options=self.run_config.provider_options,
+                            )
+                            span.set_meta("has_tool_calls", bool(response.tool_calls))
+                            if response.usage:
+                                span.set_meta("input_tokens", response.usage.input_tokens)
+                                span.set_meta("output_tokens", response.usage.output_tokens)
+                            cost_tracker.add_usage(
+                                input_tokens=response.usage.input_tokens if response.usage else 0,
+                                output_tokens=response.usage.output_tokens if response.usage else 0,
+                                reasoning_tokens=response.usage.reasoning_tokens
+                                if response.usage
+                                else 0,
+                            )
+                    else:
                         response = await self.provider.chat(
                             prepared,
                             tools=tools,
                             model=None,
                             provider_options=self.run_config.provider_options,
                         )
-                        span.set_meta("has_tool_calls", bool(response.tool_calls))
-                        if response.usage:
-                            span.set_meta("input_tokens", response.usage.input_tokens)
-                            span.set_meta("output_tokens", response.usage.output_tokens)
                         cost_tracker.add_usage(
                             input_tokens=response.usage.input_tokens if response.usage else 0,
                             output_tokens=response.usage.output_tokens if response.usage else 0,
-                            reasoning_tokens=response.usage.reasoning_tokens
-                            if response.usage
-                            else 0,
+                            reasoning_tokens=response.usage.reasoning_tokens if response.usage else 0,
                         )
-                else:
-                    response = await self.provider.chat(
-                        prepared,
-                        tools=tools,
-                        model=None,
-                        provider_options=self.run_config.provider_options,
+                    llm_success = True
+                except ProviderContextOverflowError:
+                    overflow_retries += 1
+                    logger.warning(f"context_overflow iteration={iteration} retry={overflow_retries}")
+
+                    from src.sdk.middleware_summarization import SummarizationMiddleware
+
+                    summary_mw = self.find_middleware(SummarizationMiddleware)
+                    if summary_mw is not None:
+                        success = await summary_mw.force_summarize(state)
+                        if success:
+                            last_user = _last_user_message(state.messages)
+                            if last_user is not None:
+                                state.messages.append(last_user)
+                                continue
+
+                    state.add_message(
+                        Message.assistant(content=f"Context too large after summarization attempt.")
                     )
-                    cost_tracker.add_usage(
-                        input_tokens=response.usage.input_tokens if response.usage else 0,
-                        output_tokens=response.usage.output_tokens if response.usage else 0,
-                        reasoning_tokens=response.usage.reasoning_tokens if response.usage else 0,
-                    )
-            except Exception as e:
-                logger.error(f"llm_error iteration={iteration}: {e}")
-                state.add_message(Message.assistant(content=f"Error: {e}"))
+                    break
+
+                except Exception as e:
+                    logger.error(f"llm_error iteration={iteration}: {e}")
+                    state.add_message(Message.assistant(content=f"Error: {e}"))
+                    break
+
+            if not llm_success:
                 break
 
             state.add_message(response)
@@ -711,14 +785,18 @@ class AgentLoop:
 
         await self._run_hooks("abefore_agent", state)
 
-        if self.trace_provider:
-            async with self.trace_provider.start_span(SpanType.AGENT, "agent_run"):
+        token = _current_agent_loop.set(self)
+        try:
+            if self.trace_provider:
+                async with self.trace_provider.start_span(SpanType.AGENT, "agent_run"):
+                    async for chunk in self._run_stream_inner(state, cost_tracker, all_tool_calls):
+                        yield chunk
+
+            else:
                 async for chunk in self._run_stream_inner(state, cost_tracker, all_tool_calls):
                     yield chunk
-
-        else:
-            async for chunk in self._run_stream_inner(state, cost_tracker, all_tool_calls):
-                yield chunk
+        finally:
+            _current_agent_loop.reset(token)
 
     async def _run_stream_inner(
         self,
@@ -731,6 +809,8 @@ class AgentLoop:
             guardrail_task = asyncio.ensure_future(self._check_input_guardrails(state))
         except Exception:
             guardrail_task = None
+
+        overflow_retries = 0
 
         for iteration in range(self.run_config.max_iterations):
             limit_reason = cost_tracker.exceeds_limits(self.run_config)
@@ -843,6 +923,27 @@ class AgentLoop:
                         reasoning_tokens=stream_usage.reasoning_tokens,
                     )
 
+            except ProviderContextOverflowError:
+                overflow_retries += 1
+                logger.warning(f"stream_context_overflow iteration={iteration} retry={overflow_retries}")
+                yield StreamChunk.text_delta(
+                    content=f"\n[Context overflow — compacting... retry {overflow_retries}/3]\n"
+                )
+
+                from src.sdk.middleware_summarization import SummarizationMiddleware
+
+                summary_mw = self.find_middleware(SummarizationMiddleware)
+                if summary_mw is not None:
+                    success = await summary_mw.force_summarize(state)
+                    if success:
+                        last_user = _last_user_message(state.messages)
+                        if last_user is not None:
+                            state.messages.append(last_user)
+                            if overflow_retries < 3:
+                                continue
+
+                yield StreamChunk.error(message="Context too large after summarization attempt.")
+                break
             except Exception as e:
                 logger.error(f"llm_stream_error iteration={iteration}: {e}")
                 yield StreamChunk.error(message=str(e))
@@ -886,6 +987,8 @@ class AgentLoop:
                     assistant_msg.reasoning = provider_reasoning
 
             state.add_message(assistant_msg)
+
+            await self._run_hooks("aafter_model", state)
 
             if not stream_tool_calls:
                 output_text = assistant_content

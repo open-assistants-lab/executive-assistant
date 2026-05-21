@@ -1,0 +1,76 @@
+<h2>Recommended: Approach B — Detailed Mockup</h2>
+<p class="subtitle">Consistent design system across both panels</p>
+
+<h3>Shared List Tile Design</h3>
+<div class="mockup">
+  <div class="mockup-body" style="padding:12px;font-size:13px">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid #e0e0e0;border-radius:6px;margin-bottom:6px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:18px">⚡</span>
+        <div>
+          <div style="font-weight:500">firecrawl</div>
+          <div style="color:#888;font-size:11px">Web search and scrape content</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="background:#e3f2fd;padding:1px 6px;border-radius:4px;font-size:10px;color:#1565c0">ws</span>
+        <span style="color:#888;font-size:11px">used by 2 agents</span>
+        <span style="color:#666;cursor:pointer;padding:4px">✎</span>
+        <span style="color:#999;cursor:pointer;padding:4px">✕</span>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid #e0e0e0;border-radius:6px;margin-bottom:6px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:18px">🤖</span>
+        <div>
+          <div style="font-weight:500">code-reviewer</div>
+          <div style="color:#888;font-size:11px">Reviews PRs for code quality</div>
+          <div style="display:flex;gap:4px;margin-top:4px">
+            <span style="background:#f3e5f5;padding:1px 6px;border-radius:4px;font-size:10px;color:#7b1fa2">firecrawl</span>
+            <span style="background:#f3e5f5;padding:1px 6px;border-radius:4px;font-size:10px;color:#7b1fa2">agent-browser</span>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="background:#e3f2fd;padding:1px 6px;border-radius:4px;font-size:10px;color:#1565c0">ws</span>
+        <span style="background:#e8f5e9;padding:2px 8px;border-radius:10px;font-size:11px;color:#2e7d32">idle</span>
+        <span style="color:#666;cursor:pointer;padding:4px">▶</span>
+        <span style="color:#666;cursor:pointer;padding:4px">✎</span>
+        <span style="color:#999;cursor:pointer;padding:4px">✕</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Redesigned Subagent Editor</h3>
+  <div class="mockup">
+    <div class="mockup-body" style="padding:12px;font-size:13px">
+      <div><b>Name:</b> code-reviewer</div>
+      <div style="margin-top:6px"><b>Description:</b> Reviews PRs for code quality</div>
+      <div style="margin-top:6px"><b>Model:</b> [deepseek:deepseek-v4-flash ▼]</div>
+      <div style="margin-top:6px"><b>System prompt:</b> [You are a code reviewer...]</div>
+
+      <div style="margin-top:14px;font-weight:500;color:#333">Skills & Capabilities</div>
+      <div style="border:1px solid #e0e0e0;border-radius:6px;padding:10px;margin-top:6px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <span style="border:1px solid #7b1fa2;border-radius:4px;padding:3px 8px;font-size:12px;background:#f3e5f5">✓ firecrawl</span>
+          <span style="border:1px solid #7b1fa2;border-radius:4px;padding:3px 8px;font-size:12px;background:#f3e5f5">✓ agent-browser</span>
+          <span style="border:1px dashed #ccc;border-radius:4px;padding:3px 8px;font-size:12px;color:#888">+ Add skill</span>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <span style="border:1px solid #1565c0;border-radius:4px;padding:3px 8px;font-size:12px;background:#e3f2fd">✓ subagent_start</span>
+          <span style="border:1px dashed #ccc;border-radius:4px;padding:3px 8px;font-size:12px;color:#888">+ Add tool</span>
+        </div>
+      </div>
+
+      <div style="margin-top:14px"><span style="font-weight:500;color:#333">Limits</span> <span style="color:#888;font-size:11px">— collapsed by default</span></div>
+      <div style="color:#888;font-size:12px;margin-top:4px;padding-left:8px">Max calls: 50 | Cost: $1.00 | Timeout: 300s</div>
+
+      <div style="margin-top:14px"><span style="font-weight:500;color:#333">Scope</span>: user</div>
+    </div>
+  </div>
+  <p style="color:#666;font-size:12px;margin-top:8px">Skills & Tools are front-and-center. Limits move to the bottom. The same chip-based multi-select is used in both skills panel and subagent editor for consistency.</p>
+</div>
+
+<p style="margin-top:12px"><i>Click an option above or share your thoughts in the terminal.</i></p>
