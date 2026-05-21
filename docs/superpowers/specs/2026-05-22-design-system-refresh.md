@@ -286,6 +286,138 @@ Replace `staggeredEntry` (the current "messages slide in" animation) with simple
 
 **Reduced-motion**: when OS setting is on, all animations become 0ms.
 
+## Transition Choreography
+
+Motion personality: **Hybrid** — quiet & functional for utility transitions, expressive only for "moments." Two animation tiers govern every transition in the app:
+
+- **Utility tier** (`base` = 180ms, `curveStandard`): high-frequency UI changes the user expects to be fast. Goal: feel instant but never jarring.
+- **Moment tier** (`moment` = 280ms, `curveEntrance` for entrance / `curveExit` for exit): rare, intentional moments that deserve a touch of delight.
+
+Add new motion tokens to `tokens/motion.dart`:
+
+| Token | Value | Use |
+|---|---|---|
+| `moment` | 280ms | Tier-2 moments (dialogs, completion states) |
+| `curveSpring` | `Cubic(0.34, 1.56, 0.64, 1)` | Slight overshoot for "moment" arrivals (dialogs, completion icons) |
+
+### Tier 1 — Utility Transitions
+
+#### Workspace switch (chat panel tabs)
+- Duration: `base` (180ms)
+- Style: crossfade only — old messages fade out (opacity 1→0, 100ms) while new messages fade in (opacity 0→1, 100ms) with 20ms overlap
+- No translation, no scroll animation (jumpTo bottom is instant)
+- Implementation: wrap message list in `AnimatedSwitcher` keyed by workspace ID, transitionBuilder uses `FadeTransition`
+
+#### Sidebar navigation (top-level routes: Email / Workspace / Chat / Memory / Settings)
+- Duration: `base` (180ms)
+- Style: incoming page slides in 8px from the right + fades in; outgoing page fades out
+- Implementation: `PageTransitionsTheme` on `ThemeData` using a custom `PageTransitionsBuilder`
+- No "swipe back" gesture animations (desktop-first)
+
+#### Chat panel workspace tabs (horizontal tab bar)
+- Duration: `base` (180ms)
+- Style: underline indicator slides horizontally between tabs (animated `AnimatedPositioned` or `AnimatedAlign`)
+- Tab text color fades from `textTertiary` → `textPrimary` over the same duration
+- No content sliding — the content area uses the workspace-switch crossfade above
+
+#### Sidebar item hover / active state
+- Duration: `fast` (120ms)
+- Background fades in (`bgSurface`), left accent bar slides in from -3px to 0 with same duration
+- Icon does NOT scale or shift
+
+#### Panels (settings drawer, right-side workspace panels)
+- Open: slide in from edge (right or left depending on origin) over `base` (180ms), `curveEntrance`
+- Close: slide out same direction over `fast` (120ms), `curveExit`
+- Background dim layer: fade `bgCanvas` to `rgba(0,0,0,0.4)` over same duration
+
+#### Tool card expand / collapse
+- Duration: `base` (180ms)
+- Animates `height` (via `AnimatedSize`) and child opacity together
+- Chevron icon rotates 180° on the same curve
+- The card itself has no entrance animation when it first arrives (it's already there from streaming)
+
+#### Hover transitions (buttons, cards, list items, inputs)
+- Duration: `fast` (120ms), `curveStandard`
+- Animates: background, border-color, text-color simultaneously
+- No size changes on hover (only press)
+
+#### Focus rings (keyboard navigation)
+- Appear: instant (no animation) — keyboard users need immediate feedback
+- Disappear: `fast` (120ms) fade-out
+- Style: 2px `borderAccent` ring at 2px offset, radius matches the focused element + 2
+
+#### Press states
+- Duration: 100ms (faster than `fast` for tactile feel)
+- Scale to `pressScale` (0.97), `curveStandard`
+- On release: scale back over 100ms
+
+### Tier 2 — Moment Transitions
+
+#### Dialogs (create-subagent, settings-edit, confirmation prompts)
+- Open:
+  - Backdrop fades in (`base` 180ms, `curveStandard`)
+  - Dialog: scale `0.96 → 1.0` + opacity `0 → 1` over `moment` (280ms) with `curveSpring` (slight overshoot to ~1.005)
+- Close:
+  - Dialog: scale `1.0 → 0.96` + opacity `1 → 0` over `fast` (120ms), `curveExit`
+  - Backdrop fades out over `fast` (120ms)
+- Backdrop click outside: same close animation
+
+#### Approval / interrupt prompt (when AI requests permission for destructive action)
+- Appears as a docked panel at the bottom of the chat
+- Entrance: slide up 24px + fade in over `moment` (280ms), `curveSpring`
+- Exit: slide down 24px + fade out over `fast` (120ms), `curveExit`
+- Accent left-border (3px) draws in from top after the panel settles (additional 200ms, `curveStandard`)
+
+#### Tool call completion (status changes from "Running" → "Done" or "Failed")
+- The status pill on the right of the tool card crossfades to new content (`base` 180ms)
+- A small check-icon or X-icon strokes in (path-draw animation, 250ms, `curveStandard`) **only on success/error** — running→success is the only animated transition; nothing animates when the card first appears running
+- After completion, the card's left border briefly pulses with the success/error color (300ms, opacity 0→0.6→0)
+
+#### Streaming message arrival
+- The new AI message's container fades in (opacity 0→1) over 200ms with `curveStandard`, no translation
+- The "ASSISTANT" small-caps label appears first; the role-dot pulses (opacity 0.4 → 1.0 → 0.4, 1.2s loop, `curveStandard`) while streaming
+- Text characters fade in as they arrive (opacity 0→1, 100ms each)
+- On completion: the role-dot stops pulsing and scales briefly (1.0 → 1.2 → 1.0, 200ms, `curveSpring`) — a tiny "done" gesture
+- Reasoning text streams identically but inside a collapsed-by-default reasoning card; the reasoning card itself fades in on first reasoning token
+
+#### Cost / usage update (token counter incrementing)
+- When token count changes after a turn, the number flips upward with a slot-machine-style animation: old number slides down + fades out, new number slides up + fades in (total 240ms, `curveStandard`)
+- Only animates on significant changes (≥1% of total budget); below threshold updates instantly
+
+#### Error toast / notification
+- Slide in from top-right + fade over `moment` (280ms), `curveSpring`
+- Auto-dismiss: slide out + fade over `base` (180ms) after 4s (longer if user is hovering)
+- Manual dismiss: same exit
+
+#### Empty-state → first message
+- When user sends their first message in an empty workspace, the empty-state content (dot, subtitle, suggestion chips) fades out over `base` (180ms)
+- Their first user bubble fades in 80ms after the empty state starts fading (subtle stagger)
+
+### Cross-cutting Rules
+
+- **No two animations exceed `moment` (280ms)**. Anything longer feels slow.
+- **Never animate more than 3 properties simultaneously** on a single element. Pick the most semantically important properties (usually opacity + one transform).
+- **Color transitions** always use `fast` (120ms). Never animate color over `base` or longer — it reads as "loading."
+- **List items** never animate their own position (no reordering animations). Add new items with fade-in only.
+- **Scroll position changes** are always instant (`jumpTo`), never animated. Animated scrolls fight with user input.
+- **Loading skeletons** pulse at 1.4s opacity 0.4→0.8→0.4 (longer than the streaming role-dot pulse to differentiate "loading" from "thinking").
+
+### Reduced Motion
+
+When OS reduced-motion setting is enabled:
+- All `Duration` values from motion tokens become `Duration.zero`
+- The role-dot pulse stops (becomes solid)
+- Slot-machine token counter updates instantly
+- Crossfades become hard cuts
+- Implementation: read `MediaQuery.of(context).disableAnimations`, gate all animation calls
+
+### Performance Budget
+
+- Every animation must hit 60fps (16.7ms per frame) on a 5-year-old Mac
+- Use `AnimatedBuilder` + `RepaintBoundary` for any animation that triggers parent rebuilds
+- The streaming role-dot pulse uses a single `AnimationController` shared across instances
+- Tool-card status-pulse uses one-shot animations that dispose after completion
+
 ## Implementation Plan (high-level — detailed plan written separately)
 
 Three phases, each independently shippable:
