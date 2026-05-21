@@ -98,12 +98,14 @@ class AppTheme {
         brightness: brightness,
         primary: tokens.colors.accent,
         onPrimary: tokens.colors.textInverse,
-        secondary: tokens.colors.accent,
-        onSecondary: tokens.colors.textInverse,
+        secondary: tokens.colors.accentMuted,
+        onSecondary: tokens.colors.textPrimary,
         surface: tokens.colors.bgSurface,
         onSurface: tokens.colors.textPrimary,
         error: tokens.colors.error,
-        onError: Colors.white,
+        onError: tokens.colors.textInverse,
+        outline: tokens.colors.borderDefault,
+        outlineVariant: tokens.colors.borderSubtle,
       ),
       textTheme: tokens.typography.textTheme,
       cardTheme: CardThemeData(
@@ -132,17 +134,18 @@ class AppTheme {
         labelStyle: tokens.typography.textTheme.bodySmall?.copyWith(color: tokens.colors.textSecondary),
         hintStyle: tokens.typography.textTheme.bodySmall?.copyWith(color: tokens.colors.textTertiary),
         border: OutlineInputBorder(
-          borderRadius: tokens.radius.smAll,
+          borderRadius: tokens.radius.mdAll,
+          borderSide: BorderSide(color: tokens.colors.borderDefault),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: tokens.radius.mdAll,
           borderSide: BorderSide(color: tokens.colors.borderDefault),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: tokens.radius.smAll,
-          borderSide: BorderSide(color: tokens.colors.accent),
+          borderRadius: tokens.radius.mdAll,
+          borderSide: BorderSide(color: tokens.colors.accent, width: 1.5),
         ),
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: tokens.spacing.md,
-          vertical: tokens.spacing.sm + 2,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       ),
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: tokens.colors.bgSurface,
