@@ -1,244 +1,138 @@
 import 'package:flutter/material.dart';
-
 import '../theme/app_theme.dart';
 
-class EaPrimaryButton extends StatelessWidget {
-  final VoidCallback? onPressed;
-  final String label;
-  final Widget? icon;
-  final bool isDisabled;
-  final bool isLoading;
+enum EaButtonVariant { primary, secondary, ghost }
 
-  const EaPrimaryButton({
+class EaButton extends StatefulWidget {
+  final String label;
+  final VoidCallback? onPressed;
+  final EaButtonVariant variant;
+  final IconData? icon;
+
+  const EaButton({
     super.key,
-    required this.onPressed,
     required this.label,
+    required this.onPressed,
+    this.variant = EaButtonVariant.primary,
     this.icon,
-    this.isDisabled = false,
-    this.isLoading = false,
   });
 
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    final enabled = onPressed != null && !isDisabled && !isLoading;
+  const EaButton.primary({
+    Key? key,
+    required String label,
+    required VoidCallback? onPressed,
+    IconData? icon,
+  }) : this(
+          key: key,
+          label: label,
+          onPressed: onPressed,
+          icon: icon,
+          variant: EaButtonVariant.primary,
+        );
 
-    return GestureDetector(
-      onTap: enabled ? onPressed : null,
-      child: AnimatedContainer(
-        duration: t.motion.snappy,
-        height: 40,
-        padding: EdgeInsets.symmetric(horizontal: t.spacing.md),
-        decoration: BoxDecoration(
-          color: enabled ? t.colors.accent : t.colors.accent.withValues(alpha: 0.4),
-          borderRadius: t.radius.mdAll,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isLoading)
-              Padding(
-                padding: EdgeInsets.only(right: t.spacing.sm),
-                child: SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 1.5,
-                    color: t.colors.textInverse,
-                  ),
-                ),
-              )
-            else if (icon != null)
-              Padding(
-                padding: EdgeInsets.only(right: t.spacing.sm),
-                child: IconTheme(
-                  data: IconThemeData(color: t.colors.textInverse, size: 18),
-                  child: icon!,
-                ),
-              ),
-            Text(
-              label,
-              style: t.typography.textTheme.bodyMedium
-                  ?.copyWith(color: t.colors.textInverse),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  const EaButton.secondary({
+    Key? key,
+    required String label,
+    required VoidCallback? onPressed,
+    IconData? icon,
+  }) : this(
+          key: key,
+          label: label,
+          onPressed: onPressed,
+          icon: icon,
+          variant: EaButtonVariant.secondary,
+        );
+
+  const EaButton.ghost({
+    Key? key,
+    required String label,
+    required VoidCallback? onPressed,
+    IconData? icon,
+  }) : this(
+          key: key,
+          label: label,
+          onPressed: onPressed,
+          icon: icon,
+          variant: EaButtonVariant.ghost,
+        );
+
+  @override
+  State<EaButton> createState() => _EaButtonState();
 }
 
-class EaSecondaryButton extends StatelessWidget {
-  final VoidCallback? onPressed;
-  final String label;
-  final Widget? icon;
-  final bool isDisabled;
-  final bool isLoading;
-
-  const EaSecondaryButton({
-    super.key,
-    required this.onPressed,
-    required this.label,
-    this.icon,
-    this.isDisabled = false,
-    this.isLoading = false,
-  });
+class _EaButtonState extends State<EaButton> {
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tokens;
-    final enabled = onPressed != null && !isDisabled && !isLoading;
+    final tokens = context.tokens;
+    final enabled = widget.onPressed != null;
 
-    return GestureDetector(
-      onTap: enabled ? onPressed : null,
-      child: AnimatedContainer(
-        duration: t.motion.snappy,
-        height: 40,
-        padding: EdgeInsets.symmetric(horizontal: t.spacing.md),
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: enabled
-                ? t.colors.borderDefault
-                : t.colors.borderDefault.withValues(alpha: 0.4),
+    final (bg, fg, border) = switch (widget.variant) {
+      EaButtonVariant.primary => (
+          tokens.colors.accent,
+          tokens.colors.textInverse,
+          null as Color?,
+        ),
+      EaButtonVariant.secondary => (
+          Colors.transparent,
+          tokens.colors.textPrimary,
+          tokens.colors.borderDefault as Color?,
+        ),
+      EaButtonVariant.ghost => (
+          Colors.transparent,
+          tokens.colors.textPrimary,
+          null as Color?,
+        ),
+    };
+
+    return Opacity(
+      opacity: enabled ? 1.0 : 0.4,
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapCancel: () => setState(() => _pressed = false),
+        onTapUp: (_) => setState(() => _pressed = false),
+        child: AnimatedScale(
+          scale: _pressed ? tokens.motion.pressScale : 1.0,
+          duration: const Duration(milliseconds: 100),
+          curve: tokens.motion.curveStandard,
+          child: Material(
+            color: bg,
+            borderRadius: tokens.radius.smAll,
+            child: InkWell(
+              onTap: enabled ? widget.onPressed : null,
+              borderRadius: tokens.radius.smAll,
+              hoverColor: widget.variant == EaButtonVariant.primary
+                  ? tokens.colors.accentHover
+                  : tokens.colors.bgSurface,
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: tokens.spacing.md + 2,
+                  vertical: tokens.spacing.sm,
+                ),
+                decoration: BoxDecoration(
+                  borderRadius: tokens.radius.smAll,
+                  border: border != null
+                      ? Border.all(color: border, width: 1)
+                      : null,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (widget.icon != null) ...[
+                      Icon(widget.icon, size: 14, color: fg),
+                      SizedBox(width: tokens.spacing.xs + 2),
+                    ],
+                    Text(
+                      widget.label,
+                      style: tokens.typography.textTheme.labelLarge
+                          ?.copyWith(color: fg),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-          borderRadius: t.radius.mdAll,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null)
-              Padding(
-                padding: EdgeInsets.only(right: t.spacing.sm),
-                child: IconTheme(
-                  data: IconThemeData(
-                    color: t.colors.textPrimary,
-                    size: 18,
-                  ),
-                  child: icon!,
-                ),
-              ),
-            Text(
-              label,
-              style: t.typography.textTheme.bodyMedium?.copyWith(
-                color: enabled ? t.colors.textPrimary : t.colors.textTertiary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class EaGhostButton extends StatelessWidget {
-  final VoidCallback? onPressed;
-  final String label;
-  final Widget? icon;
-  final bool isDisabled;
-
-  const EaGhostButton({
-    super.key,
-    required this.onPressed,
-    required this.label,
-    this.icon,
-    this.isDisabled = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    final enabled = onPressed != null && !isDisabled;
-
-    return GestureDetector(
-      onTap: enabled ? onPressed : null,
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: t.spacing.sm,
-          vertical: t.spacing.xs,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null)
-              Padding(
-                padding: EdgeInsets.only(right: t.spacing.sm),
-                child: IconTheme(
-                  data: IconThemeData(
-                    color: enabled
-                        ? t.colors.textSecondary
-                        : t.colors.textTertiary,
-                    size: 18,
-                  ),
-                  child: icon!,
-                ),
-              ),
-            Text(
-              label,
-              style: t.typography.textTheme.bodyMedium?.copyWith(
-                color: enabled
-                    ? t.colors.textSecondary
-                    : t.colors.textTertiary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class EaDangerButton extends StatelessWidget {
-  final VoidCallback? onPressed;
-  final String label;
-  final bool isDisabled;
-  final bool isLoading;
-
-  const EaDangerButton({
-    super.key,
-    required this.onPressed,
-    required this.label,
-    this.isDisabled = false,
-    this.isLoading = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    final enabled = onPressed != null && !isDisabled && !isLoading;
-
-    return GestureDetector(
-      onTap: enabled ? onPressed : null,
-      child: AnimatedContainer(
-        duration: t.motion.snappy,
-        height: 40,
-        padding: EdgeInsets.symmetric(horizontal: t.spacing.md),
-        decoration: BoxDecoration(
-          color: enabled
-              ? t.colors.error
-              : t.colors.error.withValues(alpha: 0.4),
-          borderRadius: t.radius.mdAll,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isLoading)
-              Padding(
-                padding: EdgeInsets.only(right: t.spacing.sm),
-                child: SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 1.5,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            Text(
-              label,
-              style: t.typography.textTheme.bodyMedium
-                  ?.copyWith(color: Colors.white),
-            ),
-          ],
         ),
       ),
     );
