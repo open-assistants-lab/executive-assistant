@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import '../../../core/animations.dart';
 import '../../../theme/app_theme.dart';
 import '../../../models/message.dart';
 import 'message_bubble.dart';
@@ -151,11 +150,9 @@ class ChatMessageListState extends State<ChatMessageList> {
       items.add(
         KeyedSubtree(
           key: ValueKey('msg_${msg.id}_${msg.content.hashCode}'),
-          child: EaAnimations.fadeIn(
-            child: _keyedWrapper(
-              gKey,
-              MessageBubble(message: msg),
-            ),
+          child: _keyedWrapper(
+            gKey,
+            MessageBubble(message: msg),
           ),
         ),
       );
