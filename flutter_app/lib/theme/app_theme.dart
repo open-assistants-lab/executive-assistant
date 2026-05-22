@@ -147,6 +147,53 @@ class AppTheme {
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       ),
+      canvasColor: tokens.colors.bgElevated,
+      popupMenuTheme: PopupMenuThemeData(
+        color: tokens.colors.bgElevated,
+        textStyle: tokens.typography.textTheme.bodyMedium?.copyWith(
+          color: tokens.colors.textPrimary,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: tokens.radius.smAll,
+          side: BorderSide(color: tokens.colors.borderDefault, width: 1),
+        ),
+        elevation: 0,
+      ),
+      dropdownMenuTheme: DropdownMenuThemeData(
+        textStyle: tokens.typography.textTheme.bodyMedium?.copyWith(
+          color: tokens.colors.textPrimary,
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: tokens.colors.bgField,
+          border: OutlineInputBorder(
+            borderRadius: tokens.radius.mdAll,
+            borderSide: BorderSide(color: tokens.colors.borderDefault),
+          ),
+        ),
+        menuStyle: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(tokens.colors.bgElevated),
+          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: tokens.radius.smAll,
+              side: BorderSide(color: tokens.colors.borderDefault, width: 1),
+            ),
+          ),
+        ),
+      ),
+      menuTheme: MenuThemeData(
+        style: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(tokens.colors.bgElevated),
+          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: tokens.radius.smAll,
+              side: BorderSide(color: tokens.colors.borderDefault, width: 1),
+            ),
+          ),
+        ),
+      ),
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: tokens.colors.bgSurface,
         shape: RoundedRectangleBorder(
