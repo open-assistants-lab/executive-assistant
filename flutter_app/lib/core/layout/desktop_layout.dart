@@ -551,6 +551,12 @@ class _PanelMessageList extends ConsumerWidget {
       switchInCurve: tokens.motion.curveStandard,
       switchOutCurve: tokens.motion.curveStandard,
       transitionBuilder: (child, anim) => FadeTransition(opacity: anim, child: child),
+      // Use the current child directly instead of stacking (which causes
+      // unbounded-height errors with ListView). The fade-out child is dropped
+      // immediately when the workspace changes — slight visual sacrifice for
+      // correct layout.
+      layoutBuilder: (currentChild, previousChildren) =>
+          currentChild ?? const SizedBox.shrink(),
       child: KeyedSubtree(
         key: ValueKey('chat_list_$activeWs'),
         child: ChatMessageList(
