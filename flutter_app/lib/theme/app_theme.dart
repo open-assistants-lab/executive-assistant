@@ -14,6 +14,7 @@ import 'tokens/typography.dart';
 import 'tokens/spacing.dart';
 import 'tokens/radius.dart';
 import 'tokens/motion.dart';
+import '../core/page_transitions.dart';
 
 @immutable
 class EaTokens extends ThemeExtension<EaTokens> {
@@ -206,6 +207,7 @@ class AppTheme {
         color: tokens.colors.borderSubtle,
         thickness: 1,
       ),
+      pageTransitionsTheme: const EaPageTransitionsTheme(),
       extensions: [tokens],
     );
   }
