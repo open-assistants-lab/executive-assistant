@@ -12,8 +12,9 @@ class EaTypography {
   });
 
   factory EaTypography.build(Brightness brightness) {
-    final inter = GoogleFonts.interTextTheme();
-    final firaCode = GoogleFonts.firaCodeTextTheme();
+    final base = brightness == Brightness.dark ? ThemeData.dark().textTheme : ThemeData.light().textTheme;
+    final inter = GoogleFonts.interTextTheme(base);
+    final firaCode = GoogleFonts.firaCodeTextTheme(base);
     return EaTypography(
       textTheme: inter.copyWith(
         displayLarge: inter.displayLarge?.copyWith(

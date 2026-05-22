@@ -235,105 +235,109 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
     final t = context.tokens;
     final updated = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: Text('Edit $name', style: t.typography.textTheme.titleLarge?.copyWith(color: t.colors.textPrimary)),
-          content: SingleChildScrollView(
-            child: SizedBox(
-              width: 520,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: descriptionCtrl,
-                    style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
-                    decoration: const InputDecoration(
-                      labelText: 'Description',
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: contentCtrl,
-                    style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
-                    minLines: 6,
-                    maxLines: 10,
-                    decoration: const InputDecoration(
-                      labelText: 'Content',
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  DropdownButtonFormField<String>(
-                    value: scope,
-                    decoration: const InputDecoration(
-                      labelText: 'Scope',
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'user', child: Text('User')),
-                      DropdownMenuItem(
-                        value: 'workspace',
-                        child: Text('Workspace'),
+      builder: (ctx) => _DeferredPopScope(
+        child: StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            title: Text('Edit $name', style: t.typography.textTheme.titleLarge?.copyWith(color: t.colors.textPrimary)),
+            content: SingleChildScrollView(
+              child: SizedBox(
+                width: 520,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: descriptionCtrl,
+                      style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
                       ),
-                    ],
-                    onChanged: submitting
-                        ? null
-                        : (value) {
-                            if (value != null) {
-                              setDialogState(() => scope = value);
-                            }
-                          },
-                  ),
-                ],
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: contentCtrl,
+                      style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
+                      minLines: 6,
+                      maxLines: 10,
+                      decoration: const InputDecoration(
+                        labelText: 'Content',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      value: scope,
+                      decoration: const InputDecoration(
+                        labelText: 'Scope',
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'user', child: Text('User')),
+                        DropdownMenuItem(
+                          value: 'workspace',
+                          child: Text('Workspace'),
+                        ),
+                      ],
+                      onChanged: submitting
+                          ? null
+                          : (value) {
+                              if (value != null) {
+                                setDialogState(() => scope = value);
+                              }
+                            },
+                    ),
+                  ],
+                ),
               ),
             ),
+            actions: [
+              TextButton(
+                onPressed: submitting ? null : () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: submitting
+                    ? null
+                    : () async {
+                        if (ref.read(currentWorkspaceIdProvider) != workspaceId) {
+                          if (!ctx.mounted) return;
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            const SnackBar(
+                              content: Text('Workspace changed; edit cancelled.'),
+                            ),
+                          );
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (ctx.mounted) Navigator.pop(ctx, false);
+                          });
+                          return;
+                        }
+                        setDialogState(() => submitting = true);
+                        try {
+                          await ref
+                              .read(apiClientProvider)
+                              .updateSkill(
+                                name,
+                                description: descriptionCtrl.text.trim(),
+                                content: contentCtrl.text,
+                                scope: scope,
+                                workspaceId: workspaceId,
+                              );
+                          if (ctx.mounted) Navigator.pop(ctx, true);
+                        } catch (e) {
+                          if (!ctx.mounted) return;
+                          setDialogState(() => submitting = false);
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            SnackBar(content: Text('Update failed: $e')),
+                          );
+                        }
+                      },
+                child: submitting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Save'),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: submitting ? null : () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: submitting
-                  ? null
-                  : () async {
-                      if (ref.read(currentWorkspaceIdProvider) != workspaceId) {
-                        if (!ctx.mounted) return;
-                        ScaffoldMessenger.of(ctx).showSnackBar(
-                          const SnackBar(
-                            content: Text('Workspace changed; edit cancelled.'),
-                          ),
-                        );
-                        Navigator.pop(ctx, false);
-                        return;
-                      }
-                      setDialogState(() => submitting = true);
-                      try {
-                        await ref
-                            .read(apiClientProvider)
-                            .updateSkill(
-                              name,
-                              description: descriptionCtrl.text.trim(),
-                              content: contentCtrl.text,
-                              scope: scope,
-                              workspaceId: workspaceId,
-                            );
-                        if (ctx.mounted) Navigator.pop(ctx, true);
-                      } catch (e) {
-                        if (!ctx.mounted) return;
-                        setDialogState(() => submitting = false);
-                        ScaffoldMessenger.of(ctx).showSnackBar(
-                          SnackBar(content: Text('Update failed: $e')),
-                        );
-                      }
-                    },
-              child: submitting
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Save'),
-            ),
-          ],
         ),
       ),
     );
@@ -350,22 +354,24 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
     final workspaceId = ref.read(currentWorkspaceIdProvider);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Delete skill?', style: context.tokens.typography.textTheme.titleLarge?.copyWith(color: context.tokens.colors.textPrimary)),
-        content: Text(
-          'Delete $name from ${scope == 'workspace' ? 'workspace' : 'user'} skills?',
-          style: context.tokens.typography.textTheme.bodyMedium?.copyWith(color: context.tokens.colors.textPrimary),
+      builder: (ctx) => _DeferredPopScope(
+        child: AlertDialog(
+          title: Text('Delete skill?', style: context.tokens.typography.textTheme.titleLarge?.copyWith(color: context.tokens.colors.textPrimary)),
+          content: Text(
+            'Delete $name from ${scope == 'workspace' ? 'workspace' : 'user'} skills?',
+            style: context.tokens.typography.textTheme.bodyMedium?.copyWith(color: context.tokens.colors.textPrimary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Delete'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete'),
-          ),
-        ],
       ),
     );
     if (!mounted) return;
@@ -401,117 +407,121 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
     final t = context.tokens;
     final created = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: Text('New Skill', style: t.typography.textTheme.titleLarge?.copyWith(color: t.colors.textPrimary)),
-          content: SingleChildScrollView(
-            child: SizedBox(
-              width: 520,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: nameCtrl,
-                    style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
-                    decoration: const InputDecoration(
-                      labelText: 'Name',
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: descriptionCtrl,
-                    style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
-                    decoration: const InputDecoration(
-                      labelText: 'Description',
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: contentCtrl,
-                    style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
-                    minLines: 6,
-                    maxLines: 10,
-                    decoration: const InputDecoration(
-                      labelText: 'Content',
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  DropdownButtonFormField<String>(
-                    value: scope,
-                    decoration: const InputDecoration(
-                      labelText: 'Scope',
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'user', child: Text('User')),
-                      DropdownMenuItem(
-                        value: 'workspace',
-                        child: Text('Workspace'),
+      builder: (ctx) => _DeferredPopScope(
+        child: StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            title: Text('New Skill', style: t.typography.textTheme.titleLarge?.copyWith(color: t.colors.textPrimary)),
+            content: SingleChildScrollView(
+              child: SizedBox(
+                width: 520,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameCtrl,
+                      style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
+                      decoration: const InputDecoration(
+                        labelText: 'Name',
                       ),
-                    ],
-                    onChanged: submitting
-                        ? null
-                        : (value) {
-                            if (value != null) {
-                              setDialogState(() => scope = value);
-                            }
-                          },
-                  ),
-                ],
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: descriptionCtrl,
+                      style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: contentCtrl,
+                      style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
+                      minLines: 6,
+                      maxLines: 10,
+                      decoration: const InputDecoration(
+                        labelText: 'Content',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      value: scope,
+                      decoration: const InputDecoration(
+                        labelText: 'Scope',
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'user', child: Text('User')),
+                        DropdownMenuItem(
+                          value: 'workspace',
+                          child: Text('Workspace'),
+                        ),
+                      ],
+                      onChanged: submitting
+                          ? null
+                          : (value) {
+                              if (value != null) {
+                                setDialogState(() => scope = value);
+                              }
+                            },
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: submitting ? null : () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: submitting
-                  ? null
-                  : () async {
-                      final name = nameCtrl.text.trim();
-                      if (name.isEmpty) return;
-                      if (ref.read(currentWorkspaceIdProvider) != workspaceId) {
-                        if (!ctx.mounted) return;
-                        ScaffoldMessenger.of(ctx).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Workspace changed; create cancelled.',
+            actions: [
+              TextButton(
+                onPressed: submitting ? null : () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: submitting
+                    ? null
+                    : () async {
+                        final name = nameCtrl.text.trim();
+                        if (name.isEmpty) return;
+                        if (ref.read(currentWorkspaceIdProvider) != workspaceId) {
+                          if (!ctx.mounted) return;
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Workspace changed; create cancelled.',
+                              ),
                             ),
-                          ),
-                        );
-                        Navigator.pop(ctx, false);
-                        return;
-                      }
-                      setDialogState(() => submitting = true);
-                      try {
-                        await ref
-                            .read(apiClientProvider)
-                            .createSkill(
-                              name,
-                              descriptionCtrl.text.trim(),
-                              contentCtrl.text,
-                              scope: scope,
-                              workspaceId: workspaceId,
-                            );
-                        if (ctx.mounted) Navigator.pop(ctx, true);
-                      } catch (e) {
-                        if (!ctx.mounted) return;
-                        setDialogState(() => submitting = false);
-                        ScaffoldMessenger.of(ctx).showSnackBar(
-                          SnackBar(content: Text('Create failed: $e')),
-                        );
-                      }
-                    },
-              child: submitting
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Create'),
-            ),
-          ],
+                          );
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (ctx.mounted) Navigator.pop(ctx, false);
+                          });
+                          return;
+                        }
+                        setDialogState(() => submitting = true);
+                        try {
+                          await ref
+                              .read(apiClientProvider)
+                              .createSkill(
+                                name,
+                                descriptionCtrl.text.trim(),
+                                contentCtrl.text,
+                                scope: scope,
+                                workspaceId: workspaceId,
+                              );
+                          if (ctx.mounted) Navigator.pop(ctx, true);
+                        } catch (e) {
+                          if (!ctx.mounted) return;
+                          setDialogState(() => submitting = false);
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            SnackBar(content: Text('Create failed: $e')),
+                          );
+                        }
+                      },
+                child: submitting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Create'),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -525,6 +535,35 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
   String _scopeOf(Map<String, dynamic> skill) {
     final raw = skill['scope']?.toString() ?? 'user';
     return raw == 'ws' ? 'workspace' : raw;
+  }
+}
+
+class _DeferredPopScope extends StatefulWidget {
+  final Widget child;
+
+  const _DeferredPopScope({required this.child});
+
+  @override
+  State<_DeferredPopScope> createState() => _DeferredPopScopeState();
+}
+
+class _DeferredPopScopeState extends State<_DeferredPopScope> {
+  bool _deferred = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope<bool>(
+      canPop: _deferred,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop || _deferred) return;
+        _deferred = true;
+        FocusScope.of(context).unfocus();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (context.mounted) Navigator.of(context).pop(result);
+        });
+      },
+      child: widget.child,
+    );
   }
 }
 
