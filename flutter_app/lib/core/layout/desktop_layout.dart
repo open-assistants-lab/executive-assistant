@@ -546,19 +546,16 @@ class _PanelMessageList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = context.tokens;
     final activeWs = ref.watch(activeChatTabProvider);
-    return AnimatedSwitcher(
+    // Crossfade between workspaces via TweenAnimationBuilder keyed on activeWs.
+    // AnimatedSwitcher would cause Stack layout errors with ListView children.
+    return TweenAnimationBuilder<double>(
+      key: ValueKey('chat_list_$activeWs'),
       duration: tokens.motion.base,
-      switchInCurve: tokens.motion.curveStandard,
-      switchOutCurve: tokens.motion.curveStandard,
-      transitionBuilder: (child, anim) => FadeTransition(opacity: anim, child: child),
-      // Use the current child directly instead of stacking (which causes
-      // unbounded-height errors with ListView). The fade-out child is dropped
-      // immediately when the workspace changes — slight visual sacrifice for
-      // correct layout.
-      layoutBuilder: (currentChild, previousChildren) =>
-          currentChild ?? const SizedBox.shrink(),
+      curve: tokens.motion.curveStandard,
+      tween: Tween(begin: 0.0, end: 1.0),
+      builder: (_, t, child) => Opacity(opacity: t.clamp(0.0, 1.0), child: child),
       child: KeyedSubtree(
-        key: ValueKey('chat_list_$activeWs'),
+        key: ValueKey('chat_list_inner_$activeWs'),
         child: ChatMessageList(
           messages: state.messages,
           isStreaming: state.status == ChatStatus.streaming,
