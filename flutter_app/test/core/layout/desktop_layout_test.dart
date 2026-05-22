@@ -6,6 +6,7 @@ import 'package:executive_assistant/providers/workspace_provider.dart';
 import 'package:executive_assistant/services/api_client.dart';
 import 'package:executive_assistant/services/ws_client.dart';
 import 'package:executive_assistant/models/message.dart';
+import 'package:executive_assistant/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -28,7 +29,10 @@ Widget _buildDesktopLayout(MockWsClient ws, MockApiClient api) {
         ],
       ),
     ],
-    child: const MaterialApp(home: DesktopLayout(child: SizedBox.shrink())),
+    child: MaterialApp(
+      theme: AppTheme.light,
+      home: const DesktopLayout(child: SizedBox.shrink()),
+    ),
   );
 }
 

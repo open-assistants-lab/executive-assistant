@@ -226,7 +226,7 @@ class _Sidebar extends ConsumerWidget {
                       ],
                     ),
               loading: () => const SizedBox.shrink(),
-              error: (_, __) => const SizedBox.shrink(),
+              error: (error, stackTrace) => const SizedBox.shrink(),
             ),
           ),
           const Divider(height: 1),
@@ -234,19 +234,21 @@ class _Sidebar extends ConsumerWidget {
             padding: EdgeInsets.symmetric(horizontal: tokens.spacing.md, vertical: tokens.spacing.xs),
             child: Row(
               children: [
-                _SidebarItem(
-                  item: DesktopSidebarItem.settings,
-                  selected: false,
-                  onTap: () => _showSettings(context),
+                Expanded(
+                  child: _SidebarItem(
+                    item: DesktopSidebarItem.settings,
+                    selected: false,
+                    onTap: () => _showSettings(context),
+                  ),
                 ),
-                const Spacer(),
                 IconButton(
                   icon: Icon(
                     tokens.isDark ? Symbols.light_mode : Symbols.dark_mode,
                     size: 18,
                     color: tokens.colors.textSecondary,
                   ),
-                  onPressed: () => ref.read(themeModeProvider.notifier).toggle(),
+                  onPressed: () =>
+                      ref.read(themeModeProvider.notifier).toggle(),
                   tooltip: tokens.isDark ? 'Switch to light mode' : 'Switch to dark mode',
                 ),
               ],
@@ -375,12 +377,15 @@ class _SidebarItem extends StatelessWidget {
                 color: selected ? tokens.colors.accent : tokens.colors.textSecondary,
               ),
               const SizedBox(width: 10),
-              Text(
-                item.label,
-                style: tokens.typography.textTheme.bodyMedium?.copyWith(
-                  fontSize: 13,
-                  color: selected ? tokens.colors.accent : tokens.colors.textSecondary,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              Expanded(
+                child: Text(
+                  item.label,
+                  overflow: TextOverflow.ellipsis,
+                  style: tokens.typography.textTheme.bodyMedium?.copyWith(
+                    fontSize: 13,
+                    color: selected ? tokens.colors.accent : tokens.colors.textSecondary,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                  ),
                 ),
               ),
             ],
@@ -567,6 +572,7 @@ class _PanelMessageList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return ChatMessageList(
+      key: const ValueKey('desktop-chat-message-list'),
       messages: state.messages,
       isStreaming: state.status == ChatStatus.streaming,
       streamingText: state.streamingText,
