@@ -333,7 +333,7 @@ class _Sidebar extends ConsumerWidget {
   }
 }
 
-class _SidebarItem extends StatelessWidget {
+class _SidebarItem extends StatefulWidget {
   final DesktopSidebarItem item;
   final bool selected;
   final VoidCallback onTap;
@@ -344,43 +344,59 @@ class _SidebarItem extends StatelessWidget {
   });
 
   @override
+  State<_SidebarItem> createState() => _SidebarItemState();
+}
+
+class _SidebarItemState extends State<_SidebarItem> {
+  bool _hover = false;
+
+  @override
   Widget build(BuildContext context) {
     final tokens = context.tokens;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: tokens.radius.smAll,
-        child: Container(
-          height: 40,
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: selected
-              ? BoxDecoration(
-                  color: tokens.colors.bgElevated,
-                  borderRadius: tokens.radius.smAll,
-                  border: Border(
+    final showBg = widget.selected || _hover;
+    final textColor = (widget.selected || _hover)
+        ? tokens.colors.textPrimary
+        : tokens.colors.textSecondary;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: tokens.motion.fast,
+          curve: tokens.motion.curveStandard,
+          padding: EdgeInsets.symmetric(
+            horizontal: tokens.spacing.md,
+            vertical: tokens.spacing.sm + 2,
+          ),
+          decoration: BoxDecoration(
+            color: showBg ? tokens.colors.bgSurface : Colors.transparent,
+            borderRadius: tokens.radius.smAll,
+            border: widget.selected
+                ? Border(
                     left: BorderSide(
                       color: tokens.colors.accent,
-                      width: 2,
+                      width: 3,
                     ),
-                  ),
-                )
-              : null,
+                  )
+                : null,
+          ),
           child: Row(
             children: [
               Icon(
-                selected ? item.activeIcon : item.icon,
-                size: 20,
-                color: selected ? tokens.colors.accent : tokens.colors.textSecondary,
+                widget.selected ? widget.item.activeIcon : widget.item.icon,
+                size: 18,
+                color: textColor,
               ),
-              const SizedBox(width: 10),
-              Text(
-                item.label,
-                style: tokens.typography.textTheme.bodyMedium?.copyWith(
-                  fontSize: 13,
-                  color: selected ? tokens.colors.accent : tokens.colors.textSecondary,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              SizedBox(width: tokens.spacing.sm + 2),
+              Expanded(
+                child: Text(
+                  widget.item.label,
+                  style: tokens.typography.textTheme.bodyMedium?.copyWith(
+                    color: textColor,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
