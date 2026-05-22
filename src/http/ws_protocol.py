@@ -235,6 +235,7 @@ class DoneMessage(BaseModel):
     message_id: str = ""
     total_llm_calls: int = 0
     cost_usd: float = 0.0
+    tool_calls: list[dict] = Field(default_factory=list)
     tools_called: list[str] = []
 
 

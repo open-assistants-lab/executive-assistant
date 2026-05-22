@@ -28,6 +28,25 @@ from src.sdk.providers.ollama import OllamaCloud
 from src.sdk.providers.openai import OpenAIProvider
 from src.sdk.tools import tool
 
+
+def test_context_overflow_mapper_raises_for_413_status():
+    from types import SimpleNamespace
+
+    from src.sdk.providers.base import ProviderContextOverflowError, raise_if_context_overflow
+
+    exc = RuntimeError("request failed")
+    exc.response = SimpleNamespace(status_code=413, text="payload too large")
+
+    with pytest.raises(ProviderContextOverflowError):
+        raise_if_context_overflow(exc)
+
+
+def test_context_overflow_mapper_raises_for_context_length_text():
+    from src.sdk.providers.base import ProviderContextOverflowError, raise_if_context_overflow
+
+    with pytest.raises(ProviderContextOverflowError):
+        raise_if_context_overflow(RuntimeError("maximum context length exceeded"))
+
 # ─── Fixtures ───
 
 

@@ -48,10 +48,10 @@ from src.sdk.validation import repair_tool_call
 
 logger = logging.getLogger(__name__)
 
-_current_agent_loop: ContextVar["AgentLoop | None"] = ContextVar("_current_agent_loop", default=None)
+_current_agent_loop: ContextVar[AgentLoop | None] = ContextVar("_current_agent_loop", default=None)
 
 
-def get_current_agent_loop() -> "AgentLoop | None":
+def get_current_agent_loop() -> AgentLoop | None:
     """Return the currently active AgentLoop, or None if not inside a run.
 
     Set at the start of run() and run_stream(), cleared on exit.
@@ -627,6 +627,7 @@ class AgentLoop:
     async def _run_impl(self, messages: list[Message]) -> list[Message]:
         """Internal run implementation (wrapped by run() for ContextVar lifecycle)."""
         state = AgentState(messages=list(messages))
+        self.state = state
         cost_tracker = CostTracker()
 
         await self._run_hooks("abefore_agent", state)
@@ -697,13 +698,10 @@ class AgentLoop:
                     if summary_mw is not None:
                         success = await summary_mw.force_summarize(state)
                         if success:
-                            last_user = _last_user_message(state.messages)
-                            if last_user is not None:
-                                state.messages.append(last_user)
-                                continue
+                            continue
 
                     state.add_message(
-                        Message.assistant(content=f"Context too large after summarization attempt.")
+                        Message.assistant(content="Context too large after summarization attempt.")
                     )
                     break
 
@@ -780,6 +778,7 @@ class AgentLoop:
             reasoning (alongside reasoning_delta)
         """
         state = AgentState(messages=list(messages))
+        self.state = state
         cost_tracker = CostTracker()
         all_tool_calls: list[dict[str, Any]] = []
 
@@ -936,11 +935,8 @@ class AgentLoop:
                 if summary_mw is not None:
                     success = await summary_mw.force_summarize(state)
                     if success:
-                        last_user = _last_user_message(state.messages)
-                        if last_user is not None:
-                            state.messages.append(last_user)
-                            if overflow_retries < 3:
-                                continue
+                        if overflow_retries < 3:
+                            continue
 
                 yield StreamChunk.error(message="Context too large after summarization attempt.")
                 break

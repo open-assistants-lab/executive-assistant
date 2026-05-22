@@ -43,6 +43,24 @@ class TestWorkspaceDeletionAndRecreation:
             "Messages from old workspace should not reappear."
         )
 
+    def test_clear_conversation_only_clears_requested_workspace(self, client, test_user_id):
+        personal = get_message_store(test_user_id, "personal")
+        project = get_message_store(test_user_id, "project")
+        personal.add_message("user", "personal message", metadata={"workspace_id": "personal"})
+        project.add_message("user", "project message", metadata={"workspace_id": "project"})
+
+        r = client.delete(
+            "/conversation",
+            params={"user_id": test_user_id, "workspace_id": "project"},
+        )
+        assert r.status_code == 200
+
+        r = client.get("/conversation", params={"user_id": test_user_id, "workspace_id": "personal"})
+        assert [m["content"] for m in r.json()["messages"]] == ["personal message"]
+
+        r = client.get("/conversation", params={"user_id": test_user_id, "workspace_id": "project"})
+        assert r.json()["messages"] == []
+
 
 class TestWorkspaceFiles:
     """Tests for workspace file endpoints."""
@@ -54,6 +72,22 @@ class TestWorkspaceFiles:
     def test_list_workspace_subpath(self, client, test_user_id):
         r = client.get("/workspace/documents", params={"user_id": test_user_id})
         assert r.status_code == 200
+
+    def test_file_routes_honor_workspace_id(self, client, test_user_id):
+        project_params = {"user_id": test_user_id, "workspace_id": "project"}
+        personal_params = {"user_id": test_user_id, "workspace_id": "personal"}
+        filename = f"note_{test_user_id}.txt"
+
+        r = client.post(f"/workspace/{filename}", params=project_params, json={"content": "project-only"})
+        assert r.status_code == 200
+
+        r = client.get(f"/workspace/read/{filename}", params=project_params)
+        assert r.status_code == 200
+        assert "project-only" in r.json()["response"]
+
+        r = client.get(f"/workspace/read/{filename}", params=personal_params)
+        assert r.status_code == 200
+        assert "File not found" in r.json()["response"]
 
 
 class TestFileSync:

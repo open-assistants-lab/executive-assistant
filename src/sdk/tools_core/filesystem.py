@@ -218,7 +218,7 @@ def files_edit(path: str, old: str, new: str, user_id: str = "default_user", wor
 
         from src.sdk.tools_core.file_versioning import capture_version
 
-        capture_version(user_id, path, new_content)
+        capture_version(user_id, path, new_content, workspace_id=workspace_id)
 
         target.write_text(new_content, encoding="utf-8")
 

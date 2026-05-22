@@ -17,7 +17,7 @@ from uuid import uuid4
 import httpx
 
 from src.sdk.messages import Message, StreamChunk, ToolCall, Usage
-from src.sdk.providers.base import LLMProvider, ModelInfo
+from src.sdk.providers.base import LLMProvider, ModelInfo, raise_if_context_overflow
 from src.sdk.tools import ToolDefinition
 
 
@@ -256,7 +256,11 @@ class OllamaCloud(LLMProvider):
         )
         client = self._get_client()
         response = await client.post(f"{self.base_url}/api/chat", json=payload)
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except Exception as e:
+            raise_if_context_overflow(e)
+            raise
         return self._parse_response(response.json())
 
     async def chat_stream(
@@ -275,7 +279,11 @@ class OllamaCloud(LLMProvider):
         current_tool_calls: dict[int, dict] = {}
         emitted_starts: set[tuple[str, str]] = set()
         async with client.stream("POST", f"{self.base_url}/api/chat", json=payload) as response:
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except Exception as e:
+                raise_if_context_overflow(e)
+                raise
             async for line in response.aiter_lines():
                 if not line.strip():
                     continue

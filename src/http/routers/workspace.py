@@ -2,7 +2,7 @@ import asyncio
 import json
 from datetime import UTC, datetime
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Body
 from fastapi.responses import StreamingResponse
 
 from src.storage.paths import get_paths
@@ -35,7 +35,7 @@ async def read_workspace_file(path: str, user_id: str = "default_user", workspac
     from src.http.workspace_cache import get_file_cache
     from src.sdk.tools_core.filesystem import files_read
 
-    result = files_read.invoke({"path": path, "user_id": user_id})
+    result = files_read.invoke({"path": path, "user_id": user_id, "workspace_id": workspace_id})
 
     file_cache = get_file_cache(user_id, workspace_id)
     workspace_root = get_paths(user_id, workspace_id=workspace_id).workspace_files_dir()
@@ -48,11 +48,11 @@ async def read_workspace_file(path: str, user_id: str = "default_user", workspac
 
 
 @router.get("/workspace/{path:path}")
-async def list_workspace_files(path: str = "", user_id: str = "default_user"):
+async def list_workspace_files(path: str = "", user_id: str = "default_user", workspace_id: str = "personal"):
     """List files in workspace."""
     from src.sdk.tools_core.filesystem import files_list
 
-    result = files_list.invoke({"path": path, "user_id": user_id})
+    result = files_list.invoke({"path": path, "user_id": user_id, "workspace_id": workspace_id})
     return {"response": str(result)}
 
 
@@ -60,7 +60,8 @@ async def list_workspace_files(path: str = "", user_id: str = "default_user"):
 async def write_workspace_file(
     path: str,
     user_id: str = "default_user",
-    request: dict | None = None,
+    workspace_id: str = "personal",
+    request: dict | None = Body(default=None),
 ):
     """Write file to workspace."""
     if request is None:
@@ -70,16 +71,18 @@ async def write_workspace_file(
 
     from src.sdk.tools_core.filesystem import files_write
 
-    result = files_write.invoke({"path": path, "content": content, "user_id": user_id})
+    result = files_write.invoke(
+        {"path": path, "content": content, "user_id": user_id, "workspace_id": workspace_id}
+    )
     return {"response": str(result)}
 
 
 @router.delete("/workspace/{path:path}")
-async def delete_workspace_file(path: str, user_id: str = "default_user"):
+async def delete_workspace_file(path: str, user_id: str = "default_user", workspace_id: str = "personal"):
     """Delete file from workspace."""
     from src.sdk.tools_core.filesystem import files_delete
 
-    result = files_delete.invoke({"path": path, "user_id": user_id})
+    result = files_delete.invoke({"path": path, "user_id": user_id, "workspace_id": workspace_id})
     return {"response": str(result)}
 
 

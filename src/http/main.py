@@ -4,8 +4,9 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from src.http.routers import (
     # DISABLED: contacts, todos — pending redesign
@@ -84,6 +85,30 @@ app.add_middleware(
     allow_headers=["*"],
     allow_credentials=True,
 )
+
+
+_PUBLIC_PATHS = {"/health", "/health/ready", "/docs", "/redoc", "/openapi.json"}
+
+
+@app.middleware("http")
+async def api_key_auth_middleware(request: Request, call_next):
+    """Apply API-key auth consistently across HTTP routes."""
+    if request.url.path in _PUBLIC_PATHS:
+        return await call_next(request)
+
+    from src.config.settings import get_settings
+    from src.http.auth import is_localhost, verify_key
+
+    settings = get_settings()
+    if settings.auth.api_key:
+        if not (settings.auth.solo_bypass and is_localhost(request)):
+            auth_header = request.headers.get("Authorization", "")
+            if not auth_header.startswith("Bearer "):
+                return JSONResponse({"detail": "Missing Bearer token"}, status_code=401)
+            if not verify_key(auth_header[7:]):
+                return JSONResponse({"detail": "Invalid API key"}, status_code=401)
+
+    return await call_next(request)
 
 app.include_router(health_router)
 app.include_router(companion_router)

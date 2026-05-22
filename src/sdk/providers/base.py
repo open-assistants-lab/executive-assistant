@@ -56,6 +56,34 @@ class ProviderContextOverflowError(Exception):
     pass
 
 
+_CONTEXT_OVERFLOW_MARKERS = (
+    "context length",
+    "maximum context",
+    "context_length_exceeded",
+    "context window",
+    "prompt is too long",
+    "too many tokens",
+    "tokens exceed",
+    "request too large",
+    "payload too large",
+)
+
+
+def raise_if_context_overflow(exc: BaseException) -> None:
+    """Normalize provider-specific context-too-large errors."""
+    response = getattr(exc, "response", None)
+    status_code = getattr(response, "status_code", None) or getattr(exc, "status_code", None)
+    if status_code == 413:
+        raise ProviderContextOverflowError(str(exc)) from exc
+
+    text_parts = [str(exc)]
+    if response is not None:
+        text_parts.append(str(getattr(response, "text", "")))
+    text = " ".join(text_parts).lower()
+    if any(marker in text for marker in _CONTEXT_OVERFLOW_MARKERS):
+        raise ProviderContextOverflowError(str(exc)) from exc
+
+
 class LLMProvider(ABC):
     """Abstract base class for all LLM providers.
 

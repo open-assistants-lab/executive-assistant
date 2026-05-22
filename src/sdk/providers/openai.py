@@ -9,15 +9,15 @@ error handling). We wrap it with our SDK Message types.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
 import json
+from collections.abc import AsyncIterator
 from typing import Any
 from uuid import uuid4
 
 from openai import AsyncOpenAI
 
 from src.sdk.messages import Message, StreamChunk, ToolCall, Usage
-from src.sdk.providers.base import LLMProvider, ModelInfo
+from src.sdk.providers.base import LLMProvider, ModelInfo, raise_if_context_overflow
 from src.sdk.tools import ToolDefinition
 
 OPENAI_DEFAULT_BASE_URL = "https://api.openai.com/v1"
@@ -71,7 +71,11 @@ class OpenAIProvider(LLMProvider):
         params.update(kwargs)
         params.update(provider_opts)
 
-        response = await self._client.chat.completions.create(**params)
+        try:
+            response = await self._client.chat.completions.create(**params)
+        except Exception as e:
+            raise_if_context_overflow(e)
+            raise
         return self._parse_response(response)
 
     async def chat_stream(
@@ -142,7 +146,11 @@ class OpenAIProvider(LLMProvider):
 
         current_tool_calls: dict[int, dict] = {}
 
-        stream = await self._client.chat.completions.create(**params)
+        try:
+            stream = await self._client.chat.completions.create(**params)
+        except Exception as e:
+            raise_if_context_overflow(e)
+            raise
         async for chunk in stream:
             for event in self._parse_stream_chunk(chunk, current_tool_calls):
                 yield event

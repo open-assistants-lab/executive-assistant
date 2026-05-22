@@ -19,7 +19,7 @@ from uuid import uuid4
 import httpx
 
 from src.sdk.messages import Message, StreamChunk, ToolCall, Usage
-from src.sdk.providers.base import LLMProvider, ModelInfo
+from src.sdk.providers.base import LLMProvider, ModelInfo, raise_if_context_overflow
 from src.sdk.tools import ToolDefinition
 
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
@@ -122,7 +122,11 @@ class GeminiProvider(LLMProvider):
         payload = self._build_payload(messages, tools, provider_options=provider_options, **kwargs)
         client = self._get_client()
         response = await client.post(self._url(model, stream=False), json=payload)
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except Exception as e:
+            raise_if_context_overflow(e)
+            raise
         data = response.json()
         return self._parse_response(data)
 
@@ -199,7 +203,11 @@ class GeminiProvider(LLMProvider):
         current_tool_calls: dict[int, dict] = {}
 
         async with client.stream("POST", url, json=payload) as response:
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except Exception as e:
+                raise_if_context_overflow(e)
+                raise
             buffer = ""
             async for chunk_bytes in response.aiter_bytes():
                 buffer += chunk_bytes.decode("utf-8")

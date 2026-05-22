@@ -17,7 +17,7 @@ from uuid import uuid4
 import httpx
 
 from src.sdk.messages import Message, StreamChunk, ToolCall, Usage
-from src.sdk.providers.base import LLMProvider, ModelInfo
+from src.sdk.providers.base import LLMProvider, ModelInfo, raise_if_context_overflow
 from src.sdk.tools import ToolDefinition
 
 ANTHROPIC_BASE_URL = "https://api.anthropic.com"
@@ -129,7 +129,11 @@ class AnthropicProvider(LLMProvider):
         )
         client = self._get_client()
         response = await client.post(f"{self.base_url}/v1/messages", json=payload)
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except Exception as e:
+            raise_if_context_overflow(e)
+            raise
         data = response.json()
         return self._parse_response(data)
 
@@ -187,7 +191,11 @@ class AnthropicProvider(LLMProvider):
         current_tool_calls: dict[int, dict] = {}
 
         async with client.stream("POST", f"{self.base_url}/v1/messages", json=payload) as response:
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except Exception as e:
+                raise_if_context_overflow(e)
+                raise
             async for line in response.aiter_lines():
                 if not line.startswith("data: "):
                     continue

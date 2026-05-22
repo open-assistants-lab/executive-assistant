@@ -327,7 +327,7 @@ class SummarizationMiddleware(Middleware):
         if summary_content is None:
             logger.warning(
                 "summarization.failed_no_summary",
-                {"old_msg_count": len(non_system_old)},
+                {"old_msg_count": len(old_messages)},
                 user_id="system",
             )
             return None

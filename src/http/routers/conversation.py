@@ -21,7 +21,7 @@ router = APIRouter(tags=["conversation"])
 logger = get_logger()
 
 
-def _persist_tool_messages(conversation, tool_events: list[dict]) -> None:
+def _persist_tool_messages(conversation, tool_events: list[dict], workspace_id: str) -> None:
     for event in tool_events:
         output = event.get("output")
         if event.get("stage") != "end" or not output:
@@ -32,6 +32,7 @@ def _persist_tool_messages(conversation, tool_events: list[dict]) -> None:
             metadata={
                 "tool_name": event.get("tool") or event.get("tool_name") or "unknown",
                 "tool_call_id": event.get("call_id") or event.get("tool_call_id") or "",
+                "workspace_id": workspace_id,
             },
         )
 
@@ -74,7 +75,7 @@ def _filter_by_workspace(messages: list, workspace_id: str) -> list:
 async def clear_conversation(user_id: str = "default_user", workspace_id: str = "personal"):
     """Clear conversation history."""
     conversation = get_message_store(user_id, workspace_id)
-    conversation.clear()
+    conversation.delete_messages_for_workspace(workspace_id)
     return {"status": "cleared", "user_id": user_id, "workspace_id": workspace_id}
 
 
@@ -175,7 +176,7 @@ async def handle_message(req: MessageRequest, _: None = Depends(require_auth)) -
                 if not response:
                     response = "Task completed."
 
-                _persist_tool_messages(conversation, tool_events)
+                _persist_tool_messages(conversation, tool_events, workspace_id)
             else:
                 result_messages = await run_sdk_agent(
                     user_id=user_id, messages=sdk_messages, workspace_id=workspace_id,
@@ -188,9 +189,11 @@ async def handle_message(req: MessageRequest, _: None = Depends(require_auth)) -
                         tool_contents.append(
                             m.content if isinstance(m.content, str) else str(m.content)
                         )
-                        conversation.add_message(
-                            "tool", str(m.content), metadata={"tool_name": m.name or "unknown"}
-                        )
+                conversation.add_message(
+                    "tool",
+                    str(m.content),
+                    metadata={"tool_name": m.name or "unknown", "workspace_id": workspace_id},
+                )
 
                 response = ""
                 last_ai = None
@@ -323,6 +326,7 @@ async def message_stream(req: MessageRequest, _: None = Depends(require_auth)):
             }
             for tm in tool_metadata_list:
                 output = result_by_call_id.get(tm.get("tool_call_id", ""), "")
+                tm["workspace_id"] = workspace_id
                 conversation.add_message("tool", output, metadata=tm)
 
             conversation.add_message("assistant", response, metadata={"stream": True, "workspace_id": workspace_id})

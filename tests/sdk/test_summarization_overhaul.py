@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import pytest
 
+from src.sdk.messages import Message
 
 # -- Helpers --
 
 
-def _msg(role: str, content: str = "", tool_call_id: str | None = None) -> "Message":
+def _msg(role: str, content: str = "", tool_call_id: str | None = None) -> Message:
     from src.sdk.messages import Message
 
     if role == "tool":
@@ -125,7 +126,6 @@ def test_split_messages_preserves_system_messages():
 @pytest.mark.asyncio
 async def test_force_summarize_returns_false_for_empty():
     from src.sdk.middleware_summarization import SummarizationMiddleware
-    from src.sdk.messages import Message
     from src.sdk.state import AgentState
 
     mw = SummarizationMiddleware()
@@ -138,8 +138,6 @@ async def test_force_summarize_returns_false_for_empty():
 @pytest.mark.asyncio
 async def test_force_summarize_fires_on_summarize_callback():
     from src.sdk.middleware_summarization import SummarizationMiddleware
-    from src.sdk.messages import Message
-    from src.sdk.state import AgentState
 
     callback_called = []
 
@@ -147,8 +145,6 @@ async def test_force_summarize_fires_on_summarize_callback():
         callback_called.append(content)
 
     mw = SummarizationMiddleware(on_summarize=on_summary)
-    messages = [Message.user(f"message {i} " * 100) for i in range(50)]
-    state = AgentState(messages=messages)
 
     # force_summarize will call _generate_summary which uses AgentLoop.run_single
     # which requires a real provider. This test just verifies the method exists
@@ -175,6 +171,123 @@ def test_summarize_session_annotations():
     assert ann.idempotent is True
 
 
+@pytest.mark.asyncio
+async def test_summarize_session_uses_active_loop_state():
+    from src.sdk.loop import AgentLoop, _current_agent_loop
+    from src.sdk.messages import Message
+    from src.sdk.middleware_summarization import SummarizationMiddleware
+    from src.sdk.providers.base import LLMProvider, ModelInfo
+    from src.sdk.state import AgentState
+    from src.sdk.tools_core.summarize import summarize_session
+
+    class Provider(LLMProvider):
+        @property
+        def provider_id(self) -> str:
+            return "fake"
+
+        async def chat(self, *args, **kwargs):
+            return Message.assistant("ok")
+
+        async def chat_stream(self, *args, **kwargs):
+            if False:
+                yield None
+
+        def get_model_info(self, model: str | None = None):
+            return ModelInfo(id=model or "fake", provider_id="fake")
+
+        def count_tokens(self, messages) -> int:
+            return 0
+
+    mw = SummarizationMiddleware()
+    loop = AgentLoop(provider=Provider(), middlewares=[mw])
+    loop.state = AgentState(messages=[Message.user("old " * 500), Message.user("new " * 500)])
+
+    async def fake_force_summarize(state, instructions=None):
+        state.messages = [Message.system("summary"), Message.user("new")]
+        return True
+
+    mw.force_summarize = fake_force_summarize
+    token = _current_agent_loop.set(loop)
+    try:
+        result = await summarize_session.ainvoke({"user_id": "u"})
+    finally:
+        _current_agent_loop.reset(token)
+
+    assert result.startswith("Summarized. Saved ~")
+
+
+@pytest.mark.asyncio
+async def test_abefore_model_returns_none_when_summary_generation_fails():
+    from src.sdk.messages import Message
+    from src.sdk.middleware_summarization import SummarizationMiddleware
+    from src.sdk.state import AgentState
+
+    mw = SummarizationMiddleware(trigger_tokens=10, keep_tokens=5)
+
+    async def no_summary(text: str) -> None:
+        return None
+
+    mw._generate_summary = no_summary
+    state = AgentState(
+        messages=[
+            Message.user("old " * 100),
+            Message.assistant("middle " * 100),
+            Message.user("new " * 100),
+        ]
+    )
+
+    assert await mw.abefore_model(state) is None
+
+
+@pytest.mark.asyncio
+async def test_context_overflow_retry_does_not_duplicate_latest_user_message():
+    from src.sdk.loop import AgentLoop
+    from src.sdk.messages import Message
+    from src.sdk.middleware_summarization import SummarizationMiddleware
+    from src.sdk.providers.base import LLMProvider, ModelInfo, ProviderContextOverflowError
+
+    seen_prepared_messages: list[list[Message]] = []
+
+    class Provider(LLMProvider):
+        calls = 0
+
+        @property
+        def provider_id(self) -> str:
+            return "fake"
+
+        async def chat(self, messages, *args, **kwargs):
+            self.calls += 1
+            seen_prepared_messages.append(list(messages))
+            if self.calls == 1:
+                raise ProviderContextOverflowError("too large")
+            return Message.assistant("ok")
+
+        async def chat_stream(self, *args, **kwargs):
+            if False:
+                yield None
+
+        def get_model_info(self, model: str | None = None):
+            return ModelInfo(id=model or "fake", provider_id="fake")
+
+        def count_tokens(self, messages) -> int:
+            return 0
+
+    mw = SummarizationMiddleware()
+
+    async def fake_force_summarize(state, instructions=None):
+        state.messages = [Message.system("summary"), Message.user("latest")]
+        return True
+
+    mw.force_summarize = fake_force_summarize
+    loop = AgentLoop(provider=Provider(), middlewares=[mw])
+
+    result = await loop.run([Message.user("latest")])
+
+    assert result[-1].content == "ok"
+    retried_user_messages = [m for m in seen_prepared_messages[1] if m.role == "user"]
+    assert [m.content for m in retried_user_messages] == ["latest"]
+
+
 # -- get_current_agent_loop --
 
 
@@ -190,7 +303,6 @@ def test_get_current_agent_loop_exists():
 
 def test_find_middleware_returns_correct_type():
     from src.sdk.loop import AgentLoop
-    from src.sdk.middleware_summarization import SummarizationMiddleware
 
     # Only test that the method exists and has correct signature
     assert hasattr(AgentLoop, "find_middleware")
