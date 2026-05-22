@@ -383,6 +383,7 @@ class _SidebarItemState extends State<_SidebarItem> {
                 : null,
           ),
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 widget.selected ? widget.item.activeIcon : widget.item.icon,
@@ -390,7 +391,7 @@ class _SidebarItemState extends State<_SidebarItem> {
                 color: textColor,
               ),
               SizedBox(width: tokens.spacing.sm + 2),
-              Expanded(
+              Flexible(
                 child: Text(
                   widget.item.label,
                   style: tokens.typography.textTheme.bodyMedium?.copyWith(
