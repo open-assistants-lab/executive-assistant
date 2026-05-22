@@ -1,74 +1,79 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
-
 import '../theme/app_theme.dart';
 
 Future<T?> showEaDialog<T>({
   required BuildContext context,
   required String title,
-  required Widget body,
+  required Widget content,
   List<Widget> actions = const [],
-  bool dismissible = true,
+  bool barrierDismissible = true,
 }) {
-  final t = context.tokens;
-  return showDialog<T>(
+  return showGeneralDialog<T>(
     context: context,
-    barrierDismissible: dismissible,
+    barrierDismissible: barrierDismissible,
+    barrierLabel: 'dismiss',
     barrierColor: Colors.black.withValues(alpha: 0.6),
-    builder: (_) => Stack(
-      children: [
-        BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-          child: Container(color: Colors.transparent),
-        ),
-        Center(
-          child: Container(
-            constraints: const BoxConstraints(minWidth: 320, maxWidth: 480),
-            padding: EdgeInsets.all(t.spacing.xl),
-            decoration: BoxDecoration(
-              color: t.colors.bgSurface,
-              borderRadius: t.radius.lgAll,
-              border: Border.all(color: t.colors.borderDefault),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: t.typography.textTheme.headlineMedium
-                            ?.copyWith(color: t.colors.textPrimary),
-                      ),
+    transitionDuration: const Duration(milliseconds: 280),
+    pageBuilder: (ctx, anim, _) {
+      final tokens = ctx.tokens;
+      return Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Material(
+            color: tokens.colors.bgElevated,
+            borderRadius: tokens.radius.xlAll,
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: tokens.colors.borderDefault, width: 1),
+                borderRadius: tokens.radius.xlAll,
+              ),
+              padding: EdgeInsets.all(tokens.spacing.lg + tokens.spacing.xs),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: tokens.typography.textTheme.titleLarge?.copyWith(
+                      color: tokens.colors.textPrimary,
                     ),
-                    if (dismissible)
-                      GestureDetector(
-                        onTap: () => Navigator.of(context).pop(),
-                        child: Icon(
-                          Symbols.close,
-                          size: 18,
-                          color: t.colors.textTertiary,
-                        ),
-                      ),
-                  ],
-                ),
-                SizedBox(height: t.spacing.md),
-                Flexible(child: SingleChildScrollView(child: body)),
-                if (actions.isNotEmpty) ...[
-                  SizedBox(height: t.spacing.lg),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: actions,
                   ),
+                  SizedBox(height: tokens.spacing.lg),
+                  DefaultTextStyle(
+                    style: tokens.typography.textTheme.bodyLarge!.copyWith(
+                      color: tokens.colors.textSecondary,
+                    ),
+                    child: content,
+                  ),
+                  if (actions.isNotEmpty) ...[
+                    SizedBox(height: tokens.spacing.lg + tokens.spacing.xs),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        for (var i = 0; i < actions.length; i++) ...[
+                          if (i > 0) SizedBox(width: tokens.spacing.sm),
+                          actions[i],
+                        ],
+                      ],
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
-      ],
-    ),
+      );
+    },
+    transitionBuilder: (ctx, anim, _, child) {
+      final tokens = ctx.tokens;
+      final curved = CurvedAnimation(parent: anim, curve: tokens.motion.curveSpring);
+      return FadeTransition(
+        opacity: anim,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.96, end: 1.0).animate(curved),
+          child: child,
+        ),
+      );
+    },
   );
 }

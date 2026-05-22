@@ -6,49 +6,51 @@ class EaTypography {
   final TextTheme textTheme;
   final TextTheme monoTheme;
 
-  const EaTypography({
-    required this.textTheme,
-    required this.monoTheme,
-  });
+  const EaTypography({required this.textTheme, required this.monoTheme});
 
   factory EaTypography.build(Brightness brightness) {
     final base = brightness == Brightness.dark ? ThemeData.dark().textTheme : ThemeData.light().textTheme;
     final inter = GoogleFonts.interTextTheme(base);
     final firaCode = GoogleFonts.firaCodeTextTheme(base);
+
+    final textColor = brightness == Brightness.dark
+        ? const Color(0xFFE6E6E6)
+        : const Color(0xFF0E0F11);
+
+    TextStyle s({
+      required double size,
+      required FontWeight weight,
+      required double height,
+      double tracking = -0.011,
+      Color? color,
+    }) {
+      return TextStyle(
+        fontSize: size,
+        fontWeight: weight,
+        height: height,
+        letterSpacing: size * tracking,
+        color: color ?? textColor,
+      );
+    }
+
     return EaTypography(
       textTheme: inter.copyWith(
-        displayLarge: inter.displayLarge?.copyWith(
-          fontSize: 32, fontWeight: FontWeight.w600, height: 1.2, letterSpacing: -0.5,
-        ),
-        headlineLarge: inter.headlineLarge?.copyWith(
-          fontSize: 24, fontWeight: FontWeight.w600, height: 1.3, letterSpacing: -0.3,
-        ),
-        headlineMedium: inter.headlineMedium?.copyWith(
-          fontSize: 18, fontWeight: FontWeight.w600, height: 1.3, letterSpacing: -0.2,
-        ),
-        bodyLarge: inter.bodyLarge?.copyWith(
-          fontSize: 16, fontWeight: FontWeight.w400, height: 1.5,
-        ),
-        bodyMedium: inter.bodyMedium?.copyWith(
-          fontSize: 14, fontWeight: FontWeight.w400, height: 1.5,
-        ),
-        bodySmall: inter.bodySmall?.copyWith(
-          fontSize: 13, fontWeight: FontWeight.w400, height: 1.4, letterSpacing: 0.1,
-        ),
-        labelSmall: inter.labelSmall?.copyWith(
-          fontSize: 11, fontWeight: FontWeight.w500, height: 1.3, letterSpacing: 0.2,
-        ),
+        displayLarge: inter.displayLarge?.merge(s(size: 28, weight: FontWeight.w600, height: 1.2, tracking: -0.02)),
+        displayMedium: inter.displayMedium?.merge(s(size: 22, weight: FontWeight.w600, height: 1.25, tracking: -0.015)),
+        titleLarge: inter.titleLarge?.merge(s(size: 17, weight: FontWeight.w600, height: 1.3, tracking: -0.012)),
+        titleMedium: inter.titleMedium?.merge(s(size: 15, weight: FontWeight.w500, height: 1.4)),
+        titleSmall: inter.titleSmall?.merge(s(size: 13, weight: FontWeight.w500, height: 1.4, tracking: -0.005)),
+        bodyLarge: inter.bodyLarge?.merge(s(size: 14, weight: FontWeight.w400, height: 1.6)),
+        bodyMedium: inter.bodyMedium?.merge(s(size: 13, weight: FontWeight.w400, height: 1.55, tracking: -0.005)),
+        bodySmall: inter.bodySmall?.merge(s(size: 12, weight: FontWeight.w400, height: 1.5, tracking: 0)),
+        labelLarge: inter.labelLarge?.merge(s(size: 13, weight: FontWeight.w500, height: 1.4, tracking: -0.005)),
+        labelMedium: inter.labelMedium?.merge(s(size: 11, weight: FontWeight.w600, height: 1.3, tracking: 0.04)),
+        labelSmall: inter.labelSmall?.merge(s(size: 10, weight: FontWeight.w600, height: 1.3, tracking: 0.1)),
       ),
       monoTheme: firaCode.copyWith(
-        bodyLarge: firaCode.bodyLarge?.copyWith(
-          fontSize: 14, fontWeight: FontWeight.w400, height: 1.6,
-        ),
-        bodyMedium: firaCode.bodyMedium?.copyWith(
-          fontSize: 13, fontWeight: FontWeight.w400, height: 1.5,
-        ),
-        bodySmall: firaCode.bodySmall?.copyWith(
-          fontSize: 11, fontWeight: FontWeight.w400, height: 1.4,
-        ),
+        bodyLarge: firaCode.bodyLarge?.copyWith(fontSize: 13, height: 1.5, color: textColor),
+        bodyMedium: firaCode.bodyMedium?.copyWith(fontSize: 12, height: 1.5, color: textColor),
+        bodySmall: firaCode.bodySmall?.copyWith(fontSize: 11, height: 1.4, color: textColor),
       ),
     );
   }

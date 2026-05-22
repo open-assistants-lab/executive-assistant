@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../theme/app_theme.dart';
 import '../../../models/message.dart';
 import '../../../providers/agent_provider.dart';
+import '../../../theme/app_theme.dart';
+import '../../../widgets/ea_button.dart';
 
 class ApprovalSheet extends ConsumerWidget {
   final Map<String, ToolCallDisplay> pendingApprovals;
@@ -20,88 +21,109 @@ class ApprovalSheet extends ConsumerWidget {
       });
       return const SizedBox.shrink();
     }
+
+    final tokens = context.tokens;
     final approvals = pendingApprovals.values.toList();
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppRadius.sheet),
-        ),
+    return TweenAnimationBuilder<double>(
+      duration: tokens.motion.moment,
+      curve: tokens.motion.curveSpring,
+      tween: Tween(begin: 0.0, end: 1.0),
+      builder: (_, t, child) => Transform.translate(
+        offset: Offset(0, 24 * (1 - t)),
+        child: Opacity(opacity: t.clamp(0.0, 1.0), child: child),
       ),
-      child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.textDim,
-                borderRadius: BorderRadius.circular(2),
+      child: Container(
+        decoration: BoxDecoration(
+          color: tokens.colors.bgElevated,
+          border: Border(
+            top: BorderSide(color: tokens.colors.borderDefault),
+            left: BorderSide(color: tokens.colors.accent, width: 3),
+          ),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(tokens.radius.lg),
+          ),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Drag handle
+              Container(
+                margin: EdgeInsets.only(top: tokens.spacing.md),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: tokens.colors.borderDefault,
+                  borderRadius: tokens.radius.fullAll,
+                ),
               ),
-            ),
-            Flexible(
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: approvals.length,
-                itemBuilder: (context, index) {
-                  final tc = approvals[index];
-                  return Padding(
-                    padding: const EdgeInsets.all(AppSpacing.screenEdge),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (approvals.length > 1)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: AppSpacing.itemGap),
-                            child: Text(
-                              'Request ${index + 1} of ${approvals.length}',
-                              style: AppTypography.caption.copyWith(
-                                color: AppColors.textDim,
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: approvals.length,
+                  itemBuilder: (context, index) {
+                    final tc = approvals[index];
+                    return Padding(
+                      padding: EdgeInsets.all(tokens.spacing.lg),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (approvals.length > 1)
+                            Padding(
+                              padding: EdgeInsets.only(bottom: tokens.spacing.sm),
+                              child: Text(
+                                'Request ${index + 1} of ${approvals.length}',
+                                style: tokens.typography.textTheme.labelSmall?.copyWith(
+                                  color: tokens.colors.textTertiary,
+                                ),
                               ),
+                            ),
+                          // "Needs Approval" badge
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: tokens.spacing.sm + 2,
+                              vertical: tokens.spacing.xs,
+                            ),
+                            decoration: BoxDecoration(
+                              color: tokens.colors.warning.withValues(alpha: 0.12),
+                              border: Border.all(
+                                color: tokens.colors.warning.withValues(alpha: 0.3),
+                                width: 1,
+                              ),
+                              borderRadius: tokens.radius.smAll,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Symbols.warning,
+                                  size: 12,
+                                  color: tokens.colors.warning,
+                                ),
+                                SizedBox(width: tokens.spacing.xs + 2),
+                                Text(
+                                  'Needs Approval',
+                                  style: tokens.typography.textTheme.labelMedium?.copyWith(
+                                    color: tokens.colors.warning,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.warning.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(AppRadius.chip),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Symbols.warning,
-                                      size: 14, color: AppColors.warning),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'Needs Approval',
-                                    style: AppTypography.chip.copyWith(
-                                      color: AppColors.warning,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: AppSpacing.componentDefault),
-                        _ApprovalCard(tc: tc, ref: ref),
-                        const SizedBox(height: AppSpacing.componentDefault),
-                        _ApprovalActions(tc: tc, ref: ref),
-                      ],
-                    ),
-                  );
-                },
+                          SizedBox(height: tokens.spacing.md),
+                          _ApprovalCard(tc: tc),
+                          SizedBox(height: tokens.spacing.md),
+                          _ApprovalActions(tc: tc, ref: ref),
+                        ],
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -110,62 +132,70 @@ class ApprovalSheet extends ConsumerWidget {
 
 class _ApprovalCard extends StatelessWidget {
   final ToolCallDisplay tc;
-  final WidgetRef ref;
-
-  const _ApprovalCard({required this.tc, required this.ref});
+  const _ApprovalCard({required this.tc});
 
   @override
   Widget build(BuildContext context) {
+    final tokens = context.tokens;
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.cardPadding),
+      padding: EdgeInsets.all(tokens.spacing.md),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        border: Border.all(color: AppColors.border),
+        color: tokens.colors.bgSurface,
+        border: Border.all(color: tokens.colors.borderSubtle, width: 1),
+        borderRadius: tokens.radius.mdAll,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Symbols.build_circle,
-                  size: 20, color: AppColors.accent),
-              const SizedBox(width: 8),
+              Icon(
+                Symbols.build_circle,
+                size: 16,
+                color: tokens.colors.accent,
+              ),
+              SizedBox(width: tokens.spacing.sm),
               Expanded(
                 child: Text(
                   tc.toolName,
-                  style: AppTypography.sectionTitle.copyWith(fontSize: 18),
+                  style: tokens.typography.monoTheme.bodyMedium?.copyWith(
+                    color: tokens.colors.textPrimary,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.itemGap),
-          ...tc.args.entries.take(4).map(
-            (entry) => Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.tightGap),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    entry.key,
-                    style: AppTypography.caption.copyWith(
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w600,
+          if (tc.args.isNotEmpty) ...[
+            SizedBox(height: tokens.spacing.sm),
+            ...tc.args.entries.take(4).map(
+                  (entry) => Padding(
+                padding: EdgeInsets.only(bottom: tokens.spacing.xs),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      entry.key,
+                      style: tokens.typography.monoTheme.bodySmall?.copyWith(
+                        color: tokens.colors.textTertiary,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '${entry.value}',
-                      style: AppTypography.caption,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                    SizedBox(width: tokens.spacing.sm),
+                    Expanded(
+                      child: Text(
+                        '${entry.value}',
+                        style: tokens.typography.monoTheme.bodySmall?.copyWith(
+                          color: tokens.colors.textSecondary,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -175,46 +205,30 @@ class _ApprovalCard extends StatelessWidget {
 class _ApprovalActions extends StatelessWidget {
   final ToolCallDisplay tc;
   final WidgetRef ref;
-
   const _ApprovalActions({required this.tc, required this.ref});
 
   @override
   Widget build(BuildContext context) {
+    final tokens = context.tokens;
     return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        Expanded(
-          child: OutlinedButton(
-            onPressed: () {
-              ref.read(agentProvider.notifier).rejectToolCall(tc.callId);
-              Navigator.pop(context);
-            },
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.danger,
-              side: const BorderSide(color: AppColors.danger),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadius.button),
-              ),
-            ),
-            child: const Text('Reject'),
-          ),
+        EaButton.secondary(
+          label: 'Reject',
+          icon: Symbols.close,
+          onPressed: () {
+            ref.read(agentProvider.notifier).rejectToolCall(tc.callId);
+            Navigator.pop(context);
+          },
         ),
-        const SizedBox(width: AppSpacing.itemGap),
-        Expanded(
-          child: FilledButton(
-            onPressed: () {
-              ref.read(agentProvider.notifier).approveToolCall(tc.callId);
-              Navigator.pop(context);
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadius.button),
-              ),
-            ),
-            child: const Text('Approve'),
-          ),
+        SizedBox(width: tokens.spacing.sm),
+        EaButton.primary(
+          label: 'Approve',
+          icon: Symbols.check,
+          onPressed: () {
+            ref.read(agentProvider.notifier).approveToolCall(tc.callId);
+            Navigator.pop(context);
+          },
         ),
       ],
     );

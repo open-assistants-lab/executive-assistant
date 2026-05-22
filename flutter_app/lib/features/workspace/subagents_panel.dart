@@ -265,6 +265,7 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  const SizedBox(height: 8),
                   TextField(
                     controller: nameCtrl,
                     style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
@@ -338,14 +339,18 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
                         searchHint: 'Filter skills...',
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 16),
                   ],
                   if (allTools != null) ...[
-                    Text('Tools',
-                      style: t.typography.textTheme.bodySmall?.copyWith(
-                        color: t.colors.textSecondary,
-                      )),
-                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text('Tools',
+                          style: t.typography.textTheme.headlineMedium?.copyWith(
+                            fontSize: 14, color: t.colors.textPrimary,
+                          )),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
                     SizedBox(
                       height: 180,
                       child: GroupedTreeSelector<String>(
@@ -584,6 +589,7 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  const SizedBox(height: 8),
                   TextField(
                     controller: descriptionCtrl,
                     style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
@@ -629,14 +635,18 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
                         searchHint: 'Filter skills...',
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 16),
                   ],
                   if (allTools != null) ...[
-                    Text('Tools',
-                      style: t.typography.textTheme.bodySmall?.copyWith(
-                        color: t.colors.textSecondary,
-                      )),
-                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text('Tools',
+                          style: t.typography.textTheme.headlineMedium?.copyWith(
+                            fontSize: 14, color: t.colors.textPrimary,
+                          )),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
                     SizedBox(
                       height: 180,
                       child: GroupedTreeSelector<String>(

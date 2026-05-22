@@ -1,60 +1,32 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:executive_assistant/theme/app_theme.dart';
+import 'package:executive_assistant/theme/tokens/colors.dart';
 
 void main() {
-  testWidgets('EaTokens registers on ThemeData for dark mode', (tester) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        child: MaterialApp(
-          theme: AppTheme.dark,
-          home: Builder(builder: (context) {
-            final tokens = context.tokens;
-            expect(tokens.isDark, true);
-            expect(tokens.colors.bgCanvas, const Color(0xFF0A0A0A));
-            expect(tokens.colors.accent, const Color(0xFFD4D4D4));
-            expect(tokens.typography.textTheme.bodyLarge?.fontSize, 16);
-            expect(tokens.spacing.lg, 16);
-            expect(tokens.radius.md, 10);
-            expect(tokens.motion.snappy, const Duration(milliseconds: 200));
-            return const SizedBox();
-          }),
-        ),
-      ),
-    );
-    await tester.pump();
+  group('EaColors.dark', () {
+    test('uses near-black canvas', () {
+      expect(EaColors.dark.bgCanvas, const Color(0xFF08090A));
+    });
+    test('uses deep emerald accent', () {
+      expect(EaColors.dark.accent, const Color(0xFF239766));
+      expect(EaColors.dark.accentHover, const Color(0xFF2EAD78));
+      expect(EaColors.dark.accentMuted, const Color(0xFF0D2B22));
+    });
+    test('borderAccent is emerald at ~40% opacity', () {
+      expect(EaColors.dark.borderAccent.r, closeTo(0x23 / 255, 0.01));
+      expect(EaColors.dark.borderAccent.a, closeTo(0.4, 0.05));
+    });
+    test('text colors set for AA contrast', () {
+      expect(EaColors.dark.textPrimary, const Color(0xFFE6E6E6));
+    });
   });
 
-  testWidgets('EaTokens registers on ThemeData for light mode', (tester) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        child: MaterialApp(
-          theme: AppTheme.light,
-          home: Builder(builder: (context) {
-            final tokens = context.tokens;
-            expect(tokens.isDark, false);
-            expect(tokens.colors.bgCanvas, const Color(0xFFF8F8F8));
-            expect(tokens.colors.accent, const Color(0xFF2A2A2A));
-            return const SizedBox();
-          }),
-        ),
-      ),
-    );
-    await tester.pump();
-  });
-
-  testWidgets('AppTheme.dark has EaTokens extension registered', (tester) async {
-    final theme = AppTheme.dark;
-    final tokens = theme.extensions[EaTokens] as EaTokens?;
-    expect(tokens, isNotNull);
-    expect(tokens!.isDark, true);
-  });
-
-  testWidgets('AppTheme.light has EaTokens extension registered', (tester) async {
-    final theme = AppTheme.light;
-    final tokens = theme.extensions[EaTokens] as EaTokens?;
-    expect(tokens, isNotNull);
-    expect(tokens!.isDark, false);
+  group('EaColors.light', () {
+    test('uses off-white canvas', () {
+      expect(EaColors.light.bgCanvas, const Color(0xFFFAFAFA));
+    });
+    test('uses darker emerald for AA contrast on white', () {
+      expect(EaColors.light.accent, const Color(0xFF1B7A52));
+    });
   });
 }

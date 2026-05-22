@@ -18,9 +18,10 @@ class _CompanionPulseState extends ConsumerState<CompanionPulse>
   @override
   void initState() {
     super.initState();
+    // 3.2s breath cycle — slow, calming, like inhale/exhale
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 4),
+      duration: const Duration(milliseconds: 3200),
     )..repeat();
   }
 
@@ -46,21 +47,22 @@ class _CompanionPulseState extends ConsumerState<CompanionPulse>
           ref.read(companionPausedProvider.notifier).state = true;
         }
       },
-      onLongPress: () {},
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: SizedBox(
           height: 32,
+          width: 32,
           child: Center(
             child: AnimatedBuilder(
               animation: _controller,
               builder: (context, _) {
                 return CustomPaint(
-                  size: const Size(20, 20),
-                  painter: _PulsePainter(
+                  size: const Size(24, 24),
+                  painter: _BreathPainter(
                     progress: _controller.value,
                     paused: paused,
-                    tokens: tokens,
+                    accent: tokens.colors.accent,
+                    paused_color: tokens.colors.textTertiary,
                   ),
                 );
               },
@@ -72,55 +74,72 @@ class _CompanionPulseState extends ConsumerState<CompanionPulse>
   }
 }
 
-class _PulsePainter extends CustomPainter {
+/// A soft breathing dot: one accent core + one soft glow that expands/contracts.
+/// Uses a smooth sine eased with a sub-curve so peaks linger briefly.
+class _BreathPainter extends CustomPainter {
   final double progress;
   final bool paused;
-  final EaTokens tokens;
+  final Color accent;
+  // ignore: non_constant_identifier_names
+  final Color paused_color;
 
-  _PulsePainter({
+  _BreathPainter({
     required this.progress,
     required this.paused,
-    required this.tokens,
+    required this.accent,
+    // ignore: non_constant_identifier_names
+    required this.paused_color,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final baseRadius = size.width / 4;
 
     if (paused) {
-      final paint = Paint()
-        ..color = tokens.colors.textTertiary
-        ..style = PaintingStyle.fill;
-      canvas.drawCircle(center, baseRadius * 0.5, paint);
+      final paint = Paint()..color = paused_color..style = PaintingStyle.fill;
+      canvas.drawCircle(center, 3.0, paint);
       return;
     }
 
-    final innerPaint = Paint()
-      ..color = tokens.colors.accent
+    // Smooth ease-in-out using a half-cosine wave. Range: 0..1..0.
+    // progress 0.0 → 1.0 → 0.0 over the cycle.
+    final t = 0.5 - 0.5 * cos(progress * 2 * pi);
+
+    // Soft easing of the breath — slight pause at peaks
+    final eased = t * t * (3 - 2 * t); // smoothstep
+
+    // Core dot stays mostly constant size, just brightens.
+    final coreRadius = 3.0 + eased * 0.6;
+    final coreOpacity = 0.65 + eased * 0.35; // 0.65 → 1.0
+
+    // Soft glow expands further with low opacity.
+    final glowRadius = 5.0 + eased * 6.0; // 5 → 11
+    final glowOpacity = 0.18 - eased * 0.12; // 0.18 → 0.06
+
+    // Outer halo, very subtle.
+    final haloRadius = 8.0 + eased * 6.0; // 8 → 14
+    final haloOpacity = 0.08 - eased * 0.06; // 0.08 → 0.02
+
+    // Draw halo first (back to front)
+    final haloPaint = Paint()
+      ..color = accent.withValues(alpha: haloOpacity)
+      ..style = PaintingStyle.fill
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
+    canvas.drawCircle(center, haloRadius, haloPaint);
+
+    final glowPaint = Paint()
+      ..color = accent.withValues(alpha: glowOpacity)
+      ..style = PaintingStyle.fill
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5);
+    canvas.drawCircle(center, glowRadius, glowPaint);
+
+    final corePaint = Paint()
+      ..color = accent.withValues(alpha: coreOpacity)
       ..style = PaintingStyle.fill;
-
-    final middleAlpha = ((1 - progress) * 100).toInt().clamp(0, 100);
-    final middlePaint = Paint()
-      ..color = tokens.colors.accent.withAlpha(25 + middleAlpha)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-
-    final outerAlpha = ((sin(progress * 2 * pi) * 0.5 + 0.5) * 80).toInt();
-    final outerPaint = Paint()
-      ..color = tokens.colors.accent.withAlpha(outerAlpha)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-
-    final cyclePhase = (progress * 2 * pi);
-    final middleRadius = baseRadius * 1.2 + sin(cyclePhase) * 1.5;
-    final outerRadius = baseRadius * 1.6 + cos(cyclePhase * 0.7) * 2;
-
-    canvas.drawCircle(center, baseRadius * 0.55, innerPaint);
-    canvas.drawCircle(center, middleRadius, middlePaint);
-    canvas.drawCircle(center, outerRadius, outerPaint);
+    canvas.drawCircle(center, coreRadius, corePaint);
   }
 
   @override
-  bool shouldRepaint(_PulsePainter oldDelegate) => true;
+  bool shouldRepaint(_BreathPainter oldDelegate) =>
+      oldDelegate.progress != progress || oldDelegate.paused != paused;
 }

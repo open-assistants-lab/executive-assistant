@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import '../../../theme/app_theme.dart';
 import '../../../models/message.dart';
+import '../../../theme/app_theme.dart';
 import 'reasoning_bubble.dart';
+import 'role_label.dart';
 
 class MessageBubble extends StatelessWidget {
   final ChatMessage message;
-
   const MessageBubble({super.key, required this.message});
 
   @override
@@ -18,36 +18,76 @@ class MessageBubble extends StatelessWidget {
     if (message.role == 'reasoning') {
       return ReasoningBubble(content: content);
     }
-
-    final tokens = context.tokens;
     final isUser = message.role == 'user';
-    final userBubbleColor = tokens.isDark ? const Color(0xFF3A3A3A) : const Color(0xFF2A2A2A);
-    final userBubbleTextColor = const Color(0xFFFFFFFF);
+    return isUser
+        ? _UserBubble(content: message.content)
+        : _AssistantMessage(content: message.content);
+  }
+}
+
+class _UserBubble extends StatelessWidget {
+  final String content;
+  const _UserBubble({required this.content});
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.tokens;
     return Align(
-      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      alignment: Alignment.centerRight,
       child: LayoutBuilder(
         builder: (context, constraints) {
           return Container(
-            margin: EdgeInsets.symmetric(vertical: tokens.spacing.xs),
-            padding: EdgeInsets.all(tokens.spacing.md),
-            constraints: BoxConstraints(
-              maxWidth: constraints.maxWidth * 0.85,
+            margin: EdgeInsets.symmetric(vertical: tokens.spacing.sm),
+            padding: EdgeInsets.symmetric(
+              horizontal: tokens.spacing.md + 4,
+              vertical: tokens.spacing.md,
             ),
+            constraints: BoxConstraints(maxWidth: constraints.maxWidth * 0.75),
             decoration: BoxDecoration(
-              color: isUser ? userBubbleColor : tokens.colors.bgSurface,
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(tokens.radius.xl),
-                topRight: Radius.circular(tokens.radius.xl),
-                bottomLeft: Radius.circular(
-                    isUser ? tokens.radius.xl : tokens.radius.sm),
-                bottomRight: Radius.circular(
-                    isUser ? tokens.radius.sm : tokens.radius.xl),
-              ),
+              color: tokens.colors.accentMuted,
+              borderRadius: tokens.radius.mdAll,
+              border: Border.all(color: tokens.colors.borderAccent, width: 1),
             ),
             child: SelectableText(
-              message.content,
+              content,
               style: tokens.typography.textTheme.bodyLarge?.copyWith(
-                color: isUser ? userBubbleTextColor : tokens.colors.textPrimary,
+                color: tokens.colors.textPrimary,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _AssistantMessage extends StatelessWidget {
+  final String content;
+  const _AssistantMessage({required this.content});
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.tokens;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: constraints.maxWidth * 0.85),
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: tokens.spacing.sm),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  RoleLabel(label: 'ASSISTANT', dotColor: tokens.colors.accent),
+                  SizedBox(height: tokens.spacing.xs),
+                  SelectableText(
+                    content,
+                    style: tokens.typography.textTheme.bodyLarge?.copyWith(
+                      color: tokens.colors.textPrimary,
+                    ),
+                  ),
+                ],
               ),
             ),
           );
@@ -72,7 +112,7 @@ class _InlineToolBadge extends StatelessWidget {
           padding: EdgeInsets.symmetric(horizontal: tokens.spacing.sm, vertical: tokens.spacing.xs),
           decoration: BoxDecoration(
             color: tokens.colors.bgField.withAlpha(100),
-            borderRadius: BorderRadius.circular(tokens.radius.md / 2),
+            borderRadius: tokens.radius.xsAll,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -95,7 +135,6 @@ class _InlineToolBadge extends StatelessWidget {
 
 class ToolCallChip extends StatelessWidget {
   final ToolCallDisplay toolCall;
-
   const ToolCallChip({super.key, required this.toolCall});
 
   @override
@@ -107,7 +146,7 @@ class ToolCallChip extends StatelessWidget {
       padding: EdgeInsets.symmetric(horizontal: tokens.spacing.sm + 2, vertical: 6),
       decoration: BoxDecoration(
         color: tokens.colors.bgField,
-        borderRadius: BorderRadius.circular(tokens.radius.md),
+        borderRadius: tokens.radius.mdAll,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

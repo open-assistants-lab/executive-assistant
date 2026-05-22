@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import '../../../core/animations.dart';
 import '../../../theme/app_theme.dart';
 import '../../../models/message.dart';
 import 'message_bubble.dart';
 import 'streaming_bubble.dart';
 import 'reasoning_bubble.dart';
 import 'tool_call_card.dart';
+import 'empty_state.dart';
 
 const _kScrollBottom = '__bottom__';
 
@@ -122,7 +124,7 @@ class ChatMessageListState extends State<ChatMessageList> {
       if (widget.emptyBuilder != null) {
         return widget.emptyBuilder!(context);
       }
-      return const SizedBox.shrink();
+      return const ChatEmptyState();
     }
 
     return ListView(
@@ -149,9 +151,11 @@ class ChatMessageListState extends State<ChatMessageList> {
       items.add(
         KeyedSubtree(
           key: ValueKey('msg_${msg.id}_${msg.content.hashCode}'),
-          child: _keyedWrapper(
-            gKey,
-            MessageBubble(message: msg),
+          child: EaAnimations.fadeIn(
+            child: _keyedWrapper(
+              gKey,
+              MessageBubble(message: msg),
+            ),
           ),
         ),
       );

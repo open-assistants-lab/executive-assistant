@@ -14,6 +14,7 @@ import 'tokens/typography.dart';
 import 'tokens/spacing.dart';
 import 'tokens/radius.dart';
 import 'tokens/motion.dart';
+import '../core/page_transitions.dart';
 
 @immutable
 class EaTokens extends ThemeExtension<EaTokens> {
@@ -98,12 +99,14 @@ class AppTheme {
         brightness: brightness,
         primary: tokens.colors.accent,
         onPrimary: tokens.colors.textInverse,
-        secondary: tokens.colors.accent,
-        onSecondary: tokens.colors.textInverse,
+        secondary: tokens.colors.accentMuted,
+        onSecondary: tokens.colors.textPrimary,
         surface: tokens.colors.bgSurface,
         onSurface: tokens.colors.textPrimary,
         error: tokens.colors.error,
-        onError: Colors.white,
+        onError: tokens.colors.textInverse,
+        outline: tokens.colors.borderDefault,
+        outlineVariant: tokens.colors.borderSubtle,
       ),
       textTheme: tokens.typography.textTheme,
       cardTheme: CardThemeData(
@@ -132,16 +135,64 @@ class AppTheme {
         labelStyle: tokens.typography.textTheme.bodySmall?.copyWith(color: tokens.colors.textSecondary),
         hintStyle: tokens.typography.textTheme.bodySmall?.copyWith(color: tokens.colors.textTertiary),
         border: OutlineInputBorder(
-          borderRadius: tokens.radius.smAll,
+          borderRadius: tokens.radius.mdAll,
+          borderSide: BorderSide(color: tokens.colors.borderDefault),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: tokens.radius.mdAll,
           borderSide: BorderSide(color: tokens.colors.borderDefault),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: tokens.radius.smAll,
-          borderSide: BorderSide(color: tokens.colors.accent),
+          borderRadius: tokens.radius.mdAll,
+          borderSide: BorderSide(color: tokens.colors.accent, width: 1.5),
         ),
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: tokens.spacing.md,
-          vertical: tokens.spacing.sm + 2,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      ),
+      canvasColor: tokens.colors.bgElevated,
+      popupMenuTheme: PopupMenuThemeData(
+        color: tokens.colors.bgElevated,
+        textStyle: tokens.typography.textTheme.bodyMedium?.copyWith(
+          color: tokens.colors.textPrimary,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: tokens.radius.smAll,
+          side: BorderSide(color: tokens.colors.borderDefault, width: 1),
+        ),
+        elevation: 0,
+      ),
+      dropdownMenuTheme: DropdownMenuThemeData(
+        textStyle: tokens.typography.textTheme.bodyMedium?.copyWith(
+          color: tokens.colors.textPrimary,
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: tokens.colors.bgField,
+          border: OutlineInputBorder(
+            borderRadius: tokens.radius.mdAll,
+            borderSide: BorderSide(color: tokens.colors.borderDefault),
+          ),
+        ),
+        menuStyle: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(tokens.colors.bgElevated),
+          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: tokens.radius.smAll,
+              side: BorderSide(color: tokens.colors.borderDefault, width: 1),
+            ),
+          ),
+        ),
+      ),
+      menuTheme: MenuThemeData(
+        style: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(tokens.colors.bgElevated),
+          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: tokens.radius.smAll,
+              side: BorderSide(color: tokens.colors.borderDefault, width: 1),
+            ),
+          ),
         ),
       ),
       bottomSheetTheme: BottomSheetThemeData(
@@ -156,6 +207,7 @@ class AppTheme {
         color: tokens.colors.borderSubtle,
         thickness: 1,
       ),
+      pageTransitionsTheme: const EaPageTransitionsTheme(),
       extensions: [tokens],
     );
   }
