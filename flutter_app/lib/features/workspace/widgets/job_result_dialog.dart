@@ -29,10 +29,11 @@ class JobResultDialog extends ConsumerWidget {
       insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
       child: SizedBox(
         width: 600,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             // Header
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
@@ -199,7 +200,8 @@ class JobResultDialog extends ConsumerWidget {
                 ],
               ),
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );
