@@ -163,6 +163,12 @@ void main() {
       mockApi = MockApiClient();
       when(() => mockWs.status).thenAnswer((_) => statusCtrl.stream);
       when(() => mockWs.messages).thenAnswer((_) => msgCtrl.stream);
+      when(
+        () => mockApi.getConversation(
+          limit: any(named: 'limit'),
+          workspaceId: any(named: 'workspaceId'),
+        ),
+      ).thenAnswer((_) async => []);
       notifier = AgentNotifier(mockWs, mockApi);
     });
 
@@ -386,6 +392,27 @@ void main() {
     );
 
     test(
+      'restored cached workspace inherits current connection status',
+      () async {
+        when(
+          () => mockApi.getConversation(
+            limit: any(named: 'limit'),
+            workspaceId: any(named: 'workspaceId'),
+          ),
+        ).thenAnswer((_) async => []);
+
+        notifier.setWorkspaceId('test');
+        statusCtrl.add(ConnectionStatus.connected);
+        await Future.delayed(Duration.zero);
+
+        notifier.setWorkspaceId('personal');
+
+        expect(notifier.state.connected, isTrue);
+        expect(notifier.state.status, ChatStatus.idle);
+      },
+    );
+
+    test(
       'splits assistant text into separate bubbles around tool calls',
       () async {
         statusCtrl.add(ConnectionStatus.connected);
@@ -507,6 +534,12 @@ void main() {
       mockApi = MockApiClient();
       when(() => mockWs.status).thenAnswer((_) => statusCtrl.stream);
       when(() => mockWs.messages).thenAnswer((_) => msgCtrl.stream);
+      when(
+        () => mockApi.getConversation(
+          limit: any(named: 'limit'),
+          workspaceId: any(named: 'workspaceId'),
+        ),
+      ).thenAnswer((_) async => []);
       notifier = AgentNotifier(mockWs, mockApi);
     });
 

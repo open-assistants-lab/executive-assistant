@@ -58,18 +58,20 @@ class WorkspaceNotifier extends StateNotifier<String> {
   WorkspaceNotifier(this.ref) : super('personal');
 
   Future<void> switchWorkspace(String id, String name) async {
+    final agentNotifier = ref.read(agentProvider.notifier);
+    final needsHistory = agentNotifier.needsHistory(id);
     state = id;
     ref.read(currentWorkspaceIdProvider.notifier).state = id;
     ref.read(currentWorkspaceNameProvider.notifier).state = name;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('active_workspace_id', id);
 
-    ref.read(agentProvider.notifier).setWorkspaceId(id);
+    agentNotifier.setWorkspaceId(id);
     ref.read(apiClientProvider).workspaceId = id;
     _syncEffectiveModel(id);
-    if (!ref.read(agentProvider.notifier).hasWorkspaceState(id)) {
-      ref.read(agentProvider.notifier).clearHistory(loading: true);
-      ref.read(agentProvider.notifier).loadHistory();
+    if (needsHistory) {
+      agentNotifier.clearHistory(loading: true);
+      agentNotifier.loadHistory();
     }
   }
 

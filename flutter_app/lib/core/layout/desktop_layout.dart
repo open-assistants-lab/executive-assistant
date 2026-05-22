@@ -14,7 +14,6 @@ import '../../features/companion/companion_context_pill.dart';
 import '../../features/companion/companion_toast.dart';
 import '../../features/settings/settings_screen.dart';
 
-
 enum DesktopSidebarItem {
   email(
     icon: Symbols.mail,
@@ -74,9 +73,15 @@ class DesktopLayout extends ConsumerWidget {
               return Row(
                 children: [
                   const _Sidebar(width: sidebarWidth),
-                  Container(width: 1, color: context.tokens.colors.borderSubtle),
+                  Container(
+                    width: 1,
+                    color: context.tokens.colors.borderSubtle,
+                  ),
                   SizedBox(width: chatPanelWidth, child: const _ChatPanel()),
-                  Container(width: 1, color: context.tokens.colors.borderSubtle),
+                  Container(
+                    width: 1,
+                    color: context.tokens.colors.borderSubtle,
+                  ),
                   SizedBox(width: contentWidth, child: child),
                 ],
               );
@@ -134,9 +139,10 @@ class _Sidebar extends ConsumerWidget {
                                 const SizedBox(height: 4),
                                 Text(
                                   'New workspace',
-                                  style: tokens.typography.textTheme.labelSmall?.copyWith(
-                                    color: tokens.colors.textTertiary,
-                                  ),
+                                  style: tokens.typography.textTheme.labelSmall
+                                      ?.copyWith(
+                                        color: tokens.colors.textTertiary,
+                                      ),
                                 ),
                               ],
                             ),
@@ -156,9 +162,8 @@ class _Sidebar extends ConsumerWidget {
                           ),
                           title: Text(
                             'New workspace',
-                            style: tokens.typography.textTheme.labelSmall?.copyWith(
-                              color: tokens.colors.textTertiary,
-                            ),
+                            style: tokens.typography.textTheme.labelSmall
+                                ?.copyWith(color: tokens.colors.textTertiary),
                           ),
                           onTap: () => _showCreateDialog(context, ref),
                         ),
@@ -187,24 +192,31 @@ class _Sidebar extends ConsumerWidget {
                               visualDensity: VisualDensity.compact,
                               title: Text(
                                 name,
-                                style: tokens.typography.textTheme.bodyMedium?.copyWith(
-                                  fontSize: 13,
-                                  fontWeight: isActive
-                                      ? FontWeight.w600
-                                      : FontWeight.w400,
-                                  color: isActive
-                                      ? tokens.colors.textPrimary
-                                      : tokens.colors.textSecondary,
-                                ),
+                                style: tokens.typography.textTheme.bodyMedium
+                                    ?.copyWith(
+                                      fontSize: 13,
+                                      fontWeight: isActive
+                                          ? FontWeight.w600
+                                          : FontWeight.w400,
+                                      color: isActive
+                                          ? tokens.colors.textPrimary
+                                          : tokens.colors.textSecondary,
+                                    ),
                               ),
                               trailing: PopupMenuButton<String>(
-                                icon: Icon(Symbols.more_horiz,
+                                icon: Icon(
+                                  Symbols.more_horiz,
                                   size: 16,
                                   color: tokens.colors.textTertiary,
                                 ),
                                 onSelected: (value) {
                                   if (value == 'delete') {
-                                    _confirmDeleteWorkspace(context, ref, id, name);
+                                    _confirmDeleteWorkspace(
+                                      context,
+                                      ref,
+                                      id,
+                                      name,
+                                    );
                                   }
                                 },
                                 itemBuilder: (_) => [
@@ -231,7 +243,10 @@ class _Sidebar extends ConsumerWidget {
           ),
           const Divider(height: 1),
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: tokens.spacing.md, vertical: tokens.spacing.xs),
+            padding: EdgeInsets.symmetric(
+              horizontal: tokens.spacing.md,
+              vertical: tokens.spacing.xs,
+            ),
             child: Row(
               children: [
                 Expanded(
@@ -249,7 +264,9 @@ class _Sidebar extends ConsumerWidget {
                   ),
                   onPressed: () =>
                       ref.read(themeModeProvider.notifier).toggle(),
-                  tooltip: tokens.isDark ? 'Switch to light mode' : 'Switch to dark mode',
+                  tooltip: tokens.isDark
+                      ? 'Switch to light mode'
+                      : 'Switch to dark mode',
                 ),
               ],
             ),
@@ -266,13 +283,18 @@ class _Sidebar extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('New Workspace', style: t.typography.textTheme.titleLarge?.copyWith(color: t.colors.textPrimary)),
+        title: Text(
+          'New Workspace',
+          style: t.typography.textTheme.titleLarge?.copyWith(
+            color: t.colors.textPrimary,
+          ),
+        ),
         content: TextField(
           controller: nameCtrl,
-          style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
-          decoration: const InputDecoration(
-            hintText: 'Workspace name',
+          style: t.typography.textTheme.bodyLarge?.copyWith(
+            color: t.colors.textPrimary,
           ),
+          decoration: const InputDecoration(hintText: 'Workspace name'),
         ),
         actions: [
           TextButton(
@@ -305,16 +327,28 @@ class _Sidebar extends ConsumerWidget {
     );
   }
 
-  void _confirmDeleteWorkspace(BuildContext context, WidgetRef ref, String id, String name) {
+  void _confirmDeleteWorkspace(
+    BuildContext context,
+    WidgetRef ref,
+    String id,
+    String name,
+  ) {
     showDialog(
       context: context,
       builder: (ctx) {
         final t = ctx.tokens;
         return AlertDialog(
-          title: Text('Delete workspace?', style: t.typography.textTheme.titleLarge?.copyWith(color: t.colors.textPrimary)),
+          title: Text(
+            'Delete workspace?',
+            style: t.typography.textTheme.titleLarge?.copyWith(
+              color: t.colors.textPrimary,
+            ),
+          ),
           content: Text(
             'Delete "$name"? This will also delete all associated conversation messages.',
-            style: t.typography.textTheme.bodyMedium?.copyWith(color: t.colors.textPrimary),
+            style: t.typography.textTheme.bodyMedium?.copyWith(
+              color: t.colors.textPrimary,
+            ),
           ),
           actions: [
             TextButton(
@@ -324,7 +358,9 @@ class _Sidebar extends ConsumerWidget {
             FilledButton(
               onPressed: () {
                 Navigator.pop(ctx);
-                ref.read(workspaceNotifierProvider.notifier).deleteWorkspace(id);
+                ref
+                    .read(workspaceNotifierProvider.notifier)
+                    .deleteWorkspace(id);
               },
               child: const Text('Delete'),
             ),
@@ -362,10 +398,7 @@ class _SidebarItem extends StatelessWidget {
                   color: tokens.colors.bgElevated,
                   borderRadius: tokens.radius.smAll,
                   border: Border(
-                    left: BorderSide(
-                      color: tokens.colors.accent,
-                      width: 2,
-                    ),
+                    left: BorderSide(color: tokens.colors.accent, width: 2),
                   ),
                 )
               : null,
@@ -374,7 +407,9 @@ class _SidebarItem extends StatelessWidget {
               Icon(
                 selected ? item.activeIcon : item.icon,
                 size: 20,
-                color: selected ? tokens.colors.accent : tokens.colors.textSecondary,
+                color: selected
+                    ? tokens.colors.accent
+                    : tokens.colors.textSecondary,
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -383,7 +418,9 @@ class _SidebarItem extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: tokens.typography.textTheme.bodyMedium?.copyWith(
                     fontSize: 13,
-                    color: selected ? tokens.colors.accent : tokens.colors.textSecondary,
+                    color: selected
+                        ? tokens.colors.accent
+                        : tokens.colors.textSecondary,
                     fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                   ),
                 ),
@@ -423,6 +460,7 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
       final max = _scrollController.position.maxScrollExtent;
       if (max > 0) _scrollController.jumpTo(max);
     }
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       jump();
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -507,15 +545,16 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
                           child: Center(
                             child: Text(
                               e.value.isNotEmpty ? e.value : e.key,
-                              style: tokens.typography.textTheme.bodySmall?.copyWith(
-                                fontSize: 12,
-                                fontWeight: isActive
-                                    ? FontWeight.w600
-                                    : FontWeight.w400,
-                                color: isActive
-                                    ? tokens.colors.textPrimary
-                                    : tokens.colors.textTertiary,
-                              ),
+                              style: tokens.typography.textTheme.bodySmall
+                                  ?.copyWith(
+                                    fontSize: 12,
+                                    fontWeight: isActive
+                                        ? FontWeight.w600
+                                        : FontWeight.w400,
+                                    color: isActive
+                                        ? tokens.colors.textPrimary
+                                        : tokens.colors.textTertiary,
+                                  ),
                             ),
                           ),
                         ),
@@ -579,6 +618,7 @@ class _PanelMessageList extends ConsumerWidget {
       reasoningText: state.reasoningText,
       activeToolCalls: state.activeToolCalls,
       scrollController: scrollController,
+      isLoading: state.loadingHistory,
       header: state.messages.isNotEmpty
           ? CompanionContextPill(
               activeWorkspaceId: ref.watch(activeChatTabProvider),

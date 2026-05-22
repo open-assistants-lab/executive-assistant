@@ -186,4 +186,39 @@ void main() {
       expect(messageScrollable().position.extentAfter, lessThan(1));
     },
   );
+
+  testWidgets('shows loading indicator while desktop workspace history loads', (
+    tester,
+  ) async {
+    final response = Completer<List<Map<String, dynamic>>>();
+    when(
+      () => mockApi.getConversation(
+        limit: any(named: 'limit'),
+        workspaceId: any(named: 'workspaceId'),
+      ),
+    ).thenAnswer((_) async => []);
+    when(
+      () => mockApi.getConversation(
+        limit: any(named: 'limit'),
+        workspaceId: 'test',
+      ),
+    ).thenAnswer((_) => response.future);
+
+    await tester.pumpWidget(_buildDesktopLayout(mockWs, mockApi));
+    statusCtrl.add(ConnectionStatus.connected);
+    await tester.pump(const Duration(milliseconds: 100));
+
+    await tester.tap(find.text('Test').first);
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final messageList = find.byKey(const ValueKey('desktop-chat-message-list'));
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(
+      find.descendant(of: messageList, matching: find.text('Ask anything...')),
+      findsNothing,
+    );
+
+    response.complete([]);
+    await tester.pump(const Duration(milliseconds: 100));
+  });
 }

@@ -82,8 +82,10 @@ class AgentNotifier extends StateNotifier<ChatState> {
   String _workspaceId = 'personal';
   String? _activeStreamWorkspaceId;
   final Map<String, ChatState> _workspaceStates = {};
+  final Set<String> _historyLoadedWorkspaces = {};
   final Map<String, StringBuffer> _toolInputAccum = {};
   final Set<String> _seenContentHashes = {};
+  bool _transportConnected = false;
 
   AgentNotifier(this._wsClient, this._apiClient) : super(const ChatState()) {
     _statusSubscription = _wsClient.status.listen(_onStatusChange);
@@ -95,11 +97,18 @@ class AgentNotifier extends StateNotifier<ChatState> {
     _workspaceId = id;
     final saved = _workspaceStates[id];
     if (saved != null) {
-      state = saved;
+      state = _withCurrentTransport(saved);
+      _workspaceStates[id] = state;
     }
   }
 
   bool hasWorkspaceState(String id) => _workspaceStates.containsKey(id);
+
+  bool needsHistory(String id) {
+    final workspaceState = id == _workspaceId ? state : _workspaceStates[id];
+    if (workspaceState?.messages.isNotEmpty == true) return false;
+    return !_historyLoadedWorkspaces.contains(id);
+  }
 
   void removeWorkspaceState(String id) {
     _workspaceStates.remove(id);
@@ -108,6 +117,18 @@ class AgentNotifier extends StateNotifier<ChatState> {
   void _setState(ChatState next) {
     state = next;
     _workspaceStates[_workspaceId] = next;
+  }
+
+  ChatState _withCurrentTransport(ChatState workspaceState) {
+    if (!_transportConnected) return workspaceState.copyWith(connected: false);
+    final restoredStatus = workspaceState.status == ChatStatus.disconnected
+        ? ChatStatus.idle
+        : workspaceState.status;
+    return workspaceState.copyWith(
+      connected: true,
+      status: restoredStatus,
+      error: restoredStatus == ChatStatus.idle ? null : workspaceState.error,
+    );
   }
 
   void _flushStreamingTextToMessage() {
@@ -139,6 +160,7 @@ class AgentNotifier extends StateNotifier<ChatState> {
         workspaceId: targetWorkspaceId,
       );
       if (_disposed || targetWorkspaceId != _workspaceId) return;
+      _historyLoadedWorkspaces.add(targetWorkspaceId);
       final now = DateTime.now();
       var idx = 0;
       final chatMessages = <ChatMessage>[];
@@ -319,6 +341,9 @@ class AgentNotifier extends StateNotifier<ChatState> {
 
   void clearHistory({bool loading = false}) {
     _seenContentHashes.clear();
+    if (loading) {
+      _historyLoadedWorkspaces.remove(_workspaceId);
+    }
     _setState(
       state.copyWith(
         messages: [],
@@ -639,6 +664,7 @@ class AgentNotifier extends StateNotifier<ChatState> {
   void _onStatusChange(ConnectionStatus wsStatus) {
     if (_disposed) return;
     if (wsStatus == ConnectionStatus.connected) {
+      _transportConnected = true;
       final currentStatus = state.status;
       _setState(
         state.copyWith(
@@ -659,6 +685,7 @@ class AgentNotifier extends StateNotifier<ChatState> {
         _loadHistorySafely();
       }
     } else if (wsStatus == ConnectionStatus.disconnected) {
+      _transportConnected = false;
       final wasStreaming = state.status == ChatStatus.streaming;
       if (wasStreaming && state.streamingText.isNotEmpty) {
         final partialMsg = ChatMessage(
@@ -683,6 +710,7 @@ class AgentNotifier extends StateNotifier<ChatState> {
         );
       }
     } else if (wsStatus == ConnectionStatus.connecting) {
+      _transportConnected = false;
       _setState(state.copyWith(connected: false, error: null));
     }
   }
