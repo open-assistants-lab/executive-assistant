@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../models/message.dart';
 import '../../../theme/app_theme.dart';
 import 'reasoning_bubble.dart';
+import 'role_label.dart';
 
 class MessageBubble extends StatelessWidget {
   final ChatMessage message;
@@ -78,7 +79,7 @@ class _AssistantMessage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _RoleLabel(label: 'ASSISTANT', dotColor: tokens.colors.accent),
+                  RoleLabel(label: 'ASSISTANT', dotColor: tokens.colors.accent),
                   SizedBox(height: tokens.spacing.xs),
                   SelectableText(
                     content,
@@ -92,37 +93,6 @@ class _AssistantMessage extends StatelessWidget {
           );
         },
       ),
-    );
-  }
-}
-
-class _RoleLabel extends StatelessWidget {
-  final String label;
-  final Color dotColor;
-  const _RoleLabel({required this.label, required this.dotColor});
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.tokens;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 6,
-          height: 6,
-          decoration: BoxDecoration(
-            color: dotColor,
-            borderRadius: tokens.radius.fullAll,
-          ),
-        ),
-        SizedBox(width: tokens.spacing.sm - 2),
-        Text(
-          label,
-          style: tokens.typography.textTheme.labelSmall?.copyWith(
-            color: tokens.colors.textTertiary,
-          ),
-        ),
-      ],
     );
   }
 }
