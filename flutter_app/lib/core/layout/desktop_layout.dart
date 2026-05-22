@@ -455,6 +455,7 @@ class _ChatPanel extends ConsumerStatefulWidget {
 class _ChatPanelState extends ConsumerState<_ChatPanel> {
   final _scrollController = ScrollController();
   bool _pendingScrollToBottom = false;
+  bool _animateFadeIn = true;
 
   @override
   void initState() {
@@ -499,8 +500,15 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
     ref.listen<String>(activeChatTabProvider, (prev, next) {
       if (prev != null && prev != next) {
         _pendingScrollToBottom = true;
-        // Fire scroll-to-bottom now too in case messages are already loaded.
+        _animateFadeIn = false;
         _scrollToBottom();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) setState(() => _animateFadeIn = true);
+            });
+          });
+        });
       }
     });
 
@@ -563,6 +571,7 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
             child: _PanelMessageList(
               state: state,
               scrollController: _scrollController,
+              animate: _animateFadeIn,
             ),
           ),
           if (state.status == ChatStatus.error && state.error != null)
@@ -577,9 +586,11 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
 class _PanelMessageList extends ConsumerWidget {
   final ChatState state;
   final ScrollController scrollController;
+  final bool animate;
   const _PanelMessageList({
     required this.state,
     required this.scrollController,
+    this.animate = true,
   });
 
   @override
@@ -588,7 +599,7 @@ class _PanelMessageList extends ConsumerWidget {
     final activeWs = ref.watch(activeChatTabProvider);
     return TweenAnimationBuilder<double>(
       key: ValueKey('chat_list_$activeWs'),
-      duration: tokens.motion.base,
+      duration: animate ? tokens.motion.base : Duration.zero,
       curve: tokens.motion.curveStandard,
       tween: Tween(begin: 0.0, end: 1.0),
       builder: (_, t, child) => Opacity(opacity: t.clamp(0.0, 1.0), child: child),
