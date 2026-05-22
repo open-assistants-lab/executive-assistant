@@ -477,7 +477,11 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
                 const SizedBox(width: 8),
                 ...tabs.entries.map((e) {
                   final isActive = e.key == activeTab;
-                  return GestureDetector(
+                  return _ChatPanelTab(
+                    workspaceId: e.key,
+                    label: e.value.isNotEmpty ? e.value : e.key,
+                    isActive: isActive,
+                    canClose: tabs.length > 1,
                     onTap: () {
                       if (!isActive) {
                         ref
@@ -485,51 +489,9 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
                             .openWorkspace(e.key, e.value);
                       }
                     },
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          decoration: BoxDecoration(
-                            border: Border(
-                              bottom: BorderSide(
-                                color: isActive
-                                    ? tokens.colors.accent
-                                    : Colors.transparent,
-                                width: 2,
-                              ),
-                            ),
-                          ),
-                          child: Center(
-                            child: Text(
-                              e.value.isNotEmpty ? e.value : e.key,
-                              style: tokens.typography.textTheme.bodySmall?.copyWith(
-                                fontSize: 12,
-                                fontWeight: isActive
-                                    ? FontWeight.w600
-                                    : FontWeight.w400,
-                                color: isActive
-                                    ? tokens.colors.textPrimary
-                                    : tokens.colors.textTertiary,
-                              ),
-                            ),
-                          ),
-                        ),
-                        if (tabs.length > 1)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: InkWell(
-                              onTap: () => ref
-                                  .read(chatTabNotifierProvider.notifier)
-                                  .closeTab(e.key),
-                              child: Icon(
-                                Symbols.close,
-                                size: 10,
-                                color: tokens.colors.textTertiary,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
+                    onClose: () => ref
+                        .read(chatTabNotifierProvider.notifier)
+                        .closeTab(e.key),
                   );
                 }),
                 const SizedBox(width: 8),
@@ -602,6 +564,96 @@ class _PanelMessageList extends ConsumerWidget {
             horizontal: AppSpacing.cardPadding,
             vertical: AppSpacing.itemGap,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChatPanelTab extends StatefulWidget {
+  final String workspaceId;
+  final String label;
+  final bool isActive;
+  final bool canClose;
+  final VoidCallback onTap;
+  final VoidCallback onClose;
+  const _ChatPanelTab({
+    required this.workspaceId,
+    required this.label,
+    required this.isActive,
+    required this.canClose,
+    required this.onTap,
+    required this.onClose,
+  });
+
+  @override
+  State<_ChatPanelTab> createState() => _ChatPanelTabState();
+}
+
+class _ChatPanelTabState extends State<_ChatPanelTab> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.tokens;
+    final color = widget.isActive
+        ? tokens.colors.textPrimary
+        : _hover
+            ? tokens.colors.textSecondary
+            : tokens.colors.textTertiary;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedContainer(
+              duration: tokens.motion.base,
+              curve: tokens.motion.curveStandard,
+              padding: EdgeInsets.symmetric(
+                horizontal: tokens.spacing.md,
+                vertical: tokens.spacing.sm,
+              ),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: widget.isActive
+                        ? tokens.colors.accent
+                        : Colors.transparent,
+                    width: 2,
+                  ),
+                ),
+              ),
+              child: Center(
+                child: AnimatedDefaultTextStyle(
+                  duration: tokens.motion.base,
+                  curve: tokens.motion.curveStandard,
+                  style: tokens.typography.textTheme.titleSmall?.copyWith(
+                        fontWeight:
+                            widget.isActive ? FontWeight.w600 : FontWeight.w400,
+                        color: color,
+                      ) ??
+                      TextStyle(color: color),
+                  child: Text(widget.label),
+                ),
+              ),
+            ),
+            if (widget.canClose)
+              Padding(
+                padding: EdgeInsets.only(right: tokens.spacing.sm),
+                child: InkWell(
+                  onTap: widget.onClose,
+                  child: Icon(
+                    Symbols.close,
+                    size: 12,
+                    color: color,
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
