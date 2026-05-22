@@ -499,6 +499,11 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
     ref.listen<String>(activeChatTabProvider, (prev, next) {
       if (prev != null && prev != next) {
         _pendingScrollToBottom = true;
+        // Reset scroll to top BEFORE next frame paints, so new content
+        // doesn't briefly render at the old workspace's scroll position.
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(0);
+        }
         _scrollToBottom();
       }
     });
