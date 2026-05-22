@@ -256,9 +256,10 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
     final t = context.tokens;
     final created = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: Text('Create Subagent', style: t.typography.textTheme.titleLarge?.copyWith(color: t.colors.textPrimary)),
+      builder: (ctx) => _DeferredPopScope(
+        child: StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            title: Text('Create Subagent', style: t.typography.textTheme.titleLarge?.copyWith(color: t.colors.textPrimary)),
           content: SingleChildScrollView(
             child: SizedBox(
               width: 480,
@@ -477,6 +478,7 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
             ),
           ],
         ),
+      ),
       ),
     );
 
@@ -764,8 +766,9 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
     final wsId = ref.read(currentWorkspaceIdProvider);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Delete subagent?', style: context.tokens.typography.textTheme.titleLarge?.copyWith(color: context.tokens.colors.textPrimary)),
+      builder: (ctx) => _DeferredPopScope(
+        child: AlertDialog(
+          title: Text('Delete subagent?', style: context.tokens.typography.textTheme.titleLarge?.copyWith(color: context.tokens.colors.textPrimary)),
         content: Text(
           'Delete ${agent.name}? This will also cancel any running jobs.',
           style: context.tokens.typography.textTheme.bodyMedium?.copyWith(color: context.tokens.colors.textPrimary),
@@ -780,6 +783,7 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
             child: const Text('Delete'),
           ),
         ],
+      ),
       ),
     );
     if (confirmed != true || !mounted) return;
@@ -1118,4 +1122,35 @@ class _ChipLabel extends StatelessWidget {
   }
 }
 
+class _DeferredPopScope extends StatefulWidget {
+  final Widget child;
 
+  const _DeferredPopScope({required this.child});
+
+  @override
+  State<_DeferredPopScope> createState() => _DeferredPopScopeState();
+}
+
+class _DeferredPopScopeState extends State<_DeferredPopScope> {
+  bool _deferred = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope<bool>(
+      canPop: _deferred,
+      onPopInvokedWithResult: (didPop, result) {
+        if (_deferred && didPop) {
+          _deferred = false;
+          return;
+        }
+        if (didPop) return;
+        setState(() => _deferred = true);
+        FocusScope.of(context).unfocus();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (context.mounted) Navigator.of(context).pop(result);
+        });
+      },
+      child: widget.child,
+    );
+  }
+}

@@ -555,8 +555,12 @@ class _DeferredPopScopeState extends State<_DeferredPopScope> {
     return PopScope<bool>(
       canPop: _deferred,
       onPopInvokedWithResult: (didPop, result) {
-        if (didPop || _deferred) return;
-        _deferred = true;
+        if (_deferred && didPop) {
+          _deferred = false;
+          return;
+        }
+        if (didPop) return;
+        setState(() => _deferred = true);
         FocusScope.of(context).unfocus();
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (context.mounted) Navigator.of(context).pop(result);
