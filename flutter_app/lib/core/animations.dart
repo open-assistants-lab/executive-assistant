@@ -1,25 +1,67 @@
 import 'package:flutter/material.dart';
 
 class EaAnimations {
-  static Widget staggeredEntry({
-    required int index,
+  EaAnimations._();
+
+  /// Fades a child in over 200ms. Respects reduced-motion (instant if enabled).
+  static Widget fadeIn({
     required Widget child,
-    Duration delayPerItem = const Duration(milliseconds: 50),
+    Duration duration = const Duration(milliseconds: 200),
+    Curve curve = const Cubic(0.2, 0, 0, 1),
   }) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, c) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, (1 - value) * 20),
-            child: c,
-          ),
-        );
-      },
-      child: child,
+    return _FadeIn(duration: duration, curve: curve, child: child);
+  }
+
+  // Backward-compat: keep staggeredEntry as a thin wrapper around fadeIn.
+  @Deprecated('Use EaAnimations.fadeIn instead')
+  static Widget staggeredEntry({required int index, required Widget child}) {
+    return fadeIn(child: child);
+  }
+}
+
+class _FadeIn extends StatefulWidget {
+  final Widget child;
+  final Duration duration;
+  final Curve curve;
+  const _FadeIn({required this.child, required this.duration, required this.curve});
+
+  @override
+  State<_FadeIn> createState() => _FadeInState();
+}
+
+class _FadeInState extends State<_FadeIn> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: widget.duration);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final reducedMotion = MediaQuery.of(context).disableAnimations;
+      if (reducedMotion) {
+        _controller.value = 1.0;
+      } else {
+        _controller.forward();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (_, child) => Opacity(
+        opacity: widget.curve.transform(_controller.value),
+        child: child,
+      ),
+      child: widget.child,
     );
   }
 }
