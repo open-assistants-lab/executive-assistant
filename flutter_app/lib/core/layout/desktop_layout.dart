@@ -464,23 +464,14 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
 
   void _scrollToBottom() {
     if (!_scrollController.hasClients) return;
-    // Schedule across multiple frames to handle:
-    // 1. ListView rebuild with new messages (frame 1)
-    // 2. Layout settles, maxScrollExtent stabilizes (frame 2)
-    // 3. Final scroll position locked in (frame 3)
-    void jump() {
-      if (!mounted || !_scrollController.hasClients) return;
-      final max = _scrollController.position.maxScrollExtent;
-      if (max > 0) _scrollController.jumpTo(max);
+    final max = _scrollController.position.maxScrollExtent;
+    if (max > 0) {
+      _scrollController.animateTo(
+        max,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+      );
     }
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      jump();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        jump();
-        WidgetsBinding.instance.addPostFrameCallback((_) => jump());
-      });
-    });
   }
 
   @override
