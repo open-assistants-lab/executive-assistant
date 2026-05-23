@@ -31,13 +31,13 @@ enum DesktopSidebarItem {
   connectors(
     icon: Symbols.cable,
     activeIcon: Symbols.cable,
-    label: 'Conectors',
+    label: 'Connection',
     path: '/connectors',
   ),
   settings(
     icon: Symbols.settings,
     activeIcon: Symbols.settings,
-    label: 'Ajustes',
+    label: 'Settings',
     path: '/settings',
   );
   // companion(icon: ...), memory(icon: ...), skills(icon: ...), subagents(icon: ...) — hidden
@@ -337,25 +337,16 @@ class _Sidebar extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (_) => SettingsScreen(
-        onManageProviders: () {
-          // ignore: use_build_context_synchronously
-          Navigator.of(context).pop();
-          Future.delayed(const Duration(milliseconds: 300), () {
-            // ignore: use_build_context_synchronously
-            _showConnectors(context);
-          });
-        },
-      ),
+      builder: (_) => const SettingsScreen(),
     );
   }
 
-  void _showConnectors(BuildContext context, {int tab = 0}) {
+  void _showConnectors(BuildContext context) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (_) => ConnectorsModal(initialTab: tab),
+      builder: (_) => const ConnectorsModal(),
     );
   }
 

@@ -97,7 +97,7 @@ class _TabletRail extends ConsumerWidget {
               children: [
                 _RailIcon(
                   icon: Symbols.cable,
-                  tooltip: 'Conectors',
+                  tooltip: 'Connection',
                   isActive: false,
                   onTap: () => _showConnectors(context),
                   tokens: tokens,
@@ -105,7 +105,7 @@ class _TabletRail extends ConsumerWidget {
                 const SizedBox(height: 4),
                 _RailIcon(
                   icon: Symbols.settings,
-                  tooltip: 'Ajustes',
+                  tooltip: 'Settings',
                   isActive: false,
                   onTap: () => _showSettings(context),
                   tokens: tokens,
@@ -195,25 +195,16 @@ class _TabletRail extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (_) => SettingsScreen(
-        onManageProviders: () {
-          // ignore: use_build_context_synchronously
-          Navigator.of(context).pop();
-          Future.delayed(const Duration(milliseconds: 300), () {
-            // ignore: use_build_context_synchronously
-            _showConnectors(context);
-          });
-        },
-      ),
+      builder: (_) => const SettingsScreen(),
     );
   }
 
-  void _showConnectors(BuildContext context, {int tab = 0}) {
+  void _showConnectors(BuildContext context) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (_) => ConnectorsModal(initialTab: tab),
+      builder: (_) => const ConnectorsModal(),
     );
   }
 }

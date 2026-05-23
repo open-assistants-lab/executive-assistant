@@ -154,7 +154,7 @@ def _load_stored_key(provider_type: str, user_id: str = "default_user") -> str |
     """Check per-user settings store for a provider API key."""
     try:
         from src.config.settings import get_settings
-        root = get_settings().storage.data_dir or "data"
+        root = get_settings().data_path or "data"
         settings_path = Path(f"{root}/users/{user_id}/settings.json")
         if settings_path.exists():
             stored = json.loads(settings_path.read_text())

@@ -30,7 +30,7 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 def _settings_path(user_id: str) -> Path:
     from src.config.settings import get_settings
 
-    root = get_settings().storage.data_dir or "data"
+    root = get_settings().data_path or "data"
     return Path(f"{root}/users/{user_id}/settings.json")
 
 
