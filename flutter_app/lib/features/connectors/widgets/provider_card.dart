@@ -71,102 +71,99 @@ class _ProviderCardState extends ConsumerState<ProviderCard> {
             onTap: () => setState(() => _expanded = !_expanded),
           ),
           if (_expanded) ...[
-            if (!widget.hasKey)
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _keyCtrl,
-                        obscureText: true,
-                        decoration: InputDecoration(
-                          hintText:
-                              'API key for ${widget.providerName}',
-                          isDense: true,
-                          border: const OutlineInputBorder(),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                          suffixIcon: _saving
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: Padding(
-                                    padding: EdgeInsets.all(10),
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  ),
-                                )
-                              : null,
-                        ),
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    FilledButton(
-                      onPressed: () async {
-                        setState(() => _saving = true);
-                        await settings.setApiKey(
-                          widget.providerId,
-                          _keyCtrl.text,
-                        );
-                        setState(() => _saving = false);
-                      },
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                        ),
-                      ),
-                      child: const Text(
-                        'Save',
-                        style: TextStyle(fontSize: 12),
-                      ),
-                    ),
-                  ],
-                ),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
               ),
-            if (widget.hasKey) ...[
-              const Divider(height: 1),
-              if (widget.models.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text(
-                    'No models found for this provider.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: tokens.colors.textTertiary,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _keyCtrl,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        hintText: 'API key for ${widget.providerName}',
+                        labelText: widget.hasKey ? 'API Key' : null,
+                        isDense: true,
+                        border: const OutlineInputBorder(),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        suffixIcon: _saving
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: Padding(
+                                  padding: EdgeInsets.all(10),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              )
+                            : null,
+                      ),
+                      style: const TextStyle(fontSize: 13),
                     ),
                   ),
-                )
-              else
-                ...widget.models.map((m) {
-                  final modelValue = '${widget.providerId}:$m';
-                  final isSelected = modelValue == widget.selectedModel;
-                  return ListTile(
-                    title: Text(m, style: const TextStyle(fontSize: 12)),
-                    // ignore: deprecated_member_use
-                    leading: Radio<String>(
-                      value: modelValue,
-                      // ignore: deprecated_member_use
-                      groupValue: widget.selectedModel,
-                      // ignore: deprecated_member_use
-                      onChanged: (v) {
-                        if (v != null) {
-                          settings.setDefaultModel(v);
-                        }
-                      },
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: () async {
+                      setState(() => _saving = true);
+                      await settings.setApiKey(
+                        widget.providerId,
+                        _keyCtrl.text,
+                      );
+                      setState(() => _saving = false);
+                    },
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                      ),
                     ),
-                    dense: true,
-                    selected: isSelected,
-                  );
-                }),
-            ],
+                    child: Text(
+                      widget.hasKey ? 'Change' : 'Save',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            if (widget.models.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(
+                  'No models found for this provider.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: tokens.colors.textTertiary,
+                  ),
+                ),
+              )
+            else
+              ...widget.models.map((m) {
+                final modelValue = '${widget.providerId}:$m';
+                final isSelected = modelValue == widget.selectedModel;
+                return ListTile(
+                  title: Text(m, style: const TextStyle(fontSize: 12)),
+                  // ignore: deprecated_member_use
+                  leading: Radio<String>(
+                    value: modelValue,
+                    // ignore: deprecated_member_use
+                    groupValue: widget.selectedModel,
+                    // ignore: deprecated_member_use
+                    onChanged: (v) {
+                      if (v != null) {
+                        settings.setDefaultModel(v);
+                      }
+                    },
+                  ),
+                  dense: true,
+                  selected: isSelected,
+                );
+              }),
           ],
         ],
       ),

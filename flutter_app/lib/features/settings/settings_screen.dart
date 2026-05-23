@@ -215,8 +215,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Widget _modelDropdown(SettingsState settings, var tokens) {
-    if (settings.providerKeys.isEmpty &&
-        settings.providerKeyStatus.isEmpty) {
+    final connectedProviders = _sortedProviders
+        .where((p) => _isConnected(p, settings))
+        .toList();
+
+    if (connectedProviders.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Text(
@@ -227,9 +230,48 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
 
     final modelStr = settings.defaultModel;
-    final parts = modelStr.split(':');
-    final currentModelName =
-        parts.length > 1 ? parts.sublist(1).join(':') : modelStr;
+    final items = <DropdownMenuItem<String>>[];
+
+    for (final p in connectedProviders) {
+      final pid = p['id'] as String;
+      final name = p['name'] as String? ?? pid;
+      final models = List<String>.from(p['models'] ?? []);
+
+      items.add(DropdownMenuItem<String>(
+        value: '__header__$pid',
+        enabled: false,
+        child: Text(
+          name,
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
+            color: tokens.colors.textSecondary,
+          ),
+        ),
+      ));
+
+      for (final m in models) {
+        final modelValue = '$pid:$m';
+        items.add(DropdownMenuItem<String>(
+          value: modelValue,
+          child: Row(
+            children: [
+              Icon(
+                modelValue == modelStr
+                    ? Symbols.radio_button_checked
+                    : Symbols.radio_button_unchecked,
+                size: 14,
+                color: modelValue == modelStr
+                    ? tokens.colors.accent
+                    : tokens.colors.textTertiary,
+              ),
+              const SizedBox(width: 8),
+              Text(m, style: const TextStyle(fontSize: 13)),
+            ],
+          ),
+        ));
+      }
+    }
 
     return DropdownButtonFormField<String>(
       initialValue: modelStr,
@@ -239,14 +281,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         border: OutlineInputBorder(),
         contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       ),
-      items: [
-        DropdownMenuItem(
-          value: modelStr,
-          child: Text(currentModelName, style: const TextStyle(fontSize: 13)),
-        ),
-      ],
+      items: items,
       onChanged: (v) {
-        if (v != null) {
+        if (v != null && !v.startsWith('__header__')) {
           ref.read(settingsProvider.notifier).setDefaultModel(v);
         }
       },
