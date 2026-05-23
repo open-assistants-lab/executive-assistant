@@ -24,6 +24,7 @@ from src.http.routers import (
     workspaces_router,
 )
 from src.http.routers.connectors import router as connectors_router
+from src.http.routers.settings import router as settings_router
 from src.http.routers.ws import router as ws_router
 
 load_dotenv()
@@ -125,6 +126,7 @@ app.include_router(skills_router)
 app.include_router(subagents_router)
 app.include_router(tools_router)
 app.include_router(ws_router)
+app.include_router(settings_router)
 
 # ConnectKit OAuth + catalog routers (safe if connectkit not installed)
 try:
