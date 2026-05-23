@@ -249,43 +249,51 @@ class _Sidebar extends ConsumerWidget {
             ),
           ),
           const Divider(height: 1),
-          Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: tokens.spacing.md,
-              vertical: tokens.spacing.xs,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _SidebarItem(
-                    item: DesktopSidebarItem.connectors,
-                    selected: false,
-                    onTap: () => _showConnectors(context),
-                  ),
+          Column(
+            children: [
+              Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: tokens.spacing.md,
+                  vertical: tokens.spacing.xs,
                 ),
-                Expanded(
-                  child: _SidebarItem(
-                    item: DesktopSidebarItem.settings,
-                    selected: false,
-                    onTap: () => _showSettings(context),
-                  ),
+                child: _SidebarItem(
+                  item: DesktopSidebarItem.connectors,
+                  selected: false,
+                  onTap: () => _showConnectors(context),
                 ),
-                IconButton(
-                  icon: Icon(
-                    tokens.isDark ? Symbols.light_mode : Symbols.dark_mode,
-                    size: 18,
-                    color: tokens.colors.textSecondary,
-                  ),
-                  onPressed: () =>
-                      ref.read(themeModeProvider.notifier).toggle(),
-                  tooltip: tokens.isDark
-                      ? 'Switch to light mode'
-                      : 'Switch to dark mode',
+              ),
+              Padding(
+                padding: EdgeInsets.only(
+                  left: tokens.spacing.md,
+                  right: tokens.spacing.sm,
+                  bottom: tokens.spacing.sm,
                 ),
-              ],
-            ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _SidebarItem(
+                        item: DesktopSidebarItem.settings,
+                        selected: false,
+                        onTap: () => _showSettings(context),
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        tokens.isDark ? Symbols.light_mode : Symbols.dark_mode,
+                        size: 18,
+                        color: tokens.colors.textSecondary,
+                      ),
+                      onPressed: () =>
+                          ref.read(themeModeProvider.notifier).toggle(),
+                      tooltip: tokens.isDark
+                          ? 'Switch to light mode'
+                          : 'Switch to dark mode',
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          SizedBox(height: tokens.spacing.sm),
         ],
       ),
     );
