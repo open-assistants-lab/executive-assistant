@@ -4,6 +4,7 @@ import '../../theme/app_theme.dart';
 import '../../providers/workspace_provider.dart';
 import '../../features/companion/companion_pulse.dart';
 import '../../features/settings/settings_screen.dart';
+import '../../features/connectors/connectors_modal.dart';
 
 class TabletRailLayout extends ConsumerWidget {
   final Widget child;
@@ -95,8 +96,16 @@ class _TabletRail extends ConsumerWidget {
             child: Column(
               children: [
                 _RailIcon(
+                  icon: Symbols.cable,
+                  tooltip: 'Conectors',
+                  isActive: false,
+                  onTap: () => _showConnectors(context),
+                  tokens: tokens,
+                ),
+                const SizedBox(height: 4),
+                _RailIcon(
                   icon: Symbols.settings,
-                  tooltip: 'Settings',
+                  tooltip: 'Ajustes',
                   isActive: false,
                   onTap: () => _showSettings(context),
                   tokens: tokens,
@@ -186,7 +195,25 @@ class _TabletRail extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (_) => const SettingsScreen(),
+      builder: (_) => SettingsScreen(
+        onManageProviders: () {
+          // ignore: use_build_context_synchronously
+          Navigator.of(context).pop();
+          Future.delayed(const Duration(milliseconds: 300), () {
+            // ignore: use_build_context_synchronously
+            _showConnectors(context);
+          });
+        },
+      ),
+    );
+  }
+
+  void _showConnectors(BuildContext context, {int tab = 0}) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => ConnectorsModal(initialTab: tab),
     );
   }
 }

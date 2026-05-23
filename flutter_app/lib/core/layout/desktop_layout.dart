@@ -13,6 +13,7 @@ import '../../features/companion/companion_pulse.dart';
 import '../../features/companion/companion_context_pill.dart';
 import '../../features/companion/companion_toast.dart';
 import '../../features/settings/settings_screen.dart';
+import '../../features/connectors/connectors_modal.dart';
 
 enum DesktopSidebarItem {
   email(
@@ -27,10 +28,16 @@ enum DesktopSidebarItem {
     label: 'Workspace',
     path: '/workspace',
   ),
+  connectors(
+    icon: Symbols.cable,
+    activeIcon: Symbols.cable,
+    label: 'Conectors',
+    path: '/connectors',
+  ),
   settings(
     icon: Symbols.settings,
     activeIcon: Symbols.settings,
-    label: 'Settings',
+    label: 'Ajustes',
     path: '/settings',
   );
   // companion(icon: ...), memory(icon: ...), skills(icon: ...), subagents(icon: ...) — hidden
@@ -251,6 +258,13 @@ class _Sidebar extends ConsumerWidget {
               children: [
                 Expanded(
                   child: _SidebarItem(
+                    item: DesktopSidebarItem.connectors,
+                    selected: false,
+                    onTap: () => _showConnectors(context),
+                  ),
+                ),
+                Expanded(
+                  child: _SidebarItem(
                     item: DesktopSidebarItem.settings,
                     selected: false,
                     onTap: () => _showSettings(context),
@@ -323,7 +337,25 @@ class _Sidebar extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (_) => const SettingsScreen(),
+      builder: (_) => SettingsScreen(
+        onManageProviders: () {
+          // ignore: use_build_context_synchronously
+          Navigator.of(context).pop();
+          Future.delayed(const Duration(milliseconds: 300), () {
+            // ignore: use_build_context_synchronously
+            _showConnectors(context);
+          });
+        },
+      ),
+    );
+  }
+
+  void _showConnectors(BuildContext context, {int tab = 0}) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => ConnectorsModal(initialTab: tab),
     );
   }
 
