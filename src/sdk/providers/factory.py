@@ -6,7 +6,9 @@ dynamically. Falls back to hardcoded defaults for well-known providers.
 
 from __future__ import annotations
 
+import json
 import os
+from pathlib import Path
 from typing import Any
 
 from src.sdk.providers.anthropic import AnthropicProvider
@@ -148,9 +150,24 @@ def _default_base_url(provider_id: str) -> str:
     return _fallback.get(provider_id, "https://api.openai.com/v1")
 
 
+def _load_stored_key(provider_type: str, user_id: str = "default_user") -> str | None:
+    """Check per-user settings store for a provider API key."""
+    try:
+        from src.config.settings import get_settings
+        root = get_settings().storage.data_dir or "data"
+        settings_path = Path(f"{root}/users/{user_id}/settings.json")
+        if settings_path.exists():
+            stored = json.loads(settings_path.read_text())
+            return stored.get("provider_keys", {}).get(provider_type)
+    except Exception:
+        pass
+    return None
+
+
 def create_model_from_config(
     config_model: str | None = None,
     provider_keys: dict[str, str] | None = None,
+    user_id: str = "default_user",
 ) -> LLMProvider:
     from src.config import get_settings
 
@@ -158,11 +175,15 @@ def create_model_from_config(
     model_str = config_model or settings.agent.model
 
     provider_type, model_name = _parse_model_string(model_str)
+
     resolved_key = None
     if provider_keys:
         resolved_key = provider_keys.get(provider_type) or provider_keys.get(provider_type.lower(), "")
         if not resolved_key:
             resolved_key = None
+
+    if not resolved_key:
+        resolved_key = _load_stored_key(provider_type, user_id)
 
     registry_provider = create_provider_from_registry_model(model_str)
     if registry_provider is not None:
