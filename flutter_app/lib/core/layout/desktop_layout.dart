@@ -250,6 +250,7 @@ class _Sidebar extends ConsumerWidget {
           ),
           const Divider(height: 1),
           Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
                 padding: EdgeInsets.symmetric(

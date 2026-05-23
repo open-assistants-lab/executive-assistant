@@ -34,9 +34,12 @@ def _default_spec_dir() -> str:
     try:
         import importlib.resources
 
-        return str(importlib.resources.files("connectkit") / "connectors")
+        result = str(importlib.resources.files("connectkit") / "connectors")
+        if os.path.isdir(result):
+            return result
     except Exception:
-        return str(Path(__file__).parent.parent / "connectors")
+        pass
+    return str(Path(__file__).parent.parent / "connectors")
 
 
 def get_vault(user_id: str, vault_path: str | None = None) -> CredentialVault:
