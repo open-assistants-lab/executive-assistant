@@ -20,6 +20,8 @@ DEFAULT_DISALLOWED_TOOLS = [
     "subagent_tasks",
     "subagent_instruct",
     "subagent_cancel",
+    "research_start",
+    "research_list",
 ]
 
 DEFAULT_SAFE_DENIED_TOOLS = [

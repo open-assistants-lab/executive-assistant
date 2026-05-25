@@ -6,9 +6,13 @@ from src.skills import registry as skills_registry
 class FakeRegistry:
     def __init__(self, skills):
         self._skills = skills
+        self._load_counts: dict[str, int] = {}
 
     def get_all_skills(self):
         return self._skills
+
+    def get_load_count(self, name: str) -> int:
+        return self._load_counts.get(name, 0)
 
 
 def test_get_skills_context_uses_workspace_registry(monkeypatch):
