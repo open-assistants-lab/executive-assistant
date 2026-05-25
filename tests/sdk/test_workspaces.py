@@ -23,14 +23,14 @@ class TestWorkspaceModel:
             id="q2-planning",
             name="Q2 Planning",
             description="Q2 product launch",
-            custom_instructions="Respond as a PM. Use AEST.",
+            prompt="Respond as a PM. Use AEST.",
             created_at="2026-01-01T00:00:00",
             updated_at="2026-01-01T00:00:00",
         )
         assert ws.id == "q2-planning"
         assert ws.name == "Q2 Planning"
         assert ws.description == "Q2 product launch"
-        assert ws.custom_instructions == "Respond as a PM. Use AEST."
+        assert ws.prompt == "Respond as a PM. Use AEST."
 
     def test_workspace_id_from_name(self):
         """Test that workspace IDs are derived from names."""
@@ -49,20 +49,20 @@ class TestWorkspaceModel:
     def test_workspace_to_dict(self):
         ws = Workspace(
             id="test", name="Test", description="desc",
-            custom_instructions="ci", created_at="a", updated_at="b",
+            prompt="ci", created_at="a", updated_at="b",
             model_override="ollama:minimax-m2.7",
         )
         d = ws.to_dict()
         assert d["id"] == "test"
         assert d["name"] == "Test"
         assert d["description"] == "desc"
-        assert d["custom_instructions"] == "ci"
+        assert d["prompt"] == "ci"
         assert d["model_override"] == "ollama:minimax-m2.7"
 
     def test_workspace_from_dict(self):
         d = {
             "id": "test", "name": "Test", "description": "d",
-            "custom_instructions": "c", "created_at": "a", "updated_at": "b",
+            "prompt": "c", "created_at": "a", "updated_at": "b",
             "model_override": "deepseek:deepseek-v4-flash",
         }
         ws = Workspace.from_dict(d)
@@ -78,7 +78,7 @@ class TestWorkspaceModel:
     def test_workspace_json_roundtrip(self):
         ws = Workspace(
             id="test", name="Test", description="desc",
-            custom_instructions="ci", created_at="2026-01-01", updated_at="2026-01-01",
+            prompt="ci", created_at="2026-01-01", updated_at="2026-01-01",
         )
         json_str = ws.to_json()
         ws2 = Workspace.from_json(json_str)
@@ -96,7 +96,7 @@ class TestWorkspaceStorage:
             
             ws = Workspace(
                 id="test", name="Test", description="d",
-                custom_instructions="c", created_at="a", updated_at="b",
+                prompt="c", created_at="a", updated_at="b",
                 model_override="ollama:minimax-m2.7",
             )
             save_workspace(ws, base_path=Path(tmpdir))

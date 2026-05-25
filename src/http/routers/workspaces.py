@@ -1,7 +1,7 @@
 """Workspace management API for Flutter client."""
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from src.sdk.workspace_models import (
     Workspace,
@@ -19,14 +19,14 @@ router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 class CreateWorkspaceRequest(BaseModel):
     name: str
     description: str = ""
-    instructions: str = ""
+    prompt: str = Field("", alias="instructions")
     model_override: str | None = None
 
 
 class UpdateWorkspaceRequest(BaseModel):
     name: str | None = None
     description: str | None = None
-    instructions: str | None = None
+    prompt: str | None = Field(None, alias="instructions")
     model_override: str | None = None
 
 
@@ -39,7 +39,7 @@ async def get_workspaces(user_id: str = "default_user"):
                 "id": w.id,
                 "name": w.name,
                 "description": w.description,
-                "custom_instructions": w.custom_instructions,
+                "prompt": w.prompt,
                 "model_override": w.model_override,
             }
             for w in workspaces
@@ -76,8 +76,8 @@ async def update_workspace(workspace_id: str, req: UpdateWorkspaceRequest):
         ws.name = req.name
     if req.description is not None:
         ws.description = req.description
-    if req.instructions is not None:
-        ws.custom_instructions = req.instructions
+    if req.prompt is not None:
+        ws.prompt = req.prompt
     if "model_override" in req.model_fields_set:
         ws.model_override = req.model_override
 

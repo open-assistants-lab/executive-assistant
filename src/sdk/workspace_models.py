@@ -21,7 +21,7 @@ class Workspace:
     id: str
     name: str
     description: str = ""
-    custom_instructions: str = ""
+    prompt: str = ""
     model_override: str | None = None
     created_at: str = ""
     updated_at: str = ""
@@ -38,7 +38,7 @@ class Workspace:
             "id": self.id,
             "name": self.name,
             "description": self.description,
-            "custom_instructions": self.custom_instructions,
+            "prompt": self.prompt,
             "model_override": self.model_override,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
@@ -50,7 +50,7 @@ class Workspace:
             id=d.get("id", ""),
             name=d.get("name", ""),
             description=d.get("description", ""),
-            custom_instructions=d.get("custom_instructions", ""),
+            prompt=d.get("prompt", d.get("custom_instructions", "")),
             model_override=d.get("model_override"),
             created_at=d.get("created_at", ""),
             updated_at=d.get("updated_at", ""),

@@ -128,8 +128,8 @@ def _build_system_prompt(agent_def: AgentDef, user_id: str, workspace_id: str = 
         ws = load_workspace(workspace_id)
         if ws and ws.id != "personal":
             parts.append(f"\n## Current Workspace: {ws.name}")
-            if ws.custom_instructions:
-                parts.append(ws.custom_instructions)
+            if ws.prompt:
+                parts.append(ws.prompt)
     except Exception:
         pass
 

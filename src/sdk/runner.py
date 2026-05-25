@@ -94,8 +94,8 @@ def _get_workspace_context(workspace_id: str | None) -> str:
         if ws is None or ws.id == "personal":
             return ""
         lines = [f"\n\n## Current Workspace: {ws.name}"]
-        if ws.custom_instructions:
-            lines.append(ws.custom_instructions)
+        if ws.prompt:
+            lines.append(ws.prompt)
         return "\n".join(lines)
     except Exception:
         return ""

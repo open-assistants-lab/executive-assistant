@@ -42,7 +42,7 @@ def workspace_create(
     """
     ws = Workspace.from_name(name)
     ws.description = description
-    ws.custom_instructions = instructions
+    ws.prompt = instructions
 
     # Create workspace directory structure
     from src.storage.paths import DataPaths
@@ -72,9 +72,9 @@ def workspace_list() -> str:
     for ws in workspaces:
         desc = ws.description[:60] + "..." if len(ws.description) > 60 else ws.description
         inst = (
-            ws.custom_instructions[:40] + "..."
-            if len(ws.custom_instructions) > 40
-            else ws.custom_instructions
+            ws.prompt[:40] + "..."
+            if len(ws.prompt) > 40
+            else ws.prompt
         )
         lines.append(f"  - {ws.name} (id: {ws.id})")
         if desc:
@@ -107,8 +107,8 @@ def workspace_switch(name: str, user_id: str = "default_user") -> str:
         pass
 
     info = f"Switched to workspace: {ws.name}"
-    if ws.custom_instructions:
-        info += f"\nInstructions: {ws.custom_instructions}"
+    if ws.prompt:
+        info += f"\nInstructions: {ws.prompt}"
     return info
 
 
@@ -122,7 +122,7 @@ def workspace_current(user_id: str = "default_user") -> str:
     return (
         f"Current workspace: {ws.name} (id: {ws.id})\n"
         f"Description: {ws.description or '(none)'}\n"
-        f"Instructions: {ws.custom_instructions or '(none)'}"
+        f"Instructions: {ws.prompt or '(none)'}"
     )
 
 
