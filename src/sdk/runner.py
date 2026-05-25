@@ -116,8 +116,15 @@ def _get_workspace_context(workspace_id: str | None) -> str:
         return ""
 
 
+SKILL_DESC_BUDGET = 1536
+
+
 def _get_skills_context(user_id: str, workspace_id: str = "personal") -> str:
-    """Build a concise skills reference for the system prompt."""
+    """Build a concise skills reference for the system prompt.
+
+    Description text is capped at SKILL_DESC_BUDGET characters total.
+    When over budget, skills with the lowest load count are dropped first.
+    """
     try:
         from src.skills.registry import get_skill_registry
 
@@ -135,12 +142,41 @@ def _get_skills_context(user_id: str, workspace_id: str = "personal") -> str:
         if not visible_skills:
             return ""
 
-        lines = ["\n\n## Available Skills"]
-        lines.append("When a task matches a skill description below, call skills_load(name) first to get detailed instructions before proceeding. Do NOT call skills_list — descriptions are already here.")
-        lines.append("")
+        # Sort by load count descending (most-used first), then alphabetically as tiebreaker
+        def _sort_key(s: dict) -> tuple:
+            name = s.get("name", "")
+            count = registry.get_load_count(name)
+            return (-count, name)
+
+        visible_skills.sort(key=_sort_key)
+
+        # Account for header overhead toward budget
+        header_lines = [
+            "\n\n## Available Skills",
+            "When a task matches a skill description below, call skills_load(name) "
+            "first to get detailed instructions before proceeding. "
+            "Do NOT call skills_list — descriptions are already here.",
+        ]
+        header_overhead = sum(len(l) + 1 for l in header_lines) + 1  # +1 newlines
+
+        entries: list[tuple[str, str]] = []
+        total_chars = header_overhead
         for s in visible_skills:
             name = s.get("name", "")
             desc = s.get("description", "")
+            entry = f"- **{name}**: {desc}"
+            entry_len = len(entry) + 1  # +1 for trailing newline
+            if total_chars + entry_len > SKILL_DESC_BUDGET:
+                break
+            entries.append((name, desc))
+            total_chars += entry_len
+
+        if not entries:
+            return ""
+
+        lines = list(header_lines)
+        lines.append("")
+        for name, desc in entries:
             lines.append(f"- **{name}**: {desc}")
         return "\n".join(lines)
     except Exception:

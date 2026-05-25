@@ -69,7 +69,7 @@ class SkillRegistry:
             self.workspace_skills_dir = paths.workspace_skills_dir()
 
         self.ws_storage = SkillStorage(self.workspace_skills_dir)
-        self._loaded_skills: set[str] = set()
+        self._loaded_skills: dict[str, int] = {}
         self._seeded = False
 
     def _seed_system_skills(self) -> None:
@@ -104,14 +104,19 @@ class SkillRegistry:
     def reload(self) -> None:
         """Reload all skills (clear cache, re-seed system skills)."""
         self._seeded = False
+        self._loaded_skills.clear()
 
     def mark_skill_loaded(self, skill_name: str) -> None:
-        """Track that a skill has been loaded into context."""
-        self._loaded_skills.add(skill_name)
+        """Track that a skill has been loaded into context (increment count)."""
+        self._loaded_skills[skill_name] = self._loaded_skills.get(skill_name, 0) + 1
 
     def get_loaded_skills(self) -> list[str]:
         """Get list of skills loaded in current session."""
-        return list(self._loaded_skills)
+        return list(self._loaded_skills.keys())
+
+    def get_load_count(self, skill_name: str) -> int:
+        """Get how many times a skill has been loaded (0 if never loaded)."""
+        return self._loaded_skills.get(skill_name, 0)
 
     def get_all_skills(self) -> list[Skill]:
         """Get all available skills, merged (workspace overrides user by name)."""

@@ -13,7 +13,9 @@ Design:
 
 from __future__ import annotations
 
+import re
 import shutil
+from pathlib import Path
 
 from src.app_logging import get_logger
 from src.sdk.tools import ToolAnnotations, tool
@@ -166,7 +168,37 @@ def skills_load(
 
     registry.mark_skill_loaded(skill_name)
 
-    return f"# {skill['name']} [{_skill_scope(skill)}]\n\n{skill['content']}"
+    # Get skill directory for resource enumeration
+    skill_path = skill.get("path")
+    content = skill["content"]
+
+    # Substitute ${SKILL_DIR} placeholder with actual path
+    if skill_path:
+        content = re.sub(r"\$\{SKILL_DIR\}", skill_path, content)
+
+    parts = [f"# {skill['name']} [{_skill_scope(skill)}]\n\n{content}"]
+
+    # Enumerate supporting files
+    if skill_path:
+        skill_dir = Path(skill_path)
+        if skill_dir.is_dir():
+            resources = []
+            for item in sorted(skill_dir.rglob("*")):
+                if item.is_file() and item.name != "SKILL.md":
+                    rel = item.relative_to(skill_dir)
+                    resources.append(str(rel))
+
+            if resources:
+                parts.append("\n---\n")
+                parts.append(f"Skill directory: {skill_path}")
+                parts.append("Supporting files:")
+                for r in resources:
+                    parts.append(f"  - {r}")
+                parts.append(
+                    "\nRelative paths in the content above resolve against the skill directory."
+                )
+
+    return "\n".join(parts)
 
 
 skills_load.annotations = ToolAnnotations(title="Load Skill", read_only=True, idempotent=True)
