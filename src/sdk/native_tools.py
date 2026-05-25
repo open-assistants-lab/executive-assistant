@@ -84,6 +84,10 @@ from src.sdk.tools_core.skills import (
     skills_search,
     sql_write_query,
 )
+from src.sdk.tools_core.research import (
+    research_list,
+    research_start,
+)
 from src.sdk.tools_core.subagent import (
     subagent_cancel,
     subagent_check,
@@ -209,6 +213,9 @@ def _register_all() -> None:
     registry.register(skill_create)
     registry.register(skill_delete)
     registry.register(sql_write_query)
+
+    registry.register(research_start)
+    registry.register(research_list)
 
     # ConnectKit meta-tools
     try:
