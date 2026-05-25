@@ -98,6 +98,7 @@ from src.sdk.tools_core.subagent import (
 )
 from src.sdk.tools_core.summarize import summarize_session
 from src.sdk.tools_core.time import time_get
+from src.sdk.tools_core.user_prompt import user_prompt_get, user_prompt_set
 from src.sdk.tools_core.web import web_fetch, web_search
 from src.sdk.tools_core.workspace import (
     workspace_create,
@@ -115,6 +116,8 @@ def _register_all() -> None:
 
     registry.register(time_get)
     registry.register(shell_execute)
+    registry.register(user_prompt_get)
+    registry.register(user_prompt_set)
 
     registry.register(files_list)
     registry.register(files_read)

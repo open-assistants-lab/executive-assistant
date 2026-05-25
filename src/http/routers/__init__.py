@@ -10,6 +10,7 @@ from src.http.routers.settings import router as settings_router
 from src.http.routers.subagents import router as subagents_router, tools_router as tools_router
 
 # from src.http.routers.todos import router as todos_router
+from src.http.routers.user_prompt import router as user_prompt_router
 from src.http.routers.workspace import router as workspace_router
 from src.http.routers.workspaces import router as workspaces_router
 
@@ -23,6 +24,7 @@ __all__ = [
     # "todos_router",
     "workspace_router",
     "workspaces_router",
+    "user_prompt_router",
     "skills_router",
     "settings_router",
     "subagents_router",

@@ -154,6 +154,12 @@ class DataPaths:
         p.mkdir(parents=True, exist_ok=True)
         return p
 
+    def user_config_dir(self) -> Path:
+        """Per-user config directory for user-level customizations."""
+        p = self._user_base() / "config"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
     # ── Legacy (backward compat) ──
 
     def workspace_dir(self) -> Path:

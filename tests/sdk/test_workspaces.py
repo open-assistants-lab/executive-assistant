@@ -202,6 +202,13 @@ class TestWorkspaceDataPaths:
         dp = DataPaths(workspace_id="test")
         assert dp.workspace_dir() == dp.workspace_files_dir()
 
+    def test_user_config_dir(self):
+        from src.storage.paths import DataPaths
+        dp = DataPaths(user_id="test_user")
+        d = dp.user_config_dir()
+        assert d.name == "config"
+        assert "test_user" in str(d)
+
 
 class TestWorkspaceTools:
     """Agent-facing workspace tools."""

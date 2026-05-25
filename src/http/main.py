@@ -20,6 +20,7 @@ from src.http.routers import (
     subagents_router,
     tools_router,
     # todos_router,
+    user_prompt_router,
     workspace_router,
     workspaces_router,
 )
@@ -116,6 +117,7 @@ app.include_router(companion_router)
 app.include_router(conversation_router)
 app.include_router(email_router)
 app.include_router(memories_router)
+app.include_router(user_prompt_router)
 # DISABLED: contacts, todos, email — pending redesign
 # app.include_router(contacts_router)
 # app.include_router(todos_router)
@@ -130,7 +132,7 @@ app.include_router(settings_router)
 
 # ConnectKit OAuth + catalog routers (safe if connectkit not installed)
 try:
-    from connectkit.bridge import ConnectKitBridge
+    from connectkit.bridge import ConnectKitBridge, _default_spec_dir
     from connectkit.oauth import create_oauth_router
     from connectkit.spec import ConnectorSpec
 
@@ -138,23 +140,30 @@ try:
         bridge = ConnectKitBridge(user_id)
         return bridge.vault
 
+    # Load specs once — shared between config provider and oauth router
+    _oauth_specs = ConnectorSpec.from_yaml_dir(_default_spec_dir())
+
     def _oauth_config(service: str) -> dict[str, str]:
         bridge = ConnectKitBridge("")
         token = bridge.vault.get_token(service) or {}
-        return {
+        result = {
             "client_id": token.get("client_id", ""),
             "client_secret": token.get("client_secret", ""),
         }
-
-    # Load all connector specs for OAuth routing
-    from connectkit.bridge import _default_spec_dir
-    oauth_specs = ConnectorSpec.from_yaml_dir(_default_spec_dir())
+        # Fall back to spec default for PKCE (client_id is public)
+        if not result["client_id"]:
+            spec = next((s for s in _oauth_specs if s.name == service), None)
+            if spec:
+                for f in spec.auth.required_fields:
+                    if f.name == "client_id" and f.default:
+                        result["client_id"] = f.default
+                        break
+        return result
 
     oauth_router = create_oauth_router(
-        specs=oauth_specs,
+        specs=_oauth_specs,
         vault_factory=_vault_factory,
         config=_oauth_config,
-        base_url="",
     )
     app.include_router(oauth_router)
 except Exception:

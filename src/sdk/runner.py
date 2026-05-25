@@ -30,6 +30,7 @@ from src.sdk.middleware_summarization import SummarizationMiddleware
 from src.sdk.native_tools import get_native_tools
 from src.sdk.providers.factory import create_model_from_config
 from src.sdk.tools import ToolAnnotations, ToolDefinition
+from src.sdk.user_prompt import load_user_prompt
 
 logger = get_logger()
 
@@ -69,11 +70,25 @@ def _seed_default_workspace() -> None:
         pass
 
 
+def _get_user_prompt_context(user_id: str) -> str:
+    """Build user prompt context for the system prompt."""
+    try:
+        prompt = load_user_prompt(user_id)
+        if not prompt:
+            return ""
+        return f"\n\n## User Instructions\n{prompt}"
+    except Exception:
+        return ""
+
+
 def _get_system_prompt(user_id: str, workspace_id: str | None = None) -> str:
     settings = get_settings()
     base_prompt = getattr(settings.agent, "system_prompt", "You are a helpful executive assistant.")
 
     w_id = workspace_id or "personal"
+
+    # Inject user prompt (persistent across workspaces)
+    user_prompt_context = _get_user_prompt_context(user_id)
 
     # Inject available skills
     skills_context = _get_skills_context(user_id, w_id)
@@ -81,7 +96,7 @@ def _get_system_prompt(user_id: str, workspace_id: str | None = None) -> str:
     # Inject workspace context
     workspace_context = _get_workspace_context(workspace_id)
 
-    return base_prompt + skills_context + workspace_context + f"\n\nuser_id: {user_id}"
+    return base_prompt + user_prompt_context + skills_context + workspace_context + f"\n\nuser_id: {user_id}"
 
 
 def _get_workspace_context(workspace_id: str | None) -> str:
