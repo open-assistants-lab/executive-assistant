@@ -49,7 +49,6 @@ class DataPaths:
         team_id: str | None = None,
         workspace_id: str | None = None,
         ea_root: str | None = None,
-        ea_team_root: str | None = None,
     ):
         settings = get_settings()
         self.deployment = deployment or settings.deployment
@@ -67,7 +66,6 @@ class DataPaths:
                 self._ea_root = Path(configured)
             else:
                 self._ea_root = Path.home() / "Executive Assistant"
-        self._ea_team_root = Path(ea_team_root).expanduser().resolve() if ea_team_root else None
 
     # -- Root properties --
 
@@ -270,15 +268,15 @@ class DataPaths:
         return self.user_memory_dir()
 
     def memory_db(self) -> Path:
-        return self.memory_dir() / "memory.db"
+        return self.user_memory_dir() / "memory.db"
 
     def user_config_dir(self) -> Path:
         warnings.warn(
-            "user_config_dir() is deprecated, use root / 'AGENTS.md' instead",
+            "user_config_dir() is deprecated, use user_prompt_path() instead",
             DeprecationWarning,
             stacklevel=2,
         )
-        return self.root / "AGENTS.md"
+        return self.user_prompt_path()
 
     def gmail_cache(self) -> Path:
         warnings.warn(
