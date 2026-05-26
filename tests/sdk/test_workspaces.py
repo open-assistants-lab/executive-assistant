@@ -146,7 +146,7 @@ class TestWorkspaceDataPaths:
         from src.storage.paths import DataPaths
         dp = DataPaths(workspace_id="personal")
         d = dp.workspace_files_dir()
-        assert d.name == "files"
+        assert d.name == "Files"
         assert "Workspaces" in str(d)
         assert "personal" in str(d)
 
@@ -154,7 +154,7 @@ class TestWorkspaceDataPaths:
         from src.storage.paths import DataPaths
         dp = DataPaths(workspace_id="q2-planning")
         d = dp.workspace_memory_dir()
-        assert d.name == "memory"
+        assert d.name == "Memory"
         assert "Workspaces" in str(d)
 
     def test_workspace_conversation_path(self):
@@ -168,13 +168,13 @@ class TestWorkspaceDataPaths:
         from src.storage.paths import DataPaths
         dp = DataPaths(workspace_id="test")
         d = dp.workspace_subagents_dir()
-        assert d.name == "subagents"
+        assert d.name == "Subagents"
 
     def test_workspace_skills_dir(self):
         from src.storage.paths import DataPaths
         dp = DataPaths(workspace_id="test")
         d = dp.workspace_skills_dir()
-        assert d.name == "skills"
+        assert d.name == "Skills"
 
     def test_global_memory_dir(self):
         from src.storage.paths import DataPaths
@@ -191,10 +191,9 @@ class TestWorkspaceDataPaths:
 
     def test_global_subagents_dir(self):
         from src.storage.paths import DataPaths
-        dp = DataPaths(user_id="test_user")
+        dp = DataPaths(user_id="test_user", ea_root="/tmp/ea-test-root")
         d = dp.global_subagents_dir()
-        assert "subagents" in str(d)
-        assert "global" in str(d)
+        assert "Subagents" in str(d)
 
     def test_workspace_dir_is_backward_compat(self):
         """workspace_dir() should delegate to workspace_files_dir()."""
@@ -204,10 +203,9 @@ class TestWorkspaceDataPaths:
 
     def test_user_config_dir(self):
         from src.storage.paths import DataPaths
-        dp = DataPaths(user_id="test_user")
+        dp = DataPaths(user_id="test_user", ea_root="/tmp/ea-test-root")
         d = dp.user_config_dir()
-        assert d.name == "config"
-        assert "test_user" in str(d)
+        assert d.name == "AGENTS.md"
 
 
 class TestWorkspaceTools:

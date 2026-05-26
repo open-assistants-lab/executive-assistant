@@ -2,14 +2,15 @@
 
 Two deployment modes:
 - solo: Single user on desktop (.dmg) or server. user_id defaults to "default_user".
-  data/users/default_user/ contains all personal data.
-- team: Multiple users on one server. Each user gets data/users/{user_id}/.
-  data/teams/{team_id}/ contains shared team data (server read-write).
+  data/ contains project-level data (cache, templates, logs, traces, jobs).
+- team: Multiple users on one server. Each user gets per-user data under ea_root.
 
-See PLAN.md and ARCHITECTURE.md for design rationale.
+User data lives under ea_root (defaults to ~/Executive Assistant/).
+Project data lives under data/ (cache, templates, logs, traces, jobs).
 """
 
 import re
+import warnings
 from pathlib import Path
 
 from src.config import get_settings
@@ -30,8 +31,11 @@ def _validate_path_id(value: str, field: str) -> str:
 class DataPaths:
     """Resolves data paths based on deployment mode and user identity.
 
-    In solo mode: data/users/default_user/ (single user, default identity)
-    In team mode: data/users/{user_id}/ (per-user isolation, same server)
+    User data lives under ea_root (defaults to ~/Executive Assistant/).
+    Project data lives under data/ (cache, templates, logs, traces, jobs).
+
+    In solo mode: user_id defaults to "default_user", team_id is None.
+    In team mode: user_id comes from auth (JWT), team_id from config.
 
     Team data is stored at data/teams/{team_id}/ and accessed via team_* methods.
     Team paths return None when team_id is not set (solo mode).
@@ -44,6 +48,8 @@ class DataPaths:
         user_id: str | None = None,
         team_id: str | None = None,
         workspace_id: str | None = None,
+        ea_root: str | None = None,
+        ea_team_root: str | None = None,
     ):
         settings = get_settings()
         self.deployment = deployment or settings.deployment
@@ -53,144 +59,98 @@ class DataPaths:
         self.workspace_id = _validate_path_id(workspace_id or "personal", "workspace_id")
         self.base.mkdir(parents=True, exist_ok=True)
 
-    # -- Per-user base directory --
+        if ea_root:
+            self._ea_root = Path(ea_root)
+        else:
+            configured = settings.deployment.ea_root
+            if configured:
+                self._ea_root = Path(configured)
+            else:
+                self._ea_root = Path.home() / "Executive Assistant"
+        self._ea_team_root = Path(ea_team_root).expanduser().resolve() if ea_team_root else None
 
-    def _user_base(self) -> Path:
-        """Base directory for the current user: data/users/{user_id}/"""
-        users_base = (self.base / "users").resolve()
-        p = (users_base / self.user_id).resolve()
-        if p == users_base or not p.is_relative_to(users_base):
-            raise ValueError(f"Invalid user_id escapes user root: {self.user_id!r}")
-        users_base.mkdir(parents=True, exist_ok=True)
-        p.mkdir(parents=True, exist_ok=True)
-        return p
-
-    # -- Personal data (per-user, read-write) --
+    # -- Root properties --
 
     @property
-    def user_dir(self) -> Path:
-        """Root of user data: data/users/{user_id}/"""
-        return self._user_base()
-
-    def conversation_dir(self) -> Path:
-        p = self._user_base() / "conversation"
+    def root(self) -> Path:
+        """Root of all user data under ea_root."""
+        p = self._ea_root
         p.mkdir(parents=True, exist_ok=True)
         return p
 
-    def memory_dir(self) -> Path:
-        p = self._user_base() / "memory"
+    @property
+    def team_root(self) -> None:
+        """Team root (solo mode always returns None)."""
+        return None
+
+    # -- Workspace helper --
+
+    def _workspace_base(self) -> Path:
+        """Base directory for the current workspace: root / Workspaces / {workspace_id}"""
+        p = self.root / "Workspaces" / self.workspace_id
         p.mkdir(parents=True, exist_ok=True)
         return p
+
+    # -- User-scoped methods (all under root/) --
+
+    def user_skills_dir(self) -> Path:
+        p = self.root / "Skills"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    def user_subagents_dir(self) -> Path:
+        p = self.root / "Subagents"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    def user_prompt_path(self) -> Path:
+        return self.root / "AGENTS.md"
 
     def email_dir(self) -> Path:
-        p = self._user_base() / "email"
+        p = self.root / "Email"
         p.mkdir(parents=True, exist_ok=True)
         return p
 
-    def gmail_cache(self) -> Path:
-        p = self._user_base() / "gmail_cache"
+    def gmail_cache_dir(self) -> Path:
+        p = self.root / "Email" / "gmail_cache"
         p.mkdir(parents=True, exist_ok=True)
         return p
 
     def contacts_dir(self) -> Path:
-        p = self._user_base() / "contacts"
+        p = self.root / "Contacts"
         p.mkdir(parents=True, exist_ok=True)
         return p
 
     def todos_dir(self) -> Path:
-        p = self._user_base() / "todos"
+        p = self.root / "Todos"
         p.mkdir(parents=True, exist_ok=True)
         return p
 
-    # ── Workspace-scoped paths ──
-
-    def _workspaces_base(self) -> Path:
-        p = Path.home() / "Executive Assistant" / "Workspaces"
+    def conversation_dir(self) -> Path:
+        p = self.root / "Conversation"
         p.mkdir(parents=True, exist_ok=True)
         return p
 
-    def _workspace_dir(self) -> Path:
-        base = self._workspaces_base().resolve()
-        p = (base / self.workspace_id).resolve()
-        if p == base or not p.is_relative_to(base):
-            raise ValueError(
-                f"Invalid workspace_id escapes workspace root: {self.workspace_id!r}"
-            )
+    def user_memory_dir(self) -> Path:
+        p = self.root / "Memory" / "global"
         p.mkdir(parents=True, exist_ok=True)
         return p
 
-    def workspace_files_dir(self) -> Path:
-        p = self._workspace_dir() / "files"
+    def user_apps_dir(self) -> Path:
+        p = self.root / "Apps"
         p.mkdir(parents=True, exist_ok=True)
         return p
 
-    def workspace_memory_dir(self) -> Path:
-        p = self._workspace_dir() / "memory"
-        p.mkdir(parents=True, exist_ok=True)
-        return p
+    def user_mcp_config(self) -> Path:
+        return self.root / ".mcp.json"
 
-    def workspace_conversation_path(self) -> Path:
-        return self._workspace_dir() / "conversation.app.db"
-
-    def workspace_subagents_dir(self) -> Path:
-        p = self._workspace_dir() / "subagents"
-        p.mkdir(parents=True, exist_ok=True)
-        return p
-
-    def workspace_skills_dir(self) -> Path:
-        p = self._workspace_dir() / "skills"
-        p.mkdir(parents=True, exist_ok=True)
-        return p
-
-    # ── User-global paths (cross-workspace) ──
-
-    def global_memory_dir(self) -> Path:
-        p = Path.home() / "Executive Assistant" / "Memory" / "global"
-        p.mkdir(parents=True, exist_ok=True)
-        return p
-
-    def global_subagents_dir(self) -> Path:
-        p = self._user_base() / "subagents" / "global"
-        p.mkdir(parents=True, exist_ok=True)
-        return p
-
-    def user_config_dir(self) -> Path:
-        """Per-user config directory for user-level customizations."""
-        p = self._user_base() / "config"
-        p.mkdir(parents=True, exist_ok=True)
-        return p
-
-    # ── Legacy (backward compat) ──
-
-    def workspace_dir(self) -> Path:
-        """Deprecated: use workspace_files_dir() instead."""
-        return self.workspace_files_dir()
-
-    def skills_dir(self) -> Path:
-        mode = getattr(self.deployment, "mode", None) if hasattr(self, "deployment") else None
-        if mode == "solo":
-            p = Path.home() / "Executive Assistant" / "Skills"
-        else:
-            p = self._user_base() / "skills"
-        p.mkdir(parents=True, exist_ok=True)
-        return p
-
-    def global_skills_dir(self) -> Path:
-        """User-global skills directory (same as skills_dir)."""
-        return self.skills_dir()
-
-    def subagents_dir(self) -> Path:
-        p = self._user_base() / "subagents"
-        p.mkdir(parents=True, exist_ok=True)
-        return p
-
-    def agent_defs_dir(self) -> Path:
-        p = self._user_base() / "subagents" / "agent_defs"
+    def research_dir(self) -> Path:
+        p = self.root / "Research" / self.user_id / self.workspace_id
         p.mkdir(parents=True, exist_ok=True)
         return p
 
     def companion_dir(self) -> Path:
-        p = self._user_base() / "companion"
+        p = self.root / "Companion"
         p.mkdir(parents=True, exist_ok=True)
         return p
 
@@ -200,11 +160,36 @@ class DataPaths:
     def companion_memory_db(self) -> Path:
         return self.companion_dir() / "memory.db"
 
-    def work_queue_db(self) -> Path:
-        return self.subagents_dir() / "work_queue.db"
+    # -- Workspace-scoped methods (all under root/Workspaces/{workspace_id}/) --
 
-    def apps_dir(self) -> Path:
-        p = self._user_base() / "apps"
+    def workspace_skills_dir(self) -> Path:
+        p = self._workspace_base() / "Skills"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    def workspace_subagents_dir(self) -> Path:
+        p = self._workspace_base() / "Subagents"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    def workspace_files_dir(self) -> Path:
+        p = self._workspace_base() / "Files"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    def workspace_memory_dir(self) -> Path:
+        p = self._workspace_base() / "Memory"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    def workspace_conversation_path(self) -> Path:
+        return self._workspace_base() / "conversation.app.db"
+
+    def workspace_cache(self) -> Path:
+        return self._workspace_base() / ".file_cache.json"
+
+    def versions_dir(self) -> Path:
+        p = self._workspace_base() / ".versions"
         p.mkdir(parents=True, exist_ok=True)
         return p
 
@@ -222,21 +207,112 @@ class DataPaths:
     def todos_db(self) -> Path:
         return self.todos_dir() / "todos.db"
 
+    def work_queue_db(self) -> Path:
+        return self.user_subagents_dir() / "work_queue.db"
+
+    # -- Deprecated wrappers (redirect to new methods with warnings) --
+
+    def workspace_dir(self) -> Path:
+        """Deprecated: use workspace_files_dir() instead."""
+        return self.workspace_files_dir()
+
+    def skills_dir(self) -> Path:
+        warnings.warn(
+            "skills_dir() is deprecated, use user_skills_dir()",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.user_skills_dir()
+
+    def global_skills_dir(self) -> Path:
+        warnings.warn(
+            "global_skills_dir() is deprecated, use user_skills_dir()",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.user_skills_dir()
+
+    def subagents_dir(self) -> Path:
+        warnings.warn(
+            "subagents_dir() is deprecated, use user_subagents_dir()",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.user_subagents_dir()
+
+    def global_subagents_dir(self) -> Path:
+        warnings.warn(
+            "global_subagents_dir() is deprecated, use user_subagents_dir()",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.user_subagents_dir()
+
+    def agent_defs_dir(self) -> Path:
+        warnings.warn(
+            "agent_defs_dir() is deprecated, use user_subagents_dir() / 'agent_defs'",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.user_subagents_dir() / "agent_defs"
+
+    def global_memory_dir(self) -> Path:
+        warnings.warn(
+            "global_memory_dir() is deprecated, use user_memory_dir()",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.user_memory_dir()
+
+    def memory_dir(self) -> Path:
+        warnings.warn(
+            "memory_dir() is deprecated, use user_memory_dir()",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.user_memory_dir()
+
     def memory_db(self) -> Path:
         return self.memory_dir() / "memory.db"
 
+    def user_config_dir(self) -> Path:
+        warnings.warn(
+            "user_config_dir() is deprecated, use root / 'AGENTS.md' instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.root / "AGENTS.md"
+
+    def gmail_cache(self) -> Path:
+        warnings.warn(
+            "gmail_cache() is deprecated, use gmail_cache_dir()",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.gmail_cache_dir()
+
     def mcp_config_path(self) -> Path:
-        return self._user_base() / ".mcp.json"
+        warnings.warn(
+            "mcp_config_path() is deprecated, use user_mcp_config()",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.user_mcp_config()
 
-    def workspace_cache(self) -> Path:
-        return self.workspace_dir() / ".file_cache.json"
+    def apps_dir(self) -> Path:
+        warnings.warn(
+            "apps_dir() is deprecated, use user_apps_dir()",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.user_apps_dir()
 
-    # -- Versions --
+    # -- User-global (cross-workspace) data --
 
-    def versions_dir(self) -> Path:
-        p = self.workspace_dir() / ".versions"
-        p.mkdir(parents=True, exist_ok=True)
-        return p
+    @property
+    def user_dir(self) -> Path:
+        """Root of user data."""
+        return self.root
 
     # -- Templates --
 
@@ -308,13 +384,6 @@ class DataPaths:
         p.mkdir(parents=True, exist_ok=True)
         return p
 
-    # -- Backwards compat: 'private' property redirects to user_dir --
-
-    @property
-    def private(self) -> Path:
-        """Backwards compat: returns data/users/{user_id}/ (was data/private/)."""
-        return self._user_base()
-
     # -- System paths (not user-scoped) --
 
     def model_cache_path(self) -> Path:
@@ -362,6 +431,5 @@ def get_paths(
 
     dp = _paths_cache[cache_key]
     if workspace_id and workspace_id != dp.workspace_id:
-        # workspace changed — return fresh instance with new workspace_id
         return DataPaths(user_id=uid, team_id=tid, workspace_id=workspace_id)
     return dp
