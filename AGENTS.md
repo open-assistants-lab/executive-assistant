@@ -451,7 +451,17 @@ executive-assistant/
 │   ├── unit/                     # LangChain-era unit tests
 │   └── evaluation/               # Persona evaluation
 ├── config.yaml
-└── pyproject.toml
+├── site/                      # Astro intro website (landing + docs)
+│   ├── astro.config.mjs
+│   ├── package.json
+│   ├── src/
+│   │   ├── layouts/
+│   │   ├── pages/
+│   │   ├── components/
+│   │   └── styles/
+│   │       └── tokens.css     # Design system tokens
+│   └── public/
+├── pyproject.toml
 ```
 
 ---
@@ -594,3 +604,43 @@ All LangChain and LangGraph dependencies have been removed:
 - `langchain-mcp-adapters` — deleted (replaced by native `mcp` SDK via `MCPManager` + `MCPToolBridge`)
 - `src/tools/`, `src/agents/`, `src/llm/`, `src/middleware/` directories — deleted
 - `src/sdk/langchain_adapter.py` — deleted
+
+---
+
+## 10. Intro Website
+
+The project has an **Astro-powered intro website** at `site/` to serve as an OSS project landing page.
+
+### Stack
+- **Framework:** Astro 5 (static site generation)
+- **Fonts:** Inter (UI), Fira Code (monospace) — loaded via Google Fonts
+- **Design tokens:** Defined as CSS custom properties in `src/styles/tokens.css`, matching Flutter `EA` design system
+
+### Pages
+| Route | Content |
+|-------|---------|
+| `/` | Landing page — Hero → Features → Differentiation → Trust → CTA |
+| `/docs` | Documentation (quickstart, guides, deployment) |
+
+### Design Spec
+Full design document at `docs/superpowers/specs/2026-05-25-intro-website-design.md`.
+
+### Commands
+```bash
+# Development
+npm run dev          # Start dev server
+
+# Build
+npm run build        # Static build to dist/
+
+# Preview
+npm run preview      # Preview built site
+```
+
+### Key Design Decisions
+- **Dark theme** (`#08090A` canvas) matching the Flutter app's default
+- **Emerald accent** (`#239766`) for CTAs and highlights
+- **No framework dependency** — pure Astro, no React/Vue/Svelte
+- **Logo:** "Connected" — two dots with a connecting line (SVG inline)
+- **Target audience:** Non-technical general users
+- **Headline:** "Your executive assistant. One that gets you."

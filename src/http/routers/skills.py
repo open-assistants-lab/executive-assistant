@@ -49,7 +49,6 @@ class SkillDetail(SkillSummary):
     license: str | None = None
     compatibility: str | None = None
     allowed_tools: str | None = None
-    triggers: list[str] | None = None
     frontmatter: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -137,7 +136,7 @@ def _to_detail(skill: dict[str, Any], loaded_names: set[str]) -> SkillDetail:
         "description": skill.get("description", ""),
         "metadata": skill.get("metadata", {}),
     }
-    for field in ("license", "compatibility", "allowed_tools", "triggers"):
+    for field in ("license", "compatibility", "allowed_tools"):
         if field in skill:
             frontmatter[field] = skill[field]
 
@@ -148,7 +147,6 @@ def _to_detail(skill: dict[str, Any], loaded_names: set[str]) -> SkillDetail:
         license=skill.get("license"),
         compatibility=skill.get("compatibility"),
         allowed_tools=skill.get("allowed_tools"),
-        triggers=skill.get("triggers"),
         frontmatter=frontmatter,
     )
 

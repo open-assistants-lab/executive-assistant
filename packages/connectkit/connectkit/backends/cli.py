@@ -102,33 +102,61 @@ class CLIAdapter:
         return []
 
     def discover_tools(self, namespace: str) -> list[Any]:
-        commands = self.list_commands()
         descriptions_by_name = {
             td.name: td for td in self.spec.tool_descriptions
         }
 
-        tools = []
+        if descriptions_by_name:
+            # tool_descriptions from YAML spec are the authoritative source
+            return self._tools_from_descriptions(namespace, descriptions_by_name)
+
+        # Fall back to CLI help parsing when no descriptions are defined
+        commands = self.list_commands()
+        seen: set[str] = set()
+        tools: list[Any] = []
         for cmd in commands:
             safe_name = cmd.replace(" ", "_").replace("-", "_").replace(":", "_")
             tool_name = f"{namespace}__{safe_name}"
-
-            td = descriptions_by_name.get(tool_name)
-            description = (
-                td.description if td
-                else f"{self.spec.display}: {cmd}"
-            )
-
-            parameter_descriptions = td.parameter_descriptions if td else {}
+            if tool_name in seen:
+                continue
+            seen.add(tool_name)
 
             tool_def = _build_connector_tool(
                 name=tool_name,
-                description=description,
+                description=f"{self.spec.display}: {cmd}",
                 adapter=self,
                 args=args_from_command(cmd),
-                parameter_descriptions=parameter_descriptions,
             )
             tools.append(tool_def)
+        return tools
 
+    def _tools_from_descriptions(
+        self, namespace: str, descriptions: dict[str, ToolDescription]
+    ) -> list[Any]:
+        """Build tools from YAML tool_descriptions (skip CLI help parsing).
+
+        Uses the explicit `command` field when provided, otherwise derives
+        the CLI command from the tool name by stripping the namespace prefix
+        and converting underscores to colons.
+        """
+        prefix = f"{namespace}__"
+        tools: list[Any] = []
+        for tool_name, td in descriptions.items():
+            if not tool_name.startswith(prefix):
+                logger.warning(
+                    "Tool name %s doesn't match namespace %s, skipping",
+                    tool_name, namespace,
+                )
+                continue
+            cmd = td.command or tool_name[len(prefix):].replace("_", ":")
+            tool_def = _build_connector_tool(
+                name=tool_name,
+                description=td.description or f"{self.spec.display}: {cmd}",
+                adapter=self,
+                args=args_from_command(cmd),
+                parameter_descriptions=td.parameter_descriptions or {},
+            )
+            tools.append(tool_def)
         return tools
 
 
@@ -205,6 +233,10 @@ def _build_connector_tool(
         },
     }
 
+    is_list_or_get = any(
+        name.endswith(suffix)
+        for suffix in ("_list", "_get", "_search")
+    )
     return {
         "name": name,
         "description": description,
@@ -212,9 +244,9 @@ def _build_connector_tool(
         "function": _sync_invoke,
         "ainvoke": _async_invoke,
         "annotations": {
-            "read_only": False,
-            "destructive": True,
-            "idempotent": False,
+            "read_only": is_list_or_get,
+            "destructive": not is_list_or_get,
+            "idempotent": is_list_or_get,
             "title": name,
         },
     }

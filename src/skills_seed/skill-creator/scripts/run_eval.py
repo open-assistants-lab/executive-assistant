@@ -46,18 +46,12 @@ def run_single_query(query, skill_name, description=None, user_id="default_user"
         if not skill:
             return {"query": query, "triggered": False, "error": "Failed to parse skill file"}
 
-        skill_triggers = skill.get("triggers", [])
         skill_name_lower = skill.get("name", "").lower()
         # Use passed description if available, otherwise read from skill file
         skill_desc = description.lower() if description else skill.get("description", "").lower()
 
         query_lower = query.lower()
         trigger_keywords = []
-
-        # Add explicit triggers
-        if skill_triggers:
-            for t in skill_triggers:
-                trigger_keywords.extend(t.lower().split())
 
         # Add skill name
         for word in skill_name_lower.split():

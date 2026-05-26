@@ -96,7 +96,10 @@ def _get_system_prompt(user_id: str, workspace_id: str | None = None) -> str:
     # Inject workspace context
     workspace_context = _get_workspace_context(workspace_id)
 
-    return base_prompt + user_prompt_context + skills_context + workspace_context + f"\n\nuser_id: {user_id}"
+    # Inject connected connector context
+    connector_context = _get_connector_context(user_id)
+
+    return base_prompt + user_prompt_context + skills_context + workspace_context + connector_context + f"\n\nuser_id: {user_id}"
 
 
 def _get_workspace_context(workspace_id: str | None) -> str:
@@ -179,6 +182,32 @@ def _get_skills_context(user_id: str, workspace_id: str = "personal") -> str:
         for name, desc in entries:
             lines.append(f"- **{name}**: {desc}")
         return "\n".join(lines)
+    except Exception:
+        return ""
+
+
+def _get_connector_context(user_id: str) -> str:
+    """Inject connected connector info so the LLM knows about available tools."""
+    try:
+        from connectkit.bridge import ConnectKitBridge
+
+        bridge = ConnectKitBridge(user_id=user_id)
+        connected = bridge.connected_services()
+        if not connected:
+            return ""
+
+        lines = [
+            "\n\n## Connected SaaS Connectors",
+            "IMPORTANT: All connectors below are ALREADY authorized and ready to use.",
+            "Do NOT ask the user to approve or connect — just use the available tools directly.",
+            "",
+        ]
+        for service in connected:
+            ns = service.replace("-", "_")
+            lines.append(f"- **{service}**: tools named `{ns}__*` are ready to call (e.g. `{ns}__gmail_messages_list`)")
+        return "\n".join(lines)
+    except ImportError:
+        return ""
     except Exception:
         return ""
 

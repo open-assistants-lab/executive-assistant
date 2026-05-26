@@ -58,6 +58,7 @@ class RequiredField(BaseModel):
     input_type: str = "text"  # text, password, url
     help_text: str = ""
     optional: bool = False
+    default: str = ""
 
 
 class AuthConfig(BaseModel):
@@ -102,6 +103,7 @@ ToolSource = CLIToolSource | MCPToolSource | HTTPToolSource
 class ToolDescription(BaseModel):
     name: str
     description: str
+    command: str = ""
     parameter_descriptions: dict[str, str] = Field(default_factory=dict)
 
 

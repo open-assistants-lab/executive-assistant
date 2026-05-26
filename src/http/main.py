@@ -160,10 +160,13 @@ try:
                         break
         return result
 
+    from src.sdk.runner import reset_user_sdk_loops
+
     oauth_router = create_oauth_router(
         specs=_oauth_specs,
         vault_factory=_vault_factory,
         config=_oauth_config,
+        on_connect=reset_user_sdk_loops,
     )
     app.include_router(oauth_router)
 except Exception:

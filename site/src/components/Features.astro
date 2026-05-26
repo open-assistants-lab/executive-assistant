@@ -1,0 +1,120 @@
+---
+
+const features = [
+  {
+    icon: "mail",
+    title: "Manages your email",
+    desc: "Connect Gmail, Outlook, or iCloud. Read, search, reply, send — all through conversation.",
+  },
+  {
+    icon: "language",
+    title: "Browses the web",
+    desc: "Opens pages, fills forms, logs into sites, extracts data. It does things, not just chat.",
+  },
+  {
+    icon: "psychology",
+    title: "Remembers everything",
+    desc: "Learns your preferences, your workflows, your corrections. Gets better every conversation.",
+  },
+  {
+    icon: "checklist",
+    title: "Tracks what matters",
+    desc: "Todos, contacts, files, projects. Ask and it knows — no manual organization needed.",
+  },
+];
+---
+
+<section id="features" class="features animate-on-scroll">
+  <span class="section-label">What it does</span>
+  <h2 class="section-title">Everything an assistant should do.<br />Without the setup.</h2>
+  <p class="section-sub">One conversation. Email, browser, memory, tasks — all connected.</p>
+  <div class="feature-grid">
+    {features.map((f) => (
+      <article class="feature-card">
+        <div class="feature-icon"><span class="material-symbols-outlined">{f.icon}</span></div>
+        <h3 class="feature-title">{f.title}</h3>
+        <p class="feature-desc">{f.desc}</p>
+      </article>
+    ))}
+  </div>
+</section>
+
+<style>
+  .features {
+    padding: 64px 32px;
+    max-width: 700px;
+    margin: 0 auto;
+    text-align: center;
+  }
+  .section-label {
+    font-size: 11px;
+    color: var(--ea-accent);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 8px;
+    display: block;
+  }
+  .section-title {
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--ea-text-primary);
+    margin: 0 0 12px;
+    line-height: 1.2;
+  }
+  .section-sub {
+    font-size: 14px;
+    color: var(--ea-text-secondary);
+    letter-spacing: -0.011em;
+    max-width: 480px;
+    margin: 0 auto 36px;
+    line-height: 1.5;
+  }
+  .feature-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    max-width: 620px;
+    margin: 0 auto;
+    text-align: left;
+  }
+  .feature-card {
+    background: var(--ea-bg-surface);
+    border: 1px solid var(--ea-border-subtle);
+    border-radius: var(--ea-radius-md);
+    padding: 20px;
+    transition: background var(--ea-motion-base) var(--ea-curve-standard),
+                border-color var(--ea-motion-base) var(--ea-curve-standard);
+  }
+  .feature-card:hover {
+    background: var(--ea-bg-elevated);
+    border-color: var(--ea-border-default);
+  }
+  .feature-icon {
+    width: 36px;
+    height: 36px;
+    background: var(--ea-accent-muted);
+    border-radius: var(--ea-radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    margin-bottom: 12px;
+    line-height: 1;
+  }
+  .feature-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ea-text-primary);
+    letter-spacing: -0.011em;
+    margin: 0 0 4px;
+  }
+  .feature-desc {
+    font-size: 12px;
+    color: var(--ea-text-tertiary);
+    letter-spacing: -0.005em;
+    line-height: 1.5;
+    margin: 0;
+  }
+</style>

@@ -1,0 +1,22 @@
+---
+export interface Props {
+  size?: number;
+  class?: string;
+}
+
+const { size = 24 } = Astro.props;
+---
+
+<svg
+  width={size}
+  height={size}
+  viewBox="0 0 56 56"
+  fill="none"
+  class={Astro.props.class}
+  role="img"
+  aria-label="Executive Assistant logo"
+>
+  <circle cx="20" cy="28" r="8" fill="var(--ea-accent, #239766)" />
+  <circle cx="36" cy="28" r="5" fill="none" stroke="var(--ea-accent, #239766)" stroke-width="2.5" />
+  <line x1="28" y1="28" x2="31" y2="28" stroke="var(--ea-accent, #239766)" stroke-width="2.5" stroke-linecap="round" />
+</svg>

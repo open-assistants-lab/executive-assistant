@@ -25,9 +25,9 @@ import secrets
 import sqlite3
 import threading
 import warnings
-from contextlib import contextmanager
 from collections.abc import Generator
-from datetime import UTC, datetime, timedelta
+from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 
 from cryptography.fernet import Fernet
@@ -37,23 +37,33 @@ def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
+_VAULT_KEY: bytes | None = None
+
+
 def _get_or_create_key() -> bytes:
     import base64
     import hashlib
+
+    global _VAULT_KEY
+    if _VAULT_KEY is not None:
+        return _VAULT_KEY
 
     key_str = os.environ.get("CONNECTKIT_VAULT_KEY")
     if key_str:
         raw = key_str.encode()
         if len(raw) == 44:
-            return raw
+            _VAULT_KEY = raw
+            return _VAULT_KEY
         raw = hashlib.sha256(raw).digest()
-        return base64.urlsafe_b64encode(raw)
+        _VAULT_KEY = base64.urlsafe_b64encode(raw)
+        return _VAULT_KEY
 
     warnings.warn(
         "CONNECTKIT_VAULT_KEY not set. Using ephemeral key — "
         "tokens will be lost on restart. Set in production."
     )
-    return Fernet.generate_key()
+    _VAULT_KEY = Fernet.generate_key()
+    return _VAULT_KEY
 
 
 class CredentialVault:
@@ -157,7 +167,11 @@ class CredentialVault:
             return cur.fetchone()[0] > 0
 
     def create_oauth_state(
-        self, service_name: str, user_id: str, redirect_uri: str = ""
+        self,
+        service_name: str,
+        user_id: str,
+        redirect_uri: str = "",
+        extra: dict | None = None,
     ) -> str:
         """Create a self-contained OAuth state token.
 
@@ -165,27 +179,32 @@ class CredentialVault:
         Self-contained — any vault with the same key can validate it.
         Expires automatically via Fernet TTL (10 minutes).
         """
-        payload = json.dumps({
+        payload: dict[str, object] = {
             "service_name": service_name,
             "user_id": user_id,
             "nonce": secrets.token_urlsafe(16),
-        })
-        return self._fernet.encrypt(payload.encode()).decode()
+        }
+        if extra:
+            payload["extra"] = extra
+        return self._fernet.encrypt(json.dumps(payload).encode()).decode()
 
     def validate_oauth_state(self, state_token: str) -> dict | None:
         """Validate a self-contained OAuth state token.
 
-        Returns {service_name, user_id} or None if expired or invalid.
+        Returns {service_name, user_id, extra} or None if expired or invalid.
         """
         try:
             payload_json = self._fernet.decrypt(
                 state_token.encode(), ttl=600
             )
             payload = json.loads(payload_json)
-            return {
+            result: dict[str, object] = {
                 "service_name": payload["service_name"],
                 "user_id": payload["user_id"],
             }
+            if "extra" in payload:
+                result["extra"] = payload["extra"]
+            return result
         except Exception:
             return None
 

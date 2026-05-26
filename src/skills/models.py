@@ -31,7 +31,6 @@ class Skill(TypedDict):
     compatibility: NotRequired[str]
     metadata: NotRequired[dict[str, str]]
     allowed_tools: NotRequired[str]
-    triggers: NotRequired[list[str]]
 
 
 def parse_skill_file(skill_path: Path) -> Skill | None:
@@ -75,6 +74,9 @@ def parse_skill_file(skill_path: Path) -> Skill | None:
     if not name or not description:
         return None
 
+    if len(description) > 1024:
+        return None
+
     # Validate name format (lowercase, numbers, hyphens only)
     if not _is_valid_skill_name(name):
         return None
@@ -93,10 +95,8 @@ def parse_skill_file(skill_path: Path) -> Skill | None:
         skill["compatibility"] = compatibility
     if metadata_dict := metadata.get("metadata"):
         skill["metadata"] = metadata_dict
-    if allowed_tools := metadata.get("allowed_tools"):
+    if allowed_tools := metadata.get("allowed-tools"):
         skill["allowed_tools"] = allowed_tools
-    if triggers := metadata.get("triggers"):
-        skill["triggers"] = triggers
 
     return skill
 

@@ -61,6 +61,7 @@ class ConnectorRuntime:
                 "setup_guide_url": s.setup_guide_url,
                 "connected": s.name in connected,
                 "auth_type": s.auth.type.value,
+                "pkce": s.auth.oauth2.pkce if s.auth.oauth2 else False,
                 "required_fields": [
                     f.model_dump() for f in s.auth.required_fields
                 ],

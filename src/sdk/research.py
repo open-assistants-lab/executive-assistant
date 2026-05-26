@@ -169,11 +169,11 @@ class SubagentTarget(ResearchTarget):
 
             coord = SubagentCoordinator(self.user_id, self.workspace_id)
             result = await coord.delegate(self.agent_def_path.stem, self.eval_task)
-                if result.success:
-                    return 1.0
-                return 0.2
-            except Exception:
-                return 0.0
+            if result.success:
+                return 1.0
+            return 0.2
+        except Exception:
+            return 0.0
 
     def rollback(self) -> None:
         if self._backup is not None:

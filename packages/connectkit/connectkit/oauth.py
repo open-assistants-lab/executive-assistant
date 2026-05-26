@@ -2,22 +2,23 @@
 
 Flow:
     1. GET /auth/login?service=google-workspace&user_id=alice
-       -> Load spec, build authorize URL, redirect to Google
-    2. Google redirects to GET /auth/callback?code=...&state=...
+       -> Load spec, build authorize URL, redirect to provider
+    2. Provider redirects to GET /auth/callback?code=...&state=...
        -> Exchange code for tokens, store in vault, return success
 
-The connector spec (ConnectorSpec) drives everything:
-    - authorize_url, token_url, scopes, extra_params from the spec
-    - client_id, client_secret from deployment config (env vars or config dict)
-    - tokens stored in CredentialVault per user
+Supports PKCE (RFC 7636) for public clients (no client_secret).
 """
 
+import base64
+import hashlib
 import json
-from typing import Callable
+import secrets
+from collections.abc import Callable
+from typing import Any
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from starlette.responses import RedirectResponse
 
 from connectkit.spec import AuthType, ConnectorSpec
@@ -27,11 +28,22 @@ ConfigProvider = Callable[[str], dict[str, str]]
 VaultFactory = Callable[[str], CredentialVault]
 
 
+def _generate_code_verifier() -> str:
+    token = secrets.token_bytes(32)
+    return base64.urlsafe_b64encode(token).rstrip(b"=").decode()
+
+
+def _derive_code_challenge(verifier: str) -> str:
+    digest = hashlib.sha256(verifier.encode("ascii")).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
+
+
 def create_oauth_router(
     specs: list[ConnectorSpec],
     vault_factory: VaultFactory,
     config: ConfigProvider,
     base_url: str = "",
+    on_connect: Callable[[str], Any] | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -41,37 +53,59 @@ def create_oauth_router(
         if s.auth.type == AuthType.OAUTH2 and s.auth.oauth2 is not None
     }
 
-    def _redirect_uri(base: str, service: str) -> str:
-        if base:
-            return f"{base.rstrip('/')}/auth/callback?service={service}"
-        return f"/auth/callback?service={service}"
-
-    def _build_authorize_url(spec: ConnectorSpec, state: str) -> str:
-        oauth = spec.auth.oauth2
-        assert oauth is not None
-        cfg = config(spec.name)
-        params = {
-            "client_id": cfg["client_id"],
-            "redirect_uri": _redirect_uri(base_url, spec.name),
-            "response_type": "code",
-            "scope": " ".join(oauth.scopes),
-            "state": state,
-            **oauth.extra_params,
-        }
-        return f"{oauth.authorize_url}?{urlencode(params)}"
-
     @router.get("/login")
     async def oauth_login(
+        request: Request,
         service: str = Query(..., description="Connector name (e.g. google-workspace)"),
         user_id: str = Query(..., description="User ID (e.g. alice@corp.com)"),
+        client_secret: str | None = Query(None, description="Client secret (required by some providers even with PKCE)"),
     ):
         spec = oauth_services.get(service)
         if not spec:
             raise HTTPException(400, f"Unknown or non-OAuth service: {service}")
 
+        oauth = spec.auth.oauth2
+        assert oauth is not None
+
+        if base_url:
+            redirect_uri = f"{base_url.rstrip('/')}/auth/callback"
+        else:
+            redirect_uri = str(request.base_url) + "auth/callback"
+
+        cfg = config(spec.name)
+        client_id = cfg.get("client_id", "")
+
         vault = vault_factory(user_id)
-        state = vault.create_oauth_state(service, user_id)
-        url = _build_authorize_url(spec, state)
+
+        code_verifier: str | None = None
+        code_challenge: str | None = None
+        extra: dict | None = None
+        if oauth.pkce:
+            code_verifier = _generate_code_verifier()
+            code_challenge = _derive_code_challenge(code_verifier)
+            extra = {
+                "code_verifier": code_verifier,
+                "redirect_uri": redirect_uri,
+            }
+            # Some providers (Google) require client_secret even with PKCE
+            if client_secret:
+                extra["client_secret"] = client_secret
+
+        state = vault.create_oauth_state(service, user_id, extra=extra)
+
+        params: dict[str, str] = {
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
+            "response_type": "code",
+            "scope": " ".join(oauth.scopes),
+            "state": state,
+        }
+        if oauth.pkce and code_challenge:
+            params["code_challenge"] = code_challenge
+            params["code_challenge_method"] = "S256"
+        params.update(oauth.extra_params)
+
+        url = f"{oauth.authorize_url}?{urlencode(params)}"
         return RedirectResponse(url, status_code=302)
 
     @router.get("/callback")
@@ -91,9 +125,6 @@ def create_oauth_router(
         if not code or not state:
             raise HTTPException(400, "Missing code or state parameter")
 
-        # The state token is Fernet-encrypted and self-contained — it includes
-        # service_name + user_id. Any vault with the same key can decrypt it.
-        # We use a temp vault instance just for decryption.
         vault = vault_factory("")
         state_data = vault.validate_oauth_state(state)
         if not state_data:
@@ -106,22 +137,38 @@ def create_oauth_router(
         if not spec:
             raise HTTPException(400, f"Unknown service: {service_name}")
 
-        cfg = config(service_name)
         oauth = spec.auth.oauth2
         assert oauth is not None
 
-        redirect_uri = _redirect_uri(base_url, service_name)
+        cfg = config(service_name)
+        client_id = cfg.get("client_id", "")
+
+        extra = state_data.get("extra") or {}
+        redirect_uri = extra.get("redirect_uri", "/auth/callback")
+
+        token_body: dict[str, str] = {
+            "client_id": client_id,
+            "code": code,
+            "grant_type": "authorization_code",
+            "redirect_uri": redirect_uri,
+        }
+
+        # Always include client_secret if available (Google requires it even with PKCE)
+        # Check: vault config → OAuth state extra (from login query param) → empty
+        client_secret = cfg.get("client_secret") or extra.get("client_secret") or ""
+        if client_secret:
+            token_body["client_secret"] = client_secret
+
+        if oauth.pkce:
+            code_verifier = extra.get("code_verifier")
+            if not code_verifier:
+                raise HTTPException(400, "PKCE state missing code_verifier")
+            token_body["code_verifier"] = code_verifier
 
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 oauth.token_url,
-                data={
-                    "client_id": cfg["client_id"],
-                    "client_secret": cfg["client_secret"],
-                    "code": code,
-                    "grant_type": "authorization_code",
-                    "redirect_uri": redirect_uri,
-                },
+                data=token_body,
                 headers={"Accept": "application/json"},
             )
 
@@ -148,6 +195,9 @@ def create_oauth_router(
 
         user_vault = vault_factory(user_id)
         user_vault.store_token(service_name, "oauth2", token_data)
+
+        if on_connect:
+            on_connect(user_id)
 
         return {
             "status": "connected",

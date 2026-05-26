@@ -1,0 +1,73 @@
+---
+import LogoConnected from "./LogoConnected.astro";
+---
+
+<nav class="nav">
+  <a href="/" class="nav-brand">
+    <LogoConnected size={28} />
+    <span class="nav-wordmark">Executive Assistant</span>
+  </a>
+  <div class="nav-links">
+    <a href="#features" class="nav-link">Features</a>
+    <a href="/docs" class="nav-link">Docs</a>
+    <a href="https://github.com" class="nav-link">GitHub</a>
+    <a href="#cta" class="nav-cta">Get Started</a>
+  </div>
+</nav>
+
+<style>
+  .nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 32px;
+    border-bottom: 1px solid var(--ea-border-subtle);
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  .nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+  }
+  .nav-wordmark {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.012em;
+    color: var(--ea-text-primary);
+  }
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  .nav-link {
+    font-size: 13px;
+    color: var(--ea-text-secondary);
+    text-decoration: none;
+    letter-spacing: -0.005em;
+    transition: color var(--ea-motion-fast) var(--ea-curve-standard);
+  }
+  .nav-link:hover {
+    color: var(--ea-text-primary);
+  }
+  .nav-cta {
+    background: var(--ea-accent);
+    color: var(--ea-text-inverse);
+    padding: 7px 16px;
+    border-radius: var(--ea-radius-sm);
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    letter-spacing: -0.005em;
+    transition: background var(--ea-motion-base) var(--ea-curve-standard),
+                transform var(--ea-motion-fast) var(--ea-curve-standard);
+  }
+  .nav-cta:hover {
+    background: var(--ea-accent-hover);
+  }
+  .nav-cta:active {
+    transform: scale(var(--ea-press-scale));
+  }
+</style>

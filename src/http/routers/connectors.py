@@ -75,6 +75,8 @@ async def connect_service(
 
         if spec["auth_type"] == "api_key":
             bridge.reload_specs()
+            from src.sdk.runner import reset_user_sdk_loops
+            reset_user_sdk_loops(user_id)
             return {"status": "connected", "service": service}
 
         return {
@@ -107,6 +109,8 @@ async def disconnect_service(
 
         bridge.vault.delete_token(service)
         bridge.reload_specs()
+        from src.sdk.runner import reset_user_sdk_loops
+        reset_user_sdk_loops(user_id)
         return {"status": "disconnected", "service": service}
 
     except ImportError:

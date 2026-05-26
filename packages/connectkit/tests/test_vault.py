@@ -37,6 +37,8 @@ class TestKeyGeneration:
         assert len(result) == 44
 
     def test_generates_ephemeral_when_missing(self, monkeypatch):
+        import connectkit.vault as vault_mod
+        vault_mod._VAULT_KEY = None  # Clear process-wide cache
         monkeypatch.delenv("CONNECTKIT_VAULT_KEY", raising=False)
         with pytest.warns(UserWarning, match="CONNECTKIT_VAULT_KEY not set"):
             key = _get_or_create_key()

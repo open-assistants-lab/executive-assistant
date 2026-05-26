@@ -493,9 +493,7 @@ def test_update_preserves_supported_top_level_frontmatter(client, skill_api_tmp)
         extra_frontmatter=(
             "license: MIT\n"
             "compatibility: '>=1.0'\n"
-            "allowed_tools: shell_execute\n"
-            "triggers:\n"
-            "  - report\n"
+            "allowed-tools: shell_execute\n"
         ),
     )
 
@@ -510,5 +508,4 @@ def test_update_preserves_supported_top_level_frontmatter(client, skill_api_tmp)
     assert "description: Updated" in updated
     assert "license: MIT" in updated
     assert "compatibility: '>=1.0'" in updated
-    assert "allowed_tools: shell_execute" in updated
-    assert "- report" in updated
+    assert "allowed-tools: shell_execute" in updated
