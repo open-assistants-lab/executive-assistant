@@ -22,6 +22,10 @@ class DeploymentConfig(_BaseSettings):
 
     mode: str = Field(default="solo")
     data_path: str = Field(default="data")
+    ea_root: str = Field(
+        default="",
+        description="Root for user data directory. Empty string means Path.home() / 'Executive Assistant'.",
+    )
 
     model_config = ConfigDict(env_prefix="DEPLOYMENT_")
 
