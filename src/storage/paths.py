@@ -28,6 +28,25 @@ def _validate_path_id(value: str, field: str) -> str:
     return value
 
 
+_GITIGNORE_CONTENT = """\
+# Databases
+*.db
+
+# Large binary directories
+Memory/
+Files/
+Email/
+Contacts/
+Todos/
+Conversation/
+
+# Cache and temp
+.versions/
+.env
+*.log
+"""
+
+
 class DataPaths:
     """Resolves data paths based on deployment mode and user identity.
 
@@ -67,14 +86,37 @@ class DataPaths:
             else:
                 self._ea_root = Path.home() / "Executive Assistant"
 
+        self._ea_root.mkdir(parents=True, exist_ok=True)
+        self._git_ensured = False
+
     # -- Root properties --
+
+    def _ensure_git(self) -> None:
+        """Init a git repo at the root directory if not already present."""
+        git_dir = self._ea_root / ".git"
+        gitignore = self._ea_root / ".gitignore"
+        if git_dir.exists():
+            return
+        try:
+            import subprocess
+            subprocess.run(
+                ["git", "init"],
+                cwd=self._ea_root,
+                capture_output=True,
+                timeout=10,
+            )
+            if not gitignore.exists():
+                gitignore.write_text(_GITIGNORE_CONTENT, encoding="utf-8")
+        except Exception:
+            pass  # git not available — fine, autoresearch falls back
 
     @property
     def root(self) -> Path:
         """Root of all user data under ea_root."""
-        p = self._ea_root
-        p.mkdir(parents=True, exist_ok=True)
-        return p
+        if not self._git_ensured:
+            self._git_ensured = True
+            self._ensure_git()
+        return self._ea_root
 
     @property
     def team_root(self) -> None:
