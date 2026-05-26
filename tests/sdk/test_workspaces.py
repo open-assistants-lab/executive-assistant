@@ -201,11 +201,11 @@ class TestWorkspaceDataPaths:
         dp = DataPaths(workspace_id="test")
         assert dp.workspace_dir() == dp.workspace_files_dir()
 
-    def test_user_config_dir(self):
+    def test_user_prompt_path(self):
         from src.storage.paths import DataPaths
         dp = DataPaths(user_id="test_user", ea_root="/tmp/ea-test-root")
-        d = dp.user_config_dir()
-        assert d.name == "AGENTS.md"
+        d = dp.user_prompt_path()
+        assert "AGENTS.md" in str(d)
 
 
 class TestWorkspaceTools:

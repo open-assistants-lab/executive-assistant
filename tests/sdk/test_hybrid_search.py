@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from src.storage.paths import DataPaths
+
 TEST_USER_ID = "test_hybrid_search"
 
 
@@ -309,7 +311,8 @@ def cleanup_test_db():
     from src.sdk.tools_core.apps import _dbs
 
     _dbs.clear()
-    db_path = Path("data/private/apps")
+    dp = DataPaths(user_id=TEST_USER_ID)
+    db_path = dp.user_apps_dir()
     if db_path.exists():
         shutil.rmtree(db_path)
     yield
@@ -402,6 +405,8 @@ class TestHybridSearchPerformance:
         print("\n" + "=" * 70)
         print("HYBRID SEARCH PERFORMANCE TEST - 200 BOOKS")
         print("=" * 70)
+
+        dp = DataPaths(user_id=TEST_USER_ID)
 
         # Create library app
         tables = {
@@ -702,6 +707,6 @@ class TestHybridSearchPerformance:
             f"200 book insert:  {total_insert_time * 1000:.2f}ms ({total_insert_time / 200 * 1000:.2f}ms/book)"
         )
         print(f"Total time:       {(create_time + total_insert_time) * 1000:.2f}ms")
-        print(f"\nDatabase: data/private/apps/library/app.db")
+        print(f"\nDatabase: {dp.user_apps_dir() / 'library' / 'app.db'}")
 
         assert len(join_results) == 10, "JOIN query should return 10 results"

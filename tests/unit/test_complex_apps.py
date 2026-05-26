@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+from src.storage.paths import DataPaths
+
 TEST_USER_ID = "test_complex_user"
 
 
@@ -14,7 +16,8 @@ def cleanup_test_db():
     from src.sdk.tools_core.apps import _dbs
 
     _dbs.clear()
-    db_path = Path("data/private/apps")
+    dp = DataPaths(user_id=TEST_USER_ID)
+    db_path = dp.user_apps_dir()
     if db_path.exists():
         shutil.rmtree(db_path)
     yield

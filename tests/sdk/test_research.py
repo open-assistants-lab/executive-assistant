@@ -39,7 +39,7 @@ class TestResearchTarget:
     def test_prompt_target(self):
         """PromptTarget reads/writes from a file."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            prompt_file = Path(tmpdir) / "prompt.txt"
+            prompt_file = Path(tmpdir) / "AGENTS.md"
             prompt_file.write_text("You are a helpful assistant.")
 
             target = PromptTarget(prompt_file)
