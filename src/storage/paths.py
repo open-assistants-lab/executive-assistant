@@ -83,14 +83,6 @@ class DataPaths:
         """Team root (solo mode always returns None)."""
         return None
 
-    # -- Workspace helper --
-
-    def _workspace_base(self) -> Path:
-        """Base directory for the current workspace: root / Workspaces / {workspace_id}"""
-        p = self.root / "Workspaces" / self.workspace_id
-        p.mkdir(parents=True, exist_ok=True)
-        return p
-
     # -- User-scoped methods (all under root/) --
 
     def user_skills_dir(self) -> Path:
@@ -163,33 +155,33 @@ class DataPaths:
     # -- Workspace-scoped methods (all under root/Workspaces/{workspace_id}/) --
 
     def workspace_skills_dir(self) -> Path:
-        p = self._workspace_base() / "Skills"
+        p = self.root / "Workspaces" / self.workspace_id / "Skills"
         p.mkdir(parents=True, exist_ok=True)
         return p
 
     def workspace_subagents_dir(self) -> Path:
-        p = self._workspace_base() / "Subagents"
+        p = self.root / "Workspaces" / self.workspace_id / "Subagents"
         p.mkdir(parents=True, exist_ok=True)
         return p
 
     def workspace_files_dir(self) -> Path:
-        p = self._workspace_base() / "Files"
+        p = self.root / "Workspaces" / self.workspace_id / "Files"
         p.mkdir(parents=True, exist_ok=True)
         return p
 
     def workspace_memory_dir(self) -> Path:
-        p = self._workspace_base() / "Memory"
+        p = self.root / "Workspaces" / self.workspace_id / "Memory"
         p.mkdir(parents=True, exist_ok=True)
         return p
 
     def workspace_conversation_path(self) -> Path:
-        return self._workspace_base() / "conversation.app.db"
+        return self.root / "Workspaces" / self.workspace_id / "conversation.app.db"
 
     def workspace_cache(self) -> Path:
-        return self._workspace_base() / ".file_cache.json"
+        return self.root / "Workspaces" / self.workspace_id / ".file_cache.json"
 
     def versions_dir(self) -> Path:
-        p = self._workspace_base() / ".versions"
+        p = self.root / "Workspaces" / self.workspace_id / ".versions"
         p.mkdir(parents=True, exist_ok=True)
         return p
 
@@ -214,6 +206,11 @@ class DataPaths:
 
     def workspace_dir(self) -> Path:
         """Deprecated: use workspace_files_dir() instead."""
+        warnings.warn(
+            "workspace_dir() is deprecated, use workspace_files_dir()",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return self.workspace_files_dir()
 
     def skills_dir(self) -> Path:

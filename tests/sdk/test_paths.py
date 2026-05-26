@@ -160,3 +160,129 @@ def test_work_queue_db():
     path = dp.work_queue_db()
     assert "Subagents" in str(path)
     assert path.name == "work_queue.db"
+
+
+def test_deprecated_global_skills_dir_warns():
+    import warnings
+    dp = DataPaths(user_id="tester", ea_root="/tmp/ea-test-root")
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        result = dp.global_skills_dir()
+        assert len(w) >= 1
+        assert "deprecated" in str(w[0].message).lower()
+    assert str(result) == "/tmp/ea-test-root/Skills"
+
+
+def test_deprecated_subagents_dir_warns():
+    import warnings
+    dp = DataPaths(user_id="tester", ea_root="/tmp/ea-test-root")
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        result = dp.subagents_dir()
+        assert len(w) >= 1
+        assert "deprecated" in str(w[0].message).lower()
+    assert str(result) == "/tmp/ea-test-root/Subagents"
+
+
+def test_deprecated_agent_defs_dir_warns():
+    import warnings
+    dp = DataPaths(user_id="tester", ea_root="/tmp/ea-test-root")
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        result = dp.agent_defs_dir()
+        assert len(w) >= 1
+        assert "deprecated" in str(w[0].message).lower()
+    assert str(result) == "/tmp/ea-test-root/Subagents/agent_defs"
+
+
+def test_deprecated_global_memory_dir_warns():
+    import warnings
+    dp = DataPaths(user_id="tester", ea_root="/tmp/ea-test-root")
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        result = dp.global_memory_dir()
+        assert len(w) >= 1
+        assert "deprecated" in str(w[0].message).lower()
+    assert str(result) == "/tmp/ea-test-root/Memory/global"
+
+
+def test_deprecated_memory_dir_warns():
+    import warnings
+    dp = DataPaths(user_id="tester", ea_root="/tmp/ea-test-root")
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        result = dp.memory_dir()
+        assert len(w) >= 1
+        assert "deprecated" in str(w[0].message).lower()
+    assert str(result) == "/tmp/ea-test-root/Memory/global"
+
+
+def test_deprecated_user_config_dir_warns():
+    import warnings
+    dp = DataPaths(user_id="tester", ea_root="/tmp/ea-test-root")
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        result = dp.user_config_dir()
+        assert len(w) >= 1
+        assert "deprecated" in str(w[0].message).lower()
+
+
+def test_deprecated_gmail_cache_warns():
+    import warnings
+    dp = DataPaths(user_id="tester", ea_root="/tmp/ea-test-root")
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        result = dp.gmail_cache()
+        assert len(w) >= 1
+        assert "deprecated" in str(w[0].message).lower()
+    assert str(result) == "/tmp/ea-test-root/Email/gmail_cache"
+
+
+def test_deprecated_mcp_config_path_warns():
+    import warnings
+    dp = DataPaths(user_id="tester", ea_root="/tmp/ea-test-root")
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        result = dp.mcp_config_path()
+        assert len(w) >= 1
+        assert "deprecated" in str(w[0].message).lower()
+    assert str(result) == "/tmp/ea-test-root/.mcp.json"
+
+
+def test_deprecated_workspace_dir_warns():
+    import warnings
+    dp = DataPaths(user_id="tester", ea_root="/tmp/ea-test-root", workspace_id="testws")
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        result = dp.workspace_dir()
+        assert len(w) >= 1
+        assert "deprecated" in str(w[0].message).lower()
+    assert str(result) == "/tmp/ea-test-root/Workspaces/testws/Files"
+
+
+def test_workspace_cache():
+    dp = DataPaths(user_id="tester", ea_root="/tmp/ea-test-root", workspace_id="testws")
+    result = dp.workspace_cache()
+    assert ".file_cache.json" in str(result)
+
+
+def test_versions_dir():
+    dp = DataPaths(user_id="tester", ea_root="/tmp/ea-test-root", workspace_id="testws")
+    result = dp.versions_dir()
+    assert ".versions" in str(result)
+
+
+def test_team_root_none_in_solo():
+    dp = DataPaths(user_id="tester", ea_root="/tmp/ea-test-root")
+    assert dp.team_root is None
+
+
+def test_deprecated_apps_dir_warns():
+    import warnings
+    dp = DataPaths(user_id="tester", ea_root="/tmp/ea-test-root")
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        result = dp.apps_dir()
+        assert len(w) >= 1
+        assert "deprecated" in str(w[0].message).lower()
+    assert str(result) == "/tmp/ea-test-root/Apps"
