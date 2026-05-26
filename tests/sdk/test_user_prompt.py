@@ -13,22 +13,24 @@ class TestUserPromptStorage:
     def test_load_defaults_to_empty_string(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             from src.storage.paths import DataPaths
-            with patch.object(DataPaths, "user_config_dir", return_value=Path(tmpdir)):
+            with patch.object(DataPaths, "user_prompt_path", return_value=Path(tmpdir) / "AGENTS.md"):
                 result = load_user_prompt("test_user")
                 assert result == ""
 
     def test_save_and_load_roundtrip(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             from src.storage.paths import DataPaths
-            with patch.object(DataPaths, "user_config_dir", return_value=Path(tmpdir)):
+            with patch.object(DataPaths, "user_prompt_path", return_value=Path(tmpdir) / "AGENTS.md"):
                 save_user_prompt("test_user", "Always respond as a pirate.")
                 result = load_user_prompt("test_user")
                 assert result == "Always respond as a pirate."
 
     def test_load_nonexistent_file_returns_empty(self):
+        from src.storage.paths import DataPaths
         with tempfile.TemporaryDirectory() as tmpdir:
-            result = load_user_prompt("nonexistent")
-            assert result == ""
+            with patch.object(DataPaths, "user_prompt_path", return_value=Path(tmpdir) / "nonexistent.md"):
+                result = load_user_prompt("nonexistent")
+                assert result == ""
 
 
 class TestUserPromptTools:
@@ -38,7 +40,7 @@ class TestUserPromptTools:
         from src.sdk.tools_core.user_prompt import user_prompt_get
         with tempfile.TemporaryDirectory() as tmpdir:
             from src.storage.paths import DataPaths
-            with patch.object(DataPaths, "user_config_dir", return_value=Path(tmpdir)):
+            with patch.object(DataPaths, "user_prompt_path", return_value=Path(tmpdir) / "AGENTS.md"):
                 result = user_prompt_get.invoke({"user_id": "test_user"})
                 assert "No custom prompt" in result
 
@@ -46,7 +48,7 @@ class TestUserPromptTools:
         from src.sdk.tools_core.user_prompt import user_prompt_get, user_prompt_set
         from src.storage.paths import DataPaths
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch.object(DataPaths, "user_config_dir", return_value=Path(tmpdir)):
+            with patch.object(DataPaths, "user_prompt_path", return_value=Path(tmpdir) / "AGENTS.md"):
                 set_result = user_prompt_set.invoke({
                     "prompt": "Be concise and formal.",
                     "user_id": "test_user",
@@ -59,7 +61,7 @@ class TestUserPromptTools:
         from src.sdk.tools_core.user_prompt import user_prompt_get, user_prompt_set
         from src.storage.paths import DataPaths
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch.object(DataPaths, "user_config_dir", return_value=Path(tmpdir)):
+            with patch.object(DataPaths, "user_prompt_path", return_value=Path(tmpdir) / "AGENTS.md"):
                 user_prompt_set.invoke({"prompt": "Something", "user_id": "u1"})
                 user_prompt_set.invoke({"prompt": "", "user_id": "u1"})
                 result = user_prompt_get.invoke({"user_id": "u1"})
