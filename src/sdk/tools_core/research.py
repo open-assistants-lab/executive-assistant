@@ -136,7 +136,9 @@ def _research_list(
     Returns:
         A formatted list of past experiments.
     """
-    base = Path("data") / "private" / "research" / user_id / workspace_id
+    from src.storage.paths import DataPaths
+
+    base = DataPaths(user_id=user_id, workspace_id=workspace_id).research_dir()
     if not base.exists():
         return "No research experiments found."
 

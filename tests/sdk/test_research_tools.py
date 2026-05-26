@@ -2,7 +2,7 @@
 
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -21,19 +21,22 @@ class TestResearchTools:
 
         assert "No research experiments found" in result
 
-    def test_research_list_with_results(self):
+    @patch("src.storage.paths.DataPaths")
+    def test_research_list_with_results(self, mock_datapaths):
         """research_list reads from existing results.tsv."""
         from src.sdk.tools_core.research import research_list
 
-        base = Path("data") / "private" / "research" / "t_user" / "t_ws"
-        base.mkdir(parents=True, exist_ok=True)
-        tsv = base / "results.tsv"
-        tsv.write_text(
-            "commit\tdirty\tval_metric\tmemory_gb\tstatus\tdescription\n"
-            "abc1234\t0\t0.950000\t0.5\tkeep\tBetter prompt\n"
-        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mock_instance = MagicMock()
+            mock_instance.research_dir.return_value = Path(tmpdir)
+            mock_datapaths.return_value = mock_instance
 
-        try:
+            tsv = Path(tmpdir) / "results.tsv"
+            tsv.write_text(
+                "commit\tdirty\tval_metric\tmemory_gb\tstatus\tdescription\n"
+                "abc1234\t0\t0.950000\t0.5\tkeep\tBetter prompt\n"
+            )
+
             result = research_list.invoke({
                 "user_id": "t_user",
                 "workspace_id": "t_ws",
@@ -42,9 +45,6 @@ class TestResearchTools:
             assert "0.950000" in result
             assert "Better prompt" in result
             assert "keep" in result
-        finally:
-            import shutil
-            shutil.rmtree(base.parent, ignore_errors=True)
 
     def test_format_result(self):
         """_format_result produces expected string."""

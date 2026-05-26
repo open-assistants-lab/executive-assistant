@@ -203,6 +203,13 @@ class ResearchLoop:
                 encoding="utf-8",
             )
 
+    def _git_available(self) -> bool:
+        """Check if the root directory has a .git repo."""
+        from src.storage.paths import DataPaths
+
+        root = DataPaths().root
+        return (root / ".git").exists()
+
     def _is_git_dirty(self) -> bool:
         try:
             import subprocess
