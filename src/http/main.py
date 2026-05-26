@@ -143,6 +143,8 @@ try:
     # Load specs once — shared between config provider and oauth router
     _oauth_specs = ConnectorSpec.from_yaml_dir(_default_spec_dir())
 
+    import os
+
     def _oauth_config(service: str) -> dict[str, str]:
         bridge = ConnectKitBridge("")
         token = bridge.vault.get_token(service) or {}
@@ -150,7 +152,7 @@ try:
             "client_id": token.get("client_id", ""),
             "client_secret": token.get("client_secret", ""),
         }
-        # Fall back to spec default for PKCE (client_id is public)
+        # Fall back to spec default (shipped in YAML)
         if not result["client_id"]:
             spec = next((s for s in _oauth_specs if s.name == service), None)
             if spec:
@@ -158,6 +160,11 @@ try:
                     if f.name == "client_id" and f.default:
                         result["client_id"] = f.default
                         break
+        # Fall back to env vars (for DMG / local .env)
+        if not result["client_id"]:
+            result["client_id"] = os.environ.get("DEFAULT_GWS_CLIENT_ID", "")
+        if not result["client_secret"]:
+            result["client_secret"] = os.environ.get("DEFAULT_GWS_CLIENT_SECRET", "")
         return result
 
     from src.sdk.runner import reset_user_sdk_loops

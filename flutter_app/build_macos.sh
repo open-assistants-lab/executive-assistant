@@ -41,7 +41,20 @@ echo "==> Copying .env template if missing..."
 if [ ! -f "$DATA_DIR/.env" ]; then
   if [ -f "$PROJECT_ROOT/.env.example" ]; then
     cp "$PROJECT_ROOT/.env.example" "$DATA_DIR/.env"
-    echo "  Created $DATA_DIR/.env from template — edit to add your API keys"
+    # Embed OAuth defaults from build environment (set in CI or local .env)
+    if [ -n "${DEFAULT_GWS_CLIENT_ID:-}" ]; then
+      if grep -q "^# DEFAULT_GWS_CLIENT_ID=" "$DATA_DIR/.env"; then
+        sed -i '' "s/^# DEFAULT_GWS_CLIENT_ID=/DEFAULT_GWS_CLIENT_ID=$DEFAULT_GWS_CLIENT_ID/" "$DATA_DIR/.env"
+        echo "  Embedded DEFAULT_GWS_CLIENT_ID from build env"
+      fi
+    fi
+    if [ -n "${DEFAULT_GWS_CLIENT_SECRET:-}" ]; then
+      if grep -q "^# DEFAULT_GWS_CLIENT_SECRET=" "$DATA_DIR/.env"; then
+        sed -i '' "s/^# DEFAULT_GWS_CLIENT_SECRET=/DEFAULT_GWS_CLIENT_SECRET=$DEFAULT_GWS_CLIENT_SECRET/" "$DATA_DIR/.env"
+        echo "  Embedded DEFAULT_GWS_CLIENT_SECRET from build env"
+      fi
+    fi
+    echo "  Created $DATA_DIR/.env — edit to add your API keys"
   elif [ -f "$PROJECT_ROOT/docker/.env.example" ]; then
     cp "$PROJECT_ROOT/docker/.env.example" "$DATA_DIR/.env"
     echo "  Created $DATA_DIR/.env from template — edit to add your API keys"
