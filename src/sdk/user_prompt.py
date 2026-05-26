@@ -2,15 +2,11 @@
 
 from pathlib import Path
 
-from src.storage.paths import get_paths
-
-
-USER_PROMPT_FILENAME = "prompt.txt"
+from src.storage.paths import DataPaths
 
 
 def _user_prompt_path(user_id: str) -> Path:
-    paths = get_paths(user_id)
-    return paths.user_config_dir() / USER_PROMPT_FILENAME
+    return DataPaths(user_id=user_id).user_prompt_path()
 
 
 def load_user_prompt(user_id: str = "default_user") -> str:

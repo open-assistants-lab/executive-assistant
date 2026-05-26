@@ -19,10 +19,12 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+from pathlib import Path
 from typing import Any
 
 from src.app_logging import get_logger
 from src.config import get_settings
+from src.storage.paths import DataPaths
 from src.sdk.loop import AgentLoop
 from src.sdk.messages import Message, StreamChunk
 from src.sdk.middleware_observation import ObservationMiddleware
@@ -81,25 +83,37 @@ def _get_user_prompt_context(user_id: str) -> str:
         return ""
 
 
-def _get_system_prompt(user_id: str, workspace_id: str | None = None) -> str:
-    settings = get_settings()
-    base_prompt = getattr(settings.agent, "system_prompt", "You are a helpful executive assistant.")
+def _ensure_prompt_seeded(user_id: str) -> None:
+    """Seed AGENTS.md from src/prompt_seed/ on first access."""
+    prompt_path = DataPaths(user_id=user_id).user_prompt_path()
+    marker = prompt_path.parent / ".prompt_seeded"
+    if prompt_path.exists() or marker.exists():
+        return
+    seed = Path("src/prompt_seed/AGENTS.md")
+    if seed.exists():
+        prompt_path.parent.mkdir(parents=True, exist_ok=True)
+        prompt_path.write_text(seed.read_text(encoding="utf-8"), encoding="utf-8")
+    marker.write_text("", encoding="utf-8")
 
+
+def _get_system_prompt(user_id: str, workspace_id: str | None = None) -> str:
     w_id = workspace_id or "personal"
 
-    # Inject user prompt (persistent across workspaces)
+    _ensure_prompt_seeded(user_id)
     user_prompt_context = _get_user_prompt_context(user_id)
-
-    # Inject available skills
     skills_context = _get_skills_context(user_id, w_id)
-
-    # Inject workspace context
     workspace_context = _get_workspace_context(workspace_id)
-
-    # Inject connected connector context
     connector_context = _get_connector_context(user_id)
 
-    return base_prompt + user_prompt_context + skills_context + workspace_context + connector_context + f"\n\nuser_id: {user_id}"
+    sections = [
+        user_prompt_context,
+        skills_context,
+        workspace_context,
+        connector_context,
+    ]
+    sections = [s for s in sections if s]
+    body = "\n".join(sections)
+    return body + f"\n\nuser_id: {user_id}"
 
 
 def _get_workspace_context(workspace_id: str | None) -> str:
