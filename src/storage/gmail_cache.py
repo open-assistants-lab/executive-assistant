@@ -83,7 +83,7 @@ class GmailCache:
 
     def __init__(self, user_id: str = "default_user"):
         self.user_id = user_id
-        base_path = get_paths(user_id).gmail_cache()
+        base_path = get_paths(user_id).gmail_cache_dir()
         base_path.mkdir(parents=True, exist_ok=True)
 
         settings = get_settings()
@@ -259,7 +259,7 @@ class GmailCache:
             logger.warning("gmail_attachment_not_found", {"message_id": message_id, "filename": filename})
             return None
 
-        out_dir = Path(output_dir) if output_dir else get_paths(self.user_id).gmail_cache() / "attachments" / message_id
+        out_dir = Path(output_dir) if output_dir else get_paths(self.user_id).gmail_cache_dir() / "attachments" / message_id
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / filename
 

@@ -41,7 +41,7 @@ class SubagentManager:
     def __init__(self, user_id: str):
         self.user_id = user_id
         self.settings = get_settings()
-        self.base_path = get_paths(user_id).subagents_dir()
+        self.base_path = get_paths(user_id).user_subagents_dir()
         self.base_path.mkdir(parents=True, exist_ok=True)
         self._cache: dict[str, Any] = {}
 

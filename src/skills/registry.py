@@ -60,7 +60,7 @@ class SkillRegistry:
         paths = DataPaths(user_id=user_id, workspace_id=workspace_id)
         self.workspace_id = workspace_id
 
-        self.skills_dir = Path(skills_dir) if skills_dir else paths.skills_dir()
+        self.skills_dir = Path(skills_dir) if skills_dir else paths.user_skills_dir()
         self.storage = SkillStorage(self.skills_dir)
 
         if workspace_skills_dir:

@@ -29,7 +29,7 @@ class MCPConfig(BaseModel):
 
 def load_mcp_config(user_id: str) -> MCPConfig | None:
     """Load MCP configuration from user's .mcp.json file."""
-    config_path = get_paths(user_id).mcp_config_path()
+    config_path = get_paths(user_id).user_mcp_config()
     if not config_path.exists():
         return None
 
@@ -44,7 +44,7 @@ def load_mcp_config(user_id: str) -> MCPConfig | None:
 
 def get_config_path(user_id: str) -> Path:
     """Get path to user's MCP config file."""
-    return get_paths(user_id).mcp_config_path()
+    return get_paths(user_id).user_mcp_config()
 
 
 def get_config_mtime(user_id: str) -> float:

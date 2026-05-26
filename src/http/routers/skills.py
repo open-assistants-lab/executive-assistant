@@ -161,7 +161,7 @@ def _get_registry(user_id: str, workspace_id: str):
 def _target_root(user_id: str, workspace_id: str, scope: SkillScope) -> Path:
     try:
         paths = get_paths(user_id, workspace_id=workspace_id)
-        return paths.workspace_skills_dir() if scope == "workspace" else paths.skills_dir()
+        return paths.workspace_skills_dir() if scope == "workspace" else paths.user_skills_dir()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 

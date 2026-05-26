@@ -66,7 +66,7 @@ class UserSkillStorage(SkillStorage):
         else:
             from src.storage.paths import get_paths
 
-            storage_dir = get_paths(user_id).skills_dir()
+            storage_dir = get_paths(user_id).user_skills_dir()
 
         super().__init__(storage_dir)
         self.user_id = user_id

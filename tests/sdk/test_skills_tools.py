@@ -26,9 +26,12 @@ class _FakePaths:
         self._user_skills = user_skills
         self._workspace_skills = workspace_skills
 
-    def skills_dir(self) -> Path:
+    def user_skills_dir(self) -> Path:
         self._user_skills.mkdir(parents=True, exist_ok=True)
         return self._user_skills
+
+    def skills_dir(self) -> Path:
+        return self.user_skills_dir()
 
     def workspace_skills_dir(self) -> Path:
         self._workspace_skills.mkdir(parents=True, exist_ok=True)

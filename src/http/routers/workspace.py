@@ -129,7 +129,7 @@ async def sync_stream(user_id: str = "default_user", workspace_id: str = "person
         paths = get_paths(user_id, workspace_id=workspace_id)
         workspace_path = paths.workspace_files_dir()
 
-        skills_path = get_paths(user_id).skills_dir()
+        skills_path = get_paths(user_id).user_skills_dir()
         subagents_path = get_paths(user_id).subagents_dir()
 
         last_state = {

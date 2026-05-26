@@ -47,11 +47,11 @@ def _resolve_path(path: str | None, user_id: str, workspace_id: str = "personal"
     if path.startswith("/"):
         raise ValueError(f"Use relative paths only. Path: {path}")
 
-    is_skills_path = str(paths.skills_dir()) in path or path.startswith(
+    is_skills_path = str(paths.user_skills_dir()) in path or path.startswith(
         "data/private/skills/"
     )
     if is_skills_path:
-        expected_prefix = str(paths.skills_dir()) + "/"
+        expected_prefix = str(paths.user_skills_dir()) + "/"
         if not (str(Path.cwd() / path).resolve()).startswith(
             expected_prefix
         ) and not path.startswith(expected_prefix):

@@ -240,7 +240,7 @@ def skill_create(
         )
 
     paths = get_paths(user_id, workspace_id=workspace_id)
-    target_root = paths.workspace_skills_dir() if scope == "workspace" else paths.skills_dir()
+    target_root = paths.workspace_skills_dir() if scope == "workspace" else paths.user_skills_dir()
 
     skill_path = target_root / name / "SKILL.md"
 
@@ -299,7 +299,7 @@ def skill_delete(
         return f"Invalid skill name: '{skill_name}'."
 
     paths = get_paths(user_id, workspace_id=workspace_id)
-    target_root = paths.workspace_skills_dir() if scope == "workspace" else paths.skills_dir()
+    target_root = paths.workspace_skills_dir() if scope == "workspace" else paths.user_skills_dir()
     skill_dir = target_root / skill_name
 
     resolved = skill_dir.resolve()

@@ -128,7 +128,7 @@ class MemoryStore:
         if base_dir is not None:
             base_path = Path(base_dir)
         else:
-            base_path = get_paths(user_id).memory_dir()
+            base_path = get_paths(user_id).user_memory_dir()
         base_path.mkdir(parents=True, exist_ok=True)
 
         settings = get_settings()
