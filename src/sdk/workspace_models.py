@@ -123,4 +123,6 @@ def delete_workspace(workspace_id: str, base_path: Path | None = None) -> None:
 
 
 def _default_workspaces_dir() -> Path:
-    return Path.home() / "Executive Assistant" / "Workspaces"
+    from src.storage.paths import DataPaths
+
+    return DataPaths().root / "Workspaces"

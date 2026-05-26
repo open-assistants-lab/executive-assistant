@@ -161,9 +161,10 @@ def _regex_expand_queries(query: str) -> list[str]:
 def _list_workspace_ids(user_id: str) -> list[str]:
     """List workspace IDs that have conversation data for a user."""
     from pathlib import Path as _Path
+    from src.storage.paths import DataPaths
 
     workspace_ids: list[str] = []
-    ws_base = _Path.home() / "Executive Assistant" / "Workspaces"
+    ws_base = DataPaths().root / "Workspaces"
     if not ws_base.exists():
         return workspace_ids
     for entry in sorted(ws_base.iterdir()):
