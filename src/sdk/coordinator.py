@@ -587,9 +587,9 @@ class SubagentCoordinator:
         # 2. User-global fallback
         try:
             from src.storage.paths import DataPaths
-            global_dir = DataPaths(user_id=self.user_id).global_subagents_dir()
-            if global_dir.exists():
-                for d in global_dir.iterdir():
+            user_dir = DataPaths(user_id=self.user_id).user_subagents_dir()
+            if user_dir.exists():
+                for d in user_dir.iterdir():
                     if d.is_dir() and d.name not in seen and (d / "config.yaml").exists():
                         data = yaml.safe_load((d / "config.yaml").read_text()) or {}
                         data.setdefault("disallowed_tools", list(SAFE_DISALLOWED_TOOLS))
@@ -616,9 +616,9 @@ class SubagentCoordinator:
         # 2. User-global fallback (only for defs NOT seen in workspace)
         try:
             from src.storage.paths import DataPaths
-            global_dir = DataPaths(user_id=self.user_id).global_subagents_dir()
-            if global_dir.exists():
-                for d in global_dir.iterdir():
+            user_dir = DataPaths(user_id=self.user_id).user_subagents_dir()
+            if user_dir.exists():
+                for d in user_dir.iterdir():
                     if d.is_dir() and d.name not in seen and (d / "config.yaml").exists():
                         data = yaml.safe_load((d / "config.yaml").read_text()) or {}
                         data.setdefault("disallowed_tools", list(SAFE_DISALLOWED_TOOLS))
@@ -653,15 +653,15 @@ class SubagentCoordinator:
         # 2. User-global fallback
         try:
             from src.storage.paths import DataPaths
-            global_path = DataPaths(user_id=self.user_id).global_subagents_dir() / name / "config.yaml"
-            if global_path.exists():
-                data = yaml.safe_load(global_path.read_text()) or {}
+            user_path = DataPaths(user_id=self.user_id).user_subagents_dir() / name / "config.yaml"
+            if user_path.exists():
+                data = yaml.safe_load(user_path.read_text()) or {}
                 data.setdefault("disallowed_tools", list(SAFE_DISALLOWED_TOOLS))
                 return AgentDef(**data)
         except yaml.YAMLError as e:
             logger.error(
                 "subagent.corrupt_yaml",
-                {"name": name, "path": str(global_path),
+                {"name": name, "path": str(user_path),
                  "error": str(e)},
                 user_id=self.user_id,
             )
