@@ -74,7 +74,12 @@ from src.sdk.tools_core.mcp import (
     mcp_reload,
     mcp_tools,
 )
-from src.sdk.tools_core.memory import memory_search
+from src.sdk.tools_core.memory import memory_profile, memory_reflection
+from src.sdk.tools_core.message import message_count, message_history, message_search
+from src.sdk.tools_core.research import (
+    research_list,
+    research_start,
+)
 from src.sdk.tools_core.shell import shell_execute
 from src.sdk.tools_core.skills import (
     skill_create,
@@ -83,10 +88,6 @@ from src.sdk.tools_core.skills import (
     skills_load,
     skills_search,
     sql_write_query,
-)
-from src.sdk.tools_core.research import (
-    research_list,
-    research_start,
 )
 from src.sdk.tools_core.subagent import (
     subagent_cancel,
@@ -137,12 +138,11 @@ def _register_all() -> None:
     registry.register(files_versions_delete)
     registry.register(files_versions_clean)
 
-    # registry.register(memory_get_history)  # disabled: uses old store
-    registry.register(memory_search)
-    # registry.register(memory_search_all)
-    # registry.register(memory_search_all_workspaces)
-    # registry.register(memory_search_insights)
-    # registry.register(memory_count)
+    registry.register(message_search)
+    registry.register(message_count)
+    registry.register(message_history)
+    registry.register(memory_profile)
+    registry.register(memory_reflection)
 
     registry.register(web_fetch)
     registry.register(web_search)
