@@ -127,7 +127,6 @@ def seed_data() -> None:
 
 
 def run_component_benchmarks(num_runs: int) -> dict:
-    from src.sdk.memory_planner import is_memory_query, plan_memory_query
     from src.sdk.tools_core.apps import get_embedding
     from src.storage.memory import get_memory_store
 
@@ -144,31 +143,16 @@ def run_component_benchmarks(num_runs: int) -> dict:
             get_embedding("What is my current job title and company name")
     results["embedding"] = report_stats("get_embedding (all-MiniLM-L6-v2, 384d)", embed_times)
 
-    # ── 2. is_memory_query guard ──
-    print("  [2/7] is_memory_query guard (regex)...")
-    guard_times: list[float] = []
-    queries = [
-        "What do you remember about my job?",
-        "Hello!",
-        "Search my memory for projects",
-        "What's the weather?",
-        "What are my preferences?",
-    ] * 4
-    for q in queries:
-        with timed("guard", guard_times):
-            is_memory_query(q)
-    results["is_memory_query"] = report_stats("is_memory_query (regex gate)", guard_times)
-
-    # ── 3. get_memory_context (profile summary) ──
-    print("  [3/7] get_memory_context (summary profile)...")
+    # ── 2. get_memory_context (profile summary) ──
+    print("  [2/6] get_memory_context (summary profile)...")
     ctx_times: list[float] = []
     for _ in range(num_runs):
         with timed("context", ctx_times):
             store.get_memory_context(detail_level="summary")
     results["get_memory_context"] = report_stats("get_memory_context (summary)", ctx_times)
 
-    # ── 4. find_facts_for_query ──
-    print("  [4/7] find_facts_for_query (SQLite FTS5 + fallback)...")
+    # ── 3. find_facts_for_query ──
+    print("  [3/6] find_facts_for_query (SQLite FTS5 + fallback)...")
     facts_times: list[float] = []
     fact_queries = [
         "What is my job title",
@@ -181,8 +165,8 @@ def run_component_benchmarks(num_runs: int) -> dict:
             store.find_facts_for_query(q, limit=6)
     results["find_facts"] = report_stats("find_facts_for_query (FTS5 + fallback)", facts_times)
 
-    # ── 5. search_hybrid (ChromaDB + FTS5 + RRF) ──
-    print("  [5/7] search_hybrid (ChromaDB vector + FTS5 + RRF) — MOST EXPENSIVE...")
+    # ── 4. search_hybrid (ChromaDB + FTS5 + RRF) ──
+    print("  [4/6] search_hybrid (ChromaDB vector + FTS5 + RRF) — MOST EXPENSIVE...")
     hybrid_times: list[float] = []
     hybrid_queries = [
         "What programming languages do I use",
@@ -194,8 +178,8 @@ def run_component_benchmarks(num_runs: int) -> dict:
             store.search_hybrid(q, limit=8)
     results["search_hybrid"] = report_stats("search_hybrid (ChromaDB+FTS5+RRF)", hybrid_times)
 
-    # ── 6. Full retrieval pipeline (simulates before_agent) ──
-    print("  [6/7] Full before_agent pipeline (guard + facts + hybrid)...")
+    # ── 5. Full retrieval pipeline ──
+    print("  [5/6] Full retrieval pipeline (facts + hybrid)...")
     pipeline_times: list[float] = []
     pipeline_queries = [
         "What do you remember about my job and preferences?",
@@ -204,15 +188,13 @@ def run_component_benchmarks(num_runs: int) -> dict:
     ] * (num_runs // 3 + 1)
     for q in pipeline_queries[:num_runs]:
         start = time.perf_counter()
-        if is_memory_query(q):
-            plan = plan_memory_query(q)
-            store.find_facts_for_query(q, limit=plan.max_facts)
-            store.search_hybrid(q, limit=8)
+        store.find_facts_for_query(q, limit=6)
+        store.search_hybrid(q, limit=8)
         pipeline_times.append((time.perf_counter() - start) * 1000)
     results["retrieval_pipeline"] = report_stats("Full retrieval pipeline (2 DB queries)", pipeline_times)
 
-    # ── 7. upsert_fact_memory (write path) ──
-    print("  [7/7] upsert_fact_memory (write path)...")
+    # ── 6. upsert_fact_memory (write path) ──
+    print("  [6/6] upsert_fact_memory (write path)...")
     upsert_times: list[float] = []
     upsert_facts = [
         ("user", "favorite_food", "Sushi", "personal"),
@@ -229,8 +211,8 @@ def run_component_benchmarks(num_runs: int) -> dict:
             )
     results["upsert_fact_memory"] = report_stats("upsert_fact_memory (write)", upsert_times)
 
-    # ── 8. journal processing cost ──
-    print("  [8/8] What-if: cost breakdown (embedding = N × HybridDB search)...")
+    # ── 7. journal processing cost ──
+    print("  [7/7] What-if: cost breakdown (embedding = N × HybridDB search)...")
     results["_cost_model"] = {
         "embedding_per_call_ms": statistics.mean(embed_times),
         "hybrid_search_per_call_ms": statistics.mean(hybrid_times),
@@ -277,8 +259,8 @@ async def run_ws_benchmark(num_runs: int) -> dict:
             scenarios = [
                 ("noop_hello", "Hello!", "No-op greeting"),
                 ("memory_injected", "What do you remember about my job title and location?", "Context injection"),
-                ("memory_search", "Search my memory for everything about my preferences", "memory_search tool"),
-                ("memory_history", "What did we discuss in the past 2 weeks?", "memory_get_history tool"),
+                ("message_search", "Search my memory for everything about my preferences", "message_search tool"),
+                ("message_history", "What did we discuss in the past 2 weeks?", "message_history tool"),
             ]
 
             for sid, msg, desc in scenarios:

@@ -80,7 +80,7 @@ async def test_subagent_start():
 async def test_subagent_update():
     results = []
     tests = [
-        ("Update subagent", "Update subagent 'quick-test' to add memory_search to allowed tools"),
+        ("Update subagent", "Update subagent 'quick-test' to add message_search to allowed tools"),
     ]
     for name, query in tests:
         start = time.time()

@@ -39,7 +39,6 @@ from src.sdk.loop import AgentLoop, CostTracker, Interrupt, RunConfig
 from src.sdk.messages import Message, StreamChunk, ToolCall, Usage
 from src.sdk.middleware import Middleware
 from src.sdk.middleware_instruction import InstructionMiddleware
-
 from src.sdk.middleware_progress import ProgressMiddleware
 from src.sdk.middleware_summarization import SummarizationMiddleware
 from src.sdk.providers.base import LLMProvider, ModelCost, ModelInfo

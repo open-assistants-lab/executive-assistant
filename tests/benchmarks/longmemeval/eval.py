@@ -307,7 +307,7 @@ async def evaluate_qa(instances: list[LongMemEvalInstance], max_instances: int |
                 metadatas=metas,
             )
 
-            prompt = f"""Search your conversation history using the memory_search or memory_get_history tools BEFORE answering. Use the question as your search query. Only say "I don't have enough information to answer that" if you have already searched and cannot find the answer.
+            prompt = f"""Search your conversation history using the message_search or message_history tools BEFORE answering. Use the question as your search query. Only say "I don't have enough information to answer that" if you have already searched and cannot find the answer.
 
 Question: {instance.question}"""
 
@@ -333,7 +333,7 @@ Question: {instance.question}"""
             ans_lower = agent_answer.lower().strip()
             is_empty = not ans_lower
             is_idk = "don't have enough information" in ans_lower or "i don't have enough" in ans_lower
-            mentions_search = "search" in ans_lower or "memory_search" in ans_lower or "memory_get_history" in ans_lower
+            mentions_search = "search" in ans_lower or "message_search" in ans_lower or "message_history" in ans_lower
             if not used_memory and mentions_search:
                 used_memory = True
 
@@ -521,10 +521,7 @@ async def evaluate_qa_direct(instances: list[LongMemEvalInstance], max_instances
 
             from src.sdk.providers.factory import create_model_from_config
             from src.sdk.tools_core.observation import run_observer
-            from src.storage.observation import ObservationStore
-
-            obs_store = ObservationStore(user_id)
-            obs_model = create_model_from_config(
+                        obs_model = create_model_from_config(
                 os.environ.get("OBSERVER_MODEL")
                 or os.environ.get("DEFAULT_MODEL")
                 or "openai/gpt-4o"
@@ -535,10 +532,6 @@ async def evaluate_qa_direct(instances: list[LongMemEvalInstance], max_instances
                 print(f"    MemPalace mode: verbatim search, no LLM extraction", flush=True)
                 all_obs = []
             elif extraction_mode == "production":
-                from src.sdk.middleware_memory import MemoryMiddleware
-
-                extracted = MemoryMiddleware.extract_from_messages(texts, user_id)
-                print(f"    Extracted {extracted} memories (production pipeline)", flush=True)
                 all_obs = []
             else:
                 rows = store.db.query("messages", limit=verification_count, order_by="ts ASC")
@@ -560,7 +553,6 @@ async def evaluate_qa_direct(instances: list[LongMemEvalInstance], max_instances
                         pass
 
                 if all_obs:
-                    obs_store.insert_observations(all_obs)
                     print(f"    Observed {len(all_obs)} observations ({chunks} batches)", flush=True)
 
             deduped = _deduplicate_observations(all_obs)
@@ -574,11 +566,11 @@ async def evaluate_qa_direct(instances: list[LongMemEvalInstance], max_instances
             loop = await create_sdk_loop(user_id)
             prompt = (
                 working_memory
-                + f'IMPORTANT: Your user_id is "{user_id}". Use memory_search to find answers.\n\n'
-                + "Working Memory above provides context from past conversations. For exact numbers, dates, names, and places — ALWAYS verify with memory_search.\n\n"
+                + f'IMPORTANT: Your user_id is "{user_id}". Use message_search to find answers.\n\n'
+                + "Working Memory above provides context from past conversations. For exact numbers, dates, names, and places — ALWAYS verify with message_search.\n\n"
                 + "Key strategies:\n"
-                + "- For \"how many/much\" questions: call memory_search multiple times with different keywords for each specific item, then combine the results.\n"
-                + "- For temporal questions (when, how long, how many days between): find the dates with memory_search, then you MUST call time_get() to calculate the interval. Do NOT answer without calculating.\n"
+                + "- For \"how many/much\" questions: call message_search multiple times with different keywords for each specific item, then combine the results.\n"
+                + "- For temporal questions (when, how long, how many days between): find the dates with message_search, then you MUST call time_get() to calculate the interval. Do NOT answer without calculating.\n"
                 + "- For recommendation/preference questions: search for \"like\", \"enjoy\", \"love\", \"prefer\", or \"favorite\" plus the topic.\n"
                 + "- For \"current/latest/after\" questions: search results prioritize recent content -- focus on the most recent.\n\n"
                 + "Only say \"I don't have enough information to answer that\" if you have already searched AND cannot find the answer.\n\n"
@@ -632,7 +624,7 @@ async def evaluate_qa_direct(instances: list[LongMemEvalInstance], max_instances
             ans_lower = agent_answer.lower().strip()
             is_empty = not ans_lower
             is_idk = "don't have enough information" in ans_lower or "i don't have enough" in ans_lower
-            mentions_search = "search" in ans_lower or "memory_search" in ans_lower
+            mentions_search = "search" in ans_lower or "message_search" in ans_lower
             if not used_memory and mentions_search:
                 used_memory = True
 
@@ -880,8 +872,8 @@ Our evaluation methodology:
    This is directly comparable to MemPalace's retrieval recall numbers.
 
 2. QA ACCURACY: We inject all haystack sessions, then ask our agent (running
-   on port 8080) the question. The agent uses its full tool suite (memory_search,
-   memory_get_history, etc.) to answer. GPT-4o judges correctness.
+   on port 8080) the question. The agent uses its full tool suite (message_search,
+   message_history, etc.) to answer. GPT-4o judges correctness.
    This is directly comparable to Mastra's and ASMR's QA accuracy numbers.
 
 3. NO TUNING ON TEST SET: We report results on the full LongMemEval small

@@ -411,7 +411,7 @@ def generate_test_queries(persona: dict, count: int = 10) -> list[str]:
     - files_list, files_read, files_write, files_edit, files_delete
     - files_glob_search, files_grep_search
     - shell_execute
-    - memory_get_history, memory_search
+    - message_history, message_search
     - time_get
     - skills_list, skills_load
     - web_search, web_fetch
@@ -423,7 +423,7 @@ def generate_test_queries(persona: dict, count: int = 10) -> list[str]:
 
     # 100 queries covering ALL features, tools, and middleware
     # Each query may trigger multiple tools
-    # Middleware: SummarizationMiddleware, MemoryMiddleware
+    # Middleware: SummarizationMiddleware
     base_queries = [
         # 1-5: Email operations
         "Connect Gmail account test@gmail.com with password apppassword",

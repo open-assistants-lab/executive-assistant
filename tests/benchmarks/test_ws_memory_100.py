@@ -3,10 +3,9 @@
 Sends 100 memory-related interactions through the WS endpoint and validates:
 1. WS connection stability (no disconnects, reconnects)
 2. Protocol compliance (correct message types received)
-3. Memory tool invocation (agent calls memory_search, memory_get_history, etc.)
+3. Memory tool invocation (agent calls message_search, message_history, etc.)
 4. Memory recall accuracy (agent recalls previously stated facts)
-5. MemoryMiddleware extraction (facts/preferences extracted and re-injected)
-6. Streaming correctness (text_start/delta/end, tool_input_start/end, done)
+5. Streaming correctness (text_start/delta/end, tool_input_start/end, done)
 7. Error handling (no error messages, no hangs)
 
 Usage:
@@ -126,20 +125,20 @@ INTERACTIONS: list[dict[str, str]] = [
     {"cat": "fact_recall", "msg": "What is my parking spot now?", "expect": "recall updated info", "validate": "c-14"},
 
     # ─── Phase 4: Search & History (66-80) ───
-    {"cat": "search_history", "msg": "What have we discussed about my pets?", "expect": "use memory_search", "validate": "milo"},
-    {"cat": "search_history", "msg": "Can you search for conversations about my work?", "expect": "use memory_search", "validate": "google"},
-    {"cat": "search_history", "msg": "What was I saying about allergies?", "expect": "use memory_search", "validate": "peanut"},
-    {"cat": "search_history", "msg": "Search my history for anything about my commute", "expect": "use memory_search", "validate": "caltrain"},
-    {"cat": "search_history", "msg": "What did I tell you about my education?", "expect": "use memory_search", "validate": "stanford"},
-    {"cat": "search_history", "msg": "Get my conversation history from the past week", "expect": "use memory_get_history", "validate": ""},
-    {"cat": "search_history", "msg": "Show me what we talked about recently", "expect": "use memory_get_history", "validate": ""},
-    {"cat": "search_history", "msg": "Find all mentions of my team", "expect": "use memory_search", "validate": "team"},
-    {"cat": "search_history", "msg": "What did I say about my office setup?", "expect": "use memory_search", "validate": "office"},
-    {"cat": "search_history", "msg": "Search for conversations about my birthday", "expect": "use memory_search", "validate": "march"},
-    {"cat": "search_history", "msg": "Look up what we discussed about my diet or food preferences", "expect": "use memory_search", "validate": ""},
-    {"cat": "search_history", "msg": "Find anything about my GitHub account", "expect": "use memory_search", "validate": "alicechen"},
-    {"cat": "search_history", "msg": "What changes have I told you about recently?", "expect": "use memory_search", "validate": "new york"},
-    {"cat": "search_history", "msg": "Review our conversations about my workspace", "expect": "use memory_search", "validate": "standing"},
+    {"cat": "search_history", "msg": "What have we discussed about my pets?", "expect": "use message_search", "validate": "milo"},
+    {"cat": "search_history", "msg": "Can you search for conversations about my work?", "expect": "use message_search", "validate": "google"},
+    {"cat": "search_history", "msg": "What was I saying about allergies?", "expect": "use message_search", "validate": "peanut"},
+    {"cat": "search_history", "msg": "Search my history for anything about my commute", "expect": "use message_search", "validate": "caltrain"},
+    {"cat": "search_history", "msg": "What did I tell you about my education?", "expect": "use message_search", "validate": "stanford"},
+    {"cat": "search_history", "msg": "Get my conversation history from the past week", "expect": "use message_history", "validate": ""},
+    {"cat": "search_history", "msg": "Show me what we talked about recently", "expect": "use message_history", "validate": ""},
+    {"cat": "search_history", "msg": "Find all mentions of my team", "expect": "use message_search", "validate": "team"},
+    {"cat": "search_history", "msg": "What did I say about my office setup?", "expect": "use message_search", "validate": "office"},
+    {"cat": "search_history", "msg": "Search for conversations about my birthday", "expect": "use message_search", "validate": "march"},
+    {"cat": "search_history", "msg": "Look up what we discussed about my diet or food preferences", "expect": "use message_search", "validate": ""},
+    {"cat": "search_history", "msg": "Find anything about my GitHub account", "expect": "use message_search", "validate": "alicechen"},
+    {"cat": "search_history", "msg": "What changes have I told you about recently?", "expect": "use message_search", "validate": "new york"},
+    {"cat": "search_history", "msg": "Review our conversations about my workspace", "expect": "use message_search", "validate": "standing"},
     {"cat": "search_history", "msg": "What do you know about my current situation?", "expect": "synthesize updates", "validate": ""},
 
     # ─── Phase 5: Multi-Turn Complex (81-95) ───

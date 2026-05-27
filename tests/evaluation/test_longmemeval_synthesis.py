@@ -6,7 +6,7 @@ from tests.evaluation.longmemeval_synthesis import (
 )
 
 
-def _event(output: str, tool: str = "memory_search") -> dict:
+def _event(output: str, tool: str = "message_search") -> dict:
     return {"tool": tool, "stage": "end", "output": output}
 
 
@@ -167,7 +167,7 @@ def test_is_only_conversation_echoes_false_with_facts():
     assert not _is_only_conversation_echoes("How many model kits?", text)
 
 
-def test_memory_count_output_ignored():
+def test_message_count_output_ignored():
     answer = synthesize_answer(
         "How many projects have I led or am currently leading?",
         [
@@ -175,7 +175,7 @@ def test_memory_count_output_ignored():
                 "Searched 1 workspace(s): lme_eval_2\n"
                 "Analyzed 164 sessions (164 raw matches)\n"
                 "\nNo distinct items could be identified.",
-                tool="memory_count",
+                tool="message_count",
             )
         ],
     )

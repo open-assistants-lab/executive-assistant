@@ -108,8 +108,9 @@ async def run_observer(
 
     previous_context = ""
     if previous_observations:
+        _medium = "\U0001f7e1"  # 🟡
         prev_text = "\n".join(
-            f"[{o.get('priority', '\U0001f7e1')}] {o.get('observation_ts', '')[:10]}: {o['content']}"
+            f"[{o.get('priority', _medium)}] {o.get('observation_ts', '')[:10]}: {o['content']}"
             for o in previous_observations[-50:]
         )
         previous_context = (

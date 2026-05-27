@@ -105,7 +105,7 @@ async def send_message_details(
 ) -> dict[str, Any]:
     """Send a verbose message and return response plus tool diagnostics."""
     prompted_message = message
-    if "Use memory_search before answering" not in prompted_message:
+    if "Use message_search before answering" not in prompted_message:
         prompted_message = f"{MEMORY_SEARCH_INSTRUCTION}{message}"
     payload = {
         "message": prompted_message,
@@ -164,7 +164,7 @@ async def ingest_sessions_fast(
 
     Import sessions in batches, trigger memory extraction/consolidation
     between batches, so the agent benefits from compressed memory.
-    This matches EA's real-world behavior: conversations trigger MemoryMiddleware
+    This matches EA's real-world behavior: conversations trigger memory
     extraction, and the agent searches memory when asked questions.
     """
     total_turns = 0

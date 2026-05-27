@@ -274,17 +274,31 @@ class TestContactsTools:
 # ─── Memory ───
 
 
-class TestMemoryTools:
-    def test_memory_get_history(self):
-        from src.sdk.tools_core.memory import memory_get_history
+class TestMessageTools:
+    def test_message_history(self):
+        from src.sdk.tools_core.message import message_history
 
-        result = memory_get_history.invoke({"user_id": "test_contract_mem", "days": 1})
+        result = message_history.invoke({"user_id": "test_contract_mem", "days": 1})
         assert isinstance(str(result), str)
 
-    def test_memory_search(self):
-        from src.sdk.tools_core.memory import memory_search
+    def test_message_search(self):
+        from src.sdk.tools_core.message import message_search
 
-        result = memory_search.invoke({"query": "test", "user_id": "test_contract_mem"})
+        result = message_search.invoke({"query": "test", "user_id": "test_contract_mem"})
+        assert isinstance(str(result), str)
+
+
+class TestMemoryTools:
+    def test_memory_profile(self):
+        from src.sdk.tools_core.memory import memory_profile
+
+        result = memory_profile.invoke({"user_id": "test_contract_mem"})
+        assert isinstance(str(result), str)
+
+    def test_memory_reflection(self):
+        from src.sdk.tools_core.memory import memory_reflection
+
+        result = memory_reflection.invoke({"query": "test", "user_id": "test_contract_mem"})
         assert isinstance(str(result), str)
 
 

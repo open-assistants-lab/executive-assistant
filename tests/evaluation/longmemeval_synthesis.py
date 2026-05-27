@@ -57,7 +57,7 @@ def _collect_tool_text(tool_events: list[dict]) -> str:
         output = str(e.get("output", ""))
         if not output.strip():
             continue
-        if tool == "memory_count":
+        if tool == "message_count":
             continue
         call_id = e.get("call_id", "")
         dedup_key = f"{tool}:{call_id}:{output[:200]}"

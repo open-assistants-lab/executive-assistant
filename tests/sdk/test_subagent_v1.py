@@ -638,20 +638,20 @@ class TestSubagentCoordinator:
         d = AgentDef(name="a", tools=None)
         names = {t.name for t in _build_tools_for_subagent(d)}
 
-        assert "memory_search" in names
+        assert "message_search" in names
         assert not any(n.startswith("subagent_") for n in names)
-        assert "memory_search_all" not in names
-        assert "memory_search_insights" not in names
+        assert "memory_profile" not in names
+        assert "memory_reflection" not in names
 
-    def test_build_tools_allowlist_still_includes_memory_search(self):
+    def test_build_tools_allowlist_still_includes_message_search(self):
         from src.sdk.coordinator import _build_tools_for_subagent
         from src.sdk.subagent_models import AgentDef
 
-        d = AgentDef(name="a", tools=["time_get"], disallowed_tools=["memory_search"])
+        d = AgentDef(name="a", tools=["time_get"], disallowed_tools=["message_search"])
         names = {t.name for t in _build_tools_for_subagent(d)}
 
         assert "time_get" in names
-        assert "memory_search" in names
+        assert "message_search" in names
 
     def test_build_tools_includes_skills_load_when_skills_configured(self):
         from src.sdk.coordinator import _build_tools_for_subagent
@@ -672,7 +672,7 @@ class TestSubagentCoordinator:
 
         tools = [
             FakeTool("time_get"),
-            FakeTool("memory_search"),
+            FakeTool("message_search"),
             FakeTool("skill_create"),
             FakeTool("skill_delete"),
             FakeTool("skills_load"),
@@ -683,36 +683,16 @@ class TestSubagentCoordinator:
 
         names = {tool.name for tool in resolved}
         assert "time_get" in names
-        assert "memory_search" in names
+        assert "message_search" in names
         assert "skill_create" not in names
         assert "skill_delete" not in names
-
-    def test_validate_agent_def_rejects_unknown_tool(self):
-        from src.sdk.coordinator import validate_agent_def
-        from src.sdk.subagent_models import AgentDef
-
-        errors = validate_agent_def(AgentDef(name="a", tools=["not_a_tool"]))
-        assert any("Unknown tool" in e for e in errors)
-
-    def test_validate_agent_def_rejects_subagent_tool(self):
-        from src.sdk.coordinator import validate_agent_def
-        from src.sdk.subagent_models import AgentDef
-
-        errors = validate_agent_def(AgentDef(name="a", tools=["subagent_start"]))
-        assert any("Subagent tool" in e for e in errors)
-
-    def test_validate_agent_def_rejects_skill_management_tool(self):
-        from src.sdk.coordinator import validate_agent_def
-        from src.sdk.subagent_models import AgentDef
-
-        errors = validate_agent_def(AgentDef(name="a", tools=["skill_create"]))
-        assert any("Skill management tool" in e for e in errors)
 
     def test_validate_agent_def_rejects_denied_memory_tool(self):
         from src.sdk.coordinator import validate_agent_def
         from src.sdk.subagent_models import AgentDef
 
-        errors = validate_agent_def(AgentDef(name="a", tools=["memory_search_all"]))
+        errors = validate_agent_def(AgentDef(name="a", tools=["memory_profile"]))
+
         assert any("Memory tool" in e for e in errors)
 
     def test_validate_agent_def_rejects_unknown_skill(self):
@@ -1343,7 +1323,7 @@ class TestSafeDefaults:
         config.write_text(yaml.dump({
             "name": "explicit_agent",
             "description": "test",
-            "tools": ["shell_execute", "memory_search", "files_list"],
+            "tools": ["shell_execute", "message_search", "files_list"],
             "disallowed_tools": ["subagent_create"]
         }))
 

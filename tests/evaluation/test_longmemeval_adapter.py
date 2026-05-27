@@ -26,10 +26,10 @@ class _FakeAgentResponse:
         self.status = status
         self._body = body or {
             "response": "ok",
-            "tool_calls": [{"name": "memory_search"}],
+            "tool_calls": [{"name": "message_search"}],
             "verbose_data": {
                 "tool_events": [
-                    {"type": "tool_result", "name": "memory_search", "content": "hit"}
+                    {"type": "tool_result", "name": "message_search", "content": "hit"}
                 ]
             },
         }
@@ -128,11 +128,11 @@ async def test_send_message_can_return_verbose_details():
     )
 
     assert session.payload["verbose"] is True
-    assert "Use memory_search before answering" in session.payload["message"]
+    assert "Use message_search before answering" in session.payload["message"]
     assert result["response"] == "ok"
     assert result["http_status"] == 200
     assert result["error"] is None
-    assert result["tool_calls"] == [{"name": "memory_search"}]
+    assert result["tool_calls"] == [{"name": "message_search"}]
     assert result["tool_events"][0]["content"] == "hit"
 
 
@@ -192,8 +192,8 @@ async def test_run_single_question_records_debug_fields(monkeypatch):
     ):
         return {
             "response": "answer",
-            "tool_calls": [{"name": "memory_search"}],
-            "tool_events": [{"name": "memory_search", "content": "snippet"}],
+            "tool_calls": [{"name": "message_search"}],
+            "tool_events": [{"name": "message_search", "content": "snippet"}],
             "http_status": 200,
             "error": None,
             "raw_body": "",
@@ -221,8 +221,8 @@ async def test_run_single_question_records_debug_fields(monkeypatch):
     assert result["workspace_id"] == "lme_eval_3"
     assert result["scorer"] == "fuzzy"
     assert result["agent_response_full"] == "answer"
-    assert result["tool_calls"] == [{"name": "memory_search"}]
-    assert result["tool_events"] == [{"name": "memory_search", "content": "snippet"}]
+    assert result["tool_calls"] == [{"name": "message_search"}]
+    assert result["tool_events"] == [{"name": "message_search", "content": "snippet"}]
     assert result["http_status"] == 200
     assert result["error"] is None
 
@@ -237,10 +237,10 @@ async def test_run_single_question_uses_deterministic_synthesis(monkeypatch):
     ):
         return {
             "response": "Found 10 conversation matches:\n- raw search output",
-            "tool_calls": [{"name": "memory_search"}],
+            "tool_calls": [{"name": "message_search"}],
             "tool_events": [
                 {
-                    "tool": "memory_search",
+                    "tool": "message_search",
                     "stage": "end",
                     "output": "Model kits mentioned: 1. Gundam 2. Spitfire 3. Titanic",
                 }

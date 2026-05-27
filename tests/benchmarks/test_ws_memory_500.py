@@ -483,7 +483,7 @@ def _build_interactions() -> list[dict[str, str]]:
         ("Find my current direct reports", "aisha"),
     ]
     for q, v in search_qs:
-        interactions.append({"cat": "search_history", "msg": q, "expect": "use memory_search", "validate": v})
+        interactions.append({"cat": "search_history", "msg": q, "expect": "use message_search", "validate": v})
 
     # Phase 5: Preference questions (311-370)
     preference_qs = [

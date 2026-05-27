@@ -75,7 +75,7 @@ async def test_verbose_message_reports_tool_call_when_start_name_arrives_late(mo
 
     async def fake_stream(**kwargs):
         yield StreamChunk.tool_input_start("", "call_1")
-        yield StreamChunk.tool_result_event("memory_search", "call_1", "found memory")
+        yield StreamChunk.tool_result_event("message_search", "call_1", "found memory")
 
     monkeypatch.setattr(conversation_router, "get_message_store", lambda *args, **kwargs: store)
     monkeypatch.setattr(conversation_router, "run_sdk_agent_stream", fake_stream)
@@ -84,7 +84,7 @@ async def test_verbose_message_reports_tool_call_when_start_name_arrives_late(mo
         MessageRequest(message="Search memory", user_id="u", verbose=True)
     )
 
-    assert result.tool_calls == [{"name": "memory_search", "tool_call_id": "call_1"}]
+    assert result.tool_calls == [{"name": "message_search", "tool_call_id": "call_1"}]
 
 
 @pytest.mark.asyncio
