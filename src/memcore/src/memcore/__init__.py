@@ -15,7 +15,7 @@ Usage:
 """
 
 from memcore.core import MemoryCore
-from memcore.types import Memory, SearchResult, SearchQuery
 from memcore.heuristics import SearchHeuristics
+from memcore.types import Memory, SearchQuery, SearchResult
 
 __all__ = ["MemoryCore", "Memory", "SearchResult", "SearchQuery", "SearchHeuristics"]

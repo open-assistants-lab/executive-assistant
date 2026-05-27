@@ -1,0 +1,122 @@
+---
+import LandingLayout from "../layouts/LandingLayout.astro";
+import Nav from "../components/Nav.astro";
+import Footer from "../components/Footer.astro";
+---
+
+<LandingLayout>
+  <Nav />
+  <main class="legal">
+    <h1>Privacy Policy</h1>
+    <p class="legal-meta"><strong>Open Assistants Lab</strong> &middot; Last updated: 26 May 2026</p>
+
+    <section>
+      <h2>Information We Collect</h2>
+      <p><strong>Website (Google Analytics).</strong> When you visit openassistants.org, we use Google Analytics to collect page views, referrer information, browser and device details, and anonymized IP addresses. This helps us understand how the site is used and improve it.</p>
+      <p><strong>Executive Assistant software.</strong> If you choose to share troubleshooting data, we may collect diagnostic information such as logs and crash reports. You control whether this data is sent. Executive Assistant does not collect or transmit your personal content, conversations, files, or data by default.</p>
+    </section>
+
+    <section>
+      <h2>How We Use Information</h2>
+      <p>We use the information we collect to:</p>
+      <ul>
+        <li>Improve the website and software</li>
+        <li>Understand aggregated usage patterns</li>
+        <li>Fix bugs and troubleshoot issues</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Information We Do Not Collect or Share</h2>
+      <p>Executive Assistant does not transmit your data to any third party beyond the LLM provider you explicitly configure and connect to. You choose your own provider and manage your own API keys.</p>
+      <p>We do not sell, rent, or trade personal information. Your conversations, files, email, and contacts remain on your machine.</p>
+    </section>
+
+    <section>
+      <h2>Cookies</h2>
+      <p>Google Analytics uses cookies to distinguish users. You can opt out of Google Analytics by installing the <a href="https://tools.google.com/dlpage/gaoptout">Google Analytics Opt-Out Browser Add-on</a>.</p>
+    </section>
+
+    <section>
+      <h2>Your Rights</h2>
+      <p>Under the Australian Privacy Act, you have the right to:</p>
+      <ul>
+        <li>Access personal information we hold about you</li>
+        <li>Request correction of inaccurate information</li>
+        <li>Request deletion of your information</li>
+      </ul>
+      <p>To exercise these rights, contact us at <a href="mailto:eddy@openassistants.org">eddy@openassistants.org</a>.</p>
+    </section>
+
+    <section>
+      <h2>Complaints</h2>
+      <p>If you are unsatisfied with our response to a privacy concern, you may lodge a complaint with the <a href="https://www.oaic.gov.au">Office of the Australian Information Commissioner (OAIC)</a>.</p>
+    </section>
+
+    <section>
+      <h2>Changes to This Policy</h2>
+      <p>We may update this policy from time to time. Changes will be posted on this page.</p>
+    </section>
+
+    <section>
+      <h2>Contact</h2>
+      <p><strong>Open Assistants Lab</strong><br />
+      <a href="mailto:eddy@openassistants.org">eddy@openassistants.org</a></p>
+      <p>This policy is governed by the laws of New South Wales, Australia.</p>
+    </section>
+  </main>
+  <Footer />
+</LandingLayout>
+
+<style>
+  .legal {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 48px 32px 64px;
+  }
+  .legal h1 {
+    font-size: 32px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--ea-text-primary);
+    margin: 0 0 4px;
+  }
+  .legal-meta {
+    font-size: 13px;
+    color: var(--ea-text-tertiary);
+    margin: 0 0 40px;
+  }
+  .legal section {
+    margin-bottom: 32px;
+  }
+  .legal section:last-child {
+    margin-bottom: 0;
+  }
+  .legal h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--ea-text-primary);
+    margin: 0 0 12px;
+    letter-spacing: -0.011em;
+  }
+  .legal p, .legal li {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--ea-text-secondary);
+    margin: 0 0 8px;
+  }
+  .legal ul {
+    margin: 0 0 8px;
+    padding-left: 20px;
+  }
+  .legal li {
+    margin-bottom: 4px;
+  }
+  .legal a {
+    color: var(--ea-accent);
+    text-decoration: none;
+  }
+  .legal a:hover {
+    text-decoration: underline;
+  }
+</style>

@@ -6,7 +6,7 @@ GET  /emails/search?q=...  — hybrid search
 POST /emails/sync          — trigger sync from Gmail/Outlook
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
 from src.storage.email_db import (
     count_emails,

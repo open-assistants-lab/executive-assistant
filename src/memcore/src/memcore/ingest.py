@@ -7,10 +7,10 @@ and attach metadata (role, session_id).
 No fact extraction. No summarization. No LLM calls.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from memcore.types import Memory
 from memcore.backends.base import StoreBackend
+from memcore.types import Memory
 
 
 def ingest_message(
@@ -39,7 +39,7 @@ def ingest_message(
         id="",
         content=content,
         role=role,
-        ts=ts or datetime.now(timezone.utc),
+        ts=ts or datetime.now(UTC),
         session_id=session_id,
     )
     return backend.ingest(memory)

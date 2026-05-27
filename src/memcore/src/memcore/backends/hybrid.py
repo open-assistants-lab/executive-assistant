@@ -13,7 +13,7 @@ import json
 from datetime import datetime
 
 from memcore.backends.base import StoreBackend
-from memcore.types import Memory, SearchResult, SearchQuery
+from memcore.types import Memory, SearchQuery, SearchResult
 
 
 class HybridBackend(StoreBackend):
@@ -85,7 +85,6 @@ class HybridBackend(StoreBackend):
         return ids
 
     def search(self, query: SearchQuery) -> list[SearchResult]:
-        import re
 
         try:
             from hybriddb import SearchMode

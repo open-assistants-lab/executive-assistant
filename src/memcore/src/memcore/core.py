@@ -3,11 +3,11 @@
 Wraps any StoreBackend with heuristics, wake-up context, and ingestion.
 """
 
-from memcore.types import Memory, SearchResult, SearchQuery
 from memcore.backends.base import StoreBackend
 from memcore.heuristics import SearchHeuristics
+from memcore.ingest import ingest_batch, ingest_message
 from memcore.layers import WakeUpContext
-from memcore.ingest import ingest_message, ingest_batch
+from memcore.types import SearchQuery, SearchResult
 
 
 class MemoryCore:

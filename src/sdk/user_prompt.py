@@ -19,7 +19,6 @@ def load_user_prompt(user_id: str = "default_user") -> str:
 
 def save_user_prompt(user_id: str, prompt: str) -> None:
     """Save the user's custom prompt to disk (atomic write via temp file + rename)."""
-    import tempfile
 
     path = _user_prompt_path(user_id)
     path.parent.mkdir(parents=True, exist_ok=True)

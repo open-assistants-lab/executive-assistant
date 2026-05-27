@@ -6,7 +6,7 @@ at data/users/{user_id}/email/app.db.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 def _get_db(user_id: str):
@@ -59,7 +59,7 @@ def store_emails(user_id: str, emails: list[dict], account: str = "default") -> 
             "subject": email.get("subject", ""),
             "body": email.get("body", ""),
             "snippet": email.get("snippet", ""),
-            "received_at": email.get("received_at", datetime.now(timezone.utc).isoformat()),
+            "received_at": email.get("received_at", datetime.now(UTC).isoformat()),
             "is_read": 1 if email.get("is_read") else 0,
             "labels": ",".join(email.get("labels", [])),
             "thread_id": email.get("thread_id", ""),

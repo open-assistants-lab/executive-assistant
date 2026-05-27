@@ -35,11 +35,13 @@ FILE_MAP = [
     ("todos", "Todos"),
     ("companion", "Companion"),
     ("apps", "Apps"),
+    ("connectkit", "ConnectKit"),
+    ("agent_connect", "AgentConnect"),
     (".mcp.json", ".mcp.json"),
 ]
 
 RESEARCH_SOURCE = DATA_PATH / "private" / "research"
-RESEARCH_DEST = EA_ROOT / "Research"
+RESEARCH_DEST = EA_ROOT / "Research" / "default_user" / "personal"
 
 WS_SUBDIR_MAP = [
     ("skills", "Skills"),
@@ -72,22 +74,54 @@ def migrate_user(user_id, is_dry_run):
         if not src.exists():
             continue
         dst = EA_ROOT / rel_dst
-        if dst.exists() and is_dry_run:
-            dry_run(f"SKIP {rel_src} → {rel_dst} (destination exists)")
+        if not dst.exists():
+            do_move(src, dst, is_dry_run)
             continue
-        if not is_dry_run and dst.exists():
-            print(f"  ⚠ SKIP {rel_src} → {rel_dst} (destination exists)")
+        # Destination exists — merge contents
+        if is_dry_run:
+            dry_run(f"MERGE {rel_src} → {rel_dst} (destination exists, merging)")
             continue
-        do_move(src, dst, is_dry_run)
+        _merge_into(src, dst, f"      {rel_src}")
+        _remove_tree(src)
+        print(f"  ✓ merged {rel_src} → {rel_dst}")
+
+
+def _merge_into(src: Path, dst: Path, label: str = ""):
+    """Merge src contents into dst. Files: copy, overwriting. Dirs: recurse."""
+    if src.is_file():
+        shutil.copy2(str(src), str(dst))
+        return
+    if not src.is_dir():
+        return
+    dst.mkdir(parents=True, exist_ok=True)
+    for child in src.iterdir():
+        child_dst = dst / child.name
+        if child.is_dir():
+            _merge_into(child, child_dst, f"{label}/{child.name}")
+        else:
+            shutil.copy2(str(child), str(child_dst))
+
+
+def _remove_tree(path: Path):
+    """Remove a file or directory tree."""
+    if path.is_file():
+        path.unlink()
+    elif path.is_dir():
+        shutil.rmtree(str(path))
 
 
 def migrate_research(is_dry_run):
     if not RESEARCH_SOURCE.exists():
         return
-    if RESEARCH_DEST.exists():
-        print(f"  ⚠ SKIP research → Research (destination exists)")
+    if not RESEARCH_DEST.exists():
+        do_move(RESEARCH_SOURCE, RESEARCH_DEST, is_dry_run)
         return
-    do_move(RESEARCH_SOURCE, RESEARCH_DEST, is_dry_run)
+    if is_dry_run:
+        dry_run(f"MERGE research → Research/default_user/personal")
+        return
+    _merge_into(RESEARCH_SOURCE, RESEARCH_DEST, "      research")
+    _remove_tree(RESEARCH_SOURCE)
+    print(f"  ✓ merged research → Research/default_user/personal")
 
 
 def migrate_workspace_subdirs(is_dry_run):

@@ -4,7 +4,6 @@ import os
 import shutil
 
 import pytest
-
 from memcore.types import Memory, SearchQuery
 
 

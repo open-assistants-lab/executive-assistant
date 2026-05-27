@@ -6,7 +6,7 @@ import json
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
 from src.app_logging import get_logger

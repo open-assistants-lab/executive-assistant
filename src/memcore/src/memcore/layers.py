@@ -9,7 +9,6 @@ L2: On-Demand   — session-specific context (~200-500 chars, on detect)
 L3: Deep Search — full hybrid/semantic search (per explicit query)
 """
 
-from memcore.types import Memory, SearchResult
 from memcore.backends.base import StoreBackend
 from memcore.heuristics import SearchHeuristics
 

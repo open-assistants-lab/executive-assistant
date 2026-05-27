@@ -1,8 +1,8 @@
 """User prompt tools — per-user custom instructions across all workspaces."""
 
+from src.app_logging import get_logger
 from src.sdk.tools import ToolAnnotations, tool
 from src.sdk.user_prompt import load_user_prompt, save_user_prompt
-from src.app_logging import get_logger
 
 logger = get_logger()
 

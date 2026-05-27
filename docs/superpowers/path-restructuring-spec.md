@@ -43,6 +43,46 @@ Everything user-level moves to `~/Executive Assistant/`.
 
 ---
 
+## Stage Scope
+
+This design spans two implementation stages. The spec documents the full
+target architecture; Stage 1 builds the solo subset only.
+
+### Stage 1 — Solo Mode
+
+*What gets built now.* Everything a single-user desktop app needs.
+
+- Single root `~/Executive Assistant/` with one `.git`
+- `DataPaths` with `root` property + `ea_root` config
+- User-scoped and workspace-scoped methods only (no team methods)
+- Workspace subdirs renamed lowercase → uppercase
+- Migration script: `data/users/{id}/` → `~/Executive Assistant/`
+- Git init + `.gitignore` at root
+- Prompt seeding from `src/prompt_seed/AGENTS.md`
+- AGENTS.md replaces `settings.agent.system_prompt`
+- Consolidate 3 hardcoded `Workspaces/` path references into `DataPaths`
+
+**Skipped in Stage 1** (spec-only, implemented when multi-tenant is built):
+- Team root, team-scoped methods, team path resolution
+- `PROMPT_ORDER` / resequencable injection
+- Team scope in context injection
+- UUID workspaces (slug IDs stay)
+- `ea_team_root` setting
+
+### Stage 2 — Multi-Tenant
+
+*What the spec describes but implements later.* Docker containers per user
+with shared team volumes.
+
+- `ea_team_root` setting + `DataPaths.team_root` property
+- Team-scoped DataPaths methods
+- Full scope resolution (user → workspace → team)
+- `PROMPT_ORDER` for resequencable injection
+- UUID workspaces (ships with Stage 2, safe to defer since no team/user
+  workspace name collisions exist yet)
+
+---
+
 ## 1. Directory Layout
 
 ### Solo mode (desktop / single-user container)
@@ -103,12 +143,13 @@ Shared team volume (configurable: /mnt/ea-teams/{team_id}/ or ~/Executive Assist
 ├── Memory/
 ├── Workspaces/
 │   └── {workspace_id}/
-│       ├── Skills/
-│       ├── Subagents/
-│       ├── Files/
-│       ├── Memory/
+│       ├── Skills/        # ⬆ upper
+│       ├── Subagents/     # ⬆ upper
+│       ├── Files/         # ⬆ upper
+│       ├── Memory/        # ⬆ upper
 │       ├── conversation.app.db
 │       └── .mcp.json
+├── config.yaml
 └── .mcp.json
 ```
 
@@ -131,32 +172,53 @@ Same as solo mode — each container gets its own `~/Executive Assistant/`. Team
 
 Resolution priority for all scoped lookups: **user → workspace → team** (workspace overrides user by name, team overrides workspace by name).
 
-### UUID Workspaces
+### Decision: UUID vs Slug Workspace IDs
 
-Workspace `id` switches from slugified name to UUID:
+**Slug ID** (current): `from_name("My Project")` → `id="my-project"`,
+directory at `Workspaces/my-project/`.
+
+**UUID ID** (proposed): `from_name("My Project")` → `id="a1b2c3d4-..."`,
+directory at `Workspaces/a1b2c3d4-.../`.
+
+| Concern | Slug | UUID |
+|---------|------|------|
+| Rename stability | Rename moves directory path | Path never changes |
+| Collision across scopes | Team could have `my-project` same as user (same dir) | UUIDs globally unique |
+| Human readability | `my-project` is obvious | Opaque hex string |
+| Debuggability | Logs show `ws=my-project`, clear | Logs show `ws=a1b2c3d4-...`, need lookup |
+| LLM UX | LLM uses `id` for tools, `name` for display | Same pattern needed either way |
+| Implementation cost | Already done | New ID generation, migration of existing IDs |
+
+**Decision:** Defer UUIDs to Stage 2 (multi-tenant). Reasons:
+
+1. **Stage 1 has no teams** — the collision problem doesn't exist yet.
+2. **Existing workspaces have slug IDs** — migrating them to UUIDs adds
+   rename indirection with no current benefit. They can keep their slug IDs;
+   UUID generation kicks in for new workspaces created after Stage 2 ships.
+3. **Slug IDs are already stable on rename** for the solo case — the slug
+   `my-project` doesn't change when the user renames to "My Big Project"
+   (slug is derived from the original name at creation). Only the display
+   name changes.
+4. **When Stage 2 ships**, UUIDs prevent team/user collision. New workspaces
+   get UUIDs; existing slug-ID workspaces keep theirs (no collision if team
+   workspaces all use UUIDs).
 
 ```python
 @dataclass
 class Workspace:
-    id: str            # UUID, set at creation (never changes)
-    name: str          # User-friendly, can be renamed
-    description: str = ""
-    prompt: str = ""
-    model_override: str | None = None
-    created_at: str = ""
-    updated_at: str = ""
+    id: str            # UUID in Stage 2, slug in Stage 1
+    name: str
+    ...
 
     @classmethod
     def from_name(cls, name: str) -> Workspace:
-        import uuid
-        return cls(id=str(uuid.uuid4()), name=name.strip(), ...)
+        # Slug in Stage 1; UUID in Stage 2
+        ws_id = _generate_workspace_id(name)
+        return cls(id=ws_id, name=name.strip(), ...)
 ```
 
-**Implications:**
-- Directory path `~/EA/Workspaces/{uuid}/` — never changes on rename
-- No collisions between user and team workspaces
-- Existing workspaces with slug IDs keep their IDs (backward compat)
-- LLM never shows UUIDs to users — `workspace_list` returns `{name, id}`, LLM uses `id` internally
+**LLM never shows UUIDs to users** regardless — `workspace_list` returns
+`{name, id}`, LLM uses `id` internally.
 
 ### Context Injection Order (Configurable)
 
@@ -166,7 +228,7 @@ New assembly (default order):
 1. **User Prompt** — `## User Instructions\n{~/EA/AGENTS.md}` (seeded from `src/prompt_seed/AGENTS.md` on first run)
 2. **User Skills** — skill descriptions from `~/EA/Skills/`
 3. **Workspace Prompt** — `## Workspace Instructions\n{ws.prompt}`
-4. **Workspace Skills** — skill descriptions from `~/EA/Workspaces/{uuid}/Skills/`
+ 4. **Workspace Skills** — skill descriptions from `~/EA/Workspaces/{workspace_id}/Skills/`
 5. **Team Prompt** — `## Team Instructions\n{team_root/AGENTS.md}`
 6. **Team Skills** — skill descriptions from `{team_root}/Skills/`
 7. **Team Workspace Prompt** — `## Team Workspace Instructions\n{team_ws.prompt}`
@@ -245,7 +307,7 @@ def team_root(self) -> Path | None:
 |---|---|---|
 | `user_prompt_path()` | `root / "AGENTS.md"` | `_user_base() / config/prompt.txt` |
 | `user_skills_dir()` | `root / "Skills"` | `skills_dir()` (solo path) |
-| `user_subagents_dir()` | `root / "Subagents"` | `global_subagents_dir()` + `subagents_dir()` |
+| `user_subagents_dir()` | `root / "Subagents"` | `subagents_dir()` |
 | `user_memory_dir()` | `root / "Memory" / "global"` | `global_memory_dir()` |
 | `email_dir()` | `root / "Email"` | `_user_base() / email` |
 | `email_db()` | `root / "Email" / "emails.db"` | `_user_base() / email / emails.db` |
@@ -326,9 +388,9 @@ def versions_dir(self) -> Path:            # stays dotted
 |---|---|
 | `_user_base()` | `data/users/{id}/` goes away |
 | `user_dir` | Replaced by `root` |
-| `skills_dir()` | Split into `user_skills_dir()` / `team_skills_dir()` |
-| `global_skills_dir()` | Same as skills_dir, no clearer |
-| `global_subagents_dir()` | Replaced by `user_subagents_dir()` |
+| `skills_dir()` | Replaced by `user_skills_dir()` (no mode conditional — always `root / "Skills"`) |
+| `global_skills_dir()` | Same as skills_dir |
+| `global_subagents_dir()` | Removed. Coordinator uses `user_subagents_dir()` directly — no `global/` subdirectory |
 | `global_memory_dir()` | Replaced by `user_memory_dir()` / `team_memory_dir()` |
 | `subagents_dir()` | Replaced by `user_subagents_dir()` |
 | `agent_defs_dir()` | Dead code (never called) |
@@ -365,13 +427,33 @@ gmail_cache/
 *.log
 ```
 
-`git init` happens once at `~/Executive Assistant/` on first `DataPaths` access in solo mode. `ResearchLoop` checks for `.git` — if absent (team volume, server-side), falls back to in-memory backup.
+`git init` happens once at `~/Executive Assistant/` on first `DataPaths` access in solo mode.
+
+`ResearchLoop` detects git at `DataPaths.root / ".git"`:
+- `.git` exists → use branch isolation for experiments
+- No `.git` (team volume, server-side) → fall back to in-memory backup
+
+The hardcoded `Path("data") / "private" / "research"` in `research.py` is replaced with `DataPaths.research_dir()` (`~/Executive Assistant/Research/`).
 
 ---
 
 ## 5. Migration
 
-One-shot script, gated by `~/.ea_migrated` marker:
+One-shot script, gated by `~/.ea_migrated` marker.
+
+**Context:** There is no production deployment yet — no solo users, no team
+deployments. The migration is for the developer's own environment only.
+If the script fails, clean up and re-run. No rollback plan needed.
+
+### Guardrails
+
+| Guard | Why |
+|-------|-----|
+| **Dry-run mode** (`--dry-run`) | Prints what would move without touching disk — verify before committing |
+| **Resume marker** | If the script crashes mid-migration, the `.ea_migrated` marker is NOT written. Re-running skips already-moved items |
+| **macOS case-insensitive FS rename** | `mv skills Skills` is a no-op. Script uses `mv skills Skills.tmp && mv Skills.tmp Skills` to force the rename through |
+
+### File Map
 
 ```
 data/users/{id}/config/prompt.txt         →  ~/Executive Assistant/AGENTS.md
@@ -393,24 +475,45 @@ data/private/research/                    →  ~/Executive Assistant/Research/
 ~/EA/Workspaces/{id}/memory/               →  ~/EA/Workspaces/{id}/Memory/
 ```
 
-Left in place (not moved): `data/teams/{id}/` — these become `{team_root}/{id}/` on the server side. Solo users don't have teams yet.
+Left in place (not moved): `data/teams/{id}/` — these become `{team_root}/{id}/`
+on the server side. Solo users don't have teams yet.
 
-After migration, `data/users/{id}/` and `data/private/` are empty and safe to remove.
+After migration, `data/users/{id}/` and `data/private/` are empty and safe to
+remove.
 
 ---
 
 ## 6. Implementation Order
 
-1. Update `DataPaths` with new root-based path resolution, old-method backward compat
-2. Consolidate the 3 hardcoded `Workspaces/` path references
-3. Write migration script
-4. Update all callers (coordinator, runner, tools, HTTP routers)
-5. Add `.gitignore` + `git init` to solo mode
-6. Update `ResearchLoop` to detect git and use branches
-7. Fix `research.py` hardcoded `data/private/research/` path
-8. Add `ea_root` and `ea_team_root` to settings
-9. Update tests
-10. Run full test suite
+### Stage 1 (Solo Mode)
+
+1. Add `ea_root` to settings (default: `~/Executive Assistant/`)
+2. Update `DataPaths` — add `root` property, new user-scoped methods, old-method deprecation wrappers
+3. Consolidate 3 hardcoded `Workspaces/` path references into `DataPaths.root / "Workspaces"`
+4. Write migration script with dry-run, manifest, resume marker guards
+5. Run migration: `data/users/{id}/` → `~/Executive Assistant/`
+6. Rename workspace subdirs lowercase → uppercase via migration
+7. Add `.gitignore` + `git init` at `~/Executive Assistant/`
+ 8. Update `ResearchLoop` to detect `.git` and fall back to in-memory backup
+ 9. Remove hardcoded `Path("data") / "private" / "research"` in all research tools (`research.py`, `research_list`) — use `DataPaths.research_dir()`
+10. Create `src/prompt_seed/AGENTS.md` with seed content
+11. Replace `settings.agent.system_prompt` with AGENTS.md loading in runner
+12. Update `_get_system_prompt()` to hardcode new 4-section order:
+    `user_prompt + user_skills + workspace_prompt + workspace_skills`
+    (PROMPT_ORDER setting is Stage 2 — in Stage 1 the order is hardcoded)
+12. Update all callers (coordinator, runner, tools, HTTP routers)
+13. Update tests
+14. Run full test suite
+
+### Stage 2 (Multi-Tenant)
+
+1. Add `ea_team_root` to settings
+2. Add `DataPaths.team_root` property + team-scoped methods
+3. Add team scope resolution in context injection (prompt + skills)
+4. Add `PROMPT_ORDER` setting with resequencable order list
+5. Switch `Workspace.from_name()` to UUID generation (slug IDs for existing workspaces kept as-is)
+6. Update tests
+7. Run full test suite
 
 ---
 
@@ -418,5 +521,6 @@ After migration, `data/users/{id}/` and `data/private/` are empty and safe to re
 
 - All tool names stay the same
 - All tool parameters stay the same (`scope="user"` still works)
-- The migration is transparent — files move once, paths are aliased
-- `AGENTS.md` is the new canonical name for user prompt
+- The migration is transparent — files move once, paths are re-pointed
+- `AGENTS.md` is the new canonical name for user prompt (replaces `prompt.txt`)
+- Stage 2 additions (team scope, PROMPT_ORDER) are invisible until configured

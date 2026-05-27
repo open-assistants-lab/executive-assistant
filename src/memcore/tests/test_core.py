@@ -1,8 +1,7 @@
 """Tests for MemoryCore with ChromaBackend."""
 
-from memcore.core import MemoryCore
 from memcore.backends.chroma import ChromaBackend
-from memcore.heuristics import SearchHeuristics
+from memcore.core import MemoryCore
 
 
 def test_core_ingest_and_search(chroma_tmp_path, sample_messages):
