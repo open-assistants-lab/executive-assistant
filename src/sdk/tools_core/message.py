@@ -676,7 +676,7 @@ def _get_history_fallback(query: str, conversation: Any) -> str | None:
         messages = conversation.get_messages(start_date=date.today() - timedelta(days=7), limit=30)
         if not messages:
             return None
-        result = "No structured memories found. Raw recent messages:\n\n"
+        result = "No structured memories found. Raw recent conversation context:\n\n"
         for msg in messages[:15]:
             timestamp = msg.ts.strftime("%Y-%m-%d %H:%M")
             result += f"- {msg.role} [{timestamp}]: {msg.content}\n"
