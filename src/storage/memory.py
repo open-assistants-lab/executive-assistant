@@ -35,7 +35,7 @@ class MemoryStore:
             from src.storage.paths import get_paths
             base_path = get_paths(user_id, workspace_id).user_memory_dir()
         base_path.mkdir(parents=True, exist_ok=True)
-        self.db = HybridDB(str(base_path), max_chroma_index_gb=0)
+        self.db = HybridDB(str(base_path))
         self._init_tables()
 
     def _init_tables(self) -> None:
@@ -120,8 +120,11 @@ class MemoryStore:
             refl_id = refl.get("id") or f"refl_{uuid.uuid4().hex[:12]}"
             now = datetime.now(UTC).isoformat()
             linked = refl.get("linked_observation_ids", [])
-            linked_str = (linked if isinstance(linked, str)
-                          else str(linked).replace("'", '"'))
+            if isinstance(linked, str):
+                linked_str = linked
+            else:
+                import json
+                linked_str = json.dumps(linked)
             row = {
                 "id": refl_id,
                 "content": str(refl.get("content", "")),
