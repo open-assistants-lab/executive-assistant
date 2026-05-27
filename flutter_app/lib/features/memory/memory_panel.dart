@@ -1,3 +1,8 @@
+// TODO: Update for new observation/reflection model when re-enabled.
+// Old memory endpoints (GET /memories, DELETE /memories/$id) no longer exist.
+// New Model: observation stores (id, content, priority, observation_ts) and
+// reflection stores (id, content, domain, confidence, linked_observation_ids).
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

@@ -78,8 +78,8 @@ void main() {
       final fake = FakeClient()
         ..on(
           'GET',
-          '/memories',
-          (_) => http.Response('{"memories":[{"id":"1"}]}', 200),
+          '/memories/observations',
+          (_) => http.Response('{"observations":[{"id":"1"}]}', 200),
         );
       final client = ApiClient(userId: 'alice', httpClient: fake);
       final result = await client.listMemories(limit: 5);

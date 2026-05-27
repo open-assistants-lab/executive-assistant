@@ -95,18 +95,18 @@ class ApiClient {
     return _handleResponse(response);
   }
 
-  // ─── Memories ───
+  // ─── Memories (Observations) ───
 
   Future<List<dynamic>> listMemories({String? domain, int limit = 20}) async {
     final extra = <String, String>{'limit': limit.toString()};
     if (domain != null) extra['domain'] = domain;
-    final response = await _get(Uri.parse(_buildUrl('/memories', extra)));
-    return _handleListResponse(response, 'memories');
+    final response = await _get(Uri.parse(_buildUrl('/memories/observations', extra)));
+    return _handleListResponse(response, 'observations');
   }
 
   Future<Map<String, dynamic>> searchMemories(String query) async {
     final response = await _post(
-      Uri.parse(_buildUrl('/memories/search')),
+      Uri.parse(_buildUrl('/memories/observations/search')),
       body: jsonEncode({'query': query, 'user_id': _userId}),
     );
     return _handleResponse(response);
