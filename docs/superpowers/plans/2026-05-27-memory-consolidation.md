@@ -43,215 +43,11 @@
 - Create: `src/sdk/tools_core/message.py`
 - Read: `src/sdk/tools_core/memory.py` (lines 293–1129 for existing implementations)
 
-These are renamed copies of existing tools from `src/sdk/tools_core/memory.py`, with names changed and all MemoryStore/planner/ranker/observation imports removed. Keep only the `MessageStore`-reading logic.
+These are renamed copies of existing tools from `src/sdk/tools_core/memory.py`, with names changed. Keep the full existing implementation including memcore, HyDE, query expansion, session dedup, MemPalace boosting, and aggregation counting. Only drop imports from `src.storage.memory`, `src.sdk.memory_planner`, `src.sdk.memory_ranker`, and `src.storage.observation` (which are being retired). Rename function names and annotation titles only.
 
-- [ ] **Step 1: Write `src/sdk/tools_core/message.py`**
+Copy the existing `memory_search`, `memory_count`, and `memory_get_history` functions verbatim — rename `@tool` function names and `ToolAnnotations(title=...)` only. All helper functions (`_get_memory_core`, `_expand_queries`, `_llm_expand_queries`, `_regex_expand_queries`, `_list_workspace_ids`, `_fetch_session_ids`, `_group_results_by_session`, `_search_all_workspaces`, `_generate_hyde_query`, `_content_similarity`, `_mempalace_boost`, `_dedup_by_session`, `_compute_aggregation_count`, `_get_history_fallback`) move into `message.py` unchanged.
 
-Copy the existing `memory_search`, `memory_count`, and `memory_get_history` functions from `src/sdk/tools_core/memory.py` into a new file. Rename function names, drop all MemoryStore/MemoryCore/planner/ranker imports. Keep only MessageStore (via `get_message_store`) and memcore imports.
-
-The file should have this structure:
-
-```python
-"""Message search tools — read raw conversations from MessageStore."""
-
-from datetime import date, datetime, timedelta
-from typing import Any
-
-from src.app_logging import get_logger
-from src.sdk.tools import ToolAnnotations, tool
-
-logger = get_logger()
-
-
-def _get_message_store(user_id: str, workspace_id: str) -> Any:
-    from src.storage.messages import get_message_store
-    return get_message_store(user_id, workspace_id)
-
-
-@tool
-def message_search(
-    query: str,
-    user_id: str = "default_user",
-    workspace_id: str = "personal",
-    limit: int = 5,
-) -> str:
-    """Search conversation history — semantic + keyword, raw verbatim output.
-
-    Returns raw conversation snippets matched to your query. Results are
-    deduplicated by session (max 1 result per conversation). No fact
-    extraction or summarization — you get exactly what was said.
-
-    Use this for: finding specific facts from past conversations, counting
-    items mentioned across sessions, checking what was discussed.
-
-    Args:
-        query: What to search for
-        user_id: User identifier
-        workspace_id: Workspace ID (defaults to current workspace)
-        limit: Max results (default 5)
-
-    Returns:
-        Search results as formatted conversation snippets
-    """
-    conversation = _get_message_store(user_id, workspace_id)
-    results = conversation.search_hybrid(query, limit=limit, recency_weight=0.3)
-    if not results:
-        return f"No messages found for '{query}'"
-    output = f"## Search Results: '{query}'\n"
-    output += f"Found {len(results)} messages.\n\n"
-    for i, r in enumerate(results, 1):
-        content = str(r.content)[:300]
-        if len(str(r.content)) > 300:
-            content += "..."
-        ts = getattr(r, "ts", None)
-        ts_str = ts.strftime("%Y-%m-%d") if ts else "?"
-        output += f"---\n[{getattr(r, 'role', '?')}] {ts_str}\n{content}\n"
-    return output
-
-
-message_search.annotations = ToolAnnotations(
-    title="Search Conversation History", read_only=True, idempotent=True
-)
-
-
-@tool
-def message_count(
-    query: str,
-    user_id: str = "default_user",
-    workspace_id: str = "personal",
-) -> str:
-    """Count distinct items matching a query in conversation history.
-
-    For aggregation questions like "how many model kits?", "how many projects?".
-    Searches conversation history and returns matches for the agent to count.
-
-    Args:
-        query: What to count
-        user_id: User identifier
-        workspace_id: Current workspace ID
-    """
-    import re
-    from collections import defaultdict
-
-    conversation = _get_message_store(user_id, workspace_id)
-    results = conversation.search_hybrid(query, limit=50, recency_weight=0.1)
-    if not results:
-        return f"No conversation messages found for '{query}'"
-
-    named_entities: defaultdict[str, list[str]] = defaultdict(list)
-    for r in results:
-        content = str(r.content)
-        named = re.findall(
-            r"\b([A-Z][a-zA-Z0-9\-\.&']*(?:\s+(?:[A-Z][a-zA-Z0-9\-\.&']*|"
-            r"(?:\d+(?:\.\d+)?\s*)?(?:scale|mm|cm|in|inch|ft|foot|gallon|"
-            r"liter|hour|day|week|month|year)s?)){1,3})\b",
-            content,
-        )
-        num_units = re.findall(
-            r"\b(\d+(?:\.\d+)?\s*(?:hours?|days?|weeks?|months?|years?|"
-            r"dollars?|items?|kits?|plants?|tanks?|pieces?|projects?))\b",
-            content,
-            re.IGNORECASE,
-        )
-        for item in {p.strip().rstrip(".,;:!?") for p in named + num_units
-                       if 3 < len(p.strip()) < 80}:
-            item_lower = item.lower()
-            if item_lower in {"you", "your", "they", "their", "would", "could",
-                               "should", "have", "been", "this", "that", "these",
-                               "those", "with", "from", "about", "there"}:
-                continue
-            named_entities[item_lower].append(item)
-
-    deduped = {}
-    for item_lower, forms in named_entities.items():
-        deduped[item_lower] = max(set(forms), key=lambda f: (len(f), f))
-
-    items = sorted(deduped.items(), key=lambda x: -len(x[0].split()))
-    final = {}
-    for key, display in items:
-        absorbed = False
-        for existing_key in list(final.keys()):
-            if key in existing_key or existing_key in key:
-                if len(existing_key) >= len(key):
-                    absorbed = True
-                    break
-                del final[existing_key]
-                final[key] = display
-                absorbed = True
-                break
-        if not absorbed:
-            final[key] = display
-
-    output = f"## Count Results: '{query}'\n"
-    if final:
-        output += f"**Distinct items: {len(final)}**\n\n"
-        for i, (key, display) in enumerate(sorted(final.items(), key=lambda x: x[0]), 1):
-            mc = len(named_entities[key])
-            output += f"  {i}. {display} ({mc} mentions)\n"
-    else:
-        output += "No distinct items identified.\n"
-    return output
-
-
-message_count.annotations = ToolAnnotations(
-    title="Count Matching Items", read_only=True, idempotent=True
-)
-
-
-@tool
-def message_history(
-    days: int = 7,
-    date_str: str | None = None,
-    user_id: str = "default_user",
-    workspace_id: str = "personal",
-) -> str:
-    """Get conversation history for progressive disclosure.
-
-    Use this tool when user asks about past conversations, what was discussed,
-    or wants to recall previous interactions.
-
-    Args:
-        days: Number of days to look back (default: 7)
-        date_str: Specific date in YYYY-MM-DD format (optional)
-        user_id: User identifier
-        workspace_id: Workspace ID (defaults to current workspace)
-
-    Returns:
-        Formatted conversation history
-    """
-    conversation = _get_message_store(user_id, workspace_id)
-
-    if date_str:
-        try:
-            target_date = date.fromisoformat(date_str)
-            messages = conversation.get_messages(
-                start_date=target_date, end_date=target_date)
-            if not messages:
-                return f"No messages found for {date_str}"
-            result = f"Conversation on {date_str}:\n"
-            for msg in messages:
-                result += f"- {msg.role}: {msg.content}\n"
-            return result
-        except ValueError:
-            return "Invalid date format. Use YYYY-MM-DD."
-
-    start_date = date.today() - timedelta(days=days)
-    messages = conversation.get_messages(start_date=start_date, limit=200)
-
-    if not messages:
-        return f"No messages in the last {days} days."
-
-    result = f"Recent conversation (last {days} days):\n\n"
-    for msg in messages:
-        timestamp = msg.ts.strftime("%Y-%m-%d %H:%M")
-        result += f"- {msg.role} [{timestamp}]: {msg.content}\n"
-    return result
-
-
-message_history.annotations = ToolAnnotations(
-    title="Get Conversation History", read_only=True, idempotent=True
-)
-```
+The current `_get_memory_core()` helper calls into a memcore wrapper around MessageStore — keep this exactly as-is, just move it.
 
 - [ ] **Step 2: Commit**
 
@@ -653,9 +449,27 @@ async def run_reflector(
     return {"reflections": []}
 ```
 
-- [ ] **Step 4: Update `run_observer()` to drop facts_extracted**
+- [ ] **Step 4: Update `run_observer()` prompt formatting**
 
-In the existing `run_observer()` function (line 148), update the formatting section where observations are constructed. Remove any `facts_extracted` assembly. The observer now only produces `id`, `content`, `priority`, `referenced_date`. Remove the `facts_extracted` key from observation template.
+The current `run_observer()` calls `OBSERVER_PROMPT.format(conversation=...)` with a single placeholder. Update to use the new two-placeholder prompt:
+
+```python
+# OLD:
+prompt = OBSERVER_PROMPT.format(conversation=convo_text)
+
+# NEW:
+prev_text = ""
+if previous_observations:
+    prev_text = "\n\nKnown observations (do not re-extract):\n" + \
+        "\n".join(f"- {obs.get('content', '')}" for obs in previous_observations[:30])
+
+prompt = OBSERVER_PROMPT.format(
+    conversation=convo_text,
+    previous_context=prev_text,
+)
+```
+
+Also remove any `facts_extracted` assembly from the observation dicts returned by the Observer — the Observer now only produces `id`, `content`, `priority`, `referenced_date`, `observation_ts`, `source_message_range`.
 
 - [ ] **Step 5: Commit**
 
@@ -1434,8 +1248,15 @@ git commit -m "test: add MemoryStore, message tools, and memory tools tests"
 
 **Files to update:**
 - `tests/sdk/test_observation.py` — update ObservableStore references to new MemoryStore
-- `tests/sdk/test_middleware_conformance.py` — remove MemoryMiddleware tests
+- `tests/sdk/test_middleware_conformance.py` — remove MemoryMiddleware imports and test functions
 - `tests/unit/test_memory_storage.py` — remove entirely (tests old trigger/action MemoryStore)
+- `tests/unit/test_memory_and_other_tools.py` — remove memory tool tests (mocks old `get_memory_store`)
+- `tests/sdk/test_memory_ranker.py` — remove entirely (tests deleted module)
+- `tests/perf/test_memory_pipeline.py` — remove or skip (tests old pipeline)
+- `tests/perf/perf_instrument.py` — remove memory perf instrumentation
+- `tests/sdk/test_workspace_isolation.py` — remove `test_memory_stores_are_separate`
+- `tests/benchmarks/longmemeval/eval.py` — remove or skip (uses old ObservationStore + MemoryMiddleware)
+- `src/storage/__init__.py` — check for deleted module exports
 
 - [ ] **Step 1: Remove `tests/unit/test_memory_storage.py`**
 
@@ -1445,13 +1266,49 @@ rm tests/unit/test_memory_storage.py
 
 - [ ] **Step 2: Update `tests/sdk/test_middleware_conformance.py`**
 
-Remove all `MemoryMiddleware` imports and test functions. Search for `MemoryMiddleware`, `CORRECTION_KEYWORDS`, `EXTRACTION_TURN_INTERVAL` and remove those lines and test functions.
+The file imports `MemoryMiddleware`, `CORRECTION_KEYWORDS`, `EXTRACTION_TURN_INTERVAL` from `src.sdk.middleware_memory`. Any test function that instantiates `MemoryMiddleware(...)` or tests its methods must be removed. The file has ~10 MemoryMiddleware-related test functions — remove them all and their imports.
 
-- [ ] **Step 3: Update `tests/sdk/test_observation.py`**
+- [ ] **Step 3: Remove `tests/unit/test_memory_and_other_tools.py`**
 
-Replace all `from src.storage.observation import ObservationStore` imports with `from src.storage.memory import MemoryStore`. Update all references to `ObservationStore(...)` to `MemoryStore(...)` and `get_observation_store(...)` to `get_memory_store(...)`.
+This file mocks `get_memory_store` for memory tool tests. Since the old MemoryStore is gone and tools renamed, remove the entire file.
 
-- [ ] **Step 4: Run existing tests**
+```bash
+rm tests/unit/test_memory_and_other_tools.py
+```
+
+- [ ] **Step 4: Remove `tests/sdk/test_memory_ranker.py`**
+
+```bash
+rm tests/sdk/test_memory_ranker.py
+```
+
+- [ ] **Step 5: Remove `tests/perf/test_memory_pipeline.py`**
+
+```bash
+rm tests/perf/test_memory_pipeline.py
+```
+
+- [ ] **Step 6: Fix `tests/perf/perf_instrument.py`**
+
+Remove any `MemoryStore` or `MemoryMiddleware` imports and the performance instrumentation functions that reference them. (The file instruments memory store operations for benchmarking — these are no longer applicable.)
+
+- [ ] **Step 7: Fix `tests/sdk/test_workspace_isolation.py`**
+
+Remove the `test_memory_stores_are_separate` function and its `MemoryStore` import at line 91. Keep all other workspace isolation tests.
+
+- [ ] **Step 8: Fix `tests/benchmarks/longmemeval/eval.py`**
+
+Remove or comment out any references to `ObservationStore`, `MemoryMiddleware`, and `src.sdk.tools_core.observation` (if importing old `run_observer`/`run_reflector` signatures). This benchmark file references the old observation system at lines 524, 538.
+
+- [ ] **Step 9: Check `src/storage/__init__.py`**
+
+Verify no imports from deleted modules (`observation`, `consolidation`). If it re-exports `get_observation_store` or `ObservationStore`, remove those lines.
+
+- [ ] **Step 10: Update `tests/sdk/test_observation.py`**
+
+Replace all `from src.storage.observation import ObservationStore` with `from src.storage.memory import MemoryStore`. Replace all `ObservationStore(...)` constructor calls with `MemoryStore(...)`. Replace `get_observation_store(...)` with `get_memory_store(...)`. The `ObservationStore` class is merged into `MemoryStore` — API is same (same table schema, same method names).
+
+- [ ] **Step 11: Run tests for modified test files**
 
 ```bash
 uv run pytest tests/sdk/test_observation.py tests/sdk/test_middleware_conformance.py -v
