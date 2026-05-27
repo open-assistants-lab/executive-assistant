@@ -35,13 +35,13 @@ from src.storage.paths import get_paths
 
 logger = get_logger()
 
-MANDATORY_SUBAGENT_TOOLS = {"memory_search"}
+MANDATORY_SUBAGENT_TOOLS = {"message_search"}
 OPTIONAL_SKILL_LOAD_TOOL = "skills_load"
 DENIED_SKILL_MANAGEMENT_TOOLS = {"skill_create", "skill_delete", "skill_update"}
 
 
 def _is_denied_memory_tool(name: str) -> bool:
-    return name.startswith("memory_") and name != "memory_search"
+    return name.startswith("memory_")
 
 
 def _is_subagent_tool(name: str) -> bool:

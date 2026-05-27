@@ -9,7 +9,7 @@ class TestMemoryProfile:
     def test_memory_profile_no_observations(self):
         from src.sdk.tools_core.memory import memory_profile
 
-        with patch("src.sdk.tools_core.memory.get_memory_store") as mock_store_fn:
+        with patch("src.storage.memory.get_memory_store") as mock_store_fn:
             mock_store = MagicMock()
             mock_store.get_recent_observations.return_value = []
             mock_store_fn.return_value = mock_store
@@ -21,7 +21,7 @@ class TestMemoryProfile:
     def test_memory_profile_with_observations(self):
         from src.sdk.tools_core.memory import memory_profile
 
-        with patch("src.sdk.tools_core.memory.get_memory_store") as mock_store_fn:
+        with patch("src.storage.memory.get_memory_store") as mock_store_fn:
             mock_store = MagicMock()
             mock_store.get_recent_observations.return_value = [
                 {"id": "obs_1", "content": "Name is Alice",
@@ -42,7 +42,7 @@ class TestMemoryReflection:
     def test_memory_reflection_no_results(self):
         from src.sdk.tools_core.memory import memory_reflection
 
-        with patch("src.sdk.tools_core.memory.get_memory_store") as mock_store_fn:
+        with patch("src.storage.memory.get_memory_store") as mock_store_fn:
             mock_store = MagicMock()
             mock_store.search_reflections.return_value = []
             mock_store_fn.return_value = mock_store
@@ -56,7 +56,7 @@ class TestMemoryReflection:
     def test_memory_reflection_with_results(self):
         from src.sdk.tools_core.memory import memory_reflection
 
-        with patch("src.sdk.tools_core.memory.get_memory_store") as mock_store_fn:
+        with patch("src.storage.memory.get_memory_store") as mock_store_fn:
             mock_store = MagicMock()
             mock_store.search_reflections.return_value = [
                 {"id": "refl_1", "content": "Has strong career growth trajectory",
