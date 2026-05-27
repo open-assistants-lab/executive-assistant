@@ -9,14 +9,12 @@ from src.sdk.tools import ToolAnnotations, tool
 from src.storage.messages import SearchResult, get_message_store
 
 logger = get_logger()
-
-
-# ── memcore factory ──────────────────────────────────────────────────────────
-
 _memcore_cache: dict[str, Any] = {}
 
 
-def _get_memory_core(user_id: str, workspace_id: str = "personal"):
+# ── message core factory ──────────────────────────────────────────────────────
+
+def _get_message_core(user_id: str, workspace_id: str = "personal"):
     """Get or create a cached MemoryCore instance for the given user/workspace.
 
     Uses the SAME HybridDB path as MessageStore so messages imported
@@ -245,49 +243,6 @@ def _group_results_by_session(
     return output
 
 
-def _search_all_workspaces(
-    query: str,
-    user_id: str,
-    queries: list[str],
-    primary_ws: str,
-    search_limit: int,
-    recency_weight: float = 0.3,
-) -> tuple[list[str], list[tuple[SearchResult, str]]]:
-    """Search across all workspaces for a user, return merged results with workspace tags."""
-    ws_ids = _list_workspace_ids(user_id)
-    other_ws = [w for w in ws_ids if w != primary_ws]
-    if not other_ws:
-        return [], []
-
-    results: list[tuple[SearchResult, str]] = []
-    seen: set[int] = set()
-    workspaces_used: list[str] = []
-
-    for ws_id in other_ws[:5]:  # cap at 5 extra workspaces
-        try:
-            store = get_message_store(user_id, ws_id)
-        except Exception:
-            continue
-        ws_had_results = False
-        for q in queries:
-            try:
-                ws_results = store.search_hybrid(
-                    q, limit=max(search_limit // 2, 5),
-                    recency_weight=recency_weight,
-                )
-            except Exception:
-                continue
-            for r in ws_results:
-                if r.id not in seen:
-                    seen.add(r.id)
-                    results.append((r, ws_id))
-                    ws_had_results = True
-        if ws_had_results:
-            workspaces_used.append(ws_id)
-
-    return workspaces_used, results
-
-
 @tool
 def message_history(
     days: int = 7,
@@ -358,42 +313,6 @@ message_history.annotations = ToolAnnotations(
 )
 
 
-def _generate_hyde_query(query: str, user_id: str) -> str | None:
-    """Generate a hypothetical answer to bridge the question-declarative gap.
-
-    Uses one LLM call (bounded). The hypothetical answer embeds closer to
-    real declarative data than the original question does.
-
-    HyDE: Precise Zero-Shot Dense Retrieval without Relevance Labels
-    Gao et al., 2022 (arXiv:2212.10496)
-    """
-    if len(query.strip()) < 5:
-        return None
-
-    try:
-        import asyncio
-
-        from src.sdk.messages import Message
-        from src.sdk.providers.factory import create_model_from_config
-
-        provider = create_model_from_config()
-        prompt = (
-            f"A user asked: '{query}'\n\n"
-            "Write a short hypothetical answer to this question as if you were the user. "
-            "Include specific details and numbers if the question asks for them. "
-            "Write in first person. Example: Q='How many cats do I have?' → "
-            "'I have two cats named Mochi and Tofu. They are both indoor cats.'\n\n"
-            "Hypothetical answer:"
-        )
-
-        async def _call():
-            resp = await provider.chat([Message.user(prompt)])
-            return resp.content.strip() if resp.content else None
-
-        return asyncio.run(_call())
-    except Exception:
-        return None
-
 
 def _content_similarity(a: str, b: str) -> float:
     """Jaccard similarity between two content strings (word-level)."""
@@ -429,7 +348,7 @@ def message_search(
     Returns:
         Search results as formatted conversation snippets
     """
-    core = _get_memory_core(user_id, workspace_id)
+    core = _get_message_core(user_id, workspace_id)
 
     # Counting questions need wider session coverage to find all items
     # across different conversations. Single-fact questions can be tighter.
@@ -513,176 +432,6 @@ def message_search(
 message_search.annotations = ToolAnnotations(
     title="Search Messages", read_only=True, idempotent=True
 )
-
-
-def _mempalace_boost(results: list[SearchResult], query: str) -> None:
-    """MemPalace-style search heuristics: keyword, number/preference/temporal/question-type."""
-    import re
-
-    query_lower = query.lower()
-    query_words = set(query_lower.split())
-
-    is_count = any(kw in query_lower for kw in ["how many", "how much", "how long",
-                                                   "how many days", "how many weeks", "total",
-                                                   "how many items", "how many times"])
-    is_what = query_lower.startswith("what") or query_lower.startswith("which")
-    is_when = query_lower.startswith("when") or "what day" in query_lower
-    is_where = query_lower.startswith("where")
-    pref_keywords = ["like", "enjoy", "prefer", "favorite", "recommend",
-                      "love", "hate", "want", "interested"]
-    is_preference = any(kw in query_lower for kw in pref_keywords)
-
-    number_pattern = re.compile(r"\b\d+(?:\.\d+)?\b")
-    date_pattern = re.compile(
-        r"\b(?:january|february|march|april|may|june|july|august"
-        r"|september|october|november|december)\b", re.IGNORECASE,
-    )
-
-    for r in results:
-        content_lower = str(r.content).lower()
-        boost = 1.0
-
-        word_matches = len(query_words & set(content_lower.split()))
-        if word_matches >= 4:
-            boost *= 1.2
-        elif word_matches >= 3:
-            boost *= 1.12
-        elif word_matches >= 2:
-            boost *= 1.06
-
-        if is_count:
-            nums = number_pattern.findall(content_lower)
-            if len(nums) >= 2:
-                boost *= 1.15
-            if re.search(r"\b(?:total|sum|count|combined|altogether)\b", content_lower):
-                boost *= 1.2
-
-        if is_what:
-            if re.search(r"\b(?:named|called|known as|is a|is the)\b", content_lower):
-                boost *= 1.1
-
-        if is_when:
-            if date_pattern.search(content_lower):
-                boost *= 1.25
-
-        if is_where:
-            if re.search(r"\b(?:at|in)\s+[A-Z]", str(r.content)):
-                boost *= 1.15
-
-        if is_preference:
-            pref_count = sum(1 for kw in pref_keywords if kw in content_lower)
-            if pref_count >= 2:
-                boost *= 1.2
-
-        query_nums = number_pattern.findall(query)
-        if query_nums:
-            content_nums = number_pattern.findall(content_lower)
-            if any(n in content_nums for n in query_nums):
-                boost *= 1.15
-
-        r.score = min(r.score * boost, 0.99)
-
-
-def _dedup_by_session(results: list[SearchResult]) -> None:
-    pass  # SearchResult has no metadata; session dedup requires MessageStore access
-
-
-def _compute_aggregation_count(
-    results: list[SearchResult],
-    query: str,
-    store: Any,
-) -> str:
-    """Deterministically count distinct items from search results.
-
-    Extracts named entities, deduplicates, and returns a clear count.
-    Injected directly into message_search output so the agent can't miss it.
-    """
-    import re as _re
-    from collections import defaultdict as _defaultdict
-
-    msg_ids = [r.id for r in results]
-    session_ids = _fetch_session_ids(store, msg_ids)
-    groups = _group_results_by_session(results, session_ids)
-    groups_with_sessions = [(sid, count, entries) for sid, count, entries in groups if sid]
-    if not groups_with_sessions:
-        # Fall back to treating each result as its own group
-        groups_with_sessions = [("", 1, [r]) for r in results]
-        return ""
-
-    item_mentions: _defaultdict[str, list[str]] = _defaultdict(list)
-    for sid, count, entries in groups_with_sessions:
-        combined = " ".join(e.content for e in entries[:15])
-        named = _re.findall(
-            r"\b([A-Z][a-zA-Z0-9\-\.&']*(?:\s+(?:[A-Z][a-zA-Z0-9\-\.&']*|(?:\d+(?:\.\d+)?\s*)?(?:scale|mm|cm|in|inch|ft|foot|gallon|liter|hour|day|week|month|year)s?)){1,3})\b",
-            combined,
-        )
-        num_units = _re.findall(
-            r"\b(\d+(?:\.\d+)?\s*(?:hours?|days?|weeks?|months?|years?|dollars?|\$?\d+[kKmM]?|items?|kits?|plants?|tanks?|pieces?|doctors?|weddings?|festivals?|breaks?|fruits?|types?|different|total|projects?))\b",
-            combined,
-            _re.IGNORECASE,
-        )
-        candidates = {p.strip().rstrip(".,;:!?") for p in named + num_units if 3 < len(p.strip()) < 80}
-        for item in candidates:
-            item_lower = item.lower()
-            if item_lower in {"you", "your", "they", "their", "would", "could", "should",
-                               "have", "been", "this", "that", "these", "those", "with", "from",
-                               "about", "there", "which", "because", "however", "though", "although",
-                               "through", "during", "between", "without", "within", "something",
-                               "welcome", "congratulations", "remember"}:
-                continue
-            item_mentions[item_lower].append(item)
-
-    deduped: dict[str, str] = {}
-    for item_lower, forms in item_mentions.items():
-        canonical = max(set(forms), key=lambda f: (len(f), f))
-        deduped[item_lower] = canonical
-
-    items = sorted(deduped.items(), key=lambda x: -len(x[0].split()))
-    final: dict[str, str] = {}
-    for key, display in items:
-        absorbed = False
-        for existing_key in list(final.keys()):
-            if key in existing_key or existing_key in key:
-                if len(existing_key) >= len(key):
-                    absorbed = True
-                    break
-                del final[existing_key]
-                final[key] = display
-                absorbed = True
-                break
-        if not absorbed:
-            final[key] = display
-
-    if final:
-        output = f"**SERVER-COUNTED: {len(final)} distinct items found**\n"
-        for i, (key, display) in enumerate(sorted(final.items(), key=lambda x: x[0]), 1):
-            mc = len(item_mentions[key])
-            output += f"  {i}. {display} ({mc} mentions)\n"
-        output += f"\nThe answer is {len(final)}. Do NOT recount or estimate.\n\n"
-        return output
-
-    return ""
-
-
-def _get_history_fallback(query: str, conversation: Any) -> str | None:
-    """Fall back to raw message history when message_search finds nothing,
-    but only for queries that are clearly about the user's own attributes."""
-    has_user_subject = __import__("re").search(
-        r"\b(?:i|me|my|mine|we|our)\b", query.lower()
-    )
-    if not has_user_subject:
-        return None
-    try:
-        messages = conversation.get_messages(start_date=date.today() - timedelta(days=7), limit=30)
-        if not messages:
-            return None
-        result = "No structured memories found. Raw recent conversation context:\n\n"
-        for msg in messages[:15]:
-            timestamp = msg.ts.strftime("%Y-%m-%d %H:%M")
-            result += f"- {msg.role} [{timestamp}]: {msg.content}\n"
-        return result
-    except Exception:
-        return None
 
 
 @tool
