@@ -366,42 +366,4 @@ async def import_conversation(req: ConversationImportRequest, _: None = Depends(
     return {"imported": len(req.messages)}
 
 
-@router.post("/conversation/extract-memories")
-async def extract_conversation_memories(user_id: str = "default_user", workspace_id: str = "personal"):
-    """Extract memories from imported conversation history, then consolidate.
 
-    Reads recent messages from the conversation store, runs LLM extraction
-    synchronously, then triggers consolidation to merge/deduplicate.
-    """
-    from src.sdk.middleware_memory import MemoryMiddleware
-    from src.storage.messages import get_message_store
-
-    extraction_result = {"extracted": 0, "error": None}
-    consolidation_result = {"status": "skipped", "detail": {}}
-
-    try:
-        conversation = get_message_store(user_id, workspace_id)
-        recent = conversation.get_recent_messages(count=500, offset=0)
-        if recent:
-            raw_messages = [
-                f"{m.role}: {m.content[:500]}" for m in recent if m.content.strip()
-            ]
-            if raw_messages:
-                count = MemoryMiddleware.extract_from_messages(
-                    raw_messages, user_id=user_id, workspace_id=workspace_id
-                )
-                extraction_result["extracted"] = count
-    except Exception as e:
-        extraction_result["error"] = str(e)
-
-    try:
-        from src.storage.consolidation import trigger_consolidation
-        consolidation_result = trigger_consolidation(user_id, workspace_id)
-    except Exception as e:
-        consolidation_result = {"status": "error", "message": str(e)}
-
-    return {
-        "status": "completed",
-        "extraction": extraction_result,
-        "consolidation": consolidation_result,
-    }

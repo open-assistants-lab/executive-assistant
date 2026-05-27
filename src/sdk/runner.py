@@ -24,7 +24,6 @@ from typing import Any
 
 from src.app_logging import get_logger
 from src.config import get_settings
-from src.storage.paths import DataPaths
 from src.sdk.loop import AgentLoop
 from src.sdk.messages import Message, StreamChunk
 from src.sdk.middleware_observation import ObservationMiddleware
@@ -33,6 +32,7 @@ from src.sdk.native_tools import get_native_tools
 from src.sdk.providers.factory import create_model_from_config
 from src.sdk.tools import ToolAnnotations, ToolDefinition
 from src.sdk.user_prompt import load_user_prompt
+from src.storage.paths import DataPaths
 
 logger = get_logger()
 
@@ -471,8 +471,6 @@ def reset_sdk_loop(user_id: str = "default_user", workspace_id: str = "personal"
     for cache_key in list(_loop_cache):
         if cache_key.startswith(cache_prefix):
             del _loop_cache[cache_key]
-    from src.storage.memory import clear_memory_store_cache
-    clear_memory_store_cache()
     logger.info("sdk_runner.loop_reset", {"user_id": user_id, "workspace_id": workspace_id}, user_id=user_id)
 
 
@@ -482,14 +480,10 @@ def reset_user_sdk_loops(user_id: str) -> None:
     for cache_key in list(_loop_cache):
         if cache_key.startswith(cache_prefix):
             del _loop_cache[cache_key]
-    from src.storage.memory import clear_memory_store_cache
-    clear_memory_store_cache()
     logger.info("sdk_runner.user_loops_reset", {"user_id": user_id}, user_id=user_id)
 
 
 def reset_all_sdk_loops() -> None:
     """Reset all cached agent loops."""
     _loop_cache.clear()
-    from src.storage.memory import clear_memory_store_cache
-    clear_memory_store_cache()
     logger.info("sdk_runner.all_loops_reset", {})

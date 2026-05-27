@@ -10,7 +10,6 @@ Public API:
     OpenAIProvider, AnthropicProvider, GeminiProvider - other providers
     AgentLoop, Interrupt, RunConfig, CostTracker, Usage - agent loop
     Middleware - middleware base class
-    MemoryMiddleware - memory extraction/injection (SDK-native)
     SummarizationMiddleware - conversation summarization (SDK-native)
     ProgressMiddleware - subagent progress tracking + doom loop detection
     InstructionMiddleware - subagent course-correction + cancel signal handling
@@ -40,7 +39,7 @@ from src.sdk.loop import AgentLoop, CostTracker, Interrupt, RunConfig
 from src.sdk.messages import Message, StreamChunk, ToolCall, Usage
 from src.sdk.middleware import Middleware
 from src.sdk.middleware_instruction import InstructionMiddleware
-from src.sdk.middleware_memory import MemoryMiddleware
+
 from src.sdk.middleware_progress import ProgressMiddleware
 from src.sdk.middleware_summarization import SummarizationMiddleware
 from src.sdk.providers.base import LLMProvider, ModelCost, ModelInfo
@@ -95,7 +94,6 @@ __all__ = [
     "RunConfig",
     "CostTracker",
     "Middleware",
-    "MemoryMiddleware",
     "InstructionMiddleware",
     "ProgressMiddleware",
     "SummarizationMiddleware",
