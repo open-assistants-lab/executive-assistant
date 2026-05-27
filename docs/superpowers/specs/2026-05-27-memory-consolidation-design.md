@@ -32,7 +32,7 @@ Registration changes in `src/sdk/native_tools.py`.
 
 ## 2. Unified MemoryStore
 
-Merge `ObservationStore` (182 lines) and `MemoryStore` (1882 lines) into a single `MemoryStore` with four tables in one HybridDB at `data/private/memory/`.
+Merge `ObservationStore` (182 lines) and `MemoryStore` (1882 lines) into a single `MemoryStore` with four tables in one HybridDB. Uses `paths.user_memory_dir()` → `~/Executive Assistant/Memory/global/` (same path as current MemoryStore, consistent with existing `user_memory_dir()`).
 
 ### 2.1 Schema
 
@@ -260,18 +260,19 @@ memory_insights(query, method="hybrid", limit=5) → str
 ## 5. Storage Layout
 
 ```
-data/users/{user_id}/
-├── conversation/
+~/Executive Assistant/
+├── Conversation/
 │   └── app.db              # MessageStore (HybridDB) — unchanged
-├── memory/
-│   ├── app.db              # MemoryStore (HybridDB) — new, unified
-│   │   Tables: observations, reflections, facts, insights
-│   └── vectors/            # ChromaDB for insights semantic search
+├── Memory/
+│   └── global/
+│       ├── app.db          # MemoryStore (HybridDB) — unified, replaces old stores
+│       │   Tables: observations, reflections, facts, insights
+│       └── vectors/        # ChromaDB for insights semantic search
 └── Workspaces/{workspace_id}/
     └── conversation.app.db # Workspace MessageStore — unchanged
 ```
 
-Memory is global — not per-workspace. Observations and insights span all workspaces.
+Memory uses `paths.user_memory_dir()` (`~/Executive Assistant/Memory/global/`). This replaces both the old `MemoryStore` path and the old `ObservationStore` path (`Workspaces/{id}/Memory/observations/`). Observations and insights are global, not per-workspace.
 
 ---
 
