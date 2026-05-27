@@ -1,6 +1,7 @@
-"""Observer and Reflector prompts + LLM runners for Observational Memory.
+"""Observer and Reflector prompts + LLM runners.
 
-Design: docs/OBSERVATIONAL_MEMORY_DESIGN.md (sections 4.1, 4.2, 12.3)
+The Observer extracts facts from conversations as observations.
+The Reflector discovers patterns and synthesizes reflections from observations.
 """
 
 from __future__ import annotations
@@ -14,70 +15,54 @@ from src.sdk.messages import Message
 
 logger = get_logger()
 
-OBSERVER_PROMPT = """You are an observer extracting precise facts from a conversation. Output ONLY facts that someone might ask about later — names, numbers, dates, locations, decisions, corrections.
+OBSERVER_PROMPT = """You are an observer agent. Your job is to extract key facts from a conversation and record them as precise, concise observations.
 
-FORMAT: A JSON array of observations. Each observation:
-{{
-  "id": "obs_<uuid>",
-  "content": "subject verb object — exact value, no approximation",
-  "priority": "🔴" | "🟡" | "🟢",
-  "referenced_date": "ISO date if content mentions a specific date, else null",
-  "facts_extracted": [{{"entity": "...", "attribute": "...", "value": "..."}}]
-}}
+Input: A conversation log between a user and an AI assistant.
 
-PRIORITY RULES:
-🔴 (high): Any fact with a precise value — personal info, numbers, locations, dates, names, decisions
-🟡 (medium): Preferences, interests, opinions, plans
-🟢 (low): Casual chat, greetings, meta-commentary — SKIP THESE
-
-EXAMPLES of good observations:
-❌ "User discussed their commute" — too vague
-✅ "commute is 45 minutes each way" — exact value
-✅ "works at TechCorp as Senior Backend Engineer" — job info
-✅ "watched 22 MCU movies in 2 weeks" — exact count
-✅ "graduated with Business Administration from University of Michigan in 2022" — all details
+Output: A JSON array of observations. Each observation must have:
+- "id": a unique ID like "obs_<uuid>"
+- "content": ONE fact per observation, in plain English. Be exact with values (names, numbers, dates).
+- "priority": one of "\U0001f534" (high — precise value like name, address, number), "\U0001f7e1" (medium — preference, opinion), "\U0001f7e2" (low — context, trivia)
+- "referenced_date": the date mentioned in the observation content, or "" if none
 
 CRITICAL RULES:
-1. VALUES MUST BE EXACT. "45 minutes" not "about an hour". "Target" not "a store". "Business Administration" not "a business degree". Copy the user's words verbatim for values.
-2. Include ALL factual information — every name, number, date, location, decision. Better to over-extract than under-extract.
-3. One fact per observation. Do NOT combine multiple events.
-4. If a user provides conflicting information at different times, capture BOTH. The system will resolve which is latest.
-5. Skip generic conversation — greetings, small talk, "how are you", acknowledgments.
-6. For each fact_value in facts_extracted, use EXACTLY the same value as the observation content.
+- One fact per observation. Do not combine multiple facts.
+- Use exact values as stated. Never paraphrase numbers or proper nouns.
+- If the user CORRECTS previously stated information, capture both as separate observations with different timestamps.
+- Skip generic chat, greetings, and meta-commentary.
+- Skip observations already observed (listed below as known).
 
-CONVERSATION:
 {conversation}
 
-Respond with ONLY the JSON array, no other text."""
+{previous_context}
 
-REFLECTOR_PROMPT = """You are a reflector condensing observations into a denser format.
+Return ONLY the JSON array, no markdown wrapping, no explanation."""
 
-INPUT: A list of observations created over time.
-OUTPUT: A JSON object with:
-{{
-  "id": "refl_<uuid>",
-  "reflection_text": "condensed text preserving all key information",
-  "dropped_observation_ids": ["obs_...", ...],
-  "contradictions_resolved": [{{"entity": "...", "attribute": "...", "old_value": "...", "new_value": "...", "resolution": "explanation"}}],
-  "patterns_identified": ["pattern 1", "pattern 2"]
-}}
+REFLECTOR_PROMPT = """You are a reflection agent. Your job is to think about what you know about a user and discover patterns, relationships, and deeper meaning.
 
-REFLECTION RULES:
-1. Preserve ALL factual information — names, numbers, dates, locations
-2. Merge observations about the same topic/event into single entries
-3. When a correction contradicts an earlier observation, keep only the latest
-4. Drop observations that are fully superseded (e.g., user moved A→B→C, keep C only)
-5. Identify patterns across observations (e.g., "user regularly visits museums")
-6. Keep temporal anchors — don't lose when things happened
-7. The reflection should be readable as a standalone summary of what's been observed
+Input: All observations collected about the user, plus any previous reflections for context.
 
-OBSERVATIONS:
+Output: A JSON array of reflections. Each reflection must have:
+- "id": a unique ID like "refl_<uuid>"
+- "content": A synthesized insight — not a fact, but what the facts MEAN when considered together. Patterns, contradictions, values, trajectories, predictions.
+- "domain": Category label (preference, career, lifestyle, relationship, skill, value, habit, health, finance, etc.)
+- "linked_observation_ids": List of observation IDs that support this reflection
+
+CRITICAL RULES:
+- Do NOT repeat facts. Observations already say "lives in Denver." You say WHY it matters — "Has relocated twice for family; values school quality above career."
+- Discover multi-observation patterns. Single facts do not need reflection.
+- If observations contradict ("lives in Seattle" vs "lives in Denver"), note the change: "Previously in Seattle, now in Denver as of DATE. Reason: ..."
+- Generate predictions where patterns warrant: "May relocate again within 2 years based on past behavior."
+- Quality over quantity. 3-5 meaningful reflections are better than 15 trivial ones.
+
 {observations}
 
-Respond with ONLY the JSON object, no other text."""
+{previous_reflections}
+
+Return ONLY the JSON array, no markdown wrapping, no explanation."""
 
 
-def _parse_observer_json(text: str) -> list[dict[str, Any]] | None:
+def _parse_json_array(text: str) -> list[dict[str, Any]] | None:
     text = text.strip()
     if text.startswith("```"):
         lines = text.split("\n")
@@ -111,67 +96,34 @@ def _parse_observer_json(text: str) -> list[dict[str, Any]] | None:
     return None
 
 
-def _parse_reflector_json(text: str) -> dict[str, Any] | None:
-    text = text.strip()
-    if text.startswith("```"):
-        lines = text.split("\n")
-        text = "\n".join(lines[1:]) if len(lines) > 1 else text
-        if text.endswith("```"):
-            text = text[:-3]
-        text = text.strip()
-    try:
-        result = json.loads(text)
-        if isinstance(result, dict):
-            result.setdefault("source_observation_range", "")
-            result.setdefault(
-                "observation_count", len(result.get("dropped_observation_ids", []))
-            )
-            result.setdefault(
-                "token_count",
-                len(str(result.get("reflection_text", ""))) // 4,
-            )
-            return result
-    except json.JSONDecodeError:
-        import re
-
-        match = re.search(r"\{.*\}", text, re.DOTALL)
-        if match:
-            try:
-                result = json.loads(match.group(0))
-                if isinstance(result, dict):
-                    return result
-            except json.JSONDecodeError:
-                pass
-    return None
-
-
 async def run_observer(
     messages: list[dict[str, Any]],
     provider: Any,
     previous_observations: list[dict[str, Any]] | None = None,
-) -> list[dict[str, Any]] | None:
+) -> dict[str, Any]:
     conversation = "\n\n".join(
         f"[{m.get('role', 'user')}] [{m.get('ts', '')}] {m.get('content', '')}"
         for m in messages
     )
 
+    previous_context = ""
     if previous_observations:
         prev_text = "\n".join(
-            f"[{o.get('priority', '🟡')}] {o.get('observation_ts', '')[:10]}: {o['content']}"
+            f"[{o.get('priority', '\U0001f7e1')}] {o.get('observation_ts', '')[:10]}: {o['content']}"
             for o in previous_observations[-50:]
         )
-        prompt = (
-            "PREVIOUS OBSERVATIONS (already extracted — do not repeat):\n"
-            + prev_text + "\n\n"
-            + "NEW CONVERSATION:\n"
-            + conversation + "\n\n"
-            + "Extract ONLY new facts from the NEW CONVERSATION above. If a fact contradicts "
-            + "a previous observation, include the NEW value and mark it as a correction."
+        previous_context = (
+            "KNOWN OBSERVATIONS (do not repeat):\n" + prev_text + "\n\n"
+            "NEW CONVERSATION:\n"
+            + conversation
         )
     else:
-        prompt = conversation
+        previous_context = conversation
 
-    full_prompt = OBSERVER_PROMPT.format(conversation=prompt)
+    full_prompt = OBSERVER_PROMPT.format(
+        conversation=conversation,
+        previous_context=previous_context,
+    )
 
     msgs = [
         Message.system("You are an Observer. Return only valid JSON."),
@@ -180,42 +132,55 @@ async def run_observer(
     result = await provider.chat(msgs)
 
     if result is None:
-        return None
+        return {"observations": []}
 
     content = result.content if isinstance(result.content, str) else str(result.content or "")
-    observations = _parse_observer_json(content)
-    return observations
+    observations = _parse_json_array(content)
+    return {"observations": observations or []}
 
 
 async def run_reflector(
     observations: list[dict[str, Any]],
     provider: Any,
-) -> dict[str, Any] | None:
+    previous_reflections: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    obs_text = json.dumps(
+        [
+            {
+                "id": o.get("id", ""),
+                "content": o.get("content", ""),
+                "priority": o.get("priority", "\U0001f7e2"),
+                "observation_ts": o.get("observation_ts", ""),
+                "referenced_date": o.get("referenced_date"),
+            }
+            for o in observations
+        ],
+        indent=2,
+        default=str,
+    )
+
+    prev_text = ""
+    if previous_reflections:
+        prev_refs = [
+            {"id": r.get("id", ""), "content": r.get("content", "")[:500]}
+            for r in previous_reflections[-10:]
+        ]
+        prev_text = json.dumps(prev_refs, indent=2, default=str)
+
     prompt = REFLECTOR_PROMPT.format(
-        observations=json.dumps(
-            [
-                {
-                    "id": o.get("id", ""),
-                    "content": o.get("content", ""),
-                    "priority": o.get("priority", "🟢"),
-                    "observation_ts": o.get("observation_ts", ""),
-                    "referenced_date": o.get("referenced_date"),
-                }
-                for o in observations
-            ],
-            indent=2,
-        )
+        observations=obs_text,
+        previous_reflections=prev_text,
     )
 
     msgs = [
-        Message.system("You are a Reflector. Return only valid JSON."),
+        Message.system("You discover patterns and meaning from observations."),
         Message.user(prompt),
     ]
-    result = await provider.chat(msgs)
+    response = await provider.chat(msgs)
 
-    if result is None:
-        return None
+    if response is None:
+        return {"reflections": []}
 
-    content = result.content if isinstance(result.content, str) else str(result.content or "")
-    reflection = _parse_reflector_json(content)
-    return reflection
+    content = response.content if isinstance(response.content, str) else str(response.content or "")
+    reflections = _parse_json_array(content)
+    return {"reflections": reflections or []}
