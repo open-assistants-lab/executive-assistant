@@ -45,7 +45,6 @@ No separate compression step. Observations are the source of truth. The LLM sear
 | `id` | TEXT PK | `obs_{uuid12}` |
 | `content` | LONGTEXT | Factual text, one fact per observation |
 | `priority` | TEXT | 🔴 (high/precise), 🟡 (medium/preference), 🟢 (low/skipped) |
-| `facts_extracted` | JSON | Observer's `facts_extracted` output (entity/attribute/value triples) — embedded, not a separate index |
 | `observation_ts` | TEXT | ISO timestamp when Observer created this |
 | `referenced_date` | TEXT | Date mentioned in the content, or empty |
 | `relative_date` | TEXT | Computed relative offset, or empty |
@@ -77,7 +76,7 @@ Confidence model:
 
 ```
 insert_observations(observations: list[dict]) → int
-    Stores observations. facts_extracted embedded as JSON on each row.
+    Stores observations.
 
 get_recent_observations(days=7, limit=50) → list[dict]
 get_all_observations() → list[dict]
@@ -121,7 +120,7 @@ Two background agents, two-tiers, one pipeline. Both read `MessageStore` and wri
 
 **Input**: Last 30 days / 500 messages from `MessageStore`, plus previous observations (for dedup).
 
-**Output**: JSON array of observations. Each observation: single fact, exact value, 🔴🟡🟢 priority, `facts_extracted` triples.
+**Output**: JSON array of observations. Each observation: single fact, exact value, 🔴🟡🟢 priority.
 
 **Model**: `OBSERVER_MODEL` env var, defaults to `DEFAULT_MODEL`. Flash-tier recommended.
 
@@ -129,11 +128,11 @@ Two background agents, two-tiers, one pipeline. Both read `MessageStore` and wri
 
 ### 3.2 Reflector (Processing)
 
-**When**: Nightly cron or every N Observer runs (configurable). Runs as a scheduled background task. Offline — latency doesn't matter.
+**When**: Every 24 hours (configurable later — hourly, daily, weekly, monthly, quarterly via `REFLECTOR_INTERVAL` env var). Runs as a scheduled background task. Offline — latency doesn't matter.
 
-**Input**: ALL observations from `MemoryStore`. Cross-cycle scope — sees patterns no single Observer run produces.
+**Input**: New observations since last Reflector run from `MemoryStore`, plus all prior reflections as context (bounded — reflections are compact). Cross-cycle scope — sees patterns no single Observer run produces.
 
-**Output**: Reflections stored in `reflections` table. Discovers patterns, career arcs, value systems, contradictions, predicted needs.
+**Output**: Reflections stored in `reflections` table. Discovers patterns, career arcs, value systems, contradictions, predicted needs. Contradictions are noted in reflection content ("previously observed X, now Y as of DATE") but contradictory observations are not deleted — both persist with their timestamps for the LLM to resolve at query time.
 
 **What distinguishes reflection from observation**: An observation says "lives in Denver." A reflection says *why this matters* — "User relocated twice in 3 years for family reasons; values proximity to good schools above cost."
 
@@ -149,7 +148,7 @@ Two background agents, two-tiers, one pipeline. Both read `MessageStore` and wri
 | **What it does** | Extracts individual facts | Discovers patterns, relationships, arcs |
 | **Example output** | "lives in Denver" | "Relocated twice in 3 years for family reasons; prioritizes good schools and outdoor lifestyle over career advancement" |
 | **Analogy** | Taking notes during a conversation | Reflecting on months of notes, forming understanding |
-| **Runs** | Every ~8K tokens of new conversation | Nightly / every N Observer runs |
+| **Runs** | Every ~8K tokens of new conversation | Every 24 hours (configurable: hourly, daily, weekly, monthly, quarterly) |
 | **Model** | Cheap (flash tier) | Best (offline) |
 | **Cost** | Frequent, cheap calls | Rare, expensive calls |
 
@@ -160,7 +159,7 @@ Compression loses detail. HybridDB search replaces summarization — when the LL
 ### 3.5 No Auto-Injection
 
 The ObservationMiddleware `before_agent()` (working memory injection) is **removed**. The agent must explicitly call:
-- `memory_profile` for user context (recent observations + top reflections)
+- `memory_profile` for user context (recent observations)
 - `memory_reflection` for pattern search
 - `message_search` for raw conversation lookup
 
@@ -190,7 +189,7 @@ message_history(days=7, date_str=None) → str
 
 ```
 memory_profile() → str
-    Returns: recent observations (7d) + top 5 reflections (by confidence).
+    Returns: recent observations (7d). Answers "what do you know about me right now?"
     Annotations: read_only=True, idempotent=True
 
 memory_reflection(query, method="hybrid", limit=5) → str
