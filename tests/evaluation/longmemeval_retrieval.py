@@ -363,6 +363,7 @@ def main():
         "knowledge-update", "temporal-reasoning",
     ])
     parser.add_argument("--full", action="store_true")
+    parser.add_argument("--resume", action="store_true", help="Resume from checkpoint")
     parser.add_argument("--verbose", action="store_true", default=True)
     args = parser.parse_args()
 
@@ -373,8 +374,56 @@ def main():
     if args.full:
         args.limit = None
 
+    checkpoint_path = Path("data/evaluations/longmemeval_progress.json")
     questions = load_dataset()
-    metrics = run_benchmark(questions, question_types=args.question_types, limit=args.limit, verbose=args.verbose)
+
+    if args.resume and checkpoint_path.exists():
+        with open(checkpoint_path) as f:
+            chk = json.load(f)
+        completed_ids = {r["question_id"] for r in chk.get("results", [])}
+        remaining = [q for q in questions if q["question_id"] not in completed_ids]
+        print(f"Resuming: {chk['completed']} done, {len(remaining)} remaining")
+        questions = remaining
+        # Start from checkpoint results
+        results = chk.get("results", [])
+    else:
+        results = []
+
+    if args.limit and len(results) == 0:
+        # Only apply limit for fresh runs (not resume)
+        if not args.question_types:
+            by_type: dict[str, list[dict]] = defaultdict(list)
+            for q in questions:
+                by_type[q["question_type"]].append(q)
+            types = sorted(by_type.keys())
+            per_type = max(1, args.limit // len(types))
+            remainder = args.limit - per_type * len(types)
+            sampled: list[dict] = []
+            for i, t in enumerate(types):
+                n = per_type + (1 if i < remainder else 0)
+                sampled.extend(by_type[t][:n])
+            questions = sampled
+        else:
+            questions = questions[:args.limit]
+
+    if len(results) > 0:
+        # Resume mode: continue from checkpoint
+        start_idx = len(results)
+        total = start_idx + len(questions)
+        for i, q in enumerate(questions, start_idx + 1):
+            result = run_single_question(q, i, total, verbose=args.verbose)
+            results.append(result)
+            if i % 10 == 0 or i == total:
+                partial = _compute_metrics(results, i)
+                with open(checkpoint_path, "w") as f:
+                    json.dump({"completed": i, "total": total, **partial}, f, indent=2, default=str)
+                if args.verbose:
+                    o = partial["overall"]
+                    print(f"  [checkpoint {i}/{total}] R@5={o['ses_r@5']['accuracy']}% MRR={o['mrr']}", flush=True)
+        metrics = _compute_metrics(results, total)
+    else:
+        metrics = run_benchmark(questions, question_types=args.question_types, limit=None if args.limit == 0 else args.limit, verbose=args.verbose)
+
     print_report(metrics)
 
 
