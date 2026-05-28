@@ -227,12 +227,24 @@ def run_benchmark(
         questions = questions[:limit]
 
     total = len(questions)
-    print(f"\nRunning LongMemEval R@k: {total} questions\n")
+    print(f"\nRunning LongMemEval R@k: {total} questions")
 
     results: list[dict] = []
+    checkpoint_path = Path("data/evaluations/longmemeval_progress.json")
+    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+
     for i, q in enumerate(questions):
         result = run_single_question(q, i + 1, total, verbose=verbose)
         results.append(result)
+
+        # Save incremental checkpoint every 10 questions
+        if (i + 1) % 10 == 0 or i == total - 1:
+            partial_metrics = _compute_metrics(results, i + 1)
+            with open(checkpoint_path, "w") as f:
+                json.dump({"completed": i + 1, "total": total, **partial_metrics}, f, indent=2, default=str)
+            if verbose:
+                o = partial_metrics["overall"]
+                print(f"  [checkpoint {i+1}/{total}] R@5={o['ses_r@5']['accuracy']}% MRR={o['mrr']}", flush=True)
 
     return _compute_metrics(results, total)
 
