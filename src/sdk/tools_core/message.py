@@ -10,7 +10,7 @@ from src.sdk.tools import ToolAnnotations, tool
 from src.storage.messages import SearchResult, get_message_store
 
 logger = get_logger()
-_memcore_cache: dict[str, Any] = {}
+_coremem_cache: dict[str, Any] = {}
 _cross_encoder: Any | None = None
 _SEARCH_DEPTH_MULTIPLIER = 5
 
@@ -23,17 +23,17 @@ def _get_message_core(user_id: str, workspace_id: str = "personal"):
     Uses the SAME HybridDB path as MessageStore so messages imported
     via /conversation/import are immediately searchable.
     """
-    from memcore.backends.hybrid import HybridBackend
-    from memcore.core import MemoryCore
+    from coremem.backends.hybrid import HybridBackend
+    from coremem.core import MemoryCore
 
     from src.storage.paths import get_paths
 
-    cache_key = f"{user_id}:memcore"
-    if cache_key not in _memcore_cache:
+    cache_key = f"{user_id}:coremem"
+    if cache_key not in _coremem_cache:
         paths = get_paths(user_id)
         conv_path = str(paths.conversation_dir())
-        _memcore_cache[cache_key] = MemoryCore(backend=HybridBackend(path=conv_path))
-    return _memcore_cache[cache_key]
+        _coremem_cache[cache_key] = MemoryCore(backend=HybridBackend(path=conv_path))
+    return _coremem_cache[cache_key]
 
 
 def _expand_queries(query: str) -> list[str]:
@@ -334,7 +334,7 @@ def _rerank_with_cross_encoder(query: str, results: list[Any], top_k: int = 50) 
 
     More accurate than embedding similarity because query and document
     interact through the transformer. Applied as post-processing after
-    the initial memcore retrieval.
+    the initial coremem retrieval.
 
     Disable with EA_DISABLE_CROSS_ENCODER=1 (needed for eval scripts
     running inside asyncio threads to avoid PyTorch OpenMP deadlocks).

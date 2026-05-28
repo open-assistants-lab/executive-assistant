@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 
-from memcore.types import Memory, SearchQuery, SearchResult
+from coremem.types import Memory, SearchQuery, SearchResult
 
 
 class StoreBackend(ABC):

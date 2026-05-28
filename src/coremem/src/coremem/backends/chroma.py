@@ -1,7 +1,7 @@
 """Pure ChromaDB backend — baseline, zero LLM."""
 
-from memcore.backends.base import StoreBackend
-from memcore.types import Memory, SearchQuery, SearchResult
+from coremem.backends.base import StoreBackend
+from coremem.types import Memory, SearchQuery, SearchResult
 
 
 class ChromaBackend(StoreBackend):

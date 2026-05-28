@@ -1,4 +1,4 @@
-"""Core types for memcore."""
+"""Core types for coremem."""
 
 from dataclasses import dataclass
 from datetime import datetime

@@ -1,7 +1,7 @@
 """Tests for ChromaBackend."""
 
-from memcore.backends.chroma import ChromaBackend
-from memcore.types import Memory, SearchQuery
+from coremem.backends.chroma import ChromaBackend
+from coremem.types import Memory, SearchQuery
 
 
 def test_ingest_and_count(chroma_tmp_path):

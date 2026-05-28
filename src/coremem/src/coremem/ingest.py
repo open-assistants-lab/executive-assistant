@@ -9,8 +9,8 @@ No fact extraction. No summarization. No LLM calls.
 
 from datetime import UTC, datetime
 
-from memcore.backends.base import StoreBackend
-from memcore.types import Memory
+from coremem.backends.base import StoreBackend
+from coremem.types import Memory
 
 
 def ingest_message(

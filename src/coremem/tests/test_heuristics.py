@@ -1,6 +1,6 @@
 """Tests for heuristics layer."""
 
-from memcore.heuristics import SearchHeuristics
+from coremem.heuristics import SearchHeuristics
 
 
 def test_keyword_overlap_boosts_when_words_match():

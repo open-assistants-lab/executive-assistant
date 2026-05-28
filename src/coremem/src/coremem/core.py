@@ -1,13 +1,13 @@
-"""MemoryCore — the main entry point for memcore.
+"""MemoryCore — the main entry point for coremem.
 
 Wraps any StoreBackend with heuristics, wake-up context, and ingestion.
 """
 
-from memcore.backends.base import StoreBackend
-from memcore.heuristics import SearchHeuristics
-from memcore.ingest import ingest_batch, ingest_message
-from memcore.layers import WakeUpContext
-from memcore.types import SearchQuery, SearchResult
+from coremem.backends.base import StoreBackend
+from coremem.heuristics import SearchHeuristics
+from coremem.ingest import ingest_batch, ingest_message
+from coremem.layers import WakeUpContext
+from coremem.types import SearchQuery, SearchResult
 
 
 class MemoryCore:

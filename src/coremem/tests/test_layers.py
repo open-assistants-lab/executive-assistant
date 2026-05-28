@@ -1,8 +1,8 @@
 """Tests for L0-L3 wake-up context stack."""
 
-from memcore.backends.chroma import ChromaBackend
-from memcore.layers import WakeUpContext
-from memcore.types import Memory
+from coremem.backends.chroma import ChromaBackend
+from coremem.layers import WakeUpContext
+from coremem.types import Memory
 
 
 def test_essential_builds_l0_l1(chroma_tmp_path):

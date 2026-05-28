@@ -1,5 +1,5 @@
 [project]
-name = "memcore"
+name = "coremem"
 version = "0.1.0"
 description = "Zero-LLM memory for AI agents — dual-backend (ChromaDB baseline, HybridDB enhanced)"
 readme = "README.md"
@@ -15,4 +15,4 @@ dependencies = [
 hybrid = ["hybriddb>=0.1.0"]
 
 [project.scripts]
-memcore-bench = "memcore.benchmarks.longmemeval.eval:main"
+coremem-bench = "coremem.benchmarks.longmemeval.eval:main"

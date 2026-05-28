@@ -9,8 +9,8 @@ L2: On-Demand   — session-specific context (~200-500 chars, on detect)
 L3: Deep Search — full hybrid/semantic search (per explicit query)
 """
 
-from memcore.backends.base import StoreBackend
-from memcore.heuristics import SearchHeuristics
+from coremem.backends.base import StoreBackend
+from coremem.heuristics import SearchHeuristics
 
 
 class WakeUpContext:
@@ -64,7 +64,7 @@ class WakeUpContext:
 
     def deep_search(self, query: str, limit: int = 10) -> str | None:
         """Build L3 context from a full search query."""
-        from memcore.types import SearchQuery
+        from coremem.types import SearchQuery
 
         results = self._backend.search(SearchQuery(text=query, limit=limit))
         if not results:

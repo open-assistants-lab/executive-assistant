@@ -4,11 +4,11 @@ import os
 import shutil
 
 import pytest
-from memcore.types import Memory, SearchQuery
+from coremem.types import Memory, SearchQuery
 
 
 def _make_backend(path: str):
-    from memcore.backends.hybrid import HybridBackend
+    from coremem.backends.hybrid import HybridBackend
 
     return HybridBackend(path=path)
 
