@@ -105,11 +105,23 @@ def _get_system_prompt(user_id: str, workspace_id: str | None = None) -> str:
     workspace_context = _get_workspace_context(workspace_id)
     connector_context = _get_connector_context(user_id)
 
+    memory_context = """\
+## Memory Recall Strategy
+### Tool selection
+- **message_search** (use FIRST, before saying you don't know) — Full session context for specific facts, names, dates, plans, past decisions
+- **message_count** (use FOR "how many" questions) — Deterministic counting of distinct items across sessions
+- **message_timeline** (use FOR temporal reasoning) — Find dates of events, calculate "how many days between X and Y"
+- **memory_profile** — Observations the Observer collected (may be empty)
+- **memory_reflection** — Synthesized patterns from the Reflector (10+ obs, 24h min)
+
+Rule: When the user asks about past conversations, search first — don't answer from model knowledge alone."""
+
     sections = [
         user_prompt_context,
         skills_context,
         workspace_context,
         connector_context,
+        memory_context,
     ]
     sections = [s for s in sections if s]
     body = "\n".join(sections)

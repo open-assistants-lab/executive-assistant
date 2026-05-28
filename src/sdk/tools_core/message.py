@@ -1,5 +1,6 @@
 """Message tools — search, count, and history for raw conversation data."""
 
+import os
 import re
 from datetime import date, timedelta
 from typing import Any
@@ -10,6 +11,8 @@ from src.storage.messages import SearchResult, get_message_store
 
 logger = get_logger()
 _memcore_cache: dict[str, Any] = {}
+_cross_encoder: Any | None = None
+_SEARCH_DEPTH_MULTIPLIER = 5
 
 
 # ── message core factory ──────────────────────────────────────────────────────
@@ -314,6 +317,48 @@ message_history.annotations = ToolAnnotations(
 
 
 
+def _get_cross_encoder():
+    """Lazy-load the cross-encoder reranker model."""
+    global _cross_encoder
+    if _cross_encoder is None:
+        try:
+            from sentence_transformers import CrossEncoder
+            _cross_encoder = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+        except Exception:
+            return None
+    return _cross_encoder
+
+
+def _rerank_with_cross_encoder(query: str, results: list[Any], top_k: int = 50) -> list[Any]:
+    """Rerank top results using a lightweight cross-encoder.
+
+    More accurate than embedding similarity because query and document
+    interact through the transformer. Applied as post-processing after
+    the initial memcore retrieval.
+
+    Disable with EA_DISABLE_CROSS_ENCODER=1 (needed for eval scripts
+    running inside asyncio threads to avoid PyTorch OpenMP deadlocks).
+    """
+    import os as _os
+    if _os.environ.get("EA_DISABLE_CROSS_ENCODER"):
+        return results
+
+    model = _get_cross_encoder()
+    if model is None or not results:
+        return results
+
+    candidates = results[:top_k]
+    pairs = [(query, r.memory.content[:512]) for r in candidates]
+    try:
+        scores = model.predict(pairs, show_progress_bar=False, batch_size=32)
+        for i, r in enumerate(candidates):
+            setattr(r, "_ce_score", float(scores[i]))
+        candidates.sort(key=lambda r: getattr(r, "_ce_score", r.score), reverse=True)
+        return candidates + results[top_k:]
+    except Exception:
+        return results
+
+
 def _content_similarity(a: str, b: str) -> float:
     """Jaccard similarity between two content strings (word-level)."""
     wa = set(a.split())
@@ -330,99 +375,120 @@ def message_search(
     workspace_id: str = "personal",
     limit: int = 5,
 ) -> str:
-    """Search conversation history — semantic + keyword, raw verbatim output.
+    """Search conversation history — semantic + keyword, full session context.
 
-    Returns raw conversation snippets matched to your query. Results are
-    deduplicated by session (max 1 result per conversation). No fact
-    extraction or summarization — you get exactly what was said.
+    PRIMARY tool for fact recall. Always use this before telling the user
+    you don't have information about a past conversation.
 
-    Use this for: finding specific facts from past conversations, counting
-    items mentioned across sessions, checking what was discussed.
+    Returns full conversations (all turns) for each matching session.
+    Automatically expands your query and reranks results for best recall.
+
+    Use this for finding specific facts, names, dates, plans from past
+    conversations. Use message_count for counting/aggregation questions
+    ("how many X..."), and message_timeline for temporal reasoning
+    ("how many days between...", "when did I...").
 
     Args:
         query: What to search for
         user_id: User identifier
         workspace_id: Workspace ID (defaults to current workspace)
-        limit: Max results (default 20)
+        limit: Max results (default 5)
 
     Returns:
-        Search results as formatted conversation snippets
+        Full conversation context for each matching session
     """
-    core = _get_message_core(user_id, workspace_id)
+    from src.storage.messages import get_message_store
 
-    # Counting questions need wider session coverage to find all items
-    # across different conversations. Single-fact questions can be tighter.
+    core = _get_message_core(user_id, workspace_id)
+    store = get_message_store(user_id, workspace_id)
+
     is_counting = query.lower().startswith("how many") or "total" in query.lower()
     effective_limit = max(limit, 30 if is_counting else 10)
 
-    results = core.search(query, limit=effective_limit * 6)  # fetch wide for session diversity
+    # 1. Multi-query expansion — generate search variants
+    queries = _expand_queries(query)
 
-    # Filter: only user messages contain original information.
-    # Assistant/tool messages are previous answers/echo that create recursion.
-    results = [r for r in results if r.memory.role == "user"]
+    # 2. Run all queries, merge deduplicated by message id
+    all_results: list[Any] = []
+    seen_ids: set[int] = set()
+    for q in queries:
+        results = core.search(q, limit=effective_limit * _SEARCH_DEPTH_MULTIPLIER)
+        for r in results:
+            rid = r.id if hasattr(r, "id") else id(r)
+            if rid not in seen_ids:
+                seen_ids.add(rid)
+                all_results.append(r)
 
-    # Filter out echo: pure questions (end with ?, no answer content).
-    # These match query keywords but contain no information to extract.
-    # Keep messages that start like questions but contain data after (e.g., "How to train? I run 3x/wk.")
-    # Filter out prompt echo: messages whose text heavily overlaps with the
-    # current query. These are the user's own question being stored and re-found.
-    # Uses word overlap, not punctuation — handles "Did I ask about X?" naturally.
+    all_results.sort(key=lambda r: r.score, reverse=True)
+
+    # 3. Cross-encoder reranking for better relevance
+    all_results = _rerank_with_cross_encoder(query, all_results)
+
+    # 4. Deduplicate by session
     query_words = set(query.lower().split())
-    filtered = []
-    for r in results:
+    seen_sessions: set[str] = set()
+    seen_nosession: set[str] = set()
+    matched: list[tuple[str, Any]] = []  # (session_id, first_match_result)
+
+    for r in all_results:
+        if r.memory.role in ("tool", "summary"):
+            continue
+
         content_stripped = r.memory.content.strip().lower()
         result_words = set(content_stripped.split())
         query_overlap = len(query_words & result_words) / max(len(query_words), 1)
-
-        # High overlap with query → echo, skip. But keep if it contains numbers
-        # or proper nouns that indicate it's not just the question.
         has_data = bool(re.findall(r"\d+|[A-Z][a-z]{2,}", r.memory.content))
         if query_overlap > 0.7 and not has_data:
             continue
 
-        # Skip near-duplicate content
-        if len(filtered) >= 1 and _content_similarity(
-            content_stripped, filtered[-1].memory.content.lower()
-        ) > 0.8:
-            continue
+        sid = r.memory.session_id or ""
+        if sid:
+            if sid in seen_sessions:
+                continue
+            seen_sessions.add(sid)
+        else:
+            content_key = content_stripped[:100]
+            if content_key in seen_nosession:
+                continue
+            seen_nosession.add(content_key)
 
-        filtered.append(r)
-        if len(filtered) >= effective_limit:
+        matched.append((sid, r))
+        if len(matched) >= effective_limit:
             break
 
-    if not filtered and results:
-        filtered = results[:effective_limit]
-
-    results = filtered
-
-    if not results:
+    if not matched:
         return f"No messages found for '{query}'"
+
+    # 4. Build session-level context blocks
+    output_parts: list[str] = []
+    for sid, first in matched:
+        if not sid:
+            content = first.memory.content[:500]
+            ts_str = first.memory.ts.strftime("%Y-%m-%d") if first.memory.ts else "?"
+            output_parts.append(f"── Message ──\n[{first.memory.role}] {ts_str}\n{content}")
+            continue
+
+        session_msgs = store.get_messages_by_session_id(sid, limit=50)
+        if not session_msgs:
+            output_parts.append(first.memory.content[:500])
+            continue
+
+        lines = [f"── Session {sid[:12]} ──"]
+        for m in session_msgs:
+            content = (m.content or "")[:500]
+            ts_str = m.ts.strftime("%Y-%m-%d") if m.ts else "?"
+            role = m.role or "?"
+            lines.append(f"[{role}] {ts_str} {content}")
+        output_parts.append("\n".join(lines))
 
     output = (
         f"## Search Results: '{query}'\n"
-        f"Found {len(results)} messages. Ordered by relevance (higher score = better match).\n\n"
-    )
-    for i, r in enumerate(results, 1):
-        content = r.memory.content[:300]
-        if len(r.memory.content) > 300:
-            content += "..."
-        ts_str = r.memory.ts.strftime("%Y-%m-%d") if r.memory.ts else "?"
-        score = r.score
-        role = r.memory.role or "?"
-        sid = r.memory.session_id or ""
-        ws = r.memory.workspace_id or ""
-
-        meta = f"[{role}] {ts_str} score={score:.4f}"
-        if ws:
-            meta += f" ws={ws}"
-        if sid:
-            meta += f" sid={sid[:12]}"
-
-        output += f"---\n{meta}\n{content}\n"
+        f"Found {len(matched)} relevant conversations.\n\n"
+    ) + "\n\n".join(output_parts)
 
     output += (
-        "\n---\n"
-        "INSTRUCTIONS: Read the above messages and extract the answer. "
+        "\n\n---\n"
+        "INSTRUCTIONS: Read the above conversations and extract the answer. "
         "If counting, count each distinct item across ALL results. "
         "Give only the final answer — do NOT repeat the search results."
     )
@@ -430,7 +496,7 @@ def message_search(
 
 
 message_search.annotations = ToolAnnotations(
-    title="Search Messages", read_only=True, idempotent=True
+    title="Search Past Conversations (Full Context)", read_only=True, idempotent=True
 )
 
 
@@ -440,11 +506,15 @@ def message_count(
     user_id: str = "default_user",
     workspace_id: str = "personal",
 ) -> str:
-    """Count distinct items matching a query — deterministic, no LLM guessing.
+    """Count distinct items — call this for "how many" questions.
 
-    For aggregation questions like "how many model kits?", "how many projects?",
-    "how many different doctors?". Searches conversation history, extracts
-    distinct items programmatically, and returns a definitive count.
+    For aggregation like "how many doctor visits?", "how many different
+    skincare products?", "how many times did I mention X?".
+    Extracts distinct items programmatically across all sessions and
+    returns a definitive count with item names.
+
+    Use message_search for finding specific facts, not counting.
+    Use message_timeline for "what happened between dates" questions.
 
     Args:
         query: What to count (e.g., "model kits", "doctors", "projects")
@@ -549,4 +619,87 @@ def message_count(
 
 message_count.annotations = ToolAnnotations(
     title="Count Matching Messages", read_only=True, idempotent=True
+)
+
+
+@tool
+def message_timeline(
+    query: str,
+    user_id: str = "default_user",
+    workspace_id: str = "personal",
+    limit: int = 20,
+) -> str:
+    """Find events in conversation history with their dates — for temporal reasoning.
+
+    Returns a chronological timeline of matching events, each with its
+    date and a content snippet. Use this for temporal reasoning:
+    - "how many days between X and Y" (extract dates, calculate difference)
+    - "when did I visit / go to / buy..." (find event date)
+    - "what happened last March / in 2025" (find events in a date range)
+
+    For specific fact recall, use message_search which returns full session
+    context. For counting, use message_count.
+
+    Args:
+        query: What events to find (e.g., "visit to MoMA", "yoga class")
+        user_id: User identifier
+        workspace_id: Workspace ID (defaults to current workspace)
+        limit: Max events to return (default 20)
+
+    Returns:
+        Chronological timeline of matching events with dates
+    """
+    core = _get_message_core(user_id, workspace_id)
+
+    results = core.search(query, limit=limit * _SEARCH_DEPTH_MULTIPLIER)
+    results = _rerank_with_cross_encoder(query, results)
+
+    seen_sessions: set[str] = set()
+    timeline: list[tuple[str, str, str]] = []  # (date, session_id, snippet)
+
+    for r in results:
+        mem = r.memory
+        sid = mem.session_id or ""
+        if sid:
+            if sid in seen_sessions:
+                continue
+            seen_sessions.add(sid)
+
+        if not mem.ts:
+            continue
+
+        ts = mem.ts.isoformat() if hasattr(mem.ts, "isoformat") else str(mem.ts)
+
+        snippet = mem.content[:200].replace("\n", " ").strip()
+        if len(mem.content) > 200:
+            snippet += "..."
+
+        timeline.append((ts, sid, snippet))
+
+    timeline.sort(key=lambda x: x[0])
+
+    if not timeline:
+        return "No matching events found."
+
+    output = f"**Timeline: {len(timeline)} events**\n\n"
+    for ts, sid, snippet in timeline[:limit]:
+        # Convert ISO timestamp to readable date
+        try:
+            from datetime import datetime
+            dt = datetime.fromisoformat(ts)
+            date_str = dt.strftime("%Y-%m-%d %H:%M")
+        except (ValueError, TypeError):
+            date_str = ts[:10]
+        sid_display = sid[:12] + "..." if len(sid) > 15 else sid
+        output += f"**{date_str}** (session {sid_display})\n{snippet}\n\n"
+
+    total = len(timeline)
+    if total > limit:
+        output += f"*({total - limit} more events — refine your query for more detail)*\n"
+
+    return output
+
+
+message_timeline.annotations = ToolAnnotations(
+    title="Event Timeline with Dates", read_only=True, idempotent=True
 )

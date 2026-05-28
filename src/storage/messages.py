@@ -236,6 +236,16 @@ class MessageStore:
 
         return self._rows_to_messages(rows)
 
+    def get_messages_by_session_id(
+        self, session_id: str, limit: int = 50
+    ) -> list[Message]:
+        """Get all messages belonging to a session, ordered by time."""
+        where = "json_extract(metadata, '$.session_id') = ?"
+        rows = self.db.query(
+            "messages", where=where, params=(session_id,), order_by="ts ASC", limit=limit
+        )
+        return self._rows_to_messages(rows)
+
     def get_recent_messages(self, count: int = 100) -> list[Message]:
         rows = self.db.query("messages", order_by="ts DESC", limit=count)
         messages = self._rows_to_messages(rows)

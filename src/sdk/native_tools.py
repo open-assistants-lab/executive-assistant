@@ -75,7 +75,7 @@ from src.sdk.tools_core.mcp import (
     mcp_tools,
 )
 from src.sdk.tools_core.memory import memory_profile, memory_reflection
-from src.sdk.tools_core.message import message_count, message_history, message_search
+from src.sdk.tools_core.message import message_count, message_history, message_search, message_timeline
 from src.sdk.tools_core.research import (
     research_list,
     research_start,
@@ -141,6 +141,7 @@ def _register_all() -> None:
     registry.register(message_search)
     registry.register(message_count)
     registry.register(message_history)
+    registry.register(message_timeline)
     registry.register(memory_profile)
     registry.register(memory_reflection)
 

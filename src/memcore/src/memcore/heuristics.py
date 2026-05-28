@@ -19,6 +19,8 @@ class SearchHeuristics:
     PERSON_NAME_BOOST = 0.40
     QUOTED_PHRASE_BOOST = 0.60
     COUNTING_QUESTION_SNIPPET_LENGTH = 3000
+    RECENCY_DECAY_WEIGHT = 0.1
+    RECENCY_DECAY_HALF_LIFE_DAYS = 30
     STOP_WORDS = {
         "the", "a", "an", "is", "are", "was", "were", "be", "been",
         "have", "has", "had", "do", "does", "did", "will", "would",
@@ -74,6 +76,28 @@ class SearchHeuristics:
         return score
 
     @classmethod
+    def recency_decay(cls, content_ts: str | None, score: float) -> float:
+        """Unconditional mild recency boost — applied to every result.
+
+        Uses exponential decay: score * (1 + weight * e^(-age_days / half_life))
+        Very recent content gets ~10% boost, 30-day-old ~3.7%, 60-day ~1.4%.
+        Always applied regardless of query content.
+        """
+        if not content_ts:
+            return score
+
+        try:
+            from datetime import datetime
+            ts = datetime.fromisoformat(content_ts)
+            age_days = max(0, (datetime.now() - ts).days)
+            import math
+            factor = cls.RECENCY_DECAY_WEIGHT * math.exp(-age_days / cls.RECENCY_DECAY_HALF_LIFE_DAYS)
+            return score * (1 + factor)
+        except (ValueError, TypeError):
+            pass
+        return score
+
+    @classmethod
     def person_name_boost(cls, content: str, score: float) -> float:
         """Boost content containing proper names (capitalized multi-word)."""
         names = re.findall(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})\b", content)
@@ -119,6 +143,7 @@ class SearchHeuristics:
     def apply_all(cls, query: str, content: str, score: float, ts: str | None = None) -> float:
         """Apply all applicable heuristics to a single result."""
         s = cls.keyword_overlap(query, content, score)
+        s = cls.recency_decay(ts, s)
         s = cls.temporal_boost(query, ts, s)
         s = cls.person_name_boost(content, s)
         s = cls.quoted_phrase_boost(query, content, s)
