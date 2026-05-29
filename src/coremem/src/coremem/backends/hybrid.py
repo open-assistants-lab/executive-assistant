@@ -27,10 +27,10 @@ class HybridBackend(StoreBackend):
 
     def __init__(self, path: str):
         try:
-            from hybriddb import HybridDB  # open-source package (production)
+            from src.sdk.hybrid_db import HybridDB
         except ImportError:
             try:
-                from src.sdk.hybrid_db import HybridDB  # local dev fallback
+                from hybriddb import HybridDB
             except ImportError:
                 raise ImportError(
                     "hybriddb is required for HybridBackend. "
@@ -85,11 +85,9 @@ class HybridBackend(StoreBackend):
         return ids
 
     def search(self, query: SearchQuery) -> list[SearchResult]:
-
-        try:
-            from hybriddb import SearchMode
-        except ImportError:
-            SearchMode = None
+        import sys
+        db_module = sys.modules.get(type(self._db).__module__)
+        search_mode = getattr(db_module, "SearchMode", None) if db_module else None
 
         fetch_limit = query.limit * 3
         fts_weight = 0.5
@@ -100,8 +98,8 @@ class HybridBackend(StoreBackend):
             "query": query.text,
             "limit": fetch_limit,
         }
-        if SearchMode is not None:
-            kwargs["mode"] = SearchMode.HYBRID
+        if search_mode is not None:
+            kwargs["mode"] = search_mode.HYBRID
             kwargs["fts_weight"] = fts_weight
             kwargs["recency_weight"] = 0.3
             kwargs["recency_column"] = "ts"

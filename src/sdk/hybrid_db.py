@@ -65,9 +65,9 @@ def _default_embedding_fn(text: str) -> list[float]:
     if not text:
         return [0.0] * EMBEDDING_DIM
     try:
-        from src.sdk.tools_core.apps import get_embedding
+        from hybriddb.db import _default_embedding_fn as hybriddb_default
 
-        return get_embedding(text)
+        return hybriddb_default(text)
     except Exception:
         return _hash_embedding(text)
 
