@@ -9,6 +9,8 @@ The fused ranking formula:
   fused_score = semantic_score * (1 + fts_weight * keyword_overlap)
 """
 
+from __future__ import annotations
+
 import json
 from datetime import datetime
 
@@ -29,13 +31,8 @@ class HybridBackend(StoreBackend):
         try:
             from src.sdk.hybrid_db import HybridDB
         except ImportError:
-            try:
-                from hybriddb import HybridDB
-            except ImportError:
-                raise ImportError(
-                    "hybriddb is required for HybridBackend. "
-                    "Install with: pip install hybriddb"
-                )
+            from hybriddb import HybridDB
+
         self._path = path
         self._db = HybridDB(path=path)
         self._ensure_tables()
@@ -46,17 +43,78 @@ class HybridBackend(StoreBackend):
                 "messages",
                 {
                     "id": "TEXT PRIMARY KEY",
+                    "ts": "TEXT NOT NULL",
+                    "role": "TEXT NOT NULL",
                     "content": "LONGTEXT",
-                    "role": "TEXT",
                     "metadata": "TEXT",
-                    "ts": "TEXT",
                 },
             )
         except Exception:
             pass
 
-    def ingest(self, memory: Memory) -> str:
+    def _merge_metadata_for_storage(self, memory: Memory) -> dict:
+        meta = {
+            "role": memory.role,
+            "session_id": memory.session_id or "",
+            "ts": memory.ts.isoformat() if memory.ts else datetime.now().isoformat(),
+        }
+        meta.update(memory.metadata)
+        return meta
+
+    def _parse_metadata(self, raw: str | dict | None) -> dict:
+        if not raw:
+            return {}
+        if isinstance(raw, dict):
+            return raw
+        if isinstance(raw, str):
+            try:
+                return json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                return {}
+        return {}
+
+    def _matches_filters(self, meta: dict, filters: dict) -> bool:
+        for key, value in filters.items():
+            if meta.get(key) != value:
+                return False
+        return True
+
+    def _build_where_clause(self, filters: dict) -> tuple[list[str], list[str]]:
+        """Build SQL WHERE parts and params from metadata equality filters."""
+        parts, params = [], []
+        for key, value in filters.items():
+            safe_key = key.replace("'", "''")
+            parts.append(f"json_extract(metadata, '$.{safe_key}') = ?")
+            params.append(str(value))
+        return parts, params
+
+    def _delete_with_journal(self, ids: list[str]) -> None:
+        """Delete rows, journal entries, ChromaDB vectors, and sync DuckDB."""
+        with self._db._connect() as cur:
+            placeholders = ",".join("?" for _ in ids)
+            cur.execute(f"DELETE FROM messages WHERE id IN ({placeholders})", ids)
+            cur.execute(
+                f"DELETE FROM _journal WHERE app_table = 'messages' AND row_id IN ({placeholders})",
+                ids,
+            )
+        if self._db._chroma is not None:
+            try:
+                self._db._chroma.delete(
+                    collection_name="messages_content",
+                    ids=[str(i) for i in ids],
+                )
+            except Exception:
+                pass
+        self._db.sync_duckdb_table("messages")
+
+    def ingest(self, memory: Memory, embedding: list[float] | None = None) -> str:
         ids = self.ingest_batch([memory])
+        if embedding is not None and ids:
+            try:
+                col = self._db._chroma.get_collection("messages_content")
+                col.update(ids=[ids[0]], embeddings=[embedding])
+            except Exception:
+                pass
         return ids[0] if ids else ""
 
     def ingest_batch(self, memories: list[Memory]) -> list[str]:
@@ -64,21 +122,17 @@ class HybridBackend(StoreBackend):
 
         if not memories:
             return []
-        rows = []
         ids = []
+        rows = []
         for m in memories:
-            mid = str(uuid.uuid4())[:12]
+            mid = m.id or str(uuid.uuid4())[:12]
             ids.append(mid)
-            metadata = {
-                "role": m.role,
-                "session_id": m.session_id or "",
-                "ts": m.ts.isoformat() if m.ts else datetime.now().isoformat(),
-            }
+            storage_meta = self._merge_metadata_for_storage(m)
             rows.append({
                 "id": mid,
                 "content": m.content,
                 "role": m.role,
-                "metadata": json.dumps(metadata),
+                "metadata": json.dumps(storage_meta),
                 "ts": m.ts.isoformat() if m.ts else datetime.now().isoformat(),
             })
         self._db.insert_batch("messages", rows)
@@ -86,13 +140,14 @@ class HybridBackend(StoreBackend):
 
     def search(self, query: SearchQuery) -> list[SearchResult]:
         import sys
+
         db_module = sys.modules.get(type(self._db).__module__)
         search_mode = getattr(db_module, "SearchMode", None) if db_module else None
 
         fetch_limit = query.limit * 3
         fts_weight = 0.5
 
-        kwargs = {
+        kwargs: dict = {
             "table": "messages",
             "column": "content",
             "query": query.text,
@@ -115,19 +170,12 @@ class HybridBackend(StoreBackend):
             ts_str = row.get("ts", "")
             role = row.get("role", "")
 
-            meta_dict = {}
-            raw_meta = row.get("metadata")
-            if raw_meta:
-                if isinstance(raw_meta, str):
-                    try:
-                        meta_dict = json.loads(raw_meta)
-                    except (json.JSONDecodeError, TypeError):
-                        pass
-                elif isinstance(raw_meta, dict):
-                    meta_dict = raw_meta
+            meta_dict = self._parse_metadata(row.get("metadata"))
+
+            if query.filters and not self._matches_filters(meta_dict, query.filters):
+                continue
 
             sid = meta_dict.get("session_id", "")
-            ws_id = meta_dict.get("workspace_id", "")
             if sid and sid in seen_sessions:
                 continue
             if sid:
@@ -140,44 +188,74 @@ class HybridBackend(StoreBackend):
                 except (ValueError, TypeError):
                     pass
 
-            results.append(SearchResult(
-                    memory=Memory(
-                        id=str(rid),
-                        content=content,
-                        role=role,
-                        ts=ts,
-                        session_id=sid or None,
-                        workspace_id=ws_id or None,
-                        score=score,
-                    ),
+            user_meta = {k: v for k, v in meta_dict.items()
+                         if k not in ("role", "session_id", "ts")}
+
+            memory = Memory(
+                id=str(rid),
+                content=content,
+                role=role,
+                ts=ts,
+                session_id=sid or None,
                 score=score,
-                source="hybrid",
-            ))
+                metadata=user_meta,
+            )
+            results.append(SearchResult(memory=memory, score=score, source="hybrid"))
 
             if len(results) >= query.limit:
                 break
 
         return results
 
-    def get_recent(self, limit: int = 10) -> list[Memory]:
-        try:
-            rows = self._db.search(
-                table="messages",
-                column="content",
-                query="",
-                limit=limit,
-                order_by="ts DESC",
-            )
-        except Exception:
-            return []
+    def list(
+        self, filters: dict | None = None, limit: int | None = None, offset: int = 0,
+    ) -> list[Memory]:
+        where_parts, params = self._build_where_clause(filters or {})
+        where_clause = " AND ".join(where_parts) if where_parts else ""
+
+        if limit is None:
+            sql_limit = 0
+        else:
+            sql_limit = limit + offset
+
+        rows = self._db.query(
+            "messages",
+            where=where_clause,
+            params=tuple(params),
+            order_by="ts DESC",
+            limit=sql_limit,
+        )
+
         memories = []
         for row in rows:
+            meta_dict = self._parse_metadata(row.get("metadata", ""))
+            ts_str = row.get("ts", "")
+            ts = None
+            if ts_str:
+                try:
+                    ts = datetime.fromisoformat(ts_str)
+                except (ValueError, TypeError):
+                    pass
+
+            user_meta = {k: v for k, v in meta_dict.items()
+                         if k not in ("role", "session_id", "ts")}
+
             memories.append(Memory(
                 id=str(row.get("id", "")),
                 content=row.get("content", ""),
                 role=row.get("role", "user"),
+                ts=ts,
+                session_id=meta_dict.get("session_id"),
+                metadata=user_meta,
             ))
+
+        if offset:
+            memories = memories[offset:]
+
         return memories
+
+    def get_recent(self, limit: int = 10) -> list[Memory]:
+        return self.list(limit=limit)
 
     def count(self) -> int:
         try:
@@ -186,8 +264,29 @@ class HybridBackend(StoreBackend):
         except Exception:
             return 0
 
+    def delete(self, filters: dict | None = None) -> int:
+        parts, params = self._build_where_clause(filters or {})
+        where = " AND ".join(parts) if parts else "1"
+        rows = self._db.query("messages", where=where, params=tuple(params))
+        ids = [r["id"] for r in rows]
+        if not ids:
+            return 0
+        self._delete_with_journal(ids)
+        return len(ids)
+
     def clear(self) -> None:
         try:
-            self._db.raw_query("DELETE FROM messages")
+            with self._db._connect() as cur:
+                cur.execute("DELETE FROM messages")
+                cur.execute("DELETE FROM _journal WHERE app_table = ?", ("messages",))
+        except Exception:
+            pass
+        if self._db._chroma is not None:
+            try:
+                self._db._chroma.delete_collection("messages_content")
+            except Exception:
+                pass
+        try:
+            self._db.sync_duckdb_table("messages")
         except Exception:
             pass

@@ -20,7 +20,7 @@ from src.storage.paths import get_paths
 class Message:
     """A single message in the conversation."""
 
-    id: int
+    id: str
     ts: datetime
     role: str
     content: str
@@ -31,7 +31,7 @@ class Message:
 class SearchResult:
     """Search result with score."""
 
-    id: int
+    id: str
     content: str
     ts: datetime
     role: str
@@ -71,20 +71,20 @@ class MessageStore:
         except Exception:
             pass
 
-    def add_message(self, role: str, content: str, metadata: dict | None = None) -> int:
+    def add_message(self, role: str, content: str, metadata: dict | None = None) -> str:
         result = self._core.ingest(role, content or "(empty)", metadata=metadata)
-        return int(result) if result else 0
+        return result or ""
 
     def add_message_with_embedding(
         self, role: str, content: str, embedding: list[float], metadata: dict | None = None
-    ) -> int:
+    ) -> str:
         result = self._core.ingest(role, content or "(empty)", metadata=metadata, embedding=embedding)
-        return int(result) if result else 0
+        return result or ""
 
     @staticmethod
     def _to_msg(m: _CoreMem) -> Message:
         return Message(
-            id=int(m.id),
+            id=m.id,
             ts=m.ts,
             role=m.role,
             content=m.content,
@@ -94,7 +94,7 @@ class MessageStore:
     @staticmethod
     def _to_sr(r: _CoreMemResult) -> SearchResult:
         return SearchResult(
-            id=int(r.memory.id),
+            id=r.memory.id,
             content=r.memory.content,
             ts=r.memory.ts,
             role=r.memory.role,

@@ -1,5 +1,7 @@
 """Abstract backend interface."""
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 
 from coremem.types import Memory, SearchQuery, SearchResult
@@ -14,8 +16,14 @@ class StoreBackend(ABC):
     """
 
     @abstractmethod
-    def ingest(self, memory: Memory) -> str:
-        """Store a memory. Returns the storage ID."""
+    def ingest(self, memory: Memory, embedding: list[float] | None = None) -> str:
+        """Store a memory. Returns the storage ID.
+
+        Args:
+            memory: The memory to store.
+            embedding: Optional pre-computed embedding vector. When provided,
+                      the backend uses this instead of computing one.
+        """
         ...
 
     @abstractmethod
@@ -29,6 +37,13 @@ class StoreBackend(ABC):
         ...
 
     @abstractmethod
+    def list(
+        self, filters: dict | None = None, limit: int | None = None, offset: int = 0,
+    ) -> list[Memory]:
+        """List memories with optional filters and pagination. Backbone of export()."""
+        ...
+
+    @abstractmethod
     def get_recent(self, limit: int = 10) -> list[Memory]:
         """Return most recently stored memories."""
         ...
@@ -36,6 +51,11 @@ class StoreBackend(ABC):
     @abstractmethod
     def count(self) -> int:
         """Return total number of stored memories."""
+        ...
+
+    @abstractmethod
+    def delete(self, filters: dict | None = None) -> int:
+        """Delete memories matching filters. Returns count deleted."""
         ...
 
     @abstractmethod

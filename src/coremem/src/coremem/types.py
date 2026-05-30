@@ -1,7 +1,8 @@
 """Core types for coremem."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 
 @dataclass
@@ -12,8 +13,8 @@ class Memory:
     role: str = "user"
     ts: datetime | None = None
     session_id: str | None = None
-    workspace_id: str | None = None
     score: float = 0.0
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def dict(self) -> dict:
         return {
@@ -23,6 +24,7 @@ class Memory:
             "ts": self.ts.isoformat() if self.ts else None,
             "session_id": self.session_id,
             "score": self.score,
+            "metadata": self.metadata,
         }
 
 
@@ -39,13 +41,4 @@ class SearchQuery:
     """A search query with optional filters."""
     text: str
     limit: int = 10
-    wing: str | None = None
-    room: str | None = None
-
-    def dict(self) -> dict:
-        return {
-            "text": self.text,
-            "limit": self.limit,
-            "wing": self.wing,
-            "room": self.room,
-        }
+    filters: dict[str, Any] = field(default_factory=dict)

@@ -78,7 +78,10 @@ def raise_if_context_overflow(exc: BaseException) -> None:
 
     text_parts = [str(exc)]
     if response is not None:
-        text_parts.append(str(getattr(response, "text", "")))
+        try:
+            text_parts.append(str(getattr(response, "text", "")))
+        except Exception:
+            pass
     text = " ".join(text_parts).lower()
     if any(marker in text for marker in _CONTEXT_OVERFLOW_MARKERS):
         raise ProviderContextOverflowError(str(exc)) from exc

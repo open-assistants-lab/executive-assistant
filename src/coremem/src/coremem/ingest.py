@@ -19,6 +19,8 @@ def ingest_message(
     content: str,
     session_id: str | None = None,
     ts: datetime | None = None,
+    metadata: dict | None = None,
+    embedding: list[float] | None = None,
 ) -> str:
     """Ingest a single message verbatim.
 
@@ -28,6 +30,8 @@ def ingest_message(
         content: Raw message text — stored as-is, no extraction.
         session_id: Optional session/thread identifier.
         ts: Optional timestamp (defaults to now).
+        metadata: Optional arbitrary key-value pairs for filtering.
+        embedding: Optional pre-computed embedding vector.
 
     Returns:
         The storage ID assigned to this memory.
@@ -41,8 +45,9 @@ def ingest_message(
         role=role,
         ts=ts or datetime.now(UTC),
         session_id=session_id,
+        metadata=metadata or {},
     )
-    return backend.ingest(memory)
+    return backend.ingest(memory, embedding=embedding)
 
 
 def ingest_batch(
@@ -67,6 +72,7 @@ def ingest_batch(
             role=msg.get("role", "user"),
             content=msg.get("content", ""),
             session_id=session_id,
+            metadata=msg.get("metadata"),
         )
         if mid:
             ids.append(mid)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import tempfile
-from datetime import UTC, date, datetime, timedelta
+from datetime import timedelta
 from unittest import mock
 
 from src.storage.messages import MessageStore
@@ -40,7 +40,7 @@ def test_add_message_with_embedding_uses_supplied_embedding() -> None:
 
     rid = store.add_message_with_embedding("user", "precomputed", [1.0] * 384)
 
-    assert rid > 0
+    assert rid != ""
     messages = store.get_recent_messages(count=1)
     assert messages[0].content == "precomputed"
 
@@ -112,7 +112,7 @@ def test_message_store_initializes_when_duckdb_unavailable() -> None:
             store = MessageStore("test_user", base_dir=temp_dir)
             row_id = store.add_message("user", "hello")
 
-    assert row_id > 0
+    assert row_id != ""
 
 
 def test_has_summary_true() -> None:

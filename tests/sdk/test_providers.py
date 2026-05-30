@@ -427,11 +427,14 @@ class TestProviderFactory:
         assert provider == "ollama"
         assert model == "minimax-m2.5"
 
-    def test_create_ollama_provider(self):
-        with patch.dict("os.environ", {"OLLAMA_BASE_URL": "", "OLLAMA_API_KEY": ""}):
-            p = create_provider("ollama", model="llama3.2")
+    def test_create_ollama_provider_always_local_regardless_of_env(self):
+        with patch.dict(
+            "os.environ",
+            {"OLLAMA_BASE_URL": "https://ollama.com", "OLLAMA_API_KEY": "test-key"},
+        ):
+            p = create_provider("ollama", model="gemma4:e4b")
             assert isinstance(p, OpenAIProvider)
-            assert p.model == "llama3.2"
+            assert p.model == "gemma4:e4b"
 
     def test_create_ollama_cloud_provider(self):
         p = create_provider("ollama-cloud", model="minimax-m2.5", api_key="test")
@@ -487,14 +490,13 @@ class TestProviderFactory:
                 p = create_model_from_config("ollama:minimax-m2.5")
                 assert isinstance(p, OpenAIProvider)
 
-    def test_create_model_from_config_ollama_does_not_auto_switch_to_cloud(self):
+    def test_create_model_from_config_ollama_stays_local_with_cloud_env(self):
         with patch.dict(
             "os.environ",
             {"OLLAMA_BASE_URL": "https://ollama.com", "OLLAMA_API_KEY": "test"},
         ):
-            p = create_model_from_config("ollama/minimax-m2.5")
-            # ollama.com → OllamaCloud (native protocol)
-            assert isinstance(p, OllamaCloud)
+            p = create_model_from_config("ollama:minimax-m2.5")
+            assert isinstance(p, OpenAIProvider)
 
     def test_create_model_from_config_explicit_ollama_cloud(self):
         with patch.dict("os.environ", {"OLLAMA_API_KEY": "test"}):

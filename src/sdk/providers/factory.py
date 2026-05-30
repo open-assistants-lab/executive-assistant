@@ -28,7 +28,6 @@ _ENV_KEY_MAP: dict[str, str] = {
     "openai": "OPENAI_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
     "gemini": "GOOGLE_API_KEY",
-    "ollama": "OLLAMA_API_KEY",
     "ollama-cloud": "OLLAMA_API_KEY",
     "groq": "GROQ_API_KEY",
     "deepseek": "DEEPSEEK_API_KEY",
@@ -40,7 +39,9 @@ _ENV_KEY_MAP: dict[str, str] = {
 def _resolve_provider_type(provider_id: str) -> tuple[str, str]:
     lower = provider_id.lower().strip()
 
-    if lower in ("ollama", "ollama-cloud"):
+    if lower == "ollama-cloud":
+        return "ollama-cloud", ""
+    if lower == "ollama":
         return "ollama", ""
     if lower == "anthropic":
         return "anthropic", ""
@@ -73,16 +74,18 @@ def create_provider(
     resolved_type, registry_url = _resolve_provider_type(provider_type)
 
     if resolved_type == "ollama":
-        resolved_key = api_key or os.environ.get("OLLAMA_API_KEY", "")
-        env_base_url = os.environ.get("OLLAMA_LOCAL_BASE_URL") or os.environ.get("OLLAMA_BASE_URL", "")
-        if resolved_key or "ollama.com" in env_base_url:
-            return OllamaCloud(
-                base_url="https://ollama.com",
-                model=model or "minimax-m2.5",
-                api_key=resolved_key,
-            )
+        env_base_url = os.environ.get("OLLAMA_LOCAL_BASE_URL", "")
         resolved_url = base_url or env_base_url or registry_url or "http://localhost:11434/v1"
         return OpenAIProvider(base_url=resolved_url, model=model or "minimax-m2.5")
+
+    if resolved_type == "ollama-cloud":
+        resolved_key = api_key or os.environ.get("OLLAMA_API_KEY", "")
+        resolved_url = base_url or os.environ.get("OLLAMA_BASE_URL", "") or "https://ollama.com"
+        return OllamaCloud(
+            base_url=resolved_url,
+            model=model or "minimax-m2.5",
+            api_key=resolved_key,
+        )
 
     if resolved_type == "anthropic":
         resolved_key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
