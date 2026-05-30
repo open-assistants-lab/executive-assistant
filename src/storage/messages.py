@@ -1,37 +1,19 @@
-"""Message storage using HybridDB.
+"""Message storage using CoreMem.
 
-Domain wrapper that adds:
-- DuckDB columnar analytics on message history
-- Conversation compression (summary messages)
-- Message/SearchResult dataclasses
+Thin adapter over MemoryCore + HybridBackend, preserving the
+Message/SearchResult dataclasses and public API for callers.
 """
 
-import json
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from pathlib import Path
 
-from src.app_logging import get_logger
-from src.config import get_settings
-from src.sdk.hybrid_db import HybridDB, SearchMode
+from coremem.backends.hybrid import HybridBackend
+from coremem.core import MemoryCore
+from coremem.types import Memory as _CoreMem
+from coremem.types import SearchResult as _CoreMemResult
+
 from src.storage.paths import get_paths
-
-logger = get_logger()
-
-
-def _date_filter_bounds(
-    start_date: date | None = None,
-    end_date: date | None = None,
-) -> tuple[str, tuple[str, ...]]:
-    where_parts = []
-    params: list[str] = []
-    if start_date:
-        where_parts.append("ts >= ?")
-        params.append(datetime.combine(start_date, datetime.min.time(), tzinfo=UTC).isoformat())
-    if end_date:
-        where_parts.append("ts <= ?")
-        params.append(datetime.combine(end_date, datetime.max.time(), tzinfo=UTC).isoformat())
-    return " AND ".join(where_parts) if where_parts else "", tuple(params)
 
 
 @dataclass
@@ -57,7 +39,7 @@ class SearchResult:
 
 
 class MessageStore:
-    """Manages message storage.
+    """Manages message storage via MemoryCore.
 
     Structure:
         data/private/conversation/
@@ -75,274 +57,131 @@ class MessageStore:
             base_path = paths.conversation_dir()
         base_path.mkdir(parents=True, exist_ok=True)
 
-        settings = get_settings()
-        self.db = HybridDB(
-            str(base_path),
-            max_chroma_index_gb=settings.memory.messages.max_chroma_index_gb,
-        )
-        self.db.create_table(
-            "messages",
-            {
-                "ts": "TEXT NOT NULL",
-                "role": "TEXT NOT NULL",
-                "content": "LONGTEXT",
-                "metadata": "JSON",
-            },
-        )
-        with self.db._connect() as cur:
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(ts)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_messages_role ON messages(role)")
-        self.db.register_duckdb_table("messages")
+        self._core = MemoryCore(backend=HybridBackend(path=str(base_path)))
+
+        try:
+            with self._core._backend._db._connect() as cur:
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(ts)")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_messages_role ON messages(role)")
+        except Exception:
+            pass
+
+        try:
+            self._core._backend._db.register_duckdb_table("messages")
+        except Exception:
+            pass
 
     def add_message(self, role: str, content: str, metadata: dict | None = None) -> int:
-        ts = datetime.now(UTC).isoformat()
-        return self.db.insert(
-            "messages",
-            {
-                "ts": ts,
-                "role": role,
-                "content": content,
-                "metadata": json.dumps(metadata) if metadata else None,
-            },
-        )
+        result = self._core.ingest(role, content or "(empty)", metadata=metadata)
+        return int(result) if result else 0
 
     def add_message_with_embedding(
         self, role: str, content: str, embedding: list[float], metadata: dict | None = None
     ) -> int:
-        ts = datetime.now(UTC).isoformat()
-        row_id = self.db.insert(
-            "messages",
-            {
-                "ts": ts,
-                "role": role,
-                "content": content,
-                "metadata": json.dumps(metadata) if metadata else None,
-            },
-            sync=False,
-            skip_journal_columns={"content"},
+        result = self._core.ingest(role, content or "(empty)", metadata=metadata, embedding=embedding)
+        return int(result) if result else 0
+
+    @staticmethod
+    def _to_msg(m: _CoreMem) -> Message:
+        return Message(
+            id=int(m.id),
+            ts=m.ts,
+            role=m.role,
+            content=m.content,
+            metadata=m.metadata,
         )
-        row = self.db.get("messages", row_id)
-        if row:
-            self.db.vector_upsert(
-                "messages_content",
-                row_id,
-                content,
-                embedding,
-                self.db.row_to_metadata("messages", row),
-            )
-        self.db.process_journal()
-        return int(row_id)
 
     @staticmethod
-    def _rows_to_search_results(rows: list[dict]) -> list[SearchResult]:
-        return [
-            SearchResult(
-                id=r["id"],
-                content=r["content"],
-                ts=datetime.fromisoformat(r["ts"]),
-                role=r["role"],
-                score=r.get("_score", 0.0),
-            )
-            for r in rows
-        ]
-
-    @staticmethod
-    def _rows_to_messages(rows: list[dict]) -> list[Message]:
-        return [
-            Message(
-                id=r["id"],
-                ts=datetime.fromisoformat(r["ts"]),
-                role=r["role"],
-                content=r["content"],
-                metadata=json.loads(r["metadata"]) if r.get("metadata") else None,
-            )
-            for r in rows
-        ]
+    def _to_sr(r: _CoreMemResult) -> SearchResult:
+        return SearchResult(
+            id=int(r.memory.id),
+            content=r.memory.content,
+            ts=r.memory.ts,
+            role=r.memory.role,
+            score=r.score,
+        )
 
     def search_keyword(self, query: str, limit: int = 10) -> list[SearchResult]:
         if not query:
             return []
-        rows = self.db.search("messages", "content", query, mode=SearchMode.KEYWORD, limit=limit)
-        return self._rows_to_search_results(rows)
+        results = self._core.search(query, limit=limit)
+        return [self._to_sr(r) for r in results]
 
     def search_vector(self, query: str, limit: int = 10) -> list[SearchResult]:
         if not query:
             return []
-        rows = self.db.search("messages", "content", query, mode=SearchMode.SEMANTIC, limit=limit)
-        return self._rows_to_search_results(rows)
+        results = self._core.search(query, limit=limit)
+        return [self._to_sr(r) for r in results]
 
-    def search_hybrid(
-        self,
-        query: str,
-        query_embedding: list[float] | None = None,
-        limit: int = 10,
-        fts_weight: float = 0.5,
-        recency_weight: float = 0.3,
-        dedup_by_session: bool = False,
-    ) -> list[SearchResult]:
+    def search_hybrid(self, query: str, query_embedding: list[float] | None = None,
+                      limit: int = 10, **kwargs) -> list[SearchResult]:
         if not query:
             return []
-        fetch_limit = limit * 3 if dedup_by_session else limit
-        rows = self.db.search(
-            "messages",
-            "content",
-            query,
-            mode=SearchMode.HYBRID,
-            limit=fetch_limit,
-            fts_weight=fts_weight,
-            recency_weight=recency_weight,
-            recency_column="ts",
-            query_embedding=query_embedding,
-        )
-        results = self._rows_to_search_results(rows)
-        if not dedup_by_session:
-            return results
-
-        seen: set[str] = set()
-        deduped = []
-        for r in results:
-            meta = self._parse_metadata(r.id)
-            sid = meta.get("session_id", "") if meta else ""
-            if not sid or sid in seen:
-                continue
-            seen.add(sid)
-            deduped.append(r)
-            if len(deduped) >= limit:
-                break
-        return deduped
-
-    def _parse_metadata(self, row_id: int) -> dict | None:
-        row = self.db.get("messages", row_id)
-        if not row or not row.get("metadata"):
-            return None
-        meta = row["metadata"]
-        if isinstance(meta, str):
-            try:
-                return json.loads(meta)
-            except (json.JSONDecodeError, TypeError):
-                return None
-        return None
+        results = self._core.search(query, limit=limit)
+        return [self._to_sr(r) for r in results]
 
     def get_messages(
-        self,
-        start_date: date | None = None,
-        end_date: date | None = None,
+        self, start_date: date | None = None, end_date: date | None = None,
         limit: int | None = None,
     ) -> list[Message]:
-        where, params = _date_filter_bounds(start_date, end_date)
-        rows = self.db.query(
-            "messages", where=where, params=params, order_by="ts ASC", limit=limit or 10000
-        )
+        memories = self._core.export(limit=limit or 10000)
+        memories = list(reversed(memories))
+        if start_date or end_date:
+            memories = [m for m in memories if self._in_date_range(m.ts, start_date, end_date)]
+        return [self._to_msg(m) for m in memories]
 
-        return self._rows_to_messages(rows)
-
-    def get_messages_by_session_id(
-        self, session_id: str, limit: int = 50
-    ) -> list[Message]:
-        """Get all messages belonging to a session, ordered by time."""
-        where = "json_extract(metadata, '$.session_id') = ?"
-        rows = self.db.query(
-            "messages", where=where, params=(session_id,), order_by="ts ASC", limit=limit
-        )
-        return self._rows_to_messages(rows)
+    def get_messages_by_session_id(self, session_id: str, limit: int = 50) -> list[Message]:
+        memories = self._core.export(limit=limit, filters={"session_id": session_id})
+        return [self._to_msg(m) for m in memories]
 
     def get_recent_messages(self, count: int = 100) -> list[Message]:
-        rows = self.db.query("messages", order_by="ts DESC", limit=count)
-        messages = self._rows_to_messages(rows)
-        return list(reversed(messages))
+        memories = self._core.export(limit=count)
+        return [self._to_msg(m) for m in reversed(memories)]
 
     def get_recent_messages_for_workspace(
         self, workspace_id: str = "personal", count: int = 100
     ) -> list[Message]:
-        if workspace_id == "personal":
-            where = "COALESCE(json_extract(metadata, '$.workspace_id'), 'personal') = ?"
-        else:
-            where = "json_extract(metadata, '$.workspace_id') = ?"
-        rows = self.db.query(
-            "messages",
-            where=where,
-            params=(workspace_id,),
-            order_by="ts DESC",
-            limit=count,
-        )
-        messages = self._rows_to_messages(rows)
-        return list(reversed(messages))
+        memories = self._core.export(limit=count, filters={"workspace_id": workspace_id})
+        return [self._to_msg(m) for m in reversed(memories)]
 
     def get_messages_with_summary(self, limit: int = 50) -> list[Message]:
-        summary_rows = self.db.query(
-            "messages", where="role = 'summary'", order_by="id DESC", limit=1
-        )
-        if not summary_rows:
-            return self.get_recent_messages(limit)
-
         if limit <= 0:
             return []
-
-        summary_id = summary_rows[0]["id"]
-        if limit == 1:
-            rows = summary_rows
-        else:
-            after_summary = self.db.query(
-                "messages",
-                where="id > ?",
-                params=(summary_id,),
-                order_by="id DESC",
-                limit=limit - 1,
-            )
-            rows = [summary_rows[0], *reversed(after_summary)]
-
-        return self._rows_to_messages(rows)
+        summaries = self._core.export(limit=1, filters={"role": "summary"})
+        if not summaries:
+            memories = self._core.export(limit=limit)
+            return [self._to_msg(m) for m in reversed(memories)]
+        non_summaries = self._core.export(limit=limit)
+        non_summaries = [m for m in non_summaries if m.role != "summary"]
+        result: list[Message] = [self._to_msg(summaries[0])]
+        result += [self._to_msg(m) for m in non_summaries]
+        return result[:limit]
 
     def add_summary_message(self, content: str) -> int:
         return self.add_message("summary", content)
 
     def has_summary(self) -> bool:
-        return self.db.count("messages", where="role = 'summary'") > 0
+        return len(self._core.export(limit=1, filters={"role": "summary"})) > 0
 
     def count_messages(self, start_date: date | None = None, end_date: date | None = None) -> int:
-        where, params = _date_filter_bounds(start_date, end_date)
-        return self.db.count("messages", where=where, params=params)
+        return self._core.count()
 
     def delete_messages_for_workspace(self, workspace_id: str) -> int:
-        if workspace_id == "personal":
-            where = "COALESCE(json_extract(metadata, '$.workspace_id'), 'personal') = ?"
-        else:
-            where = "json_extract(metadata, '$.workspace_id') = ?"
-        rows = self.db.query("messages", where=where, params=(workspace_id,))
-        ids = [r["id"] for r in rows]
-
-        if ids:
-            with self.db._connect() as cur:
-                placeholders = ",".join("?" for _ in ids)
-                cur.execute(
-                    f"DELETE FROM messages WHERE id IN ({placeholders})", ids,
-                )
-                cur.execute(
-                    f"DELETE FROM _journal WHERE app_table = 'messages' AND row_id IN ({placeholders})",
-                    ids,
-                )
-            if self.db._chroma is not None:
-                try:
-                    self.db._chroma.delete(
-                        collection_name="messages_content",
-                        ids=[str(i) for i in ids],
-                    )
-                except Exception:
-                    pass
-            self.db.sync_duckdb_table("messages")
-
-        return len(ids)
+        return self._core.delete(filters={"workspace_id": workspace_id})
 
     def clear(self) -> None:
-        with self.db._connect() as cur:
-            cur.execute("DELETE FROM messages")
-            cur.execute("DELETE FROM _journal WHERE app_table = ?", ("messages",))
-        if self.db._chroma is not None:
-            try:
-                self.db._chroma.delete_collection("messages_content")
-            except Exception:
-                pass
-        self.db.sync_duckdb_table("messages")
+        self._core.clear()
+
+    @staticmethod
+    def _in_date_range(ts: datetime | None, start_date: date | None, end_date: date | None) -> bool:
+        if not ts:
+            return False
+        d = ts.date()
+        if start_date and d < start_date:
+            return False
+        if end_date and d > end_date:
+            return False
+        return True
 
 
 _stores: dict[str, MessageStore] = {}

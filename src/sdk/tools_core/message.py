@@ -8,11 +8,10 @@ from typing import Any
 from src.app_logging import get_logger
 from src.sdk.tools import ToolAnnotations, tool
 from src.storage.messages import SearchResult, get_message_store
+from coremem.query import expand_queries
 
 logger = get_logger()
 _coremem_cache: dict[str, Any] = {}
-_cross_encoder: Any | None = None
-_SEARCH_DEPTH_MULTIPLIER = 5
 
 
 # ── message core factory ──────────────────────────────────────────────────────
@@ -22,6 +21,10 @@ def _get_message_core(user_id: str, workspace_id: str = "personal"):
 
     Uses the SAME HybridDB path as MessageStore so messages imported
     via /conversation/import are immediately searchable.
+
+    Configures an LLM provider for query expansion when available.
+    LLM expansion is disabled by default — enabled by setting
+    MEMORY_EXPANSION_MODEL env var.
     """
     from coremem.backends.hybrid import HybridBackend
     from coremem.core import MemoryCore
@@ -32,129 +35,30 @@ def _get_message_core(user_id: str, workspace_id: str = "personal"):
     if cache_key not in _coremem_cache:
         paths = get_paths(user_id)
         conv_path = str(paths.conversation_dir())
-        _coremem_cache[cache_key] = MemoryCore(backend=HybridBackend(path=conv_path))
+
+        llm_provider = _try_create_llm_provider()
+        _coremem_cache[cache_key] = MemoryCore(
+            backend=HybridBackend(path=conv_path),
+            llm_provider=llm_provider,
+        )
     return _coremem_cache[cache_key]
 
 
-def _expand_queries(query: str) -> list[str]:
-    """Generate search query variants for better recall.
+def _try_create_llm_provider() -> Any | None:
+    """Try to create an LLM provider for query expansion.
 
-    Uses LLM rephrasing when available, falls back to regex expansion.
+    Returns None if MEMORY_EXPANSION_MODEL is not set or creation fails.
+    The provider object has a chat(messages) method.
     """
-    llm_variants = _llm_expand_queries(query)
-    if llm_variants:
-        seen = {query.lower()}
-        result = [query]
-        for v in llm_variants:
-            if v.lower() not in seen and len(result) < 4:
-                seen.add(v.lower())
-                result.append(v)
-        return result
-    return _regex_expand_queries(query)
-
-
-def _llm_expand_queries(query: str) -> list[str] | None:
-    """Try LLM-based query rephrasing with cheap model. Returns None on failure."""
-    import json
-    import os
-
+    model_str = os.environ.get("MEMORY_EXPANSION_MODEL")
+    if not model_str:
+        return None
     try:
-        import asyncio
-
-        from src.sdk.messages import Message
         from src.sdk.providers.factory import create_model_from_config
 
-        model_str = os.environ.get("MEMORY_EXPANSION_MODEL", "ollama:llama3.2")
-        model = create_model_from_config(model_str)
+        return create_model_from_config(model_str)
     except Exception:
         return None
-
-    prompt = (
-        "Rephrase this search query exactly 2 different ways to improve retrieval recall. "
-        "Keep the original meaning. Return ONLY a JSON array of 2 strings.\n\n"
-        f"Query: {query}\n\n"
-        'Format: ["rephrase 1", "rephrase 2"]'
-    )
-    try:
-        try:
-            asyncio.get_running_loop()
-            return None
-        except RuntimeError:
-            pass
-        result = asyncio.run(model.chat([Message.user(prompt)]))
-        text = str(result.content if hasattr(result, "content") else result)
-        text = text.strip()
-        if text.startswith("["):
-            variants = json.loads(text)
-            if isinstance(variants, list) and all(isinstance(v, str) for v in variants):
-                return variants
-        match = __import__("re").search(r"\[(.*?)\]", text, __import__("re").DOTALL)
-        if match:
-            inner = match.group(0)
-            variants = json.loads(inner)
-            if isinstance(variants, list) and all(isinstance(v, str) for v in variants):
-                return variants
-    except Exception:
-        pass
-    return None
-
-
-def _regex_expand_queries(query: str) -> list[str]:
-    """Fallback regex-based query expansion."""
-    import re
-
-    queries = [query]
-
-    words = query.lower().split()
-    if len(words) > 4:
-        queries.append(" ".join(words[:4]))
-
-    for kw in ["how many", "how much", "how long", "how often", "how many days",
-                "how many times", "total", "all the", "list of", "every"]:
-        if kw in query.lower():
-            stripped = query.lower().replace(kw, "").strip()
-            queries.append(stripped)
-            # For aggregation: split on "and"/"or" to generate diverse aspect queries
-            if re.search(r"\b(?:how many|how much)\b", query.lower()):
-                aspects = re.split(r"\s+(?:and|or)\s+", stripped)
-                if len(aspects) > 1:
-                    for a in aspects:
-                        a = a.rstrip("?.").strip()
-                        if a and a not in queries and len(a.split()) >= 1:
-                            queries.append(a)
-                # Extract just the subject noun phrase
-                subject = re.search(
-                    r"(.+?)\s+(?:have|did|do|has|does|can|should|would|will)\s+(?:i|you|we|they)\s+",
-                    stripped,
-                )
-                if subject and subject.group(1).strip() not in queries:
-                    queries.append(subject.group(1).strip())
-            break
-
-    for kw in ["current", "latest", "now", "after", "updated", "new", "recently",
-                "last", "previous", "before", "changed"]:
-        if kw in query.lower():
-            core = query.lower().replace(kw, "").strip()
-            if core and core != query.lower():
-                queries.append(core)
-            break
-
-    for kw in ["recommend", "suggest", "should i", "what kind of", "what type of",
-                "can you recommend", "can you suggest", "do i like", "do i prefer",
-                "what do i", "what's my favorite", "what is my favorite"]:
-        if kw in query.lower():
-            for sub in ["like", "enjoy", "love", "prefer", "favorite", "interested in"]:
-                queries.append(sub)
-            break
-
-    import re
-    date_refs = re.findall(r"\b(?:january|february|march|april|may|june|july|august"
-                           r"|september|october|november|december|\d{1,2}(?:st|nd|rd|th)?"
-                           r"(?:\s+of)?\s+\d{4})\b", query.lower())
-    for d in date_refs:
-        queries.append(d)
-
-    return queries
 
 
 def _list_workspace_ids(user_id: str) -> list[str]:
@@ -317,55 +221,6 @@ message_history.annotations = ToolAnnotations(
 
 
 
-def _get_cross_encoder():
-    """Lazy-load the cross-encoder reranker model."""
-    global _cross_encoder
-    if _cross_encoder is None:
-        try:
-            from sentence_transformers import CrossEncoder
-            _cross_encoder = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
-        except Exception:
-            return None
-    return _cross_encoder
-
-
-def _rerank_with_cross_encoder(query: str, results: list[Any], top_k: int = 50) -> list[Any]:
-    """Rerank top results using a lightweight cross-encoder.
-
-    More accurate than embedding similarity because query and document
-    interact through the transformer. Applied as post-processing after
-    the initial coremem retrieval.
-
-    Disable with EA_DISABLE_CROSS_ENCODER=1 (needed for eval scripts
-    running inside asyncio threads to avoid PyTorch OpenMP deadlocks).
-    """
-    import os as _os
-    if _os.environ.get("EA_DISABLE_CROSS_ENCODER"):
-        return results
-
-    model = _get_cross_encoder()
-    if model is None or not results:
-        return results
-
-    candidates = results[:top_k]
-    pairs = [(query, r.memory.content[:512]) for r in candidates]
-    try:
-        scores = model.predict(pairs, show_progress_bar=False, batch_size=32)
-        for i, r in enumerate(candidates):
-            setattr(r, "_ce_score", float(scores[i]))
-        candidates.sort(key=lambda r: getattr(r, "_ce_score", r.score), reverse=True)
-        return candidates + results[top_k:]
-    except Exception:
-        return results
-
-
-def _content_similarity(a: str, b: str) -> float:
-    """Jaccard similarity between two content strings (word-level)."""
-    wa = set(a.split())
-    wb = set(b.split())
-    if not wa or not wb:
-        return 0.0
-    return len(wa & wb) / len(wa | wb)
 
 
 @tool
@@ -405,26 +260,9 @@ def message_search(
     is_counting = query.lower().startswith("how many") or "total" in query.lower()
     effective_limit = max(limit, 30 if is_counting else 10)
 
-    # 1. Multi-query expansion — generate search variants
-    queries = _expand_queries(query)
+    all_results = core.search_enhanced(query, limit=effective_limit, filters={"workspace_id": workspace_id})
 
-    # 2. Run all queries, merge deduplicated by message id
-    all_results: list[Any] = []
-    seen_ids: set[int] = set()
-    for q in queries:
-        results = core.search(q, limit=effective_limit * _SEARCH_DEPTH_MULTIPLIER)
-        for r in results:
-            rid = r.id if hasattr(r, "id") else id(r)
-            if rid not in seen_ids:
-                seen_ids.add(rid)
-                all_results.append(r)
-
-    all_results.sort(key=lambda r: r.score, reverse=True)
-
-    # 3. Cross-encoder reranking for better relevance
-    all_results = _rerank_with_cross_encoder(query, all_results)
-
-    # 4. Deduplicate by session
+    # Deduplicate by session
     query_words = set(query.lower().split())
     seen_sessions: set[str] = set()
     seen_nosession: set[str] = set()
@@ -527,7 +365,7 @@ def message_count(
     conversation = get_message_store(user_id, workspace_id)
     search_limit = 100
 
-    queries = _expand_queries(query)
+    queries = expand_queries(query, llm_provider=_try_create_llm_provider())
     seen_ids: set[int] = set()
     all_results: list[SearchResult] = []
 
@@ -651,8 +489,7 @@ def message_timeline(
     """
     core = _get_message_core(user_id, workspace_id)
 
-    results = core.search(query, limit=limit * _SEARCH_DEPTH_MULTIPLIER)
-    results = _rerank_with_cross_encoder(query, results)
+    results = core.search_enhanced(query, limit=limit, filters={"workspace_id": workspace_id})
 
     seen_sessions: set[str] = set()
     timeline: list[tuple[str, str, str]] = []  # (date, session_id, snippet)
