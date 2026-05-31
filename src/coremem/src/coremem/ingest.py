@@ -8,28 +8,29 @@ No fact extraction. No summarization. No LLM calls.
 """
 
 from datetime import UTC, datetime
+from typing import Any
 
 from coremem.backends.base import StoreBackend
 from coremem.types import Memory
 
 
 def ingest_message(
-    backend: StoreBackend,
-    role: str,
-    content: str,
+    backend: StoreBackend, role: str, content: str,
     session_id: str | None = None,
-    ts: datetime | None = None,
-    metadata: dict | None = None,
+    user_id: str = "",
+    agent_id: str = "",
+    metadata: dict[str, Any] | None = None,
     embedding: list[float] | None = None,
 ) -> str:
-    """Ingest a single message verbatim.
+    """Store a single message.
 
     Args:
-        backend: The storage backend (ChromaBackend or HybridBackend).
+        backend: The storage backend.
         role: Message role (user, assistant, tool, system).
-        content: Raw message text — stored as-is, no extraction.
+        content: Raw message text.
         session_id: Optional session/thread identifier.
-        ts: Optional timestamp (defaults to now).
+        user_id: Optional user identifier.
+        agent_id: Optional agent identifier.
         metadata: Optional arbitrary key-value pairs for filtering.
         embedding: Optional pre-computed embedding vector.
 
@@ -43,8 +44,10 @@ def ingest_message(
         id="",
         content=content,
         role=role,
-        ts=ts or datetime.now(UTC),
+        ts=datetime.now(UTC),
         session_id=session_id,
+        user_id=user_id,
+        agent_id=agent_id,
         metadata=metadata or {},
     )
     return backend.ingest(memory, embedding=embedding)

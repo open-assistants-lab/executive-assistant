@@ -56,7 +56,10 @@ class MemoryCore:
         get_cross_encoder()
 
     def ingest(
-        self, role: str, content: str, session_id: str | None = None,
+        self, role: str, content: str,
+        session_id: str | None = None,
+        user_id: str = "",
+        agent_id: str = "",
         metadata: dict[str, Any] | None = None,
         embedding: list[float] | None = None,
     ) -> str:
@@ -68,13 +71,15 @@ class MemoryCore:
             role: Message role (user, assistant, tool, system).
             content: Raw message text — stored as-is.
             session_id: Optional session/thread identifier.
+            user_id: Optional user identifier.
+            agent_id: Optional agent identifier.
             metadata: Optional arbitrary key-value pairs for filtering.
-            embedding: Optional pre-computed embedding vector. When provided,
-                      the backend uses this instead of computing one.
+            embedding: Optional pre-computed embedding vector.
         """
         return ingest_message(
             backend=self._backend, role=role, content=content,
-            session_id=session_id, metadata=metadata, embedding=embedding,
+            session_id=session_id, user_id=user_id, agent_id=agent_id,
+            metadata=metadata, embedding=embedding,
         )
 
     def ingest_many(self, messages: list[dict[str, Any]], session_id: str | None = None) -> list[str]:
@@ -83,6 +88,12 @@ class MemoryCore:
 
     def search(
         self, query: str, limit: int = 10,
+        role: str | None = None,
+        session_id: str | None = None,
+        user_id: str | None = None,
+        agent_id: str | None = None,
+        ts_after: str | None = None,
+        ts_before: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> list[SearchResult]:
         """Search memories and apply deterministic heuristics.
@@ -95,7 +106,16 @@ class MemoryCore:
 
         All steps are deterministic — zero LLM calls.
         """
-        sq = SearchQuery(text=query, limit=limit * 3, metadata=metadata or {})
+        sq = SearchQuery(
+            text=query, limit=limit * 3,
+            role=role,
+            session_id=session_id,
+            user_id=user_id,
+            agent_id=agent_id,
+            ts_after=ts_after,
+            ts_before=ts_before,
+            metadata=metadata or {},
+        )
         results = self._backend.search(sq)
 
         for r in results:
@@ -111,6 +131,12 @@ class MemoryCore:
 
     def search_enhanced(
         self, query: str, limit: int = 10,
+        role: str | None = None,
+        session_id: str | None = None,
+        user_id: str | None = None,
+        agent_id: str | None = None,
+        ts_after: str | None = None,
+        ts_before: str | None = None,
         metadata: dict[str, Any] | None = None,
         depth: int = _DEFAULT_SEARCH_DEPTH,
     ) -> list[SearchResult]:
@@ -129,6 +155,12 @@ class MemoryCore:
         Args:
             query: The search query.
             limit: Max results to return.
+            role: Optional role filter.
+            session_id: Optional session/thread filter.
+            user_id: Optional user filter.
+            agent_id: Optional agent filter.
+            ts_after: Optional ISO timestamp lower bound.
+            ts_before: Optional ISO timestamp upper bound.
             metadata: Optional metadata key=value equality filters.
             depth: Candidate multiplier for search depth (default 5).
                    Higher depth means more candidates for the reranker.
@@ -143,7 +175,16 @@ class MemoryCore:
         seen_ids: set[int] = set()
 
         for q in queries:
-            sq = SearchQuery(text=q, limit=effective_limit, metadata=metadata or {})
+            sq = SearchQuery(
+                text=q, limit=effective_limit,
+                role=role,
+                session_id=session_id,
+                user_id=user_id,
+                agent_id=agent_id,
+                ts_after=ts_after,
+                ts_before=ts_before,
+                metadata=metadata or {},
+            )
             results = self._backend.search(sq)
             for r in results:
                 rid = id(r)
@@ -189,19 +230,44 @@ class MemoryCore:
         return self._wakeup.deep_search(query=query, limit=limit)
 
     def export(
-        self, metadata: dict[str, Any] | None = None,
-        limit: int = 1000, offset: int = 0,
+        self,
+        role: str | None = None,
+        session_id: str | None = None,
+        user_id: str | None = None,
+        agent_id: str | None = None,
+        ts_after: str | None = None,
+        ts_before: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        limit: int = 1000,
+        offset: int = 0,
     ) -> list[Memory]:
-        """Paginated export. Returns one page of memories matching metadata filters."""
-        return self._backend.list(metadata=metadata, limit=limit, offset=offset)
+        """Paginated export. Returns one page of memories matching filters."""
+        return self._backend.list(
+            role=role, session_id=session_id, user_id=user_id, agent_id=agent_id,
+            ts_after=ts_after, ts_before=ts_before,
+            metadata=metadata, limit=limit, offset=offset,
+        )
 
-    def export_all(self, metadata: dict[str, Any] | None = None) -> list[Memory]:
+    def export_all(
+        self,
+        role: str | None = None,
+        session_id: str | None = None,
+        user_id: str | None = None,
+        agent_id: str | None = None,
+        ts_after: str | None = None,
+        ts_before: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> list[Memory]:
         """Export all matching memories. Internally loops with pagination."""
         all_memories: list[Memory] = []
         offset = 0
         page_size = 1000
         while True:
-            page = self._backend.list(metadata=metadata, limit=page_size, offset=offset)
+            page = self._backend.list(
+                role=role, session_id=session_id, user_id=user_id, agent_id=agent_id,
+                ts_after=ts_after, ts_before=ts_before,
+                metadata=metadata, limit=page_size, offset=offset,
+            )
             if not page:
                 break
             all_memories.extend(page)
@@ -216,9 +282,22 @@ class MemoryCore:
         """Return total number of stored memories."""
         return self._backend.count()
 
-    def delete(self, metadata: dict[str, Any] | None = None) -> int:
-        """Delete memories matching metadata filters. Returns count deleted."""
-        return self._backend.delete(metadata=metadata)
+    def delete(
+        self,
+        role: str | None = None,
+        session_id: str | None = None,
+        user_id: str | None = None,
+        agent_id: str | None = None,
+        ts_after: str | None = None,
+        ts_before: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> int:
+        """Delete memories matching filters. Returns count deleted."""
+        return self._backend.delete(
+            role=role, session_id=session_id, user_id=user_id, agent_id=agent_id,
+            ts_after=ts_after, ts_before=ts_before,
+            metadata=metadata,
+        )
 
     def clear(self) -> None:
         """Delete all memories."""

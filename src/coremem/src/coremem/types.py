@@ -13,7 +13,8 @@ class Memory:
     role: str = "user"
     ts: datetime | None = None
     session_id: str | None = None
-    score: float = 0.0
+    user_id: str = ""
+    agent_id: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def dict(self) -> dict:
@@ -23,7 +24,8 @@ class Memory:
             "role": self.role,
             "ts": self.ts.isoformat() if self.ts else None,
             "session_id": self.session_id,
-            "score": self.score,
+            "user_id": self.user_id,
+            "agent_id": self.agent_id,
             "metadata": self.metadata,
         }
 
@@ -38,7 +40,13 @@ class SearchResult:
 
 @dataclass
 class SearchQuery:
-    """A search query with optional metadata filters."""
+    """A search query with optional metadata and column filters."""
     text: str
     limit: int = 10
+    role: str | None = None
+    session_id: str | None = None
+    user_id: str | None = None
+    agent_id: str | None = None
+    ts_after: str | None = None
+    ts_before: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)

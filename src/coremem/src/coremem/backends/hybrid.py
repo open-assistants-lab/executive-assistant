@@ -12,7 +12,7 @@ The fused ranking formula:
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 from coremem.backends.base import StoreBackend
 from coremem.types import Memory, SearchQuery, SearchResult
@@ -43,41 +43,48 @@ class HybridBackend(StoreBackend):
                     "ts": "TEXT NOT NULL",
                     "role": "TEXT NOT NULL",
                     "content": "LONGTEXT",
+                    "session_id": "TEXT",
+                    "user_id": "TEXT",
+                    "agent_id": "TEXT",
                     "metadata": "TEXT",
                 },
             )
         except Exception:
             pass
 
-    def _merge_metadata_for_storage(self, memory: Memory) -> dict:
-        meta = {
-            "role": memory.role,
-            "session_id": memory.session_id or "",
-            "ts": memory.ts.isoformat() if memory.ts else datetime.now().isoformat(),
-        }
-        meta.update(memory.metadata)
-        return meta
-
-    def _parse_metadata(self, raw: str | dict | None) -> dict:
-        if not raw:
-            return {}
-        if isinstance(raw, dict):
-            return raw
-        if isinstance(raw, str):
-            try:
-                return json.loads(raw)
-            except (json.JSONDecodeError, TypeError):
-                return {}
-        return {}
-
-    def _matches_filters(self, meta: dict, filters: dict) -> bool:
-        for key, value in filters.items():
-            if meta.get(key) != value:
-                return False
-        return True
+    def _build_column_where(
+        self,
+        role: str | None = None,
+        session_id: str | None = None,
+        user_id: str | None = None,
+        agent_id: str | None = None,
+        ts_after: str | None = None,
+        ts_before: str | None = None,
+    ) -> tuple[list[str], list[str]]:
+        """Build SQL WHERE parts from column-level filter params."""
+        parts, params = [], []
+        if role is not None:
+            parts.append("role = ?")
+            params.append(role)
+        if session_id is not None:
+            parts.append("session_id = ?")
+            params.append(session_id)
+        if user_id is not None:
+            parts.append("user_id = ?")
+            params.append(user_id)
+        if agent_id is not None:
+            parts.append("agent_id = ?")
+            params.append(agent_id)
+        if ts_after is not None:
+            parts.append("ts >= ?")
+            params.append(ts_after)
+        if ts_before is not None:
+            parts.append("ts <= ?")
+            params.append(ts_before)
+        return parts, params
 
     def _build_where_clause(self, filters: dict) -> tuple[list[str], list[str]]:
-        """Build SQL WHERE parts and params from metadata equality filters."""
+        """Build SQL WHERE parts and params from custom metadata equality filters."""
         parts, params = [], []
         for key, value in filters.items():
             safe_key = key.replace("'", "''")
@@ -124,16 +131,55 @@ class HybridBackend(StoreBackend):
         for m in memories:
             mid = m.id or str(uuid.uuid4())[:12]
             ids.append(mid)
-            storage_meta = self._merge_metadata_for_storage(m)
             rows.append({
                 "id": mid,
                 "content": m.content,
                 "role": m.role,
-                "metadata": json.dumps(storage_meta),
-                "ts": m.ts.isoformat() if m.ts else datetime.now().isoformat(),
+                "session_id": m.session_id or "",
+                "user_id": m.user_id,
+                "agent_id": m.agent_id,
+                "metadata": json.dumps(m.metadata),
+                "ts": m.ts.isoformat() if m.ts else datetime.now(timezone.utc).isoformat(),
             })
         self._db.insert_batch("messages", rows)
         return ids
+
+    def _matches_filters(self, meta: dict, filters: dict) -> bool:
+        for key, value in filters.items():
+            if meta.get(key) != value:
+                return False
+        return True
+
+    def _row_to_memory(self, row: dict) -> Memory:
+        ts_str = row.get("ts", "")
+        ts = None
+        if ts_str:
+            try:
+                ts = datetime.fromisoformat(ts_str)
+            except (ValueError, TypeError):
+                pass
+
+        meta_raw = row.get("metadata", "{}")
+        if isinstance(meta_raw, str):
+            try:
+                meta_dict = json.loads(meta_raw)
+            except (json.JSONDecodeError, TypeError):
+                meta_dict = {}
+        elif isinstance(meta_raw, dict):
+            meta_dict = meta_raw
+        else:
+            meta_dict = {}
+
+        return Memory(
+            id=str(row.get("id", "")),
+            content=row.get("content", ""),
+            role=row.get("role", "user"),
+            ts=ts,
+            session_id=row.get("session_id") or None,
+            user_id=row.get("user_id", ""),
+            agent_id=row.get("agent_id", ""),
+            metadata=meta_dict,
+        )
 
     def search(self, query: SearchQuery) -> list[SearchResult]:
         import sys
@@ -161,23 +207,42 @@ class HybridBackend(StoreBackend):
         seen_sessions: set[str] = set()
         results = []
         for row in raw_rows:
-            rid = row.get("id", "")
-            content = row.get("content", "")
-            score = float(row.get("_score", 0.0))
-            ts_str = row.get("ts", "")
-            role = row.get("role", "")
+            if query.role and row.get("role") != query.role:
+                continue
+            if query.session_id and row.get("session_id") != query.session_id:
+                continue
+            if query.user_id and row.get("user_id") != query.user_id:
+                continue
+            if query.agent_id and row.get("agent_id") != query.agent_id:
+                continue
+            if query.ts_after and (row.get("ts") or "") < query.ts_after:
+                continue
+            if query.ts_before and (row.get("ts") or "") > query.ts_before:
+                continue
 
-            meta_dict = self._parse_metadata(row.get("metadata"))
+            meta_raw = row.get("metadata", "{}")
+            if isinstance(meta_raw, str):
+                try:
+                    meta_dict = json.loads(meta_raw)
+                except (json.JSONDecodeError, TypeError):
+                    meta_dict = {}
+            elif isinstance(meta_raw, dict):
+                meta_dict = meta_raw
+            else:
+                meta_dict = {}
 
             if query.metadata and not self._matches_filters(meta_dict, query.metadata):
                 continue
 
-            sid = meta_dict.get("session_id", "")
+            sid = row.get("session_id", "")
             if sid and sid in seen_sessions:
                 continue
             if sid:
                 seen_sessions.add(sid)
 
+            score = float(row.get("_score", 0.0))
+
+            ts_str = row.get("ts", "")
             ts = None
             if ts_str:
                 try:
@@ -185,17 +250,15 @@ class HybridBackend(StoreBackend):
                 except (ValueError, TypeError):
                     pass
 
-            user_meta = {k: v for k, v in meta_dict.items()
-                         if k not in ("role", "session_id", "ts")}
-
             memory = Memory(
-                id=str(rid),
-                content=content,
-                role=role,
+                id=str(row.get("id", "")),
+                content=row.get("content", ""),
+                role=row.get("role", "user"),
                 ts=ts,
                 session_id=sid or None,
-                score=score,
-                metadata=user_meta,
+                user_id=row.get("user_id", ""),
+                agent_id=row.get("agent_id", ""),
+                metadata=meta_dict,
             )
             results.append(SearchResult(memory=memory, score=score, source="hybrid"))
 
@@ -205,9 +268,30 @@ class HybridBackend(StoreBackend):
         return results
 
     def list(
-        self, metadata: dict | None = None, limit: int | None = None, offset: int = 0,
+        self,
+        role: str | None = None,
+        session_id: str | None = None,
+        user_id: str | None = None,
+        agent_id: str | None = None,
+        ts_after: str | None = None,
+        ts_before: str | None = None,
+        metadata: dict | None = None,
+        limit: int | None = None,
+        offset: int = 0,
     ) -> list[Memory]:
-        where_parts, params = self._build_where_clause(metadata or {})
+        where_parts, params = [], []
+
+        col_parts, col_params = self._build_column_where(
+            role=role, session_id=session_id, user_id=user_id, agent_id=agent_id,
+            ts_after=ts_after, ts_before=ts_before,
+        )
+        where_parts.extend(col_parts)
+        params.extend(col_params)
+
+        meta_parts, meta_params = self._build_where_clause(metadata or {})
+        where_parts.extend(meta_parts)
+        params.extend(meta_params)
+
         where_clause = " AND ".join(where_parts) if where_parts else ""
 
         if limit is None:
@@ -223,28 +307,7 @@ class HybridBackend(StoreBackend):
             limit=sql_limit,
         )
 
-        memories = []
-        for row in rows:
-            meta_dict = self._parse_metadata(row.get("metadata", ""))
-            ts_str = row.get("ts", "")
-            ts = None
-            if ts_str:
-                try:
-                    ts = datetime.fromisoformat(ts_str)
-                except (ValueError, TypeError):
-                    pass
-
-            user_meta = {k: v for k, v in meta_dict.items()
-                         if k not in ("role", "session_id", "ts")}
-
-            memories.append(Memory(
-                id=str(row.get("id", "")),
-                content=row.get("content", ""),
-                role=row.get("role", "user"),
-                ts=ts,
-                session_id=meta_dict.get("session_id"),
-                metadata=user_meta,
-            ))
+        memories = [self._row_to_memory(r) for r in rows]
 
         if offset:
             memories = memories[offset:]
@@ -261,9 +324,30 @@ class HybridBackend(StoreBackend):
         except Exception:
             return 0
 
-    def delete(self, metadata: dict | None = None) -> int:
-        parts, params = self._build_where_clause(metadata or {})
-        where = " AND ".join(parts) if parts else "1"
+    def delete(
+        self,
+        role: str | None = None,
+        session_id: str | None = None,
+        user_id: str | None = None,
+        agent_id: str | None = None,
+        ts_after: str | None = None,
+        ts_before: str | None = None,
+        metadata: dict | None = None,
+    ) -> int:
+        where_parts, params = [], []
+
+        col_parts, col_params = self._build_column_where(
+            role=role, session_id=session_id, user_id=user_id, agent_id=agent_id,
+            ts_after=ts_after, ts_before=ts_before,
+        )
+        where_parts.extend(col_parts)
+        params.extend(col_params)
+
+        meta_parts, meta_params = self._build_where_clause(metadata or {})
+        where_parts.extend(meta_parts)
+        params.extend(meta_params)
+
+        where = " AND ".join(where_parts) if where_parts else "1"
         rows = self._db.query("messages", where=where, params=tuple(params))
         ids = [r["id"] for r in rows]
         if not ids:

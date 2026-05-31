@@ -131,7 +131,7 @@ class MessageStore:
         return [self._to_msg(m) for m in memories]
 
     def get_messages_by_session_id(self, session_id: str, limit: int = 50) -> list[Message]:
-        memories = self._core.export(limit=limit, metadata={"session_id": session_id})
+        memories = self._core.export(limit=limit, session_id=session_id)
         return [self._to_msg(m) for m in memories]
 
     def get_recent_messages(self, count: int = 100) -> list[Message]:
@@ -147,7 +147,7 @@ class MessageStore:
     def get_messages_with_summary(self, limit: int = 50) -> list[Message]:
         if limit <= 0:
             return []
-        summaries = self._core.export(limit=1, metadata={"role": "summary"})
+        summaries = self._core.export(limit=1, role="summary")
         if not summaries:
             memories = self._core.export(limit=limit)
             return [self._to_msg(m) for m in reversed(memories)]
@@ -161,7 +161,7 @@ class MessageStore:
         return self.add_message("summary", content)
 
     def has_summary(self) -> bool:
-        return len(self._core.export(limit=1, metadata={"role": "summary"})) > 0
+        return len(self._core.export(limit=1, role="summary")) > 0
 
     def count_messages(self, start_date: date | None = None, end_date: date | None = None) -> int:
         return self._core.count()

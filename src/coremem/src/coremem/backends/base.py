@@ -38,9 +38,18 @@ class StoreBackend(ABC):
 
     @abstractmethod
     def list(
-        self, metadata: dict | None = None, limit: int | None = None, offset: int = 0,
+        self,
+        role: str | None = None,
+        session_id: str | None = None,
+        user_id: str | None = None,
+        agent_id: str | None = None,
+        ts_after: str | None = None,
+        ts_before: str | None = None,
+        metadata: dict | None = None,
+        limit: int | None = None,
+        offset: int = 0,
     ) -> list[Memory]:
-        """List memories with optional metadata filters and pagination. Backbone of export()."""
+        """List memories with optional column and metadata filters. Backbone of export()."""
         ...
 
     @abstractmethod
@@ -54,8 +63,17 @@ class StoreBackend(ABC):
         ...
 
     @abstractmethod
-    def delete(self, metadata: dict | None = None) -> int:
-        """Delete memories matching metadata filters. Returns count deleted."""
+    def delete(
+        self,
+        role: str | None = None,
+        session_id: str | None = None,
+        user_id: str | None = None,
+        agent_id: str | None = None,
+        ts_after: str | None = None,
+        ts_before: str | None = None,
+        metadata: dict | None = None,
+    ) -> int:
+        """Delete memories matching filters. Returns count deleted."""
         ...
 
     @abstractmethod
