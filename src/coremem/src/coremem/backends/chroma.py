@@ -71,8 +71,8 @@ class ChromaBackend(StoreBackend):
 
     def search(self, query: SearchQuery) -> list[SearchResult]:
         kwargs: dict = {"n_results": query.limit}
-        if query.filters:
-            kwargs["where"] = query.filters
+        if query.metadata:
+            kwargs["where"] = query.metadata
 
         results = self._collection.query(
             query_texts=[query.text],
@@ -101,11 +101,11 @@ class ChromaBackend(StoreBackend):
         return search_results
 
     def list(
-        self, filters: dict | None = None, limit: int | None = None, offset: int = 0,
+        self, metadata: dict | None = None, limit: int | None = None, offset: int = 0,
     ) -> list[Memory]:
         kwargs: dict = {"include": ["documents", "metadatas"]}
-        if filters:
-            kwargs["where"] = filters
+        if metadata:
+            kwargs["where"] = metadata
         if limit is not None:
             kwargs["limit"] = limit
         if offset:
@@ -132,8 +132,8 @@ class ChromaBackend(StoreBackend):
     def count(self) -> int:
         return self._collection.count()
 
-    def delete(self, filters: dict | None = None) -> int:
-        result = self._collection.get(where=filters)
+    def delete(self, metadata: dict | None = None) -> int:
+        result = self._collection.get(where=metadata)
         ids = result["ids"]
         if ids:
             self._collection.delete(ids=ids)

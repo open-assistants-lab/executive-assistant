@@ -18,7 +18,7 @@ class StoreBackend(ABC):
     @abstractmethod
     def ingest(self, memory: Memory, embedding: list[float] | None = None) -> str:
         """Store a memory. Returns the storage ID.
-
+        
         Args:
             memory: The memory to store.
             embedding: Optional pre-computed embedding vector. When provided,
@@ -38,9 +38,9 @@ class StoreBackend(ABC):
 
     @abstractmethod
     def list(
-        self, filters: dict | None = None, limit: int | None = None, offset: int = 0,
+        self, metadata: dict | None = None, limit: int | None = None, offset: int = 0,
     ) -> list[Memory]:
-        """List memories with optional filters and pagination. Backbone of export()."""
+        """List memories with optional metadata filters and pagination. Backbone of export()."""
         ...
 
     @abstractmethod
@@ -54,8 +54,8 @@ class StoreBackend(ABC):
         ...
 
     @abstractmethod
-    def delete(self, filters: dict | None = None) -> int:
-        """Delete memories matching filters. Returns count deleted."""
+    def delete(self, metadata: dict | None = None) -> int:
+        """Delete memories matching metadata filters. Returns count deleted."""
         ...
 
     @abstractmethod

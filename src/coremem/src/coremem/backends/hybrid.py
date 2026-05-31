@@ -28,10 +28,7 @@ class HybridBackend(StoreBackend):
     """
 
     def __init__(self, path: str):
-        try:
-            from src.sdk.hybrid_db import HybridDB
-        except ImportError:
-            from hybriddb import HybridDB
+        from hybriddb import HybridDB
 
         self._path = path
         self._db = HybridDB(path=path)
@@ -172,7 +169,7 @@ class HybridBackend(StoreBackend):
 
             meta_dict = self._parse_metadata(row.get("metadata"))
 
-            if query.filters and not self._matches_filters(meta_dict, query.filters):
+            if query.metadata and not self._matches_filters(meta_dict, query.metadata):
                 continue
 
             sid = meta_dict.get("session_id", "")
@@ -208,9 +205,9 @@ class HybridBackend(StoreBackend):
         return results
 
     def list(
-        self, filters: dict | None = None, limit: int | None = None, offset: int = 0,
+        self, metadata: dict | None = None, limit: int | None = None, offset: int = 0,
     ) -> list[Memory]:
-        where_parts, params = self._build_where_clause(filters or {})
+        where_parts, params = self._build_where_clause(metadata or {})
         where_clause = " AND ".join(where_parts) if where_parts else ""
 
         if limit is None:
@@ -264,8 +261,8 @@ class HybridBackend(StoreBackend):
         except Exception:
             return 0
 
-    def delete(self, filters: dict | None = None) -> int:
-        parts, params = self._build_where_clause(filters or {})
+    def delete(self, metadata: dict | None = None) -> int:
+        parts, params = self._build_where_clause(metadata or {})
         where = " AND ".join(parts) if parts else "1"
         rows = self._db.query("messages", where=where, params=tuple(params))
         ids = [r["id"] for r in rows]

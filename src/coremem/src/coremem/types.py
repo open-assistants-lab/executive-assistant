@@ -38,7 +38,7 @@ class SearchResult:
 
 @dataclass
 class SearchQuery:
-    """A search query with optional filters."""
+    """A search query with optional metadata filters."""
     text: str
     limit: int = 10
-    filters: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)

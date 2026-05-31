@@ -83,7 +83,7 @@ class MemoryCore:
 
     def search(
         self, query: str, limit: int = 10,
-        filters: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> list[SearchResult]:
         """Search memories and apply deterministic heuristics.
 
@@ -95,7 +95,7 @@ class MemoryCore:
 
         All steps are deterministic — zero LLM calls.
         """
-        sq = SearchQuery(text=query, limit=limit * 3, filters=filters or {})
+        sq = SearchQuery(text=query, limit=limit * 3, metadata=metadata or {})
         results = self._backend.search(sq)
 
         for r in results:
@@ -111,7 +111,7 @@ class MemoryCore:
 
     def search_enhanced(
         self, query: str, limit: int = 10,
-        filters: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         depth: int = _DEFAULT_SEARCH_DEPTH,
     ) -> list[SearchResult]:
         """Search with multi-query expansion and cross-encoder reranking.
@@ -129,7 +129,7 @@ class MemoryCore:
         Args:
             query: The search query.
             limit: Max results to return.
-            filters: Optional metadata key=value equality filters.
+            metadata: Optional metadata key=value equality filters.
             depth: Candidate multiplier for search depth (default 5).
                    Higher depth means more candidates for the reranker.
 
@@ -143,7 +143,7 @@ class MemoryCore:
         seen_ids: set[int] = set()
 
         for q in queries:
-            sq = SearchQuery(text=q, limit=effective_limit, filters=filters or {})
+            sq = SearchQuery(text=q, limit=effective_limit, metadata=metadata or {})
             results = self._backend.search(sq)
             for r in results:
                 rid = id(r)
@@ -189,19 +189,19 @@ class MemoryCore:
         return self._wakeup.deep_search(query=query, limit=limit)
 
     def export(
-        self, filters: dict[str, Any] | None = None,
+        self, metadata: dict[str, Any] | None = None,
         limit: int = 1000, offset: int = 0,
     ) -> list[Memory]:
-        """Paginated export. Returns one page of memories matching filters."""
-        return self._backend.list(filters=filters, limit=limit, offset=offset)
+        """Paginated export. Returns one page of memories matching metadata filters."""
+        return self._backend.list(metadata=metadata, limit=limit, offset=offset)
 
-    def export_all(self, filters: dict[str, Any] | None = None) -> list[Memory]:
+    def export_all(self, metadata: dict[str, Any] | None = None) -> list[Memory]:
         """Export all matching memories. Internally loops with pagination."""
         all_memories: list[Memory] = []
         offset = 0
         page_size = 1000
         while True:
-            page = self._backend.list(filters=filters, limit=page_size, offset=offset)
+            page = self._backend.list(metadata=metadata, limit=page_size, offset=offset)
             if not page:
                 break
             all_memories.extend(page)
@@ -216,9 +216,9 @@ class MemoryCore:
         """Return total number of stored memories."""
         return self._backend.count()
 
-    def delete(self, filters: dict[str, Any] | None = None) -> int:
-        """Delete memories matching filters. Returns count deleted."""
-        return self._backend.delete(filters=filters)
+    def delete(self, metadata: dict[str, Any] | None = None) -> int:
+        """Delete memories matching metadata filters. Returns count deleted."""
+        return self._backend.delete(metadata=metadata)
 
     def clear(self) -> None:
         """Delete all memories."""

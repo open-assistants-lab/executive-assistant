@@ -260,7 +260,7 @@ def message_search(
     is_counting = query.lower().startswith("how many") or "total" in query.lower()
     effective_limit = max(limit, 30 if is_counting else 10)
 
-    all_results = core.search_enhanced(query, limit=effective_limit, filters={"workspace_id": workspace_id})
+    all_results = core.search_enhanced(query, limit=effective_limit, metadata={"workspace_id": workspace_id})
 
     # Deduplicate by session
     query_words = set(query.lower().split())
@@ -489,7 +489,7 @@ def message_timeline(
     """
     core = _get_message_core(user_id, workspace_id)
 
-    results = core.search_enhanced(query, limit=limit, filters={"workspace_id": workspace_id})
+    results = core.search_enhanced(query, limit=limit, metadata={"workspace_id": workspace_id})
 
     seen_sessions: set[str] = set()
     timeline: list[tuple[str, str, str]] = []  # (date, session_id, snippet)
