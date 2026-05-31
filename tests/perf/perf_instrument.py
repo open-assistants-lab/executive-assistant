@@ -149,7 +149,7 @@ def instrument_all() -> None:
     instrument_embedding()
 
     try:
-        from src.sdk.hybrid_db import HybridDB
+        from hybriddb import HybridDB
 
         _original_init = HybridDB.__init__
 

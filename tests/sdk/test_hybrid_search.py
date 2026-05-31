@@ -324,7 +324,7 @@ def cleanup_test_db():
 @pytest.fixture
 def storage():
     """Get app storage helper for testing."""
-    from src.sdk.hybrid_db import SearchMode
+    from hybriddb import SearchMode
     from src.sdk.tools_core.apps import AppSchema, TableSchema, _get_db
 
     class _AppStorageCompat:

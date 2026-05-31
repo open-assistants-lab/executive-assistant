@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from src.app_logging import get_logger
-from src.sdk.hybrid_db import HybridDB
+from hybriddb import HybridDB
 
 logger = get_logger()
 

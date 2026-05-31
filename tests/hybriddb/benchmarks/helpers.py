@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, NamedTuple
 
-from src.sdk.hybrid_db import SearchMode  # noqa: F401 — re-exported for test files
+from hybriddb import SearchMode  # noqa: F401 — re-exported for test files
 
 
 class Scale(NamedTuple):

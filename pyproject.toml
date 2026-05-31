@@ -28,7 +28,11 @@ dependencies = [
     "openai>=1.0.0",
     "aiohttp>=3.9.0",
     "sqlalchemy>=2.0.0",
+    "coremem[hybrid]>=0.2.1",
+    "hybriddb>=0.4.2",
 ]
+
+
 
 [project.optional-dependencies]
 http = [

@@ -16,7 +16,7 @@ from typing import Any
 
 from src.app_logging import get_logger
 from src.config import get_settings
-from src.sdk.hybrid_db import HybridDB, SearchMode
+from hybriddb import HybridDB, SearchMode
 from src.storage.paths import get_paths
 
 logger = get_logger()

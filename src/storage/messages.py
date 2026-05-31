@@ -124,34 +124,37 @@ class MessageStore:
         self, start_date: date | None = None, end_date: date | None = None,
         limit: int | None = None,
     ) -> list[Message]:
-        memories = self._core.export(limit=limit or 10000)
-        memories = list(reversed(memories))
-        if start_date or end_date:
-            memories = [m for m in memories if self._in_date_range(m.ts, start_date, end_date)]
-        return [self._to_msg(m) for m in memories]
+        ts_after = f"{start_date.isoformat()}T00:00:00" if start_date else None
+        ts_before = f"{end_date.isoformat()}T23:59:59" if end_date else None
+        memories = self._core.fetch(
+            limit=limit or 10000,
+            ts_after=ts_after,
+            ts_before=ts_before,
+        )
+        return [self._to_msg(m) for m in reversed(memories)]
 
     def get_messages_by_session_id(self, session_id: str, limit: int = 50) -> list[Message]:
-        memories = self._core.export(limit=limit, session_id=session_id)
+        memories = self._core.fetch(limit=limit, session_id=session_id)
         return [self._to_msg(m) for m in memories]
 
     def get_recent_messages(self, count: int = 100) -> list[Message]:
-        memories = self._core.export(limit=count)
+        memories = self._core.fetch(limit=count)
         return [self._to_msg(m) for m in reversed(memories)]
 
     def get_recent_messages_for_workspace(
         self, workspace_id: str = "personal", count: int = 100
     ) -> list[Message]:
-        memories = self._core.export(limit=count, metadata={"workspace_id": workspace_id})
+        memories = self._core.fetch(limit=count, metadata={"workspace_id": workspace_id})
         return [self._to_msg(m) for m in reversed(memories)]
 
     def get_messages_with_summary(self, limit: int = 50) -> list[Message]:
         if limit <= 0:
             return []
-        summaries = self._core.export(limit=1, role="summary")
+        summaries = self._core.fetch(limit=1, role="summary")
         if not summaries:
-            memories = self._core.export(limit=limit)
+            memories = self._core.fetch(limit=limit)
             return [self._to_msg(m) for m in reversed(memories)]
-        non_summaries = self._core.export(limit=limit)
+        non_summaries = self._core.fetch(limit=limit)
         non_summaries = [m for m in non_summaries if m.role != "summary"]
         result: list[Message] = [self._to_msg(summaries[0])]
         result += [self._to_msg(m) for m in non_summaries]
@@ -161,27 +164,20 @@ class MessageStore:
         return self.add_message("summary", content)
 
     def has_summary(self) -> bool:
-        return len(self._core.export(limit=1, role="summary")) > 0
+        return len(self._core.fetch(limit=1, role="summary")) > 0
 
     def count_messages(self, start_date: date | None = None, end_date: date | None = None) -> int:
-        return self._core.count()
+        if not start_date and not end_date:
+            return self._core.count()
+        ts_after = f"{start_date.isoformat()}T00:00:00" if start_date else None
+        ts_before = f"{end_date.isoformat()}T23:59:59" if end_date else None
+        return len(self._core.fetch_all(ts_after=ts_after, ts_before=ts_before))
 
     def delete_messages_for_workspace(self, workspace_id: str) -> int:
         return self._core.delete(metadata={"workspace_id": workspace_id})
 
     def clear(self) -> None:
         self._core.clear()
-
-    @staticmethod
-    def _in_date_range(ts: datetime | None, start_date: date | None, end_date: date | None) -> bool:
-        if not ts:
-            return False
-        d = ts.date()
-        if start_date and d < start_date:
-            return False
-        if end_date and d > end_date:
-            return False
-        return True
 
 
 _stores: dict[str, MessageStore] = {}

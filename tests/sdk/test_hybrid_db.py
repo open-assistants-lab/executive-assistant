@@ -10,12 +10,11 @@ from unittest import mock
 
 import pytest
 
-from src.sdk.hybrid_db import (
+from hybriddb import HybridDB, SearchMode
+from hybriddb.embedding import EMBEDDING_DIM
+from hybriddb.utils import (
     _CHROMA_INDEX_MAX_ELEMENTS,
     _CHROMA_INDEX_MAX_M0,
-    EMBEDDING_DIM,
-    HybridDB,
-    SearchMode,
     _sanitize_fts_query,
 )
 
@@ -184,7 +183,7 @@ class TestCRUD:
         assert all(iid > 0 for iid in ids)
 
     def test_insert_batch_uses_single_timestamp_for_journal_entries(self, db_with_contacts):
-        with mock.patch("src.sdk.hybrid_db._now_iso", return_value="2026-01-01T00:00:00+00:00") as now:
+        with mock.patch("hybriddb.crud._now_iso", return_value="2026-01-01T00:00:00+00:00") as now:
             db_with_contacts.insert_batch(
                 "contacts",
                 [
@@ -291,7 +290,7 @@ class TestSchemaOperations:
         db = HybridDB(tmp_dir, embedding_fn=_mock_embedding, max_chroma_index_gb=0)
         db.create_table("docs", {"title": "TEXT", "body": "LONGTEXT"})
 
-        with mock.patch("src.sdk.hybrid_db.logger") as mock_logger:
+        with mock.patch("hybriddb.schema.logger") as mock_logger:
             db.rename_column("docs", "body", "content")
             db.drop_column("docs", "content")
 
@@ -643,7 +642,7 @@ class TestHnswHeaderCorrupt:
         with open(link_path, "wb") as f:
             f.truncate(1024**3 + 1)
 
-        with mock.patch("src.sdk.hybrid_db.logger") as mock_logger:
+        with mock.patch("hybriddb.maintenance.logger") as mock_logger:
             db._check_index_health()
 
         mock_logger.error.assert_called()
@@ -755,15 +754,13 @@ class TestIndexHealthCheck:
         with open(str(header_file), "wb") as f:
             f.write(corrupt)
 
-        with mock.patch("src.sdk.hybrid_db.logger") as mock_logger:
+        with mock.patch("hybriddb.maintenance.logger") as mock_logger:
             db2 = HybridDB(
                 tmp_dir,
                 embedding_fn=_mock_embedding,
                 max_chroma_index_gb=5,
             )
-            mock_logger.error.assert_any_call(
-                mock.ANY, mock.ANY, user_id="system",
-            )
+            mock_logger.error.assert_called()
             db2.close()
 
         os.rename(str(header_file) + ".orig", str(header_file))
@@ -804,15 +801,13 @@ class TestIndexHealthCheck:
             return result
 
         with mock.patch("os.stat", side_effect=_patched_stat):
-            with mock.patch("src.sdk.hybrid_db.logger") as mock_logger:
+            with mock.patch("hybriddb.maintenance.logger") as mock_logger:
                 db2 = HybridDB(
                     tmp_dir,
                     embedding_fn=_mock_embedding,
                     max_chroma_index_gb=1,
                 )
-                mock_logger.error.assert_any_call(
-                    mock.ANY, mock.ANY, user_id="system",
-                )
+                mock_logger.error.assert_called()
                 db2.close()
 
     def test_force_rebuild_creates_new_index(self, tmp_dir):

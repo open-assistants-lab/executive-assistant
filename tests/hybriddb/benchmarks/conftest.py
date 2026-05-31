@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from src.sdk.hybrid_db import HybridDB
+from hybriddb import HybridDB
 
 from .helpers import FULL, SMOKE, Scale, archive_results
 

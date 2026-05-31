@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 
 def _get_db(user_id: str):
     """Get or create a HybridDB instance for the user's email store."""
-    from src.sdk.hybrid_db import HybridDB
+    from hybriddb import HybridDB
     from src.storage.paths import get_paths
 
     paths = get_paths(user_id)
@@ -108,7 +108,7 @@ def list_emails(
 
 def search_emails(user_id: str, query: str, limit: int = 20) -> list[dict]:
     """Search emails by FTS5 keyword + ChromaDB semantic."""
-    from src.sdk.hybrid_db import SearchMode
+    from hybriddb import SearchMode
 
     db = _get_db(user_id)
     try:

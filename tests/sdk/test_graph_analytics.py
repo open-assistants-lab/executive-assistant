@@ -10,11 +10,8 @@ import tempfile
 
 import pytest
 
-from src.sdk.hybrid_db import (
-    EMBEDDING_DIM,
-    HybridDB,
-    SearchMode,
-)
+from hybriddb import HybridDB, SearchMode
+from hybriddb.embedding import EMBEDDING_DIM
 
 networkx = pytest.importorskip("networkx")
 

@@ -511,6 +511,25 @@ wheels = [
 ]
 
 [[package]]
+name = "coremem"
+version = "0.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "chromadb" },
+    { name = "numpy" },
+    { name = "sentence-transformers" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f7/18/8a1e8dce0caccc53fb7b37bc396adc2f4ae7b21c8a5c0ef897abb18bac9e/coremem-0.2.1.tar.gz", hash = "sha256:aec2286dd7a7bf9d9992c0ba6c6e2047160ad3b69298b0f90c735b20b6ed22b0", size = 242056, upload-time = "2026-05-31T09:05:11.636Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ca/c2/aeac3833af4dae4f9109719500b00abd0ea1bd24e539713c4e143bfafb14/coremem-0.2.1-py3-none-any.whl", hash = "sha256:6e738a94776e34e309f752c5145d145fff4ac11afdbb677f86818eac04f63100", size = 23082, upload-time = "2026-05-31T09:05:09.751Z" },
+]
+
+[package.optional-dependencies]
+hybrid = [
+    { name = "hybriddb" },
+]
+
+[[package]]
 name = "coverage"
 version = "7.13.4"
 source = { registry = "https://pypi.org/simple" }
@@ -769,11 +788,13 @@ dependencies = [
     { name = "aiosqlite" },
     { name = "apscheduler" },
     { name = "chromadb" },
+    { name = "coremem", extra = ["hybrid"] },
     { name = "cryptography" },
     { name = "duckdb" },
     { name = "fastapi" },
     { name = "html2text" },
     { name = "httpx" },
+    { name = "hybriddb" },
     { name = "imap-tools" },
     { name = "mcp" },
     { name = "openai" },
@@ -823,12 +844,14 @@ requires-dist = [
     { name = "aiosqlite", specifier = ">=0.20.0" },
     { name = "apscheduler", specifier = ">=3.11.2" },
     { name = "chromadb", specifier = ">=1.5.0" },
+    { name = "coremem", extras = ["hybrid"], specifier = ">=0.2.1" },
     { name = "cryptography", specifier = ">=41.0.0" },
     { name = "duckdb", specifier = ">=1.0.0" },
     { name = "fastapi", specifier = ">=0.129.0" },
     { name = "fastapi", marker = "extra == 'http'", specifier = ">=0.129.0" },
     { name = "html2text", specifier = ">=2025.4.15" },
     { name = "httpx", specifier = ">=0.28.0" },
+    { name = "hybriddb", specifier = ">=0.4.2" },
     { name = "imap-tools", specifier = ">=1.0.0" },
     { name = "mcp", specifier = ">=1.0.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.14.0" },
@@ -1288,6 +1311,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c4/fc/eb9bc06130e8bbda6a616e1b80a7aa127681c448d6b49806f61db2670b61/huggingface_hub-1.4.1.tar.gz", hash = "sha256:b41131ec35e631e7383ab26d6146b8d8972abc8b6309b963b306fbcca87f5ed5", size = 642156, upload-time = "2026-02-06T09:20:03.013Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d5/ae/2f6d96b4e6c5478d87d606a1934b5d436c4a2bce6bb7c6fdece891c128e3/huggingface_hub-1.4.1-py3-none-any.whl", hash = "sha256:9931d075fb7a79af5abc487106414ec5fba2c0ae86104c0c62fd6cae38873d18", size = 553326, upload-time = "2026-02-06T09:20:00.728Z" },
+]
+
+[[package]]
+name = "hybriddb"
+version = "0.4.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "chromadb" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a4/d4/0b2b6d4bc1c27ee14079af8ef0014a881ee7524da73e92f43e1e478010ed/hybriddb-0.4.2.tar.gz", hash = "sha256:14840dca047d7f93ad97361d62252e75a43a522fa7ae5d03fee8a779f9d59fb7", size = 248977, upload-time = "2026-05-31T08:36:51.443Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ca/49/741987b825c5beadf1fc3fbb2988ef8326b2baa6b6e24cd6163300b31f58/hybriddb-0.4.2-py3-none-any.whl", hash = "sha256:337d111263e0f4338701c8aef6ed4a50f020d5fca1c8e43e2887f5a51269cb4e", size = 38788, upload-time = "2026-05-31T08:36:52.595Z" },
 ]
 
 [[package]]

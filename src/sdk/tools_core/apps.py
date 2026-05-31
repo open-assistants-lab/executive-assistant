@@ -17,7 +17,8 @@ from typing import Any
 
 from src.app_logging import get_logger
 from src.config import get_settings
-from src.sdk.hybrid_db import HybridDB, SearchMode, _hash_embedding
+from hybriddb import HybridDB, SearchMode
+from hybriddb.embedding import hash_embedding as _hash_embedding
 from src.sdk.tools import ToolAnnotations, tool
 from src.storage.paths import get_paths
 

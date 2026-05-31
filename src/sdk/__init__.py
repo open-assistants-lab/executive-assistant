@@ -34,7 +34,7 @@ from src.sdk.guardrails import (
     ToolGuardrail,
 )
 from src.sdk.handoffs import Handoff, HandoffInput
-from src.sdk.hybrid_db import EmbeddingModelError, HybridDB, SearchMode
+from hybriddb import EmbeddingModelError, HybridDB, SearchMode
 from src.sdk.loop import AgentLoop, CostTracker, Interrupt, RunConfig
 from src.sdk.messages import Message, StreamChunk, ToolCall, Usage
 from src.sdk.middleware import Middleware
