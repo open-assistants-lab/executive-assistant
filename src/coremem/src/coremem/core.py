@@ -3,6 +3,7 @@
 Wraps any StoreBackend with heuristics, wake-up context, and ingestion.
 """
 
+from datetime import datetime
 from typing import Any
 
 from coremem.backends.base import StoreBackend
@@ -60,6 +61,7 @@ class MemoryCore:
         session_id: str | None = None,
         user_id: str = "",
         agent_id: str = "",
+        ts: datetime | None = None,
         metadata: dict[str, Any] | None = None,
         embedding: list[float] | None = None,
     ) -> str:
@@ -73,13 +75,14 @@ class MemoryCore:
             session_id: Optional session/thread identifier.
             user_id: Optional user identifier.
             agent_id: Optional agent identifier.
+            ts: Optional timestamp. Defaults to now if not provided.
             metadata: Optional arbitrary key-value pairs for filtering.
             embedding: Optional pre-computed embedding vector.
         """
         return ingest_message(
             backend=self._backend, role=role, content=content,
             session_id=session_id, user_id=user_id, agent_id=agent_id,
-            metadata=metadata, embedding=embedding,
+            ts=ts, metadata=metadata, embedding=embedding,
         )
 
     def ingest_many(self, messages: list[dict[str, Any]], session_id: str | None = None) -> list[str]:

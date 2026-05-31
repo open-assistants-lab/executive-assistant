@@ -19,6 +19,7 @@ def ingest_message(
     session_id: str | None = None,
     user_id: str = "",
     agent_id: str = "",
+    ts: datetime | None = None,
     metadata: dict[str, Any] | None = None,
     embedding: list[float] | None = None,
 ) -> str:
@@ -31,6 +32,7 @@ def ingest_message(
         session_id: Optional session/thread identifier.
         user_id: Optional user identifier.
         agent_id: Optional agent identifier.
+        ts: Optional timestamp. Defaults to now if not provided.
         metadata: Optional arbitrary key-value pairs for filtering.
         embedding: Optional pre-computed embedding vector.
 
@@ -44,7 +46,7 @@ def ingest_message(
         id="",
         content=content,
         role=role,
-        ts=datetime.now(UTC),
+        ts=ts or datetime.now(UTC),
         session_id=session_id,
         user_id=user_id,
         agent_id=agent_id,
