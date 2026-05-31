@@ -27,6 +27,7 @@ dependencies = [
     "html2text>=2025.4.15",
     "openai>=1.0.0",
     "aiohttp>=3.9.0",
+    "sqlalchemy>=2.0.0",
 ]
 
 [project.optional-dependencies]
