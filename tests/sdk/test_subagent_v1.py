@@ -729,7 +729,7 @@ class TestSubagentCoordinator:
                 }
 
         agent_def = AgentDef(name="a", skills=["skill-creator"])
-        with patch("src.sdk.coordinator.get_skill_registry", return_value=FakeSkillRegistry()):
+        with patch("src.skills.registry.get_skill_registry", return_value=FakeSkillRegistry()):
             prompt = _build_system_prompt(agent_def, user_id="test_user", workspace_id="personal")
 
         assert "## Available Skills" in prompt

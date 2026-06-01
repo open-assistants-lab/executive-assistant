@@ -21,14 +21,12 @@ from src.sdk.messages import Message
 from src.sdk.middleware_instruction import InstructionMiddleware
 from src.sdk.middleware_progress import ProgressMiddleware
 from src.sdk.subagent_models import (
-    DEFAULT_MAX_OUTPUT_CHARS,
-    DEFAULT_SAFE_DENIED_TOOLS,
-    SAFE_DISALLOWED_TOOLS,
     AgentDef,
     SubagentResult,
-    TaskCancelledError,
     TaskStatus,
+    TaskCancelledError,
 )
+from src.sdk.agent_validation import validate_agent_def, _is_denied_memory_tool
 from src.sdk.work_queue import WorkQueueDB, get_work_queue
 from src.skills import get_skill_registry
 from src.storage import paths as _paths
@@ -37,66 +35,34 @@ get_paths = _paths.get_paths
 
 logger = get_logger()
 
+# Constants for subagent tool filtering
 MANDATORY_SUBAGENT_TOOLS = {"message_search"}
 OPTIONAL_SKILL_LOAD_TOOL = "skills_load"
 DENIED_SKILL_MANAGEMENT_TOOLS = {"skill_create", "skill_delete", "skill_update"}
 
 
-def _is_denied_memory_tool(name: str) -> bool:
-    return name.startswith("memory_")
+def _build_profile_md(data: dict) -> str:
+    """Build PROFILE.md from an AgentProfile dict (frontmatter + body)."""
+    import yaml as _yaml
+
+    data = dict(data)  # don't mutate caller
+    system_prompt = data.pop("system_prompt", "")
+    yaml_str = _yaml.dump(data, default_flow_style=False, sort_keys=False)
+    return f"---\n{yaml_str.strip()}\n---\n\n{system_prompt.strip()}\n"
 
 
-def _is_subagent_tool(name: str) -> bool:
-    return name.startswith("subagent_")
-
-
-def validate_agent_def(
-    agent_def: AgentDef,
-    user_id: str = "default_user",
-    workspace_id: str = "personal",
-) -> list[str]:
-    from src.sdk.native_tools import get_native_tools
-
-    tool_names = {t.name for t in get_native_tools()}
-    errors: list[str] = []
-
-    for name in agent_def.tools or []:
-        if name not in tool_names:
-            errors.append(f"Unknown tool: {name}")
-        if _is_subagent_tool(name):
-            errors.append(f"Subagent tool is not allowed in subagent tools: {name}")
-        if _is_denied_memory_tool(name):
-            errors.append(f"Memory tool is not allowed in subagent tools: {name}")
-        if name in DENIED_SKILL_MANAGEMENT_TOOLS:
-            errors.append(f"Skill management tool is not allowed in subagent tools: {name}")
-
-    skill_registry = get_skill_registry(user_id=user_id, workspace_id=workspace_id)
-    for skill_name in agent_def.skills:
-        if skill_registry.get_skill(skill_name) is None:
-            errors.append(f"Unknown skill: {skill_name}")
-
-    if agent_def.max_llm_calls <= 0:
-        errors.append("max_llm_calls must be positive")
-    if agent_def.cost_limit_usd <= 0:
-        errors.append("cost_limit_usd must be positive")
-    if agent_def.timeout_seconds <= 0:
-        errors.append("timeout_seconds must be positive")
-
-    return errors
-
-
-def _build_tools_for_subagent(agent_def: AgentDef) -> list[Any]:
+def _build_tools_for_subagent(agent_def: AgentDef) -> list:
+    """Build the filtered tool list for a subagent."""
     from src.sdk.native_tools import get_native_tools
 
     all_native = get_native_tools()
     tool_map = {t.name: t for t in all_native}
 
     allowed = set(agent_def.tools) if agent_def.tools else set(tool_map.keys())
-    final = allowed
     final = {
         name
-        for name in final
-        if not _is_subagent_tool(name)
+        for name in allowed
+        if not name.startswith("subagent_")
         and not _is_denied_memory_tool(name)
         and name not in DENIED_SKILL_MANAGEMENT_TOOLS
     }
@@ -107,7 +73,10 @@ def _build_tools_for_subagent(agent_def: AgentDef) -> list[Any]:
     return [tool_map[n] for n in sorted(final) if n in tool_map]
 
 
-def _build_system_prompt(agent_def: AgentDef, user_id: str, workspace_id: str = "personal") -> str:
+def _build_system_prompt(
+    agent_def: AgentDef, user_id: str, workspace_id: str = "personal"
+) -> str:
+    """Build the system prompt for a subagent, including loaded skill content."""
     parts: list[str] = []
 
     if agent_def.system_prompt:
@@ -117,62 +86,41 @@ def _build_system_prompt(agent_def: AgentDef, user_id: str, workspace_id: str = 
         if agent_def.description:
             parts.append(agent_def.description)
 
-    # Inject workspace context for workspace-scoped subagents
-    try:
-        from src.sdk.workspace_models import load_workspace
-        ws = load_workspace(workspace_id)
-        if ws and ws.id != "personal":
-            parts.append(f"\n## Current Workspace: {ws.name}")
-            if ws.prompt:
-                parts.append(ws.prompt)
-    except Exception:
-        pass
-
     if agent_def.skills:
-        skill_registry = get_skill_registry(user_id=user_id, workspace_id=workspace_id)
-        skill_entries = []
-        for skill_name in agent_def.skills:
-            skill = skill_registry.get_skill(skill_name)
-            if skill:
-                skill_entries.append(f"- **{skill_name}**: {skill['description']}")
+        try:
+            from src.skills.registry import get_skill_registry
 
-        if skill_entries:
-            parts.append(
-                "## Available Skills\n"
-                "Call skills_load(skill_name=...) before following a skill's instructions.\n"
-                + "\n".join(skill_entries)
-            )
+            sr = get_skill_registry(user_id=user_id, workspace_id=workspace_id)
+            skill_entries = []
+            for skill_name in agent_def.skills:
+                skill = sr.get_skill(skill_name)
+                if skill:
+                    desc = skill.get("description", "")
+                    skill_entries.append(f"- **{skill_name}**: {desc}")
+            if skill_entries:
+                parts.insert(
+                    0,
+                    "## Available Skills\n"
+                    "Use skills_load(skill_name=...) before following a skill's instructions.\n"
+                    + "\n".join(skill_entries),
+                )
+        except Exception:
+            pass
 
     return "\n\n".join(parts)
 
 
-def _extract_output(messages: list[Message], max_chars: int = DEFAULT_MAX_OUTPUT_CHARS) -> tuple[str, bool]:
+def _extract_output(messages: list, max_chars: int = 2000) -> tuple[str, bool]:
     output = ""
     for msg in reversed(messages):
-        if msg.role == "assistant" and msg.content:
+        if hasattr(msg, "role") and msg.role == "assistant" and msg.content:
             content = msg.content
             if isinstance(content, str) and content.strip():
-                output = content.strip()
-                break
-            elif isinstance(content, list):
-                text_parts = [
-                    b.get("text", "")
-                    for b in content
-                    if isinstance(b, dict) and b.get("type") == "text"
-                ]
-                combined = "".join(text_parts).strip()
-                if combined:
-                    output = combined
-                    break
-
-    if not output:
-        output = "Subagent completed with no text output."
-
-    truncated = len(output) > max_chars
-    if truncated:
-        output = output[:max_chars] + f"\n... [truncated, {len(output)} chars total]"
-
-    return output, truncated
+                if len(output) + len(content) > max_chars:
+                    output = content[:max_chars - len(output)] + "..."
+                    return output, True
+                output = content + "\n" + output
+    return output.strip(), False
 
 
 class SubagentCoordinator:
@@ -214,7 +162,7 @@ class SubagentCoordinator:
         agent_path = self.base_path / agent_def.name
         agent_path.mkdir(parents=True, exist_ok=True)
 
-        # Write AgentProfile
+        # Write AgentProfile (PROFILE.md format)
         profile_data = agent_def.to_profile()
         try:
             from src.sdk.agent_profile import validate_profile
@@ -229,9 +177,20 @@ class SubagentCoordinator:
         except Exception:
             pass
 
-        (agent_path / "profile.yaml").write_text(
-            yaml.dump(profile_data, default_flow_style=False, sort_keys=False)
+        # Write PROFILE.md (frontmatter + body)
+        (agent_path / "PROFILE.md").write_text(
+            _build_profile_md(profile_data)
         )
+
+        # Write companion files
+        if agent_def.provider_options:
+            (agent_path / "provider.json").write_text(
+                json.dumps(agent_def.provider_options, indent=2)
+            )
+        if agent_def.output_schema:
+            (agent_path / "output-schema.json").write_text(
+                json.dumps(agent_def.output_schema, indent=2)
+            )
 
         # Write legacy config.yaml for backward compat
         config_data = agent_def.model_dump(exclude_none=True)
@@ -261,11 +220,19 @@ class SubagentCoordinator:
 
         agent_path = self.base_path / name
 
-        # Write profile.yaml
+        # Write PROFILE.md
         profile_data = updated.to_profile()
-        (agent_path / "profile.yaml").write_text(
-            yaml.dump(profile_data, default_flow_style=False, sort_keys=False)
-        )
+        (agent_path / "PROFILE.md").write_text(_build_profile_md(profile_data))
+
+        # Write companion files
+        if updated.provider_options:
+            (agent_path / "provider.json").write_text(
+                json.dumps(updated.provider_options, indent=2)
+            )
+        if updated.output_schema:
+            (agent_path / "output-schema.json").write_text(
+                json.dumps(updated.output_schema, indent=2)
+            )
 
         # Write legacy config.yaml for backward compat
         config_path = agent_path / "config.yaml"
@@ -655,20 +622,16 @@ class SubagentCoordinator:
         return scoped
 
     def load_def(self, name: str) -> AgentDef | None:
-        # 1. Workspace-scoped: prefer profile.yaml
-        profile_path = self.base_path / name / "profile.yaml"
+        # 1. Workspace-scoped: prefer PROFILE.md
+        profile_path = self.base_path / name / "PROFILE.md"
         config_path = self.base_path / name / "config.yaml"
 
         if profile_path.exists():
             try:
-                data = yaml.safe_load(profile_path.read_text()) or {}
-                return AgentDef.from_profile(data)
-            except yaml.YAMLError as e:
-                logger.error(
-                    "subagent.corrupt_yaml",
-                    {"name": name, "path": str(profile_path), "error": str(e)},
-                    user_id=self.user_id,
-                )
+                from agentprofile.parser import load_profile as _load_ap
+
+                profile = _load_ap(str(profile_path))
+                return AgentDef.from_profile(profile.model_dump())
             except Exception as e:
                 logger.error(
                     "subagent.load_failed",

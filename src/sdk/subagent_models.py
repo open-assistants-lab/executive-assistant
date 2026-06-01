@@ -82,7 +82,7 @@ class AgentDef(BaseModel):
 
     def to_profile(self) -> dict[str, Any]:
         """Serialize to AgentProfile-compatible dict."""
-        return {
+        data: dict[str, Any] = {
             "version": 1,
             "name": self.name,
             "description": self.description,
@@ -91,10 +91,13 @@ class AgentDef(BaseModel):
             "system_prompt": self.system_prompt or "",
             "skills": self.skills or [],
             "tags": self.tags or [],
-            "output_schema": self.output_schema,
-            "provider_options": self.provider_options or {},
             "handoff_instructions": self.handoff_instructions,
         }
+        if self.provider_options:
+            data["provider"] = "provider.json"
+        if self.output_schema:
+            data["output_schema"] = "output-schema.json"
+        return data
 
     @classmethod
     def from_profile(cls, data: dict[str, Any]) -> "AgentDef":
@@ -107,7 +110,7 @@ class AgentDef(BaseModel):
             system_prompt=data.get("system_prompt"),
             skills=data.get("skills", []),
             tags=data.get("tags", []),
-            output_schema=data.get("output_schema"),
+            output_schema=data.get("output_schema_def"),
             provider_options=data.get("provider_options", {}),
             handoff_instructions=data.get("handoff_instructions"),
         )
