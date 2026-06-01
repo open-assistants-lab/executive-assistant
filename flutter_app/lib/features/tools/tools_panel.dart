@@ -154,7 +154,7 @@ class _CategorySection extends StatelessWidget {
   final String title;
   final String count;
   final List<ToolItem> tools;
-  final AppTokens tokens;
+  final EaTokens tokens;
   final Function(ToolItem, bool) onToggle;
 
   const _CategorySection({
@@ -210,7 +210,7 @@ class _CategorySection extends StatelessWidget {
 
 class _ToolRow extends StatelessWidget {
   final ToolItem tool;
-  final AppTokens tokens;
+  final EaTokens tokens;
   final ValueChanged<bool> onToggle;
 
   const _ToolRow({
@@ -270,7 +270,8 @@ class _ToolRow extends StatelessWidget {
           Switch(
             value: tool.enabled,
             onChanged: onToggle,
-            activeColor: tokens.colors.accent,
+            activeTrackColor: tokens.colors.accent.withAlpha(80),
+            activeThumbColor: tokens.colors.accent,
           ),
         ],
       ),
@@ -281,7 +282,7 @@ class _ToolRow extends StatelessWidget {
 class _AnnotationBadge extends StatelessWidget {
   final String label;
   final Color color;
-  final AppTokens tokens;
+  final EaTokens tokens;
 
   const _AnnotationBadge({
     required this.label,

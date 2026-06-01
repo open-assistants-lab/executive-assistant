@@ -65,7 +65,7 @@ class _ToolsWorkspaceTabState extends ConsumerState<ToolsWorkspaceTab> {
     );
   }
 
-  Widget _compactRow(ToolItem tool, AppTokens tokens) {
+  Widget _compactRow(ToolItem tool, EaTokens tokens) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(

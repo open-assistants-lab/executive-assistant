@@ -275,9 +275,11 @@ class _BottomTabs extends StatelessWidget {
             tooltip: 'Subagents',
             onTap: () => onSelected(_WorkspacePanelTab.subagents),
           ),
-          _Tab(
-            label: 'Tools',
+          _BottomTabButton(
+            icon: Symbols.handyman,
+            activeIcon: Symbols.handyman,
             selected: selected == _WorkspacePanelTab.tools,
+            tooltip: 'Tools',
             onTap: () => onSelected(_WorkspacePanelTab.tools),
           ),
         ],
