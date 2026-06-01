@@ -102,8 +102,7 @@ class TestAgentDef:
         d = AgentDef(name="my-agent", description="desc")
         assert d.name == "my-agent"
         assert d.max_llm_calls == 50
-        assert "subagent_create" in d.disallowed_tools
-
+        assert "subagent_create" not in (d.tools or [])  # recursion guard via capabilities
     def test_invalid_name(self):
         from src.sdk.subagent_models import AgentDef
 
@@ -138,16 +137,6 @@ class TestAgentDef:
         assert d.output_schema is not None
         assert d.handoff_instructions == "Return concise bullets."
         assert d.artifact_policy == "write reports under reports/"
-
-    def test_default_disallowed_tools_blocks_subagent_recursion_and_dangerous_tools(self):
-        from src.sdk.subagent_models import AgentDef
-
-        d = AgentDef(name="a")
-        assert "subagent_start" in d.disallowed_tools
-        assert "subagent_tasks" in d.disallowed_tools
-        assert "shell_execute" in d.disallowed_tools
-        assert "email_send" in d.disallowed_tools
-        assert "browser_click" in d.disallowed_tools
 
 
 class TestSubagentResult:
@@ -647,7 +636,7 @@ class TestSubagentCoordinator:
         from src.sdk.coordinator import _build_tools_for_subagent
         from src.sdk.subagent_models import AgentDef
 
-        d = AgentDef(name="a", tools=["time_get"], disallowed_tools=["message_search"])
+        d = AgentDef(name="a", tools=["time_get"])
         names = {t.name for t in _build_tools_for_subagent(d)}
 
         assert "time_get" in names
@@ -1290,52 +1279,6 @@ class TestStaleJobRecovery:
             assert task["status"] == "failed"
 
 
-class TestSafeDefaults:
-    def test_load_def_applies_safe_disallowed_tools_by_default(self, tmp_path):
-        import yaml
-
-        from src.sdk.coordinator import SubagentCoordinator
-
-        agent_dir = tmp_path / "subagent" / "test_agent"
-        agent_dir.mkdir(parents=True)
-        config = agent_dir / "config.yaml"
-        config.write_text(yaml.dump({"name": "test_agent", "description": "test"}))
-
-        coordinator = SubagentCoordinator.__new__(SubagentCoordinator)
-        coordinator.base_path = tmp_path / "subagent"
-        coordinator.user_id = "test_user"
-
-        agent_def = coordinator.load_def("test_agent")
-        assert agent_def is not None
-        assert "shell_execute" in agent_def.disallowed_tools
-        assert "email_send" in agent_def.disallowed_tools
-        assert "browser_click" in agent_def.disallowed_tools
-        assert "subagent_create" in agent_def.disallowed_tools
-
-    def test_explicit_tools_overrides_safe_defaults(self, tmp_path):
-        import yaml
-
-        from src.sdk.coordinator import SubagentCoordinator
-
-        agent_dir = tmp_path / "subagent" / "explicit_agent"
-        agent_dir.mkdir(parents=True)
-        config = agent_dir / "config.yaml"
-        config.write_text(yaml.dump({
-            "name": "explicit_agent",
-            "description": "test",
-            "tools": ["shell_execute", "message_search", "files_list"],
-            "disallowed_tools": ["subagent_create"]
-        }))
-
-        coordinator = SubagentCoordinator.__new__(SubagentCoordinator)
-        coordinator.base_path = tmp_path / "subagent"
-        coordinator.user_id = "test_user"
-
-        agent_def = coordinator.load_def("explicit_agent")
-        assert agent_def is not None
-        assert "shell_execute" in agent_def.tools
-        assert "shell_execute" not in agent_def.disallowed_tools
-        assert "subagent_create" in agent_def.disallowed_tools
 
 
 class TestDoomLoopDetection:

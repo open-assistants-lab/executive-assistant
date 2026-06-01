@@ -70,12 +70,6 @@ def validate_agent_def(
         if name in DENIED_SKILL_MANAGEMENT_TOOLS:
             errors.append(f"Skill management tool is not allowed in subagent tools: {name}")
 
-    for name in agent_def.disallowed_tools:
-        if _is_denied_memory_tool(name):
-            errors.append(f"Memory tool is not allowed in subagent disallowed_tools: {name}")
-        elif name not in tool_names and not _is_subagent_tool(name) and name not in set(DEFAULT_SAFE_DENIED_TOOLS):
-            errors.append(f"Unknown disallowed tool: {name}")
-
     skill_registry = get_skill_registry(user_id=user_id, workspace_id=workspace_id)
     for skill_name in agent_def.skills:
         if skill_registry.get_skill(skill_name) is None:
@@ -98,8 +92,7 @@ def _build_tools_for_subagent(agent_def: AgentDef) -> list[Any]:
     tool_map = {t.name: t for t in all_native}
 
     allowed = set(agent_def.tools) if agent_def.tools else set(tool_map.keys())
-    disallowed = set(agent_def.disallowed_tools)
-    final = allowed - disallowed
+    final = allowed
     final = {
         name
         for name in final
@@ -221,8 +214,32 @@ class SubagentCoordinator:
         agent_path = self.base_path / agent_def.name
         agent_path.mkdir(parents=True, exist_ok=True)
 
+        # Write AgentProfile
+        profile_data = agent_def.to_profile()
+        try:
+            from src.sdk.agent_profile import validate_profile
+
+            errors = validate_profile(profile_data)
+            if errors:
+                logger.warning(
+                    "subagent.profile_validation",
+                    {"name": agent_def.name, "errors": errors},
+                    user_id=self.user_id,
+                )
+        except Exception:
+            pass
+
+        (agent_path / "profile.yaml").write_text(
+            yaml.dump(profile_data, default_flow_style=False, sort_keys=False)
+        )
+
+        # Write legacy config.yaml for backward compat
+        config_data = agent_def.model_dump(exclude_none=True)
+        config_data.pop("disallowed_tools", None)
         config_path = agent_path / "config.yaml"
-        config_path.write_text(yaml.dump(agent_def.model_dump(exclude_none=True), default_flow_style=False))
+        config_path.write_text(
+            yaml.dump(config_data, default_flow_style=False)
+        )
 
         if agent_def.mcp_config:
             (agent_path / ".mcp.json").write_text(json.dumps(agent_def.mcp_config, indent=2))
@@ -243,6 +260,14 @@ class SubagentCoordinator:
         updated = current.model_copy(update=update_data)
 
         agent_path = self.base_path / name
+
+        # Write profile.yaml
+        profile_data = updated.to_profile()
+        (agent_path / "profile.yaml").write_text(
+            yaml.dump(profile_data, default_flow_style=False, sort_keys=False)
+        )
+
+        # Write legacy config.yaml for backward compat
         config_path = agent_path / "config.yaml"
         config_path.write_text(yaml.dump(updated.model_dump(exclude_none=True), default_flow_style=False))
 
@@ -593,7 +618,7 @@ class SubagentCoordinator:
                 for d in user_dir.iterdir():
                     if d.is_dir() and d.name not in seen and (d / "config.yaml").exists():
                         data = yaml.safe_load((d / "config.yaml").read_text()) or {}
-                        data.setdefault("disallowed_tools", list(SAFE_DISALLOWED_TOOLS))
+                        data.pop("disallowed_tools", None)
                         agent_def = AgentDef(**data)
                         defs.append(agent_def)
         except Exception:
@@ -622,7 +647,7 @@ class SubagentCoordinator:
                 for d in user_dir.iterdir():
                     if d.is_dir() and d.name not in seen and (d / "config.yaml").exists():
                         data = yaml.safe_load((d / "config.yaml").read_text()) or {}
-                        data.setdefault("disallowed_tools", list(SAFE_DISALLOWED_TOOLS))
+                        data.pop("disallowed_tools", None)
                         scoped.append((AgentDef(**data), "user"))
         except Exception:
             pass
@@ -630,12 +655,31 @@ class SubagentCoordinator:
         return scoped
 
     def load_def(self, name: str) -> AgentDef | None:
-        # 1. Workspace-scoped
+        # 1. Workspace-scoped: prefer profile.yaml
+        profile_path = self.base_path / name / "profile.yaml"
         config_path = self.base_path / name / "config.yaml"
+
+        if profile_path.exists():
+            try:
+                data = yaml.safe_load(profile_path.read_text()) or {}
+                return AgentDef.from_profile(data)
+            except yaml.YAMLError as e:
+                logger.error(
+                    "subagent.corrupt_yaml",
+                    {"name": name, "path": str(profile_path), "error": str(e)},
+                    user_id=self.user_id,
+                )
+            except Exception as e:
+                logger.error(
+                    "subagent.load_failed",
+                    {"name": name, "error": str(e), "error_type": type(e).__name__},
+                    user_id=self.user_id,
+                )
+
         if config_path.exists():
             try:
                 data = yaml.safe_load(config_path.read_text()) or {}
-                data.setdefault("disallowed_tools", list(SAFE_DISALLOWED_TOOLS))
+                data.pop("disallowed_tools", None)
                 return AgentDef(**data)
             except yaml.YAMLError as e:
                 logger.error(
@@ -655,7 +699,7 @@ class SubagentCoordinator:
             config_path = _paths.get_paths(user_id=self.user_id).user_subagents_dir() / name / "config.yaml"
             if config_path.exists():
                 data = yaml.safe_load(config_path.read_text()) or {}
-                data.setdefault("disallowed_tools", list(SAFE_DISALLOWED_TOOLS))
+                data.pop("disallowed_tools", None)
                 return AgentDef(**data)
         except yaml.YAMLError as e:
             logger.error(

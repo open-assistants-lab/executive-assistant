@@ -68,8 +68,8 @@ class AgentDef(BaseModel):
     provider_options: dict[str, Any] = Field(default_factory=dict)
     system_prompt: str | None = None
     tools: list[str] | None = None
-    disallowed_tools: list[str] = Field(default_factory=lambda: list(SAFE_DISALLOWED_TOOLS))
     skills: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
     max_llm_calls: int = DEFAULT_MAX_LLM_CALLS
     cost_limit_usd: float = DEFAULT_COST_LIMIT_USD
     timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS
@@ -79,6 +79,38 @@ class AgentDef(BaseModel):
     artifact_policy: str | None = None
 
     model_config = {"extra": "ignore"}
+
+    def to_profile(self) -> dict[str, Any]:
+        """Serialize to AgentProfile-compatible dict."""
+        return {
+            "version": 1,
+            "name": self.name,
+            "description": self.description,
+            "model": self.model or "",
+            "tools": self.tools or [],
+            "system_prompt": self.system_prompt or "",
+            "skills": self.skills or [],
+            "tags": self.tags or [],
+            "output_schema": self.output_schema,
+            "provider_options": self.provider_options or {},
+            "handoff_instructions": self.handoff_instructions,
+        }
+
+    @classmethod
+    def from_profile(cls, data: dict[str, Any]) -> "AgentDef":
+        """Create AgentDef from an AgentProfile dict."""
+        return cls(
+            name=data["name"],
+            description=data.get("description", ""),
+            model=data.get("model"),
+            tools=data.get("tools"),
+            system_prompt=data.get("system_prompt"),
+            skills=data.get("skills", []),
+            tags=data.get("tags", []),
+            output_schema=data.get("output_schema"),
+            provider_options=data.get("provider_options", {}),
+            handoff_instructions=data.get("handoff_instructions"),
+        )
 
 
 class SubagentResult(BaseModel):
