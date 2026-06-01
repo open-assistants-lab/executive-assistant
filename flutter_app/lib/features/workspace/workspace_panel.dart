@@ -8,6 +8,7 @@ import '../../providers/agent_provider.dart';
 import '../../providers/workspace_provider.dart';
 import 'skills_panel.dart';
 import 'subagents_panel.dart';
+import '../tools/tools_workspace_tab.dart';
 
 typedef WorkspaceFileLoader =
     Future<List<Map<String, dynamic>>> Function(WidgetRef ref);
@@ -114,7 +115,9 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
                 ? _buildFilesPanel()
                 : _tab == _WorkspacePanelTab.skills
                 ? const SkillsPanel()
-                : const SubagentsPanel(),
+                : _tab == _WorkspacePanelTab.subagents
+                ? const SubagentsPanel()
+                : const ToolsWorkspaceTab(),
           ),
           _BottomTabs(
             selected: _tab,
@@ -231,7 +234,7 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
   }
 }
 
-enum _WorkspacePanelTab { files, skills, subagents }
+enum _WorkspacePanelTab { files, skills, subagents, tools }
 
 class _BottomTabs extends StatelessWidget {
   final _WorkspacePanelTab selected;
@@ -271,6 +274,11 @@ class _BottomTabs extends StatelessWidget {
             selected: selected == _WorkspacePanelTab.subagents,
             tooltip: 'Subagents',
             onTap: () => onSelected(_WorkspacePanelTab.subagents),
+          ),
+          _Tab(
+            label: 'Tools',
+            selected: selected == _WorkspacePanelTab.tools,
+            onTap: () => onSelected(_WorkspacePanelTab.tools),
           ),
         ],
       ),
