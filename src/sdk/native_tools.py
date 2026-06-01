@@ -246,3 +246,28 @@ def get_native_tools() -> list:
 def get_native_tool_names() -> set[str]:
     """Return the set of all registered SDK-native tool names."""
     return set(_registry.list_names())
+
+
+# Tool categories derived from naming convention category_verb
+CATEGORIES: dict[str, str] = {}
+
+
+def _derive_category(name: str) -> str:
+    """Derive category from tool name (category_verb convention)."""
+    if "_" in name:
+        return name.split("_")[0]
+    return "core"
+
+
+def get_tool_category(name: str) -> str:
+    """Return the category for a given tool name."""
+    return CATEGORIES.get(name, _derive_category(name))
+
+
+def _populate_categories() -> None:
+    """Auto-populate CATEGORIES from registered tool names."""
+    for name in get_native_tool_names():
+        CATEGORIES[name] = _derive_category(name)
+
+
+_populate_categories()
