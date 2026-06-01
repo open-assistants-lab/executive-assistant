@@ -28,6 +28,7 @@ class SubagentCreateRequest(BaseModel):
     output_schema: dict[str, Any] | None = None
     handoff_instructions: str | None = None
     artifact_policy: str | None = None
+    tags: list[str] = Field(default_factory=list)
 
 
 class SubagentUpdateRequest(BaseModel):
