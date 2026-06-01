@@ -9,12 +9,11 @@ This document provides guidelines for agents working on this codebase.
 ### Installation
 ```bash
 # Install with all dependencies
-uv pip install -e ".[cli,http,dev]"
+uv sync --extra dev
 
 # Install specific extras
-uv pip install -e ".[cli]"      # CLI only
-uv pip install -e ".[http]"      # HTTP API only
-uv pip install -e ".[dev]"      # Development tools
+uv sync              # runtime only
+uv sync --extra dev  # runtime + development tools
 ```
 
 ### Running the Application
@@ -72,7 +71,7 @@ cd docker && docker compose up --build
 ## 2. Code Style Guidelines
 
 ### Python Version
-- Minimum: Python 3.11
+- Minimum: Python 3.11, Maximum: Python <3.14 (capped in pyproject.toml)
 - Use modern Python features (type hints, structural pattern matching)
 
 ### Imports (PEP 8 + Ruff)
@@ -182,7 +181,7 @@ except Exception as e:
 
 The codebase has a **custom agent SDK** (`src/sdk/`) that replaces LangChain/LangGraph. All LangChain code and dependencies have been removed.
 
-**SDK Core (~6,500 lines, 30 files, 470+ tests):**
+**SDK Core (~7,500 lines, 35 files, 800+ tests):**
 
 | Module | Lines | Purpose |
 |--------|-------|---------|
@@ -195,13 +194,16 @@ The codebase has a **custom agent SDK** (`src/sdk/`) that replaces LangChain/Lan
 | `guardrails.py` | 60 | `InputGuardrail`, `OutputGuardrail`, `ToolGuardrail`, `GuardrailTripwire` |
 | `handoffs.py` | 92 | `Handoff`, `HandoffInput` — model-driven agent transfer |
 | `tracing.py` | 172 | `TraceProvider`, `Span`, `SpanContext`, `ConsoleTraceProcessor`, `JsonTraceProcessor` |
-| `native_tools.py` | 102 | SDK-native `time_get` (first migrated tool) |
-| `langchain_adapter.py` | 137 | **TEMPORARY** — wraps LangChain tools as SDK ToolDefinitions |
-| `subagent_models.py` | 98 | `AgentDef`, `SubagentResult`, `TaskStatus`, `TaskCancelledError` |
+| `native_tools.py` | 260 | ToolRegistry with get_native_tools() / get_native_tool_names() + category mapping |
+| `capabilities.py` | 85 | `load_capabilities`, `merge_capabilities`, `tool_enabled` — per-scope enable state |
+| `agent_validation.py` | 70 | `validate_agent_def` — extracted from coordinator (no circular imports) |
+| `agent_profile.py` | 60 | EA-specific AgentProfile validation (models.dev + tools + skills) |
+| `subagent_models.py` | 130 | `AgentDef`, `SubagentResult`, `TaskStatus`, `TaskCancelledError`. Drops `disallowed_tools`. |
 | `work_queue.py` | 254 | `WorkQueueDB` — aiosqlite per-user SQLite work queue |
-| `coordinator.py` | 327 | `SubagentCoordinator` — create/invoke/cancel/instruct/delete |
+| `coordinator.py` | 700 | `SubagentCoordinator` — PROFILE.md support, capabilities filtering |
 | `middleware_progress.py` | 85 | `ProgressMiddleware` — progress updates, doom loop detection |
 | `middleware_instruction.py` | 58 | `InstructionMiddleware` — cancel signal, course-correction injection |
+| `runner.py` | 520 | `create_sdk_loop`, `run_sdk_agent` — capabilities-filtered tool registration |
 
 **Key Design Decisions:**
 1. **models.dev integration**: Registry fetches from `https://models.dev/api.json`, caches locally at `data/cache/models.json` with 5-min TTL, falls back to built-in subset. 4172+ models vs. old 20 hardcoded.
@@ -306,6 +308,12 @@ provider.end_span(span)
 
 Auto-detection happens in `create_model_from_config()`: if `OLLAMA_BASE_URL` points to ollama.com or `OLLAMA_API_KEY` is set, it uses `OllamaCloud`.
 
+### Watch out: Use module-level imports for patchable functions
+Tests that use `unittest.mock.patch` need a module-level attribute to target. `from X import Y` creates a local binding that patches can't reach. Use `import src.module as _m` and call `_m.func()` instead. Example: coordinator.py's `_paths.get_paths()` allows `patch("src.storage.paths.get_paths")` to work.
+
+### Watch out: DataPaths.ea_root vs data_path
+Workspace-scoped methods (`workspace_subagents_dir`, `user_subagents_dir`) use `self.root` (= `_ea_root`), NOT `self.base` (= `data_path`). Tests that need filesystem isolation MUST pass `ea_root=tmp_path`, not just `data_path=tmp_path`. `data_path` alone only affects template/legacy paths.
+
 ### Watch out: AgentLoop constructor changed
 The `AgentLoop` now takes `run_config: RunConfig | None = None` instead of just `max_iterations`. If creating loops manually, use:
 ```python
@@ -359,7 +367,6 @@ executive-assistant/
 │   ├── __init__.py
 │   ├── __main__.py              # CLI entry point
 │   ├── app_logging.py           # Logging with timer
-│   ├── cli/main.py              # CLI interface
 │   ├── http/
 │   │   ├── main.py              # FastAPI app
 │   │   ├── models.py             # Request/response models
@@ -367,19 +374,17 @@ executive-assistant/
 │   │   └── routers/
 │   │       ├── conversation.py   # REST + SSE endpoints
 │   │       ├── ws.py             # WebSocket endpoint
+│   │       ├── tools.py          # Tools API (metadata, enable/disable)
+│   │       ├── capabilities.py   # Capabilities CRUD (tools/skills/subagents)
 │   │       └── ...               # Other routers
-│   ├── agents/
-│   │   ├── factory.py           # LangChain agent factory (DEPRECATED)
-│   │   ├── manager.py           # LangChain agent pool (DEPRECATED)
-│   │   └── subagent/           # Subagent system (LANGCHAIN)
-│   ├── config/settings.py       # Configuration
-│   ├── llm/providers.py         # LangChain LLM providers (DEPRECATED)
 │   ├── storage/
 │   │   ├── conversation.py      # Message storage
 │   │   ├── user.py             # User management
-│   │   └── ...                  # (checkpoint.py removed)
+│   │   ├── memory.py           # Observations + reflections (MemoryStore)
+│   │   ├── messages.py         # MessageStore (CoreMem wrapper)
+│   │   └── paths.py            # DataPaths (ea_root, workspace scoping)
 │   ├── sdk/                     # ★ Custom Agent SDK (THE CORE)
-│   │   ├── __init__.py          # Public API exports
+│   │   ├── __init__.py          # Public API exports (re-exports HybridDB, SearchMode)
 │   │   ├── messages.py          # Message, ToolCall, StreamChunk
 │   │   ├── tools.py             # @tool, ToolDefinition, ToolAnnotations, ToolResult, ToolRegistry
 │   │   ├── state.py             # AgentState
@@ -388,33 +393,30 @@ executive-assistant/
 │   │   ├── middleware_memory.py  # MemoryMiddleware (SDK-native)
 │   │   ├── middleware_skill.py   # SkillMiddleware (SDK-native)
 │   │   ├── middleware_summarization.py  # SummarizationMiddleware
+│   │   ├── middleware_observation.py  # ObservationMiddleware (Observer + Reflector)
 │   │   ├── middleware_progress.py  # ProgressMiddleware (subagent progress + doom loop)
 │   │   ├── middleware_instruction.py  # InstructionMiddleware (subagent cancel/instructions)
-│   │   ├── native_tools.py      # ToolRegistry with get_native_tools() / get_native_tool_names()
-│   │   ├── langchain_adapter.py  # LangChain bridge (TEMPORARY)
-│   │   ├── runner.py             # create_sdk_loop, run_sdk_agent (HTTP wiring)
+│   │   ├── native_tools.py      # ToolRegistry + category mapping
+│   │   ├── capabilities.py      # load/merge/save capabilities, tool defaults
+│   │   ├── agent_validation.py  # validate_agent_def (no circular imports)
+│   │   ├── agent_profile.py     # EA-specific AgentProfile validation
+│   │   ├── runner.py             # create_sdk_loop, run_sdk_agent (capabilities-filtered)
 │   │   ├── registry.py          # models.dev integration (4172+ models)
-│   │   ├── registry_update.py    # CLI: update models from GitHub
 │   │   ├── validation.py        # normalize_tool_schema, repair_tool_call
 │   │   ├── guardrails.py        # InputGuardrail, OutputGuardrail, ToolGuardrail
 │   │   ├── handoffs.py          # Handoff, HandoffInput
 │   │   ├── tracing.py           # TraceProvider, Span, ConsoleTraceProcessor
 │   │   ├── subagent_models.py   # AgentDef, SubagentResult, TaskCancelledError, TaskStatus
 │   │   ├── work_queue.py        # WorkQueueDB (aiosqlite, per-user SQLite)
-│   │   ├── coordinator.py       # SubagentCoordinator (create/invoke/cancel/instruct/delete)
-│   │   ├── tools_core/          # ★ SDK-native tool implementations
-│   │   │   ├── cli_adapter.py   # CLIToolAdapter base class (firecrawl, browser-use)
-│   │   │   ├── time.py         # time_get
-│   │   │   ├── shell.py        # shell_execute
-│   │   │   ├── filesystem.py   # 7 file tools
-│   │   │   ├── file_search.py  # files_glob_search, files_grep_search
-│   │   │   ├── file_versioning.py  # 4 version tools
-│   │   │   ├── todos.py        # 5 todo tools
-│   │   │   ├── contacts.py     # 6 contact tools
-│   │   │   ├── memory.py       # 5 memory tools
-│   │   │   ├── email.py        # 8 email tools
-│   │   │   ├── firecrawl.py    # 8 firecrawl CLI tools
-│   │   │   └── browser_use.py  # 20 browser-use CLI tools
+│   │   ├── coordinator.py       # SubagentCoordinator (PROFILE.md, capabilities filtering)
+│   │   ├── tools_core/          # ★ SDK-native tool implementations (~100 tools)
+│   │   │   ├── time.py, shell.py, filesystem.py, file_search.py
+│   │   │   ├── file_versioning.py, todos.py, contacts.py
+│   │   │   ├── memory.py, email.py, firecrawl.py, browser_use.py
+│   │   │   ├── subagent.py, workspace.py, message.py, apps.py
+│   │   │   ├── web.py, summarize.py, user_prompt.py, observation.py
+│   │   │   ├── mcp.py, mcp_bridge.py, skills.py, research.py
+│   │   │   └── connectkit.py
 │   │   └── providers/
 │   │       ├── base.py           # LLMProvider ABC, ModelInfo, ModelCost
 │   │       ├── ollama.py         # OllamaLocal + OllamaCloud
@@ -423,45 +425,45 @@ executive-assistant/
 │   │       ├── gemini.py         # GeminiProvider (with thinkingConfig)
 │   │       ├── factory.py        # create_provider, create_model_from_config
 │   │       └── __init__.py
-│   ├── tools/                   # LangChain @tool functions (93 tools, MIGRATING)
-│   │   ├── email/               # email_connect, list, get, search, send, sync
-│   │   ├── contacts/             # contacts CRUD
-│   │   ├── todos/                # todos CRUD + LLM extraction
-│   │   ├── filesystem.py         # files_list, read, write, edit, delete
-│   │   ├── file_search.py        # files_glob_search, files_grep_search
-│   │   ├── shell.py              # shell_execute
-│   │   ├── memory.py             # memory_get_history, memory_search
-│   │   ├── time.py               # time_get (LANGCHAIN version)
-│   │   ├── firecrawl.py          # scrape_url, search_web, etc.
-│   │   └── vault/               # Credential storage
-│   └── skills/                  # Skills system
+│   └── skills/                  # Agent Skills system (Agentskills.io compatible)
 │       ├── middleware.py         # SkillMiddleware
 │       ├── registry.py           # SkillRegistry
 │       └── tools.py             # skills_list, skills_load
+├── flutter_app/                 # Flutter desktop app
+│   └── lib/
+│       ├── core/layout/         # Desktop layout + sidebar
+│       ├── core/router/         # GoRouter navigation
+│       ├── features/
+│       │   ├── tools/           # ToolsPanel, ToolsProvider, workspace tab
+│       │   ├── skills/          # Skills panel
+│       │   ├── subagents/       # Subagents panel
+│       │   ├── workspace/       # Workspace panel (files + skills + subagents + tools tabs)
+│       │   └── ...
+│       ├── providers/           # Riverpod providers
+│       ├── theme/               # Design tokens + app theme
+│       └── widgets/             # Reusable widgets (ScopeSwitcher, etc.)
 ├── tests/
-│   ├── sdk/                     # ★ SDK unit tests (432 tests)
-│   │   ├── test_messages.py
-│   │   ├── test_tools.py
-│   │   ├── test_phase5_6.py     # Guardrails, handoffs, tracing, annotations
-│   │   ├── test_registry.py      # models.dev registry
-│   │   ├── test_providers.py     # Provider contracts
-│   │   ├── test_sdk_loop.py      # AgentLoop tests
+│   ├── sdk/                     # ★ SDK unit tests (800+ tests)
+│   │   ├── test_messages.py, test_tools.py, test_registry.py
+│   │   ├── test_providers.py, test_sdk_loop.py
+│   │   ├── test_subagent_v1.py, test_subagent_tools_async.py
+│   │   ├── test_workspace_isolation.py
+│   │   ├── test_capabilities.py, test_agent_profile.py
 │   │   └── ...
-│   ├── api/                      # HTTP endpoint tests (~100)
-│   ├── unit/                     # LangChain-era unit tests
+│   ├── api/                      # HTTP endpoint tests
+│   ├── storage/                  # Storage tests (paths, messages)
 │   └── evaluation/               # Persona evaluation
+├── pyproject.toml                # requires-python >=3.11,<3.14
 ├── config.yaml
-├── site/                      # Astro intro website (landing + docs)
-│   ├── astro.config.mjs
-│   ├── package.json
-│   ├── src/
-│   │   ├── layouts/
-│   │   ├── pages/
-│   │   ├── components/
-│   │   └── styles/
-│   │       └── tokens.css     # Design system tokens
-│   └── public/
-├── pyproject.toml
+└── docs/
+    └── superpowers/
+        ├── specs/                # Design specs
+        │   ├── 2026-05-31-coremem-fetch-store-rename.md
+        │   ├── 2026-05-31-coremem-observer-reflector-design.md
+        │   └── 2026-06-01-unified-capabilities-agent-profile-design.md
+        └── plans/                # Implementation plans
+            ├── 2026-06-01-unified-capabilities-agent-profile-backend.md
+            └── 2026-06-01-flutter-tools-skills-subagents-panels.md
 ```
 
 ---
@@ -503,6 +505,7 @@ executive-assistant/
 | **9** | 🔲 Future | — | Extract & Open Source SDK |
 | **10.2** | ✅ Done | +20 | MCP Tool Bridge |
 | **11** | ✅ Done | +38 | Subagent V1 (work_queue, coordinator, middlewares, 8 tools) |
+| **12** | ✅ Done | — | Unified Capabilities, AgentProfile, OSS repos, Flutter tools UI |
 
 ### Subagent V1 Architecture
 
@@ -529,10 +532,11 @@ SQLite work_queue-backed coordination with supervisor pattern. Full design in `d
 
 **Key design decisions:**
 - Config frozen at invocation into `work_queue.config` (amendments don't affect running tasks)
-- `disallowed_tools` defaults include all `subagent_*` tools (prevents recursion)
+- Recursion guard: subagent tools (`subagent_*`) are blocked via `capabilities.yaml` defaults (was `disallowed_tools`)
 - `SubagentCoordinator.start()` schedules background execution and returns a task ID
 - Progress via `ProgressMiddleware.abefore_model` + polling; InstructionMiddleware checks cancel/instructions before each LLM call
 - Doom loop: same tool+args called 3x → `progress.stuck = true` + auto-instruction
+- Agent definitions use **PROFILE.md** (frontmatter + Markdown body) matching Agentskills.io convention
 
 ### Remaining Work for Phase 5+6 Exit Criteria
 
@@ -590,12 +594,18 @@ SQLite work_queue-backed coordination with supervisor pattern. Full design in `d
 ```bash
 uv add package_name          # Runtime dependency
 uv add --dev package_name    # Development dependency
-uv add --group cli package_name  # CLI group
 ```
 
 ### Version Pinning
 - Use minimum versions in `pyproject.toml` (e.g., `>=1.0.0`)
 - Lock versions in `uv.lock` (committed to repo)
+
+### Key OSS Dependencies
+| Package | Source | Purpose |
+|---------|--------|---------|
+| `coremem>=0.3.0` | PyPI | Zero-LLM conversation memory (semantic search, hybrid backend) |
+| `hybriddb>=0.4.2` | PyPI | SQLite + FTS5 + ChromaDB hybrid storage |
+| `agentprofile` | local editable | Portable agent definition (PROFILE.md schema + parser) |
 
 ### LangChain Dependencies — REMOVED in Phase 8
 All LangChain and LangGraph dependencies have been removed:
@@ -605,42 +615,12 @@ All LangChain and LangGraph dependencies have been removed:
 - `src/tools/`, `src/agents/`, `src/llm/`, `src/middleware/` directories — deleted
 - `src/sdk/langchain_adapter.py` — deleted
 
----
+## 10. OSS Repositories
 
-## 10. Intro Website
+The project extracts reusable components into separate OSS repos:
 
-The project has an **Astro-powered intro website** at `site/` to serve as an OSS project landing page.
-
-### Stack
-- **Framework:** Astro 5 (static site generation)
-- **Fonts:** Inter (UI), Fira Code (monospace) — loaded via Google Fonts
-- **Design tokens:** Defined as CSS custom properties in `src/styles/tokens.css`, matching Flutter `EA` design system
-
-### Pages
-| Route | Content |
-|-------|---------|
-| `/` | Landing page — Hero → Features → Differentiation → Trust → CTA |
-| `/docs` | Documentation (quickstart, guides, deployment) |
-
-### Design Spec
-Full design document at `docs/superpowers/specs/2026-05-25-intro-website-design.md`.
-
-### Commands
-```bash
-# Development
-npm run dev          # Start dev server
-
-# Build
-npm run build        # Static build to dist/
-
-# Preview
-npm run preview      # Preview built site
-```
-
-### Key Design Decisions
-- **Dark theme** (`#08090A` canvas) matching the Flutter app's default
-- **Emerald accent** (`#239766`) for CTAs and highlights
-- **No framework dependency** — pure Astro, no React/Vue/Svelte
-- **Logo:** "Connected" — two dots with a connecting line (SVG inline)
-- **Target audience:** Non-technical general users
-- **Headline:** "Your executive assistant. One that gets you."
+| Repo | GitHub | Purpose |
+|------|--------|---------|
+| CoreMem | `open-assistants-lab/CoreMem` | Zero-LLM conversation memory |
+| HybridDB | `open-assistants-lab/HybridDB` | Hybrid SQLite + FTS5 + ChromaDB storage |
+| AgentProfile | `open-assistants-lab/AgentProfile` | Portable agent definition (PROFILE.md) |
