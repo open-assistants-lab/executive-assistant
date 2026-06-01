@@ -126,8 +126,8 @@ async def test_subagent_isolation_between_workspaces():
     from src.storage.paths import DataPaths
 
     with tempfile.TemporaryDirectory() as d:
-        mock_a = DataPaths(data_path=d, user_id="test_user", workspace_id="ws-a")
-        mock_b = DataPaths(data_path=d, user_id="test_user", workspace_id="ws-b")
+        mock_a = DataPaths(ea_root=d, user_id="test_user", workspace_id="ws-a")
+        mock_b = DataPaths(ea_root=d, user_id="test_user", workspace_id="ws-b")
 
         mock_a.subagents_dir = mock_a.workspace_subagents_dir
         mock_b.subagents_dir = mock_b.workspace_subagents_dir
@@ -137,25 +137,24 @@ async def test_subagent_isolation_between_workspaces():
                 return mock_a
             if workspace_id == "ws-b":
                 return mock_b
-            return DataPaths(data_path=d, user_id=user_id, workspace_id=workspace_id)
+            return DataPaths(ea_root=d, user_id=user_id, workspace_id=workspace_id)
 
         with patch("src.storage.paths.get_paths", side_effect=_make_path):
-            with patch("src.sdk.coordinator.get_paths", side_effect=_make_path):
-                coord_a = SubagentCoordinator("test_user", workspace_id="ws-a")
-                coord_b = SubagentCoordinator("test_user", workspace_id="ws-b")
+            coord_a = SubagentCoordinator("test_user", workspace_id="ws-a")
+            coord_b = SubagentCoordinator("test_user", workspace_id="ws-b")
 
-                agent_def = AgentDef(
-                    name="writer",
-                    description="Report writer for project alpha",
-                    tools=["time_get"],
-                )
-                await coord_a.create(agent_def)
+            agent_def = AgentDef(
+                name="writer",
+                description="Report writer for project alpha",
+                tools=["time_get"],
+            )
+            await coord_a.create(agent_def)
 
-                defs_a = await coord_a.list_defs()
-                defs_b = await coord_b.list_defs()
+            defs_a = await coord_a.list_defs()
+            defs_b = await coord_b.list_defs()
 
-                assert any(d.name == "writer" for d in defs_a), "writer should appear in ws-a"
-                assert not any(d.name == "writer" for d in defs_b), "writer should NOT leak to ws-b"
+            assert any(d.name == "writer" for d in defs_a), "writer should appear in ws-a"
+            assert not any(d.name == "writer" for d in defs_b), "writer should NOT leak to ws-b"
 
 
 @pytest.mark.asyncio
@@ -169,8 +168,8 @@ async def test_same_name_subagent_in_different_workspaces():
     from src.storage.paths import DataPaths
 
     with tempfile.TemporaryDirectory() as d:
-        mock_a = DataPaths(data_path=d, user_id="test_user", workspace_id="ws-a")
-        mock_b = DataPaths(data_path=d, user_id="test_user", workspace_id="ws-b")
+        mock_a = DataPaths(ea_root=d, user_id="test_user", workspace_id="ws-a")
+        mock_b = DataPaths(ea_root=d, user_id="test_user", workspace_id="ws-b")
 
         mock_a.subagents_dir = mock_a.workspace_subagents_dir
         mock_b.subagents_dir = mock_b.workspace_subagents_dir
@@ -180,38 +179,37 @@ async def test_same_name_subagent_in_different_workspaces():
                 return mock_a
             if workspace_id == "ws-b":
                 return mock_b
-            return DataPaths(data_path=d, user_id=user_id, workspace_id=workspace_id)
+            return DataPaths(ea_root=d, user_id=user_id, workspace_id=workspace_id)
 
         with patch("src.storage.paths.get_paths", side_effect=_make_path):
-            with patch("src.sdk.coordinator.get_paths", side_effect=_make_path):
-                coord_a = SubagentCoordinator("test_user", workspace_id="ws-a")
-                coord_b = SubagentCoordinator("test_user", workspace_id="ws-b")
+            coord_a = SubagentCoordinator("test_user", workspace_id="ws-a")
+            coord_b = SubagentCoordinator("test_user", workspace_id="ws-b")
 
-                ad_a = AgentDef(
-                    name="researcher",
-                    description="Research for project alpha",
-                    model="ollama:minimax-m2.5",
-                    tools=["time_get", "memory_search"],
-                )
-                ad_b = AgentDef(
-                    name="researcher",
-                    description="Research for project beta",
-                    model="anthropic:claude-sonnet-4-20250514",
-                    tools=["time_get"],
-                )
+            ad_a = AgentDef(
+                name="researcher",
+                description="Research for project alpha",
+                model="ollama:minimax-m2.5",
+                tools=["time_get", "memory_search"],
+            )
+            ad_b = AgentDef(
+                name="researcher",
+                description="Research for project beta",
+                model="anthropic:claude-sonnet-4-20250514",
+                tools=["time_get"],
+            )
 
-                await coord_a.create(ad_a)
-                await coord_b.create(ad_b)
+            await coord_a.create(ad_a)
+            await coord_b.create(ad_b)
 
-                loaded_a = coord_a.load_def("researcher")
-                loaded_b = coord_b.load_def("researcher")
+            loaded_a = coord_a.load_def("researcher")
+            loaded_b = coord_b.load_def("researcher")
 
-                assert loaded_a is not None
-                assert loaded_b is not None
-                assert loaded_a.description != loaded_b.description
-                assert loaded_a.model != loaded_b.model
-                assert "memory_search" in (loaded_a.tools or [])
-                assert "memory_search" not in (loaded_b.tools or [])
+            assert loaded_a is not None
+            assert loaded_b is not None
+            assert loaded_a.description != loaded_b.description
+            assert loaded_a.model != loaded_b.model
+            assert "memory_search" in (loaded_a.tools or [])
+            assert "memory_search" not in (loaded_b.tools or [])
 
 
 @pytest.mark.asyncio
@@ -225,8 +223,8 @@ async def test_subagent_delete_in_one_workspace_does_not_affect_other():
     from src.storage.paths import DataPaths
 
     with tempfile.TemporaryDirectory() as d:
-        mock_a = DataPaths(data_path=d, user_id="test_user", workspace_id="ws-a")
-        mock_b = DataPaths(data_path=d, user_id="test_user", workspace_id="ws-b")
+        mock_a = DataPaths(ea_root=d, user_id="test_user", workspace_id="ws-a")
+        mock_b = DataPaths(ea_root=d, user_id="test_user", workspace_id="ws-b")
 
         mock_a.subagents_dir = mock_a.workspace_subagents_dir
         mock_b.subagents_dir = mock_b.workspace_subagents_dir
@@ -236,24 +234,23 @@ async def test_subagent_delete_in_one_workspace_does_not_affect_other():
                 return mock_a
             if workspace_id == "ws-b":
                 return mock_b
-            return DataPaths(data_path=d, user_id=user_id, workspace_id=workspace_id)
+            return DataPaths(ea_root=d, user_id=user_id, workspace_id=workspace_id)
 
         with patch("src.storage.paths.get_paths", side_effect=_make_path):
-            with patch("src.sdk.coordinator.get_paths", side_effect=_make_path):
-                coord_a = SubagentCoordinator("test_user", workspace_id="ws-a")
-                coord_b = SubagentCoordinator("test_user", workspace_id="ws-b")
+            coord_a = SubagentCoordinator("test_user", workspace_id="ws-a")
+            coord_b = SubagentCoordinator("test_user", workspace_id="ws-b")
 
-                agent = AgentDef(name="shared", description="Exists in both", tools=["time_get"])
-                await coord_a.create(agent)
-                await coord_b.create(agent)
+            agent = AgentDef(name="shared", description="Exists in both", tools=["time_get"])
+            await coord_a.create(agent)
+            await coord_b.create(agent)
 
-                # Delete only from ws-a
-                import shutil
-                shutil.rmtree(coord_a.base_path / "shared")
+            # Delete only from ws-a
+            import shutil
+            shutil.rmtree(coord_a.base_path / "shared")
 
-                assert coord_a.load_def("shared") is None
-                assert coord_b.load_def("shared") is not None
-                assert coord_b.load_def("shared").name == "shared"
+            assert coord_a.load_def("shared") is None
+            assert coord_b.load_def("shared") is not None
+            assert coord_b.load_def("shared").name == "shared"
 
 
 def test_get_paths_with_workspace_defaults_to_personal():

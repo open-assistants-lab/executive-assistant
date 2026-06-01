@@ -19,6 +19,7 @@ from src.http.routers import (
     skills_router,
     subagents_router,
     tools_router,
+    capabilities_router,
     # todos_router,
     user_prompt_router,
     workspace_router,
@@ -127,6 +128,7 @@ app.include_router(workspaces_router)
 app.include_router(skills_router)
 app.include_router(subagents_router)
 app.include_router(tools_router)
+app.include_router(capabilities_router)
 app.include_router(ws_router)
 app.include_router(settings_router)
 

@@ -10,20 +10,8 @@ from pydantic import BaseModel, Field, ValidationError
 
 from src.sdk.subagent_models import AgentDef, TaskStatus
 
-tools_router = APIRouter(tags=["tools"])
 
 router = APIRouter(prefix="/subagents", tags=["subagents"])
-
-
-@tools_router.get("/tools/names")
-async def list_tool_names(
-    user_id: str = Query("default_user"),
-    workspace_id: str = Query("personal"),
-):
-    from src.sdk.native_tools import get_native_tool_names
-
-    names = sorted(get_native_tool_names())
-    return {"tools": names, "count": len(names)}
 
 
 class SubagentCreateRequest(BaseModel):

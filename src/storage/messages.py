@@ -117,7 +117,7 @@ class MessageStore:
                       limit: int = 10, **kwargs) -> list[SearchResult]:
         if not query:
             return []
-        results = self._core.search(query, limit=limit)
+        results = self._core.search_enhanced(query, limit=limit, **kwargs)
         return [self._to_sr(r) for r in results]
 
     def get_messages(

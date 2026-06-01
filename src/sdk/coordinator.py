@@ -31,7 +31,9 @@ from src.sdk.subagent_models import (
 )
 from src.sdk.work_queue import WorkQueueDB, get_work_queue
 from src.skills import get_skill_registry
-from src.storage.paths import get_paths
+from src.storage import paths as _paths
+# Alias: used by callers (e.g. tests) that patch src.sdk.coordinator.get_paths
+get_paths = _paths.get_paths
 
 logger = get_logger()
 
@@ -187,7 +189,7 @@ class SubagentCoordinator:
         self.user_id = user_id
         self.workspace_id = workspace_id
         self.settings = get_settings()
-        self.base_path = get_paths(user_id, workspace_id=workspace_id).workspace_subagents_dir()
+        self.base_path = _paths.get_paths(user_id, workspace_id=workspace_id).workspace_subagents_dir()
         self.base_path.mkdir(parents=True, exist_ok=True)
         self._db: WorkQueueDB | None = None
         self._background_tasks: set[asyncio.Task[Any]] = set()
@@ -586,14 +588,14 @@ class SubagentCoordinator:
 
         # 2. User-global fallback
         try:
-            from src.storage.paths import DataPaths
-            user_dir = DataPaths(user_id=self.user_id).user_subagents_dir()
+            user_dir = _paths.get_paths(user_id=self.user_id).user_subagents_dir()
             if user_dir.exists():
                 for d in user_dir.iterdir():
                     if d.is_dir() and d.name not in seen and (d / "config.yaml").exists():
                         data = yaml.safe_load((d / "config.yaml").read_text()) or {}
                         data.setdefault("disallowed_tools", list(SAFE_DISALLOWED_TOOLS))
-                        defs.append(AgentDef(**data))
+                        agent_def = AgentDef(**data)
+                        defs.append(agent_def)
         except Exception:
             pass
 
@@ -615,15 +617,13 @@ class SubagentCoordinator:
 
         # 2. User-global fallback (only for defs NOT seen in workspace)
         try:
-            from src.storage.paths import DataPaths
-            user_dir = DataPaths(user_id=self.user_id).user_subagents_dir()
+            user_dir = _paths.get_paths(user_id=self.user_id).user_subagents_dir()
             if user_dir.exists():
                 for d in user_dir.iterdir():
                     if d.is_dir() and d.name not in seen and (d / "config.yaml").exists():
                         data = yaml.safe_load((d / "config.yaml").read_text()) or {}
                         data.setdefault("disallowed_tools", list(SAFE_DISALLOWED_TOOLS))
-                        agent_def = AgentDef(**data)
-                        scoped.append((agent_def, "user"))
+                        scoped.append((AgentDef(**data), "user"))
         except Exception:
             pass
 
@@ -652,16 +652,15 @@ class SubagentCoordinator:
 
         # 2. User-global fallback
         try:
-            from src.storage.paths import DataPaths
-            user_path = DataPaths(user_id=self.user_id).user_subagents_dir() / name / "config.yaml"
-            if user_path.exists():
-                data = yaml.safe_load(user_path.read_text()) or {}
+            config_path = _paths.get_paths(user_id=self.user_id).user_subagents_dir() / name / "config.yaml"
+            if config_path.exists():
+                data = yaml.safe_load(config_path.read_text()) or {}
                 data.setdefault("disallowed_tools", list(SAFE_DISALLOWED_TOOLS))
                 return AgentDef(**data)
         except yaml.YAMLError as e:
             logger.error(
                 "subagent.corrupt_yaml",
-                {"name": name, "path": str(user_path),
+                {"name": name, "path": str(config_path),
                  "error": str(e)},
                 user_id=self.user_id,
             )

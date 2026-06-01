@@ -8,7 +8,8 @@ from src.http.routers.memories import router as memories_router
 from src.http.routers.settings import router as settings_router
 from src.http.routers.skills import router as skills_router
 from src.http.routers.subagents import router as subagents_router
-from src.http.routers.subagents import tools_router as tools_router
+from src.http.routers.tools import router as tools_router
+from src.http.routers.capabilities import router as capabilities_router
 
 # from src.http.routers.todos import router as todos_router
 from src.http.routers.user_prompt import router as user_prompt_router
@@ -30,4 +31,5 @@ __all__ = [
     "settings_router",
     "subagents_router",
     "tools_router",
+    "capabilities_router",
 ]

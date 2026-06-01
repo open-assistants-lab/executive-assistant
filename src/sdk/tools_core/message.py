@@ -370,7 +370,7 @@ def message_count(
     all_results: list[SearchResult] = []
 
     for q in queries:
-        results = conversation.search_hybrid(q, limit=search_limit, recency_weight=0.1)
+        results = conversation.search_hybrid(q, limit=search_limit)
         for r in results:
             if r.id not in seen_ids:
                 seen_ids.add(r.id)
