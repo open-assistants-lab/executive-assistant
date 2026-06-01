@@ -251,6 +251,20 @@ async def create_sdk_loop(user_id: str, workspace_id: str = "personal", model: s
     t1 = time.monotonic()
 
     tools = get_native_tools()
+
+    # Filter tools by workspace capabilities (user → workspace merge)
+    from src.sdk.capabilities import load_capabilities, merge_capabilities, tool_enabled
+    from src.storage.paths import get_paths as _get_paths
+
+    paths = _get_paths(user_id, workspace_id=workspace_id)
+    user_caps = load_capabilities(paths.root)
+    ws_caps = load_capabilities(paths.root / "Workspaces" / workspace_id)
+    caps = merge_capabilities(user_caps, ws_caps)
+
+    tools = [
+        t for t in tools
+        if tool_enabled(caps, t.name, t.annotations.model_dump())
+    ]
     t2 = time.monotonic()
 
     mcp_tools: list = []
