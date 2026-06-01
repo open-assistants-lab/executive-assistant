@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/agent_provider.dart';
 import '../../providers/workspace_provider.dart';
@@ -39,8 +40,25 @@ enum DesktopSidebarItem {
     activeIcon: Symbols.settings,
     label: 'Settings',
     path: '/settings',
+  ),
+  tools(
+    icon: Symbols.handyman,
+    activeIcon: Symbols.handyman,
+    label: 'Tools',
+    path: '/tools',
+  ),
+  skills(
+    icon: Symbols.psychology,
+    activeIcon: Symbols.psychology,
+    label: 'Skills',
+    path: '/skills',
+  ),
+  subagents(
+    icon: Symbols.robot_2,
+    activeIcon: Symbols.robot_2,
+    label: 'Subagents',
+    path: '/subagents',
   );
-  // companion(icon: ...), memory(icon: ...), skills(icon: ...), subagents(icon: ...) — hidden
 
   final IconData icon;
   final IconData activeIcon;
@@ -252,6 +270,39 @@ class _Sidebar extends ConsumerWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: tokens.spacing.md,
+                  vertical: tokens.spacing.xs,
+                ),
+                child: _SidebarItem(
+                  item: DesktopSidebarItem.tools,
+                  selected: false,
+                  onTap: () => context.go('/tools'),
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: tokens.spacing.md,
+                  vertical: tokens.spacing.xs,
+                ),
+                child: _SidebarItem(
+                  item: DesktopSidebarItem.skills,
+                  selected: false,
+                  onTap: () => context.go('/skills'),
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: tokens.spacing.md,
+                  vertical: tokens.spacing.xs,
+                ),
+                child: _SidebarItem(
+                  item: DesktopSidebarItem.subagents,
+                  selected: false,
+                  onTap: () => context.go('/subagents'),
+                ),
+              ),
               Padding(
                 padding: EdgeInsets.symmetric(
                   horizontal: tokens.spacing.md,

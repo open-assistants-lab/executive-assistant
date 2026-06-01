@@ -5,6 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/chat/chat_screen.dart';
 import '../../features/email/email_list_screen.dart';
 import '../../features/workspace/workspace_panel.dart';
+import '../../features/tools/tools_panel.dart';
+import '../../features/skills/skills_sidebar_panel.dart';
+import '../../features/subagents/subagents_sidebar_panel.dart';
 import '../layout/responsive_shell.dart';
 import '../../theme/tokens/motion.dart';
 import '../../theme/app_theme.dart';
@@ -36,6 +39,42 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) => CustomTransitionPage(
               key: state.pageKey,
               child: const WorkspacePanel(),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+              transitionDuration: EaMotion.standard.fluid,
+            ),
+          ),
+          GoRoute(
+            path: '/tools',
+            name: 'tools',
+            pageBuilder: (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const ToolsPanel(),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+              transitionDuration: EaMotion.standard.fluid,
+            ),
+          ),
+          GoRoute(
+            path: '/skills',
+            name: 'skills',
+            pageBuilder: (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const SkillsSidebarPanel(),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+              transitionDuration: EaMotion.standard.fluid,
+            ),
+          ),
+          GoRoute(
+            path: '/subagents',
+            name: 'subagents',
+            pageBuilder: (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const SubagentsSidebarPanel(),
               transitionsBuilder: (context, animation, secondaryAnimation, child) {
                 return FadeTransition(opacity: animation, child: child);
               },
