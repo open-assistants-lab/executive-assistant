@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:executive_assistant/core/layout/desktop_layout.dart';
+import 'package:executive_assistant/features/chat/widgets/jump_to_bottom_button.dart';
 import 'package:executive_assistant/providers/agent_provider.dart';
 import 'package:executive_assistant/providers/workspace_provider.dart';
 import 'package:executive_assistant/services/api_client.dart';
@@ -267,4 +268,41 @@ void main() {
     response.complete([]);
     await tester.pump(const Duration(milliseconds: 100));
   });
+
+  testWidgets(
+    'shows jump-to-bottom button when scrolled up and resets scroll on tap',
+    (tester) async {
+      await tester.pumpWidget(_buildDesktopLayout(mockWs, mockApi));
+      statusCtrl.add(ConnectionStatus.connected);
+      await tester.pump(const Duration(milliseconds: 100));
+
+      await tester.tap(find.text('Test').first);
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 100));
+      // Wait for the TweenAnimationBuilder opacity fade to settle so gestures reach the scrollable.
+      await tester.pump(const Duration(milliseconds: 1000));
+
+      final messageList = find.byKey(const ValueKey('desktop-chat-message-list'));
+      ScrollableState messageScrollable() => tester.state<ScrollableState>(
+        find
+            .descendant(of: messageList, matching: find.byType(Scrollable))
+            .first,
+      );
+
+      // At bottom: button should NOT be visible
+      expect(find.byType(JumpToBottomButton), findsNothing);
+
+      // Scroll up (with reverse: true, drag +y moves away from bottom)
+      await tester.drag(messageList, const Offset(0, 5000));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(messageScrollable().position.extentBefore, greaterThan(16));
+      expect(find.byType(JumpToBottomButton), findsOneWidget);
+
+      // Tap button → back to bottom
+      await tester.tap(find.byType(JumpToBottomButton));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(messageScrollable().position.extentBefore, lessThan(1));
+      expect(find.byType(JumpToBottomButton), findsNothing);
+    },
+  );
 }

@@ -10,6 +10,7 @@ import '../../features/chat/widgets/chat_message_list.dart';
 import '../../features/chat/widgets/chat_input.dart';
 import '../../features/chat/widgets/error_bar.dart';
 import '../../features/chat/widgets/connection_banner.dart';
+import '../../features/chat/widgets/jump_to_bottom_button.dart';
 import '../../features/companion/companion_pulse.dart';
 import '../../features/companion/companion_context_pill.dart';
 import '../../features/companion/companion_toast.dart';
@@ -544,11 +545,35 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
   final _scrollController = ScrollController();
   final Map<String, GlobalKey> _messageKeys = {};
   bool _pendingScrollToBottom = false;
+  bool _showJumpToBottom = false;
+  int _unreadCount = 0;
+  int _lastSeenMessageCount = 0;
 
   @override
   void initState() {
     super.initState();
     ref.read(agentProvider.notifier).connect();
+    _scrollController.addListener(_onScrollPositionChanged);
+    _lastSeenMessageCount = ref.read(agentProvider).messages.length;
+  }
+
+  void _onScrollPositionChanged() {
+    if (!_scrollController.hasClients) return;
+    final atBottom = _scrollController.position.extentBefore < 16;
+    final shouldShow = !atBottom;
+    if (_showJumpToBottom != shouldShow) {
+      setState(() => _showJumpToBottom = shouldShow);
+    }
+    if (atBottom) {
+      _unreadCount = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScrollPositionChanged);
+    _scrollController.dispose();
+    super.dispose();
   }
 
   void _scrollToBottom() {
@@ -561,10 +586,12 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
     });
   }
 
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
+  void _jumpToBottom() {
+    if (!mounted) return;
+    _unreadCount = 0;
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
   }
 
   @override
@@ -591,6 +618,12 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
     });
 
     ref.listen<ChatState>(agentProvider, (prev, next) {
+      final newMessageCount = next.messages.length - _lastSeenMessageCount;
+      if (newMessageCount > 0 && _showJumpToBottom) {
+        _unreadCount += newMessageCount;
+      }
+      _lastSeenMessageCount = next.messages.length;
+
       final shouldScrollToBottom = _pendingScrollToBottom &&
           next.messages.isNotEmpty;
       final shouldScrollOnLoad = next.messages.isNotEmpty &&
@@ -649,10 +682,23 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
             onReconnect: () => ref.read(agentProvider.notifier).connect(),
           ),
           Expanded(
-            child: _PanelMessageList(
-              state: state,
-              scrollController: _scrollController,
-              messageKeys: _messageKeys,
+            child: Stack(
+              children: [
+                _PanelMessageList(
+                  state: state,
+                  scrollController: _scrollController,
+                  messageKeys: _messageKeys,
+                ),
+                if (_showJumpToBottom)
+                  Positioned(
+                    right: 16,
+                    bottom: 8,
+                    child: JumpToBottomButton(
+                      newCount: _unreadCount,
+                      onPressed: _jumpToBottom,
+                    ),
+                  ),
+              ],
             ),
           ),
           if (state.status == ChatStatus.error && state.error != null)
