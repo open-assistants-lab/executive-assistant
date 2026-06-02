@@ -578,7 +578,11 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
         if (_scrollController.hasClients) {
           _scrollController.jumpTo(0);
         }
-        _scrollToBottom();
+        // Defer scroll until after the next frame builds, so content is rendered.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || !_pendingScrollToBottom) return;
+          _scrollToBottom();
+        });
       }
     });
 
