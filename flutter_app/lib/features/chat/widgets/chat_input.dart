@@ -4,17 +4,55 @@ import '../../../theme/app_theme.dart';
 import '../../../models/message.dart';
 import '../../../widgets/app_input.dart';
 import '../../../providers/agent_provider.dart';
+import '../../../providers/draft_provider.dart';
+import '../../../providers/workspace_provider.dart';
 import 'model_switcher.dart';
 
-class ChatInput extends ConsumerWidget {
+class ChatInput extends ConsumerStatefulWidget {
   const ChatInput({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ChatInput> createState() => _ChatInputState();
+}
+
+class _ChatInputState extends ConsumerState<ChatInput> {
+  final _controller = TextEditingController();
+  final _focusNode = FocusNode();
+  String? _activeWorkspaceId;
+
+  @override
+  void initState() {
+    super.initState();
+    _activeWorkspaceId = ref.read(currentWorkspaceIdProvider);
+    final draft = ref.read(draftProvider.notifier).load(_activeWorkspaceId!);
+    if (draft != null) _controller.text = draft;
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen<String>(currentWorkspaceIdProvider, (prev, next) {
+      if (prev == next) return;
+      if (prev != null) {
+        ref.read(draftProvider.notifier).save(prev, _controller.text);
+      }
+      _activeWorkspaceId = next;
+      final draft = ref.read(draftProvider.notifier).load(next) ?? '';
+      _controller.value = TextEditingValue(
+        text: draft,
+        selection: TextSelection.collapsed(offset: draft.length),
+      );
+    });
+
     final tokens = context.tokens;
     final state = ref.watch(agentProvider);
-    final isSending =
-        state.status == ChatStatus.streaming ||
+    final isSending = state.status == ChatStatus.streaming ||
         state.status == ChatStatus.awaitingApproval;
     final hasPendingApprovals = state.pendingApprovals.isNotEmpty;
 
@@ -26,10 +64,22 @@ class ChatInput extends ConsumerWidget {
           ref: ref,
         ),
         AppChatField(
+          controller: _controller,
+          focusNode: _focusNode,
           hint: state.connected ? 'Ask anything...' : 'Connecting...',
           enabled: state.connected,
           sending: isSending,
-          onSend: (text) => ref.read(agentProvider.notifier).sendMessage(text),
+          onChanged: (text) {
+            if (_activeWorkspaceId != null) {
+              ref.read(draftProvider.notifier).save(_activeWorkspaceId!, text);
+            }
+          },
+          onSend: (text) {
+            if (_activeWorkspaceId != null) {
+              ref.read(draftProvider.notifier).clear(_activeWorkspaceId!);
+            }
+            ref.read(agentProvider.notifier).sendMessage(text);
+          },
           onCancel: isSending
               ? () => ref.read(agentProvider.notifier).cancelExecution()
               : null,

@@ -59,6 +59,9 @@ class AppChatField extends StatefulWidget {
   final bool sending;
   final VoidCallback? onCancel;
   final VoidCallback? onReconnect;
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final ValueChanged<String>? onChanged;
 
   const AppChatField({
     super.key,
@@ -68,6 +71,9 @@ class AppChatField extends StatefulWidget {
     this.sending = false,
     this.onCancel,
     this.onReconnect,
+    required this.controller,
+    required this.focusNode,
+    this.onChanged,
   });
 
   @override
@@ -75,46 +81,57 @@ class AppChatField extends StatefulWidget {
 }
 
 class _AppChatFieldState extends State<AppChatField> {
-  final _controller = TextEditingController();
-  final _focusNode = FocusNode();
   bool _focused = false;
   bool _hasText = false;
 
   @override
   void initState() {
     super.initState();
-    _focusNode.addListener(_handleFocusChange);
-    _controller.addListener(_handleTextChange);
+    widget.focusNode.addListener(_handleFocusChange);
+    widget.controller.addListener(_handleTextChange);
+    _hasText = widget.controller.text.trim().isNotEmpty;
+  }
+
+  @override
+  void didUpdateWidget(covariant AppChatField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_handleTextChange);
+      widget.controller.addListener(_handleTextChange);
+    }
+    if (oldWidget.focusNode != widget.focusNode) {
+      oldWidget.focusNode.removeListener(_handleFocusChange);
+      widget.focusNode.addListener(_handleFocusChange);
+    }
   }
 
   @override
   void dispose() {
-    _focusNode.removeListener(_handleFocusChange);
-    _controller.removeListener(_handleTextChange);
-    _controller.dispose();
-    _focusNode.dispose();
+    widget.controller.removeListener(_handleTextChange);
+    widget.focusNode.removeListener(_handleFocusChange);
     super.dispose();
   }
 
   void _handleFocusChange() {
-    if (_focused != _focusNode.hasFocus) {
-      setState(() => _focused = _focusNode.hasFocus);
+    if (_focused != widget.focusNode.hasFocus) {
+      setState(() => _focused = widget.focusNode.hasFocus);
     }
   }
 
   void _handleTextChange() {
-    final hasText = _controller.text.trim().isNotEmpty;
+    final hasText = widget.controller.text.trim().isNotEmpty;
     if (_hasText != hasText) {
       setState(() => _hasText = hasText);
     }
+    widget.onChanged?.call(widget.controller.text);
   }
 
   void _send() {
-    final text = _controller.text.trim();
+    final text = widget.controller.text.trim();
     if (text.isEmpty) return;
-    _controller.clear();
+    widget.controller.clear();
     widget.onSend(text);
-    _focusNode.requestFocus();
+    widget.focusNode.requestFocus();
   }
 
   @override
@@ -153,8 +170,8 @@ class _AppChatFieldState extends State<AppChatField> {
                 children: [
                   Expanded(
                     child: TextField(
-                      controller: _controller,
-                      focusNode: _focusNode,
+                      controller: widget.controller,
+                      focusNode: widget.focusNode,
                       enabled: widget.enabled,
                       textAlignVertical: TextAlignVertical.center,
                       style: tokens.typography.textTheme.bodyMedium?.copyWith(
