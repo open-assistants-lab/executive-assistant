@@ -27,7 +27,7 @@ class JumpToBottomButton extends StatelessWidget {
             alignment: Alignment.center,
             children: [
               Icon(
-                Icons.arrow_downward,
+                Symbols.arrow_downward,
                 size: 18,
                 color: tokens.colors.textPrimary,
               ),

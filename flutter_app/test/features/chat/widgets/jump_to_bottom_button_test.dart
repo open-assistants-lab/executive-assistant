@@ -14,7 +14,7 @@ void main() {
       wrap(JumpToBottomButton(newCount: 3, onPressed: () {})),
     );
     expect(find.text('3 new'), findsOneWidget);
-    expect(find.byIcon(Icons.arrow_downward), findsOneWidget);
+    expect(find.byIcon(Symbols.arrow_downward), findsOneWidget);
   });
 
   testWidgets('renders singular "new" when count is 1', (tester) async {
@@ -28,7 +28,7 @@ void main() {
     await tester.pumpWidget(
       wrap(JumpToBottomButton(newCount: 0, onPressed: () {})),
     );
-    expect(find.byIcon(Icons.arrow_downward), findsOneWidget);
+    expect(find.byIcon(Symbols.arrow_downward), findsOneWidget);
     expect(find.text('0 new'), findsNothing);
   });
 
