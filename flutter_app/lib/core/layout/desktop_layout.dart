@@ -724,44 +724,37 @@ class _PanelMessageList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = context.tokens;
     final activeWs = ref.watch(activeChatTabProvider);
-    return TweenAnimationBuilder<double>(
-      key: ValueKey('chat_list_$activeWs'),
-      duration: tokens.motion.base,
-      curve: tokens.motion.curveStandard,
-      tween: Tween(begin: 0.0, end: 1.0),
-      builder: (_, t, child) => Opacity(opacity: t.clamp(0.0, 1.0), child: child),
-      child: KeyedSubtree(
-        key: ValueKey('chat_list_inner_$activeWs'),
-        child: ChatMessageList(
-          key: const ValueKey('desktop-chat-message-list'),
-          messages: state.messages,
-          isStreaming: state.status == ChatStatus.streaming,
-          streamingText: state.streamingText,
-          reasoningText: state.reasoningText,
-          activeToolCalls: state.activeToolCalls,
-          scrollController: scrollController,
-          isLoading: state.loadingHistory,
-          messageKeys: messageKeys,
-          header: state.messages.isNotEmpty
-              ? CompanionContextPill(
-                  activeWorkspaceId: activeWs,
-                )
-              : null,
-          emptyBuilder: (_) => Center(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.screenEdge),
-              child: Text(
-                'Ask anything...',
-                style: tokens.typography.textTheme.bodyMedium?.copyWith(
-                  color: tokens.colors.textTertiary,
-                ),
+    return KeyedSubtree(
+      key: ValueKey('chat_list_inner_$activeWs'),
+      child: ChatMessageList(
+        key: const ValueKey('desktop-chat-message-list'),
+        messages: state.messages,
+        isStreaming: state.status == ChatStatus.streaming,
+        streamingText: state.streamingText,
+        reasoningText: state.reasoningText,
+        activeToolCalls: state.activeToolCalls,
+        scrollController: scrollController,
+        isLoading: state.loadingHistory,
+        messageKeys: messageKeys,
+        header: state.messages.isNotEmpty
+            ? CompanionContextPill(
+                activeWorkspaceId: activeWs,
+              )
+            : null,
+        emptyBuilder: (_) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.screenEdge),
+            child: Text(
+              'Ask anything...',
+              style: tokens.typography.textTheme.bodyMedium?.copyWith(
+                color: tokens.colors.textTertiary,
               ),
             ),
           ),
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.cardPadding,
-            vertical: AppSpacing.itemGap,
-          ),
+        ),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.cardPadding,
+          vertical: AppSpacing.itemGap,
         ),
       ),
     );

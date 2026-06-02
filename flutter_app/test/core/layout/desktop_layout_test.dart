@@ -279,8 +279,6 @@ void main() {
       await tester.tap(find.text('Test').first);
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pump(const Duration(milliseconds: 100));
-      // Wait for the TweenAnimationBuilder opacity fade to settle so gestures reach the scrollable.
-      await tester.pump(const Duration(milliseconds: 1000));
 
       final messageList = find.byKey(const ValueKey('desktop-chat-message-list'));
       ScrollableState messageScrollable() => tester.state<ScrollableState>(
