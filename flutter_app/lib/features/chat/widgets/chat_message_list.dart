@@ -60,7 +60,9 @@ class ChatMessageListState extends State<ChatMessageList> {
   void _ensureKeys() {
     if (widget.messageKeys == null) return;
     for (final msg in widget.messages) {
-      widget.messageKeys!.putIfAbsent(msg.id, () => GlobalKey());
+      // Always create fresh GlobalKeys so reused IDs from a previous workspace
+      // don't carry detached contexts.
+      widget.messageKeys![msg.id] = GlobalKey();
     }
   }
 
@@ -69,7 +71,8 @@ class ChatMessageListState extends State<ChatMessageList> {
     if (widget.messageKeys == null) return null;
 
     final position = widget.scrollController.position;
-    if (position.extentAfter == 0.0) return _kScrollBottom;
+    // With reverse: true, pixels==0 is the BOTTOM, maxScrollExtent is the TOP.
+    if (position.extentBefore == 0.0) return _kScrollBottom;
 
     final viewportTop = position.pixels;
     final viewportBottom = position.pixels + position.viewportDimension;
@@ -95,10 +98,9 @@ class ChatMessageListState extends State<ChatMessageList> {
 
   Future<void> scrollToMessage(String messageId) async {
     if (messageId == _kScrollBottom) {
+      // Bottom = pixels 0 with reverse: true
       if (widget.scrollController.hasClients) {
-        widget.scrollController.jumpTo(
-          widget.scrollController.position.maxScrollExtent,
-        );
+        widget.scrollController.jumpTo(0);
       }
       return;
     }
@@ -106,73 +108,76 @@ class ChatMessageListState extends State<ChatMessageList> {
     if (key?.currentContext == null) return;
     await Scrollable.ensureVisible(
       key!.currentContext!,
-      alignment: 1.0,
+      alignment: 0.0,
       duration: const Duration(milliseconds: 50),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final items = _buildItems(context);
+    final itemCount = _itemCount();
 
-    if (items.isEmpty && widget.isLoading) {
+    if (itemCount == 0 && widget.isLoading) {
       return const Center(child: CircularProgressIndicator(strokeWidth: 2));
     }
 
-    if (items.isEmpty) {
+    if (itemCount == 0) {
       if (widget.emptyBuilder != null) {
         return widget.emptyBuilder!(context);
       }
       return const ChatEmptyState();
     }
 
-    return ListView(
+    return ListView.builder(
       controller: widget.scrollController,
+      reverse: true,
       padding: widget.padding ??
           const EdgeInsets.symmetric(
             horizontal: AppSpacing.screenEdge,
             vertical: AppSpacing.cardPadding,
           ),
-      children: items,
+      itemCount: itemCount,
+      itemBuilder: (context, index) => _buildItemAt(context, index),
     );
   }
 
-  List<Widget> _buildItems(BuildContext context) {
-    final items = <Widget>[];
+  int _itemCount() {
+    final extras =
+        (widget.reasoningText.isNotEmpty ? 1 : 0) +
+        (widget.isStreaming && widget.streamingText.isNotEmpty ? 1 : 0) +
+        widget.activeToolCalls.where((tc) => tc.resultPreview == null).length;
+    return widget.messages.length + (widget.header != null ? 1 : 0) + extras;
+  }
 
-    if (widget.header != null) {
-      items.add(widget.header!);
-    }
-
-    for (var i = 0; i < widget.messages.length; i++) {
-      final msg = widget.messages[i];
-      final gKey = widget.messageKeys?[msg.id];
-      items.add(
-        KeyedSubtree(
-          key: ValueKey('msg_${msg.id}_${msg.content.hashCode}'),
-          child: _keyedWrapper(
-            gKey,
-            MessageBubble(message: msg),
-          ),
-        ),
-      );
-    }
-
-    if (widget.reasoningText.isNotEmpty) {
-      items.add(ReasoningBubble(content: widget.reasoningText));
-    }
-
+  Widget _buildItemAt(BuildContext context, int index) {
+    // With reverse: true, index 0 is the BOTTOM of the viewport.
+    // We lay out items in reverse order so the latest message is at index 0.
+    final extras = <Widget>[];
     if (widget.isStreaming && widget.streamingText.isNotEmpty) {
-      items.add(StreamingBubble(text: widget.streamingText));
+      extras.add(StreamingBubble(text: widget.streamingText));
     }
-
+    if (widget.reasoningText.isNotEmpty) {
+      extras.add(ReasoningBubble(content: widget.reasoningText));
+    }
     for (final tc in widget.activeToolCalls) {
       if (tc.resultPreview == null) {
-        items.add(ToolCallCard(toolCall: tc));
+        extras.add(ToolCallCard(toolCall: tc));
       }
     }
-
-    return items;
+    // Build the reversed list: extras (newest streaming) first, then messages
+    // in reverse order, then header at the very top of the reversed list.
+    final allItems = <Widget>[
+      ...extras,
+      ...widget.messages.reversed.map((msg) {
+        final gKey = widget.messageKeys?[msg.id];
+        return KeyedSubtree(
+          key: ValueKey('msg_${msg.id}_${msg.content.hashCode}'),
+          child: _keyedWrapper(gKey, MessageBubble(message: msg)),
+        );
+      }),
+      if (widget.header != null) widget.header!,
+    ];
+    return allItems[index];
   }
 
   Widget _keyedWrapper(GlobalKey? key, Widget child) {

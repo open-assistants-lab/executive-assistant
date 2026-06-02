@@ -84,6 +84,7 @@ class AgentNotifier extends StateNotifier<ChatState> {
   final Map<String, ChatState> _workspaceStates = {};
   final Set<String> _historyLoadedWorkspaces = {};
   final Map<String, StringBuffer> _toolInputAccum = {};
+  final Map<String, DateTime> _toolStartTimes = {};
   final Set<String> _seenContentHashes = {};
   bool _transportConnected = false;
 
@@ -450,6 +451,7 @@ class AgentNotifier extends StateNotifier<ChatState> {
       final tool = msg['tool']?.toString() ?? '';
       final args = _safeArgs(msg['args']);
       final tc = ToolCallDisplay(callId: callId, toolName: tool, args: args);
+      _toolStartTimes[callId] = DateTime.now();
       _setState(
         state.copyWith(
           activeToolCalls: [...state.activeToolCalls, tc],
@@ -491,8 +493,14 @@ class AgentNotifier extends StateNotifier<ChatState> {
     if (canonical == 'tool_result' || type == 'tool_end') {
       final callId = msg['call_id']?.toString() ?? '';
       final preview = msg['result_preview']?.toString() ?? '';
+      final startTime = _toolStartTimes.remove(callId);
+      final duration = startTime != null
+          ? DateTime.now().difference(startTime)
+          : null;
       final updated = state.activeToolCalls.map((tc) {
-        if (tc.callId == callId) return tc.copyWith(resultPreview: preview);
+        if (tc.callId == callId) {
+          return tc.copyWith(resultPreview: preview, duration: duration);
+        }
         return tc;
       }).toList();
       _setState(state.copyWith(activeToolCalls: updated));

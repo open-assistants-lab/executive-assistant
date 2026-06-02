@@ -4,8 +4,9 @@ Thin adapter over MemoryCore + HybridBackend, preserving the
 Message/SearchResult dataclasses and public API for callers.
 """
 
+import json
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from coremem.backends.hybrid import HybridBackend
@@ -14,6 +15,53 @@ from coremem.types import Memory as _CoreMem
 from coremem.types import SearchResult as _CoreMemResult
 
 from src.storage.paths import get_paths
+
+
+def _patch_coremem_for_integer_pk() -> None:
+    """Patch HybridBackend.ingest_batch to omit non-numeric string ids.
+
+    The OSS coremem library generates uuid-hex string ids (e.g. "a3b4c5d6e7f8")
+    and passes them as the `id` column value. Our SQLite schema has
+    `id INTEGER PRIMARY KEY AUTOINCREMENT`, and SQLite raises
+    `IntegrityError: datatype mismatch` when a non-numeric string is
+    inserted into an INTEGER PRIMARY KEY column.
+
+    The fix: omit the `id` field from the row dict and let SQLite assign
+    the autoincrement value. `insert_batch` in HybridDB already returns
+    the assigned ids via `lastrowid`, so the return contract is preserved.
+    """
+    if getattr(HybridBackend.ingest_batch, "_ea_patched", False):
+        return
+
+    _original = HybridBackend.ingest_batch
+
+    def _patched(self, memories):  # type: ignore[no-untyped-def]
+        if not memories:
+            return []
+        ids: list[str] = []
+        rows: list[dict] = []
+        for m in memories:
+            rows.append(
+                {
+                    "content": m.content,
+                    "role": m.role,
+                    "session_id": m.session_id or "",
+                    "user_id": m.user_id,
+                    "agent_id": m.agent_id,
+                    "metadata": json.dumps(m.metadata or {}),
+                    "ts": m.ts.isoformat()
+                    if m.ts
+                    else datetime.now(timezone.utc).isoformat(),
+                }
+            )
+        actual_ids = self._db.insert_batch("messages", rows)
+        return [str(i) for i in actual_ids]
+
+    _patched._ea_patched = True  # type: ignore[attr-defined]
+    HybridBackend.ingest_batch = _patched  # type: ignore[assignment]
+
+
+_patch_coremem_for_integer_pk()
 
 
 @dataclass

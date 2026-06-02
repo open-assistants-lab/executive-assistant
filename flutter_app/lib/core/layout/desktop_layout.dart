@@ -175,40 +175,43 @@ class _Sidebar extends ConsumerWidget {
                         ),
                       ),
                     )
-                  : ListView(
-                      padding: const EdgeInsets.only(top: 4),
-                      children: [
-                        ListTile(
-                          dense: true,
-                          leading: Icon(
-                            Symbols.add,
-                            size: 16,
-                            color: tokens.colors.textTertiary,
+                  : Material(
+                      color: Colors.transparent,
+                      child: ListView(
+                        padding: const EdgeInsets.only(top: 4),
+                        children: [
+                          ListTile(
+                            dense: true,
+                            leading: Icon(
+                              Symbols.add,
+                              size: 16,
+                              color: tokens.colors.textTertiary,
+                            ),
+                            title: Text(
+                              'New workspace',
+                              style: tokens.typography.textTheme.labelSmall
+                                  ?.copyWith(color: tokens.colors.textTertiary),
+                            ),
+                            onTap: () => _showCreateDialog(context, ref),
                           ),
-                          title: Text(
-                            'New workspace',
-                            style: tokens.typography.textTheme.labelSmall
-                                ?.copyWith(color: tokens.colors.textTertiary),
-                          ),
-                          onTap: () => _showCreateDialog(context, ref),
-                        ),
-                        const Divider(height: 1),
+                          const Divider(height: 1),
                         ...list.map((ws) {
                           final id = ws['id']?.toString() ?? '';
                           final name = ws['name']?.toString() ?? '';
                           final isActive = currentId == id;
-                          return Container(
-                            decoration: isActive
-                                ? BoxDecoration(
-                                    border: Border(
-                                      left: BorderSide(
-                                        color: tokens.colors.accent,
-                                        width: 2,
-                                      ),
-                                    ),
-                                  )
-                                : null,
-                            child: ListTile(
+                          return Stack(
+                            children: [
+                              if (isActive)
+                                Positioned(
+                                  left: 0,
+                                  top: 0,
+                                  bottom: 0,
+                                  child: Container(
+                                    width: 2,
+                                    color: tokens.colors.accent,
+                                  ),
+                                ),
+                              ListTile(
                               dense: true,
                               contentPadding: const EdgeInsets.only(
                                 left: 16,
@@ -257,10 +260,12 @@ class _Sidebar extends ConsumerWidget {
                               onTap: () => ref
                                   .read(chatTabNotifierProvider.notifier)
                                   .openWorkspace(id, name),
-                            ),
+                              ),
+                            ],
                           );
                         }),
-                      ],
+                        ],
+                      ),
                     ),
               loading: () => const SizedBox.shrink(),
               error: (error, stackTrace) => const SizedBox.shrink(),
@@ -537,6 +542,7 @@ class _ChatPanel extends ConsumerStatefulWidget {
 
 class _ChatPanelState extends ConsumerState<_ChatPanel> {
   final _scrollController = ScrollController();
+  final Map<String, GlobalKey> _messageKeys = {};
   bool _pendingScrollToBottom = false;
 
   @override
@@ -546,15 +552,13 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
   }
 
   void _scrollToBottom() {
-    if (!_scrollController.hasClients) return;
-    final max = _scrollController.position.maxScrollExtent;
-    if (max > 0) {
-      _scrollController.animateTo(
-        max,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOutCubic,
-      );
-    }
+    if (!mounted) return;
+    // With reverse: true, bottom is always pixels 0. No timing issues.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (!_scrollController.hasClients) return;
+      _scrollController.jumpTo(0);
+    });
   }
 
   @override
@@ -573,28 +577,31 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
     ref.listen<String>(activeChatTabProvider, (prev, next) {
       if (prev != null && prev != next) {
         _pendingScrollToBottom = true;
-        // Reset scroll to top BEFORE next frame paints, so new content
-        // doesn't briefly render at the old workspace's scroll position.
-        if (_scrollController.hasClients) {
-          _scrollController.jumpTo(0);
-        }
-        // Defer scroll until after the next frame builds, so content is rendered.
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted || !_pendingScrollToBottom) return;
-          _scrollToBottom();
-        });
+        _scrollToBottom();
+      }
+    });
+
+    // Fires on EVERY workspace switch, even when clicking the already-active
+    // tab (where activeChatTabProvider doesn't change).
+    ref.listen<int>(workspaceSwitchSignalProvider, (prev, next) {
+      if (prev != null && prev != next) {
+        _pendingScrollToBottom = true;
+        _scrollToBottom();
       }
     });
 
     ref.listen<ChatState>(agentProvider, (prev, next) {
-      if (_pendingScrollToBottom && next.messages.isNotEmpty) {
+      final shouldScrollToBottom = _pendingScrollToBottom &&
+          next.messages.isNotEmpty;
+      final shouldScrollOnLoad = next.messages.isNotEmpty &&
+          prev?.messages.isEmpty == true &&
+          next.status == ChatStatus.idle;
+      if (shouldScrollToBottom) {
         _pendingScrollToBottom = false;
         _scrollToBottom();
         return;
       }
-      if (next.messages.isNotEmpty &&
-          prev?.messages.isEmpty == true &&
-          next.status == ChatStatus.idle) {
+      if (shouldScrollOnLoad) {
         _scrollToBottom();
         return;
       }
@@ -645,6 +652,7 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
             child: _PanelMessageList(
               state: state,
               scrollController: _scrollController,
+              messageKeys: _messageKeys,
             ),
           ),
           if (state.status == ChatStatus.error && state.error != null)
@@ -659,9 +667,11 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
 class _PanelMessageList extends ConsumerWidget {
   final ChatState state;
   final ScrollController scrollController;
+  final Map<String, GlobalKey> messageKeys;
   const _PanelMessageList({
     required this.state,
     required this.scrollController,
+    required this.messageKeys,
   });
 
   @override
@@ -685,6 +695,7 @@ class _PanelMessageList extends ConsumerWidget {
           activeToolCalls: state.activeToolCalls,
           scrollController: scrollController,
           isLoading: state.loadingHistory,
+          messageKeys: messageKeys,
           header: state.messages.isNotEmpty
               ? CompanionContextPill(
                   activeWorkspaceId: activeWs,

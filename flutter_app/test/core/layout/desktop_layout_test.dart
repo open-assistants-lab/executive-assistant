@@ -102,7 +102,8 @@ void main() {
             .descendant(of: messageList, matching: find.byType(Scrollable))
             .last,
       );
-      expect(messageScrollable().position.extentAfter, lessThan(1));
+      // With reverse: true, "at bottom" means extentBefore == 0.
+      expect(messageScrollable().position.extentBefore, lessThan(1));
 
       await tester.tap(find.text('Test 12').first);
       await tester.pump(const Duration(milliseconds: 100));
@@ -113,7 +114,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pump(const Duration(milliseconds: 100));
 
-      expect(messageScrollable().position.extentAfter, lessThan(1));
+      expect(messageScrollable().position.extentBefore, lessThan(1));
     },
   );
 
@@ -157,7 +158,8 @@ void main() {
 
       await tester.drag(messageList, const Offset(0, -5000));
       await tester.pump(const Duration(milliseconds: 100));
-      expect(messageScrollable().position.extentAfter, lessThan(1));
+      // With reverse: true, dragging up (-y) scrolls toward top, so at bottom extentBefore==0
+      expect(messageScrollable().position.extentBefore, lessThan(1));
 
       msgCtrl.add(
         WsMessage(
@@ -177,13 +179,57 @@ void main() {
 
       await tester.drag(messageList, const Offset(0, 5000));
       await tester.pump(const Duration(milliseconds: 100));
+      // Dragging down (+y) with reverse: true scrolls toward bottom
       expect(messageScrollable().position.pixels, lessThan(50));
 
       await tester.tap(find.text('Test').first);
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pump(const Duration(milliseconds: 100));
 
-      expect(messageScrollable().position.extentAfter, lessThan(1));
+      expect(messageScrollable().position.extentBefore, lessThan(1));
+    },
+  );
+
+  testWidgets(
+    'scrolls to bottom when switching to workspace with many messages',
+    (tester) async {
+      when(
+        () => mockApi.getConversation(
+          limit: any(named: 'limit'),
+          workspaceId: any(named: 'workspaceId'),
+        ),
+      ).thenAnswer((invocation) async {
+        final workspaceId = invocation.namedArguments[#workspaceId] as String;
+        return List.generate(
+          337,
+          (i) => {
+            'role': 'assistant',
+            'content': '$workspaceId message $i',
+            'timestamp': DateTime(2026, 1, 1, 0, i ~/ 60, i % 60)
+                .toIso8601String(),
+            'metadata': <String, dynamic>{},
+          },
+        );
+      });
+
+      await tester.pumpWidget(_buildDesktopLayout(mockWs, mockApi));
+      statusCtrl.add(ConnectionStatus.connected);
+      await tester.pump(const Duration(milliseconds: 100));
+
+      await tester.tap(find.text('Test').first);
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final messageList = find.byKey(
+        const ValueKey('desktop-chat-message-list'),
+      );
+      ScrollableState messageScrollable() => tester.state<ScrollableState>(
+        find
+            .descendant(of: messageList, matching: find.byType(Scrollable))
+            .last,
+      );
+
+      expect(messageScrollable().position.extentBefore, lessThan(1));
     },
   );
 

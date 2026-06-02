@@ -16,7 +16,8 @@ class _ToolCallCardState extends State<ToolCallCard> {
   @override
   Widget build(BuildContext context) {
     final tokens = context.tokens;
-    final hasArgs = widget.toolCall.args.isNotEmpty;
+    final hasDetails = widget.toolCall.args.isNotEmpty ||
+        (widget.toolCall.resultPreview?.isNotEmpty ?? false);
     return Padding(
       padding: EdgeInsets.symmetric(vertical: tokens.spacing.xs),
       child: Container(
@@ -31,7 +32,7 @@ class _ToolCallCardState extends State<ToolCallCard> {
             Material(
               color: Colors.transparent,
               child: InkWell(
-                onTap: hasArgs ? () => setState(() => _expanded = !_expanded) : null,
+                onTap: hasDetails ? () => setState(() => _expanded = !_expanded) : null,
                 borderRadius: tokens.radius.mdAll,
                 child: Padding(
                   padding: EdgeInsets.symmetric(
@@ -55,6 +56,15 @@ class _ToolCallCardState extends State<ToolCallCard> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      if (widget.toolCall.duration != null) ...[
+                        SizedBox(width: tokens.spacing.sm),
+                        Text(
+                          _formatDuration(widget.toolCall.duration!),
+                          style: tokens.typography.textTheme.labelSmall?.copyWith(
+                            color: tokens.colors.textTertiary,
+                          ),
+                        ),
+                      ],
                       SizedBox(width: tokens.spacing.sm),
                       _StatusBadge(hasResult: widget.toolCall.resultPreview != null),
                     ],
@@ -62,11 +72,28 @@ class _ToolCallCardState extends State<ToolCallCard> {
                 ),
               ),
             ),
+            if (!_expanded && (widget.toolCall.resultPreview?.isNotEmpty ?? false))
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  tokens.spacing.md,
+                  0,
+                  tokens.spacing.md,
+                  tokens.spacing.md - 2,
+                ),
+                child: Text(
+                  widget.toolCall.resultPreview!,
+                  style: tokens.typography.textTheme.bodySmall?.copyWith(
+                    color: tokens.colors.textSecondary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             AnimatedSize(
               duration: tokens.motion.base,
               curve: tokens.motion.curveStandard,
               alignment: Alignment.topCenter,
-              child: _expanded && hasArgs
+              child: _expanded && hasDetails
                   ? Padding(
                       padding: EdgeInsets.fromLTRB(
                         tokens.spacing.md,
@@ -74,11 +101,19 @@ class _ToolCallCardState extends State<ToolCallCard> {
                         tokens.spacing.md,
                         tokens.spacing.md,
                       ),
-                      child: SelectableText(
-                        _formatArgs(widget.toolCall.args),
-                        style: tokens.typography.monoTheme.bodySmall?.copyWith(
-                          color: tokens.colors.textSecondary,
-                        ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: _DetailColumn(
+                            label: 'Args',
+                            content: _formatArgs(widget.toolCall.args),
+                          )),
+                          SizedBox(width: tokens.spacing.md),
+                          Expanded(child: _DetailColumn(
+                            label: 'Result',
+                            content: widget.toolCall.resultPreview ?? '',
+                          )),
+                        ],
                       ),
                     )
                   : const SizedBox.shrink(),
@@ -106,8 +141,45 @@ class _ToolCallCardState extends State<ToolCallCard> {
   }
 
   String _formatArgs(Map<String, dynamic> args) {
-    final entries = args.entries.map((e) => '${e.key}: ${e.value}').toList();
-    return entries.join('\n');
+    if (args.isEmpty) return '—';
+    return args.entries.map((e) => '${e.key}: ${e.value}').join('\n');
+  }
+
+  String _formatDuration(Duration d) {
+    if (d.inSeconds >= 1) {
+      return '${(d.inMilliseconds / 1000).toStringAsFixed(1)}s';
+    }
+    return '${(d.inMilliseconds / 1000).toStringAsFixed(1)}s';
+  }
+}
+
+class _DetailColumn extends StatelessWidget {
+  final String label;
+  final String content;
+  const _DetailColumn({required this.label, required this.content});
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.tokens;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: tokens.typography.textTheme.labelSmall?.copyWith(
+            color: tokens.colors.textTertiary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        SizedBox(height: tokens.spacing.xs),
+        SelectableText(
+          content,
+          style: tokens.typography.monoTheme.bodySmall?.copyWith(
+            color: tokens.colors.textSecondary,
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -133,7 +205,6 @@ class _StatusBadge extends StatelessWidget {
         ],
       );
     }
-    // Running
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [

@@ -9,6 +9,11 @@ final openChatTabsProvider = StateProvider<Map<String, String>>((ref) {
   return {'personal': 'Personal'};
 });
 
+/// Increments every time the user switches workspaces (even to the same one).
+/// Use this to trigger scroll-to-bottom reliably — unlike activeChatTabProvider,
+/// this always changes, so listeners fire even when clicking the active tab.
+final workspaceSwitchSignalProvider = StateProvider<int>((ref) => 0);
+
 /// The workspace_id of the currently focused chat tab.
 final activeChatTabProvider = StateProvider<String>((ref) => 'personal');
 
@@ -45,12 +50,14 @@ class ChatTabNotifier extends StateNotifier<Map<String, String>> {
     if (state.containsKey(id)) {
       ref.read(activeChatTabProvider.notifier).state = id;
       ref.read(workspaceNotifierProvider.notifier).switchWorkspace(id, name);
+      ref.read(workspaceSwitchSignalProvider.notifier).state++;
       return;
     }
     state = {...state, id: name};
     ref.read(activeChatTabProvider.notifier).state = id;
     ref.read(workspaceNotifierProvider.notifier).switchWorkspace(id, name);
     _persistTabs();
+    ref.read(workspaceSwitchSignalProvider.notifier).state++;
   }
 
   void closeTab(String id) {

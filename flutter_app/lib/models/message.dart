@@ -53,6 +53,7 @@ class ToolCallDisplay {
   final Map<String, dynamic> args;
   final String? resultPreview;
   final bool isPending;
+  final Duration? duration;
 
   const ToolCallDisplay({
     required this.callId,
@@ -60,15 +61,17 @@ class ToolCallDisplay {
     required this.args,
     this.resultPreview,
     this.isPending = false,
+    this.duration,
   });
 
-  ToolCallDisplay copyWith({String? resultPreview, bool? isPending, Map<String, dynamic>? args}) {
+  ToolCallDisplay copyWith({String? resultPreview, bool? isPending, Map<String, dynamic>? args, Duration? duration}) {
     return ToolCallDisplay(
       callId: callId,
       toolName: toolName,
       args: args ?? this.args,
       resultPreview: resultPreview ?? this.resultPreview,
       isPending: isPending ?? this.isPending,
+      duration: duration ?? this.duration,
     );
   }
 }
