@@ -11,7 +11,8 @@ visual workspace (Canvas) and a unified management view (Capabilities).
 
 OpenAI calls this pattern **Canvas**, Claude calls it **Artifacts**. The user stays in the
 conversation while a side panel renders structured output the agent generates — forms, cards,
-results. We're adopting the same pattern using **Open-JSON-UI** as the declarative component spec.
+results. We're adopting the same pattern using **HTML + WebView** with a `canvas-painting` skill
+to ensure correctness.
 
 ## Summary
 
@@ -19,7 +20,7 @@ Three bottom tabs in the workspace panel:
 
 | Tab | Purpose |
 |-----|---------|
-| **Canvas** | Agent-driven visual workspace. Renders Open-JSON-UI components (forms, cards, lists) the agent generates. Empty state when idle. |
+| **Canvas** | Agent-driven visual workspace. Renders HTML in a sandboxed WebView. Empty state when idle. |
 | **Files** | Existing file viewer. Unchanged. |
 | **Capabilities** | Unified Tools + Skills + Subagents management view. Collapsible sections, searchable, per-workspace ScopePicker per item. |
 
@@ -31,16 +32,16 @@ conversation's visual companion — whatever the agent generates appears there.
 ```
 ┌─ Chat Tab ────────────────────────────────────────────────┐
 │ Text messages + tool calls                                 │
-│ 🧠 skills_load → skill-creator loaded  (inline event)     │
+│ 🧠 skills_load → skill-creation loaded  (inline event)  │
 │ "Check Canvas →" when agent generates structured output    │
 └───────────────────────────────────────────────────────────┘
 
 ┌─ Canvas Tab ──────────────────────────────────────────────┐
-│ Open-JSON-UI renderer                                      │
-│ Agent generates JSON → Flutter maps to native widgets      │
+│ HTML + WebView renderer                                     │
+│ Agent generates HTML → WebView renders it                   │
 │ Surfaces: forms, cards, lists, text blocks                 │
 │ Multiple surfaces can coexist (e.g. skill form + result)   │
-│ User interacts → actions sent back to agent               │
+│ User interacts → postMessage bridge → agent updates       │
 └───────────────────────────────────────────────────────────┘
 
 ┌─ Files Tab ───────────────────────────────────────────────┐
@@ -76,7 +77,7 @@ When the agent loads a skill via `skills_load`, render an inline event in the co
 User: Create a skill for commit messages
 
 🔧 skills_load
-  └─ Loaded: skill-creator
+  └─ Loaded: skill-creation
 
 Agent: I can help you create skills. Let me ask a few questions...
 ```
@@ -134,7 +135,7 @@ Single new event type `canvas_update` on the existing WebSocket:
   "type": "canvas_update",
   "surface_id": "skill-form-abc",
   "action": "create" | "update" | "destroy",
-  "spec": { "components": [...] }
+  "html": "<div>...</div>"
 }
 ```
 
@@ -167,6 +168,16 @@ When the user interacts with a canvas component (types in a field, clicks a butt
 sent back to the agent via the chat WebSocket as a message. The agent can then update the canvas
 in response.
 
+### Auto-Activation
+
+When the agent sends a `canvas_update` event (creates or updates a surface), the workspace panel
+**automatically switches to the Canvas tab**. If the user is on Files or Capabilities, the Canvas
+tab becomes active immediately. No notification badge, no "Check Canvas →" prompt — the canvas
+appears as soon as the agent generates it.
+
+If the user manually switches away while the agent is still painting, the canvas stays in its
+current state. A new `canvas_update` event will switch back.
+
 ## Capabilities Tab
 
 ### Layout
@@ -181,7 +192,7 @@ in response.
 │   ... (scrollable, shows first 5 then expands)               │
 │                                                              │
 │ ▸ 🧠 Skills (3/6 enabled)                                     │
-│   skill-creator     [All ✓]    autoresearch     [2 WS ✓]     │
+│   skill-creation     [All ✓]    autoresearch     [2 WS ✓]     │
 │   commit-writer     [Off]                                    │
 │                                                              │
 │ ▸ 🤖 Subagents (1/2 enabled)                                  │
@@ -217,9 +228,10 @@ Events are scoped to `user_id` + `conversation_id`.
 
 ### Agent tool: `canvas_create` (optional future)
 
-For V1, the agent generates Open-JSON-UI via the normal LLM response, parsed by the backend, and
-forwarded as `canvas_update`. A future `canvas_create` tool could provide a structured interface
-for the agent to create surfaces explicitly.
+For V1, the agent generates HTML via the normal LLM response. The backend parses
+the HTML block from the response and forwards it as `canvas_update`. A future
+`canvas_create` tool could provide a structured interface for the agent to create
+surfaces explicitly.
 
 ### State sync
 
@@ -302,7 +314,7 @@ if (event.type == 'skills_load') {
 }
 ```
 
-The banner is a compact inline widget: icon + "Loaded: skill-creator" text.
+The banner is a compact inline widget: icon + "Loaded: skill-creation" text.
 
 ## Workspace Panel Bottom Tabs
 
@@ -318,7 +330,7 @@ enums are removed. `_WorkspacePanelTab` becomes: `{files, canvas, capabilities}`
 ## Non-Goals
 
 - AG-UI adoption (use existing WebSocket, revise later)
-- A2UI / Open-JSON-UI adoption (use HTML + WebView for simpler implementation)
+- A2UI / Open-JSON-UI (use HTML + WebView for simpler implementation)
 - `canvas_create` agent tool (agent generates HTML inline, backend wraps in canvas_update)
 - Full bidirectional state sync (V1: user actions → agent → updated canvas, no real-time
   optimistic updates)
@@ -339,23 +351,23 @@ Skills follow the `{domain}-{action}` naming pattern:
 
 ## Migration Path
 
-1. Create `CanvasTab` widget with Open-JSON-UI renderer
+1. Create `CanvasTab` widget with WebView + postMessage bridge
 2. Create `CapabilitiesTab` widget with unified sections
-3. Add `canvas_update` WebSocket event handler in backend
-4. Update `workspace_panel.dart` tabs to Canvas | Files | Capabilities
-5. Remove Skills, Subagents, Tools from workspace panel tab bar
-6. Remove Files from sidebar (desktop + tablet)
-7. Add `skills_load` inline event rendering in chat
-8. Manual test + full test pass
+3. Create `canvas-painting` seed skill
+4. Add `canvas_update` WebSocket event handler in backend
+5. Update `workspace_panel.dart` tabs to Canvas | Files | Capabilities
+6. Remove Skills, Subagents, Tools from workspace panel tab bar
+7. Remove Files from sidebar (desktop + tablet)
+8. Add `skills_load` inline event rendering in chat
+9. Manual test + full test pass
 
 ## Open Questions
 
-1. Should the Canvas tab auto-focus (switch to it) when the agent generates content, or should
-   the user click "Check Canvas →" manually? Leaning toward a notification badge on the Canvas
-   tab + optional auto-switch.
+1. ~~Should the Canvas tab auto-focus?~~ → **Resolved: yes, auto-activate on `canvas_update`.**
 
 2. Should the Capabilities tab show items from all workspaces or just the selected one?
    Leaning toward selected workspace only (dropdown at top to switch).
 
-3. Open-JSON-UI spec: use the full spec or a subset? Leaning toward the subset in this spec
-   (text, text_field, text_area, checkbox, dropdown, button, section, card). Expand as needed.
+3. How should the backend parse HTML from the agent's response? Options: detect
+   ```html blocks, or require the agent to wrap HTML in specific markers. Leaning
+   toward ```html fence detection — simplest, no agent training needed.
