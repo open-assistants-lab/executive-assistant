@@ -14,6 +14,7 @@ Uses the SDK AgentLoop for all agent execution.
 import asyncio
 import json
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -25,6 +26,7 @@ from src.http.ws_protocol import (
     AuthMessage,
     AuthOkMessage,
     CancelMessage,
+    CanvasUpdateMessage,
     DoneMessage,
     EditAndApproveMessage,
     ErrorMessage,
@@ -191,6 +193,24 @@ async def _run_agent_stream(
         await websocket.send_json(
             ErrorMessage(message=str(e), code="AGENT_ERROR").model_dump()
         )
+
+
+async def _handle_canvas_update(
+    websocket: WebSocket,
+    surface_id: str,
+    action: Literal["create", "update", "destroy"],
+    html: str = "",
+    workspace_id: str = "personal",
+) -> None:
+    """Broadcast a canvas_update event to the connected WebSocket client."""
+    await websocket.send_json(
+        CanvasUpdateMessage(
+            surface_id=surface_id,
+            action=action,
+            html=html,
+        ).model_dump()
+        | {"workspace_id": workspace_id}
+    )
 
 
 @router.websocket("/ws/conversation")

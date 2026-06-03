@@ -259,6 +259,15 @@ class PongMessage(BaseModel):
     type: str = "pong"
 
 
+class CanvasUpdateMessage(BaseModel):
+    """Agent-generated HTML canvas update for the Flutter Canvas tab."""
+
+    type: str = "canvas_update"
+    surface_id: str
+    action: Literal["create", "update", "destroy"]
+    html: str = ""
+
+
 # ─── Message Parsing ───
 
 CLIENT_MESSAGE_TYPES = {
@@ -294,6 +303,8 @@ SERVER_MESSAGE_TYPES = {
     "done": DoneMessage,
     "error": ErrorMessage,
     "pong": PongMessage,
+    # Canvas
+    "canvas_update": CanvasUpdateMessage,
 }
 
 
@@ -340,6 +351,7 @@ _ServerMessage = (
     | DoneMessage
     | ErrorMessage
     | PongMessage
+    | CanvasUpdateMessage
 )
 
 
