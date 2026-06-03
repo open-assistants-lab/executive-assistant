@@ -33,7 +33,6 @@ conversation's visual companion — whatever the agent generates appears there.
 ┌─ Chat Tab ────────────────────────────────────────────────┐
 │ Text messages + tool calls                                 │
 │ 🧠 skills_load → skill-creation loaded  (inline event)  │
-│ "Check Canvas →" when agent generates structured output    │
 └───────────────────────────────────────────────────────────┘
 
 ┌─ Canvas Tab ──────────────────────────────────────────────┐
@@ -187,8 +186,9 @@ When no canvas content is active, the Canvas tab shows a centered empty state:
 
 ### Multiple Surfaces
 
-The agent can generate multiple surfaces. Example: skill form + research results side by side.
-Surfaces stack vertically in the Canvas tab, each with its own `surface_id`.
+The agent can generate multiple surfaces. Example: skill form + research results.
+Surfaces stack vertically in a scrollable `ListView` in the Canvas tab, each
+with its own `surface_id`. Each surface is a separate WebView instance.
 
 ### User Interaction
 
@@ -256,18 +256,30 @@ Events are scoped to `user_id` + `conversation_id`.
 
 ### Agent tool: `canvas_create` (optional future)
 
-For V1, the agent generates HTML via the normal LLM response. The backend parses
-the HTML block from the response and forwards it as `canvas_update`. A future
-`canvas_create` tool could provide a structured interface for the agent to create
-surfaces explicitly.
+For V1, the agent generates HTML via the normal LLM response. The backend detects
+HTML destined for canvas using fenced code blocks:
+
+```
+```html:canvas
+<div>...</div>
+```
+```
+
+The `:canvas` language modifier distinguishes canvas HTML from regular code examples.
+Any fenced block without `:canvas` is treated as a normal code block in chat, not
+routed to the canvas. The backend strips the fence and sends the body as the
+`html` field in `canvas_update`.
+
+If the block has a `:skill-form` or `:subagent-form` modifier, the backend also
+validates required fields against the `CANVAS_SCHEMAS` for that surface type.
 
 ### State sync
 
-Canvas surfaces have state (form field values, checkbox states). State flows through AG-UI pattern
-(not yet adopted — custom for V1, AG-UI later):
-- `canvas_state` event for initial state dump
-- Field changes sent as user messages back to the agent
-- Agent responds with updated `canvas_update` events
+Canvas surfaces have state (form field values). V1 uses a simple request-response pattern:
+- User edits a field in the WebView → `postMessage` sent to the Flutter layer → forwarded as
+  a chat message to the agent
+- Agent responds with an updated `canvas_update` event → WebView re-renders
+- No optimistic updates, no real-time sync — each round trip is a full agent response
 
 ## Frontend Changes
 
@@ -281,7 +293,7 @@ Canvas surfaces have state (form field values, checkbox states). State flows thr
 | `canvas_tab.dart` (new) | WebView widget with postMessage bridge |
 | `capabilities_tab.dart` (new) | Unified Tools/Skills/Subagents view |
 | `chat_screen.dart` | Render skills_load as inline event |
-| `canvas_painter.dart` (new) | Backend: canvas-painting skill (SKILL.md seed) |
+| `canvas_painting/SKILL.md` (new) | Seed skill: canvas-painting |
 | `skills_seed/skill-creation/` | Renamed from skill-creator, SKILL.md updated |
 
 ### Widget: `CanvasTab`
@@ -375,7 +387,7 @@ A new seed skill `canvas-painting` ships alongside `skill-creation`. It provides
 - Field validation rules
 
 Skills follow the `{domain}-{action}` naming pattern:
-`skill-creation`, `canvas-painting`, `subagent-creation`
+`skill-creation`, `canvas-painting`.
 
 ## Migration Path
 
@@ -396,6 +408,5 @@ Skills follow the `{domain}-{action}` naming pattern:
 2. Should the Capabilities tab show items from all workspaces or just the selected one?
    Leaning toward selected workspace only (dropdown at top to switch).
 
-3. How should the backend parse HTML from the agent's response? Options: detect
-   ```html blocks, or require the agent to wrap HTML in specific markers. Leaning
-   toward ```html fence detection — simplest, no agent training needed.
+3. ~~How should the backend parse HTML from the agent's response?~~ → **Resolved:
+   ```html:canvas fence blocks, with optional :skill-form/:subagent-form modifier.**
