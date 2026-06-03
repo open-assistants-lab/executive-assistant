@@ -7,6 +7,12 @@ resolution-markers = [
     "python_full_version < '3.12'",
 ]
 
+[manifest]
+members = [
+    "connectkit",
+    "executive-assistant",
+]
+
 [[package]]
 name = "agentprofile"
 version = "0.1.0"
@@ -443,6 +449,36 @@ wheels = [
 ]
 
 [[package]]
+name = "connectkit"
+version = "0.1.0"
+source = { editable = "packages/connectkit" }
+dependencies = [
+    { name = "cryptography" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "pyyaml" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "cryptography", specifier = ">=41.0" },
+    { name = "fastapi", specifier = ">=0.129" },
+    { name = "httpx", specifier = ">=0.28" },
+    { name = "pydantic", specifier = ">=2.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
+    { name = "pyyaml", specifier = ">=6.0" },
+]
+provides-extras = ["dev"]
+
+[[package]]
 name = "coremem"
 version = "0.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -668,6 +704,7 @@ dependencies = [
     { name = "aiosqlite" },
     { name = "apscheduler" },
     { name = "chromadb" },
+    { name = "connectkit" },
     { name = "coremem", extra = ["hybrid"] },
     { name = "cryptography" },
     { name = "duckdb" },
@@ -725,6 +762,7 @@ requires-dist = [
     { name = "aiosqlite", specifier = ">=0.20.0" },
     { name = "apscheduler", specifier = ">=3.11.2" },
     { name = "chromadb", specifier = ">=1.5.0" },
+    { name = "connectkit", editable = "packages/connectkit" },
     { name = "coremem", extras = ["hybrid"], specifier = ">=0.3.0" },
     { name = "cryptography", specifier = ">=41.0.0" },
     { name = "duckdb", specifier = ">=1.0.0" },
