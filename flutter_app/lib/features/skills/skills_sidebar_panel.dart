@@ -25,9 +25,14 @@ class _SkillsSidebarPanelState extends ConsumerState<SkillsSidebarPanel> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Skills',
-                    style: tokens.typography.textTheme.titleLarge
-                        ?.copyWith(color: tokens.colors.textPrimary)),
+                Row(
+                  children: [
+                    Text('Skills',
+                        style: tokens.typography.textTheme.titleLarge
+                            ?.copyWith(color: tokens.colors.textPrimary)),
+                    const Spacer(),
+                  ],
+                ),
                 SizedBox(height: tokens.spacing.sm),
                 ScopeSwitcher(
                   scope: _scope,
@@ -37,10 +42,13 @@ class _SkillsSidebarPanelState extends ConsumerState<SkillsSidebarPanel> {
             ),
           ),
           Expanded(
-            child: Center(
-              child: Text('Skill management coming soon',
-                  style: tokens.typography.textTheme.bodyMedium
-                      ?.copyWith(color: tokens.colors.textTertiary)),
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: tokens.spacing.md),
+              child: Center(
+                child: Text('Skill management coming soon',
+                    style: tokens.typography.textTheme.bodyMedium
+                        ?.copyWith(color: tokens.colors.textTertiary)),
+              ),
             ),
           ),
         ],

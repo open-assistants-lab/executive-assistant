@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import '../../theme/app_theme.dart';
 import 'widgets/services_tab.dart';
 
@@ -24,16 +23,6 @@ class ConnectorsModal extends StatelessWidget {
                         style: tokens.typography.textTheme.titleLarge
                             ?.copyWith(color: tokens.colors.textPrimary)),
                     const Spacer(),
-                    IconButton(
-                      icon: const Icon(Symbols.close, size: 20),
-                      onPressed: () {
-                        if (Navigator.of(context).canPop()) {
-                          Navigator.of(context).pop();
-                        } else {
-                          GoRouter.of(context).go('/workspace');
-                        }
-                      },
-                    ),
                   ],
                 ),
               ],

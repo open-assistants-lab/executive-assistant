@@ -26,9 +26,14 @@ class _SubagentsSidebarPanelState extends ConsumerState<SubagentsSidebarPanel> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Subagents',
-                    style: tokens.typography.textTheme.titleLarge
-                        ?.copyWith(color: tokens.colors.textPrimary)),
+                Row(
+                  children: [
+                    Text('Subagents',
+                        style: tokens.typography.textTheme.titleLarge
+                            ?.copyWith(color: tokens.colors.textPrimary)),
+                    const Spacer(),
+                  ],
+                ),
                 SizedBox(height: tokens.spacing.sm),
                 ScopeSwitcher(
                   scope: _scope,
@@ -38,10 +43,13 @@ class _SubagentsSidebarPanelState extends ConsumerState<SubagentsSidebarPanel> {
             ),
           ),
           Expanded(
-            child: Center(
-              child: Text('Subagent management coming soon',
-                  style: tokens.typography.textTheme.bodyMedium
-                      ?.copyWith(color: tokens.colors.textTertiary)),
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: tokens.spacing.md),
+              child: Center(
+                child: Text('Subagent management coming soon',
+                    style: tokens.typography.textTheme.bodyMedium
+                        ?.copyWith(color: tokens.colors.textTertiary)),
+              ),
             ),
           ),
         ],

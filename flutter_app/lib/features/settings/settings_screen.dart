@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import '../../providers/agent_provider.dart';
 import '../../theme/app_theme.dart';
@@ -89,101 +88,103 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final tokens = context.tokens;
     final settings = ref.watch(settingsProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings', style: TextStyle(fontSize: 16)),
-          leading: IconButton(
-            icon: const Icon(Symbols.close, size: 20),
-            onPressed: () {
-              if (Navigator.of(context).canPop()) {
-                Navigator.of(context).pop();
-              } else {
-                GoRouter.of(context).go('/workspace');
-              }
-            },
-          ),
-      ),
-      body: _loadingSettings
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16),
+    return Container(
+      color: tokens.colors.bgCanvas,
+      child: Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.all(tokens.spacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _sectionHeader('Server', tokens),
-                _tile('URL', settings.host, Symbols.dns, tokens: tokens),
-
-                const SizedBox(height: 24),
-                _sectionHeader('Default Model', tokens),
-                _modelDropdown(settings, tokens),
-                const SizedBox(height: 6),
-
-                const SizedBox(height: 24),
-                _sectionHeader('LLM Providers', tokens),
-                TextField(
-                  controller: _searchCtrl,
-                  decoration: InputDecoration(
-                    hintText: 'Search providers or models...',
-                    prefixIcon: const Icon(Symbols.search, size: 18),
-                    isDense: true,
-                    border: const OutlineInputBorder(),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                  ),
-                  onChanged: (v) => setState(() => _search = v),
+                Row(
+                  children: [
+                    Text('Settings',
+                        style: tokens.typography.textTheme.titleLarge
+                            ?.copyWith(color: tokens.colors.textPrimary)),
+                    const Spacer(),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                if (_loadingProviders)
-                  const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                else if (_sortedProviders.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text(
-                      _search.isNotEmpty ? 'No matches' : 'No providers loaded',
-                      style: TextStyle(color: tokens.colors.textTertiary, fontSize: 13),
-                    ),
-                  )
-                else
-                  ..._sortedProviders.map((p) {
-                    final pid = p['id'] as String;
-                    final name = p['name'] as String? ?? pid;
-                    final models = List<String>.from(p['models'] ?? []);
-                    final hasKey =
-                        (settings.providerKeys.containsKey(pid) &&
-                                settings.providerKeys[pid]!.isNotEmpty) ||
-                            settings.providerKeyStatus[pid] == true;
-                    return ProviderCard(
-                      providerId: pid,
-                      providerName: name,
-                      hasKey: hasKey,
-                      models: models,
-                      selectedModel: settings.defaultModel,
-                    );
-                  }),
-
-                const SizedBox(height: 24),
-                _sectionHeader('About', tokens),
-                _tile('Version', '0.1.0', Symbols.info, tokens: tokens),
-                _tile(
-                  'Data Directory',
-                  '~/Executive Assistant',
-                  Symbols.folder,
-                  tokens: tokens,
-                ),
-
-                const SizedBox(height: 24),
-                Center(
-                  child: FilledButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Done'),
-                  ),
-                ),
-                const SizedBox(height: 24),
               ],
             ),
+          ),
+          Expanded(
+            child: _loadingSettings
+                ? const Center(child: CircularProgressIndicator())
+                : ListView(
+                    padding: EdgeInsets.all(tokens.spacing.md),
+                    children: [
+                      _sectionHeader('Server', tokens),
+                      _tile('URL', settings.host, Symbols.dns, tokens: tokens),
+
+                      const SizedBox(height: 24),
+                      _sectionHeader('Default Model', tokens),
+                      _modelDropdown(settings, tokens),
+                      const SizedBox(height: 6),
+
+                      const SizedBox(height: 24),
+                      _sectionHeader('LLM Providers', tokens),
+                      TextField(
+                        controller: _searchCtrl,
+                        decoration: InputDecoration(
+                          hintText: 'Search providers or models...',
+                          prefixIcon: const Icon(Symbols.search, size: 18),
+                          isDense: true,
+                          border: const OutlineInputBorder(),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                        ),
+                        onChanged: (v) => setState(() => _search = v),
+                      ),
+                      const SizedBox(height: 8),
+                      if (_loadingProviders)
+                        const Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Center(child: CircularProgressIndicator()),
+                        )
+                      else if (_sortedProviders.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Text(
+                            _search.isNotEmpty ? 'No matches' : 'No providers loaded',
+                            style: TextStyle(color: tokens.colors.textTertiary, fontSize: 13),
+                          ),
+                        )
+                      else
+                        ..._sortedProviders.map((p) {
+                          final pid = p['id'] as String;
+                          final name = p['name'] as String? ?? pid;
+                          final models = List<String>.from(p['models'] ?? []);
+                          final hasKey =
+                              (settings.providerKeys.containsKey(pid) &&
+                                      settings.providerKeys[pid]!.isNotEmpty) ||
+                                  settings.providerKeyStatus[pid] == true;
+                          return ProviderCard(
+                            providerId: pid,
+                            providerName: name,
+                            hasKey: hasKey,
+                            models: models,
+                            selectedModel: settings.defaultModel,
+                          );
+                        }),
+
+                      const SizedBox(height: 24),
+                      _sectionHeader('About', tokens),
+                      _tile('Version', '0.1.0', Symbols.info, tokens: tokens),
+                      _tile(
+                        'Data Directory',
+                        '~/Executive Assistant',
+                        Symbols.folder,
+                        tokens: tokens,
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
