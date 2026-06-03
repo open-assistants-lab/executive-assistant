@@ -82,7 +82,6 @@ from src.sdk.tools_core.research import (
 )
 from src.sdk.tools_core.shell import shell_execute
 from src.sdk.tools_core.skills import (
-    skill_create,
     skill_delete,
     skills_list,
     skills_load,
@@ -211,7 +210,6 @@ def _register_all() -> None:
     registry.register(skills_list)
     registry.register(skills_search)
     registry.register(skills_load)
-    registry.register(skill_create)
     registry.register(skill_delete)
     registry.register(sql_write_query)
 

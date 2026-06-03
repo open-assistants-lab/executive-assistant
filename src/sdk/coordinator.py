@@ -38,7 +38,7 @@ logger = get_logger()
 # Constants for subagent tool filtering
 MANDATORY_SUBAGENT_TOOLS = {"message_search"}
 OPTIONAL_SKILL_LOAD_TOOL = "skills_load"
-DENIED_SKILL_MANAGEMENT_TOOLS = {"skill_create", "skill_delete", "skill_update"}
+DENIED_SKILL_MANAGEMENT_TOOLS = {"skill_delete", "skill_update"}
 
 
 def _build_profile_md(data: dict) -> str:

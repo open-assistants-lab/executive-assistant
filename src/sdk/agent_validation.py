@@ -17,7 +17,7 @@ def _is_denied_memory_tool(name: str) -> bool:
     return name.startswith("memory_")
 
 
-DENIED_SKILL_MANAGEMENT_TOOLS: set[str] = {"skill_create", "skill_delete", "skill_update"}
+DENIED_SKILL_MANAGEMENT_TOOLS: set[str] = {"skill_delete", "skill_update"}
 
 
 def validate_agent_def(
