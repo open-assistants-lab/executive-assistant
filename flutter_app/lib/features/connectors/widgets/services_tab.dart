@@ -7,7 +7,10 @@ import '../../../providers/agent_provider.dart';
 import 'connect_auth_form.dart';
 
 class ServicesTab extends ConsumerStatefulWidget {
-  const ServicesTab({super.key});
+  const ServicesTab({super.key, this.search, this.onSearchChanged});
+
+  final String? search;
+  final ValueChanged<String>? onSearchChanged;
 
   @override
   ConsumerState<ServicesTab> createState() => _ServicesTabState();
@@ -17,9 +20,10 @@ class _ServicesTabState extends ConsumerState<ServicesTab> {
   bool _loading = true;
   List<Map<String, dynamic>> _allConnectors = [];
   final Set<String> _connected = {};
-  String _search = '';
+  final String _search = '';
   String? _categoryFilter;
-  final _searchCtrl = TextEditingController();
+
+  String get _effectiveSearch => widget.search ?? _search;
 
   Set<String> get _categories {
     final cats = <String>{};
@@ -37,8 +41,8 @@ class _ServicesTabState extends ConsumerState<ServicesTab> {
               (c['category'] as String? ?? 'Other') == _categoryFilter)
           .toList();
     }
-    if (_search.isNotEmpty) {
-      final q = _search.toLowerCase();
+    if (_effectiveSearch.isNotEmpty) {
+      final q = _effectiveSearch.toLowerCase();
       list = list.where((c) {
         final name = (c['name'] as String? ?? '').toLowerCase();
         final desc = (c['description'] as String? ?? '').toLowerCase();
@@ -61,7 +65,6 @@ class _ServicesTabState extends ConsumerState<ServicesTab> {
 
   @override
   void dispose() {
-    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -100,23 +103,6 @@ class _ServicesTabState extends ConsumerState<ServicesTab> {
 
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-          child: TextField(
-            controller: _searchCtrl,
-            decoration: InputDecoration(
-              hintText: 'Search services...',
-              prefixIcon: const Icon(Symbols.search, size: 18),
-              isDense: true,
-              border: const OutlineInputBorder(),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 10,
-              ),
-            ),
-            onChanged: (v) => setState(() => _search = v),
-          ),
-        ),
         SizedBox(
           height: 36,
           child: ListView(

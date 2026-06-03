@@ -12,6 +12,13 @@ class SkillsSidebarPanel extends ConsumerStatefulWidget {
 
 class _SkillsSidebarPanelState extends ConsumerState<SkillsSidebarPanel> {
   CapabilityScope _scope = CapabilityScope.workspace;
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,11 +39,23 @@ class _SkillsSidebarPanelState extends ConsumerState<SkillsSidebarPanel> {
               children: [
                 Row(
                   children: [
+                    Icon(Symbols.bolt,
+                        size: 18, color: tokens.colors.accent),
+                    const SizedBox(width: 8),
                     Text('Skills',
                         style: tokens.typography.textTheme.titleLarge
                             ?.copyWith(color: tokens.colors.textPrimary)),
                     const Spacer(),
                   ],
+                ),
+                SizedBox(height: tokens.spacing.sm),
+                TextField(
+                  controller: _searchController,
+                  decoration: const InputDecoration(
+                    hintText: 'Search skills...',
+                    prefixIcon: Icon(Symbols.search, size: 18),
+                    isDense: true,
+                  ),
                 ),
                 SizedBox(height: tokens.spacing.sm),
                 ScopeSwitcher(

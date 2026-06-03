@@ -99,6 +99,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               children: [
                 Row(
                   children: [
+                    Icon(Symbols.settings,
+                        size: 18, color: tokens.colors.accent),
+                    const SizedBox(width: 8),
                     Text('Settings',
                         style: tokens.typography.textTheme.titleLarge
                             ?.copyWith(color: tokens.colors.textPrimary)),

@@ -13,6 +13,13 @@ class SubagentsSidebarPanel extends ConsumerStatefulWidget {
 
 class _SubagentsSidebarPanelState extends ConsumerState<SubagentsSidebarPanel> {
   CapabilityScope _scope = CapabilityScope.workspace;
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,11 +40,23 @@ class _SubagentsSidebarPanelState extends ConsumerState<SubagentsSidebarPanel> {
               children: [
                 Row(
                   children: [
+                    Icon(Symbols.smart_toy,
+                        size: 18, color: tokens.colors.accent),
+                    const SizedBox(width: 8),
                     Text('Subagents',
                         style: tokens.typography.textTheme.titleLarge
                             ?.copyWith(color: tokens.colors.textPrimary)),
                     const Spacer(),
                   ],
+                ),
+                SizedBox(height: tokens.spacing.sm),
+                TextField(
+                  controller: _searchController,
+                  decoration: const InputDecoration(
+                    hintText: 'Search subagents...',
+                    prefixIcon: Icon(Symbols.search, size: 18),
+                    isDense: true,
+                  ),
                 ),
                 SizedBox(height: tokens.spacing.sm),
                 ScopeSwitcher(

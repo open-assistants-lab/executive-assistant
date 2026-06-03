@@ -179,8 +179,11 @@ class _CategorySection extends StatelessWidget {
       children: [
         SizedBox(height: tokens.spacing.sm),
         Row(
-          children: [
-            Text(
+                  children: [
+                    Icon(Symbols.build,
+                        size: 18, color: tokens.colors.accent),
+                    const SizedBox(width: 8),
+                    Text(
               title,
               style: tokens.typography.textTheme.labelSmall
                   ?.copyWith(color: tokens.colors.textTertiary),
