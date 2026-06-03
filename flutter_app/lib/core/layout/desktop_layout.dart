@@ -260,7 +260,7 @@ class Sidebar extends ConsumerWidget {
                                 ref
                                     .read(chatTabNotifierProvider.notifier)
                                     .openWorkspace(id, name);
-                                context.go('/workspace');
+                                GoRouter.maybeOf(context)?.go('/workspace');
                               },
                               ),
                             ],
