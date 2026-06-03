@@ -19,6 +19,10 @@ class _ToolsPanelState extends ConsumerState<ToolsPanel> {
   @override
   void initState() {
     super.initState();
+    final existing = ref.read(toolsProvider).searchQuery;
+    if (existing.isNotEmpty) {
+      _searchController.text = existing;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
