@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 /// Three-state scope for a resource (tool, skill, subagent).
@@ -15,15 +16,11 @@ class ScopeChange {
   });
 }
 
-/// Tappable scope badge + popup menu + workspace modal.
+/// Inline segmented control: [All ✓] [3 WS] [Off].
 ///
-/// Displays one of:
-///   [All ✓]  — green, enabled everywhere
-///   [3 WS ✓] — green, enabled for N workspaces
-///   [Off]    — grey, disabled
-///
-/// Tapping opens a popup menu. Choosing "Selected" opens a modal
-/// with a workspace checklist.
+/// All three options are always visible. Current selection is highlighted.
+/// Tapping [All] or [Off] applies immediately. Tapping the middle button
+/// (which shows the workspace count when Selected) opens a modal.
 class ScopePicker extends StatelessWidget {
   final ScopeState scope;
   final List<String> selectedWorkspaceIds;
@@ -40,107 +37,67 @@ class ScopePicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (label, color) = switch (scope) {
-      ScopeState.all => ('All ✓', Colors.green),
-      ScopeState.selected => ('${selectedWorkspaceIds.length} WS ✓', Colors.green),
-      ScopeState.none => ('Off', Colors.grey),
-    };
+    final allActive = scope == ScopeState.all;
+    final selActive = scope == ScopeState.selected;
+    final noneActive = scope == ScopeState.none;
+
+    final selLabel = selActive && selectedWorkspaceIds.isNotEmpty
+        ? '${selectedWorkspaceIds.length} WS'
+        : 'Select';
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildSegment(
+          context: context,
+          label: 'All ✓',
+          active: allActive,
+          onTap: () => onChanged(const ScopeChange(scope: ScopeState.all)),
+        ),
+        const SizedBox(width: 2),
+        _buildSegment(
+          context: context,
+          label: selLabel,
+          active: selActive,
+          onTap: () => _showWorkspaceModal(context),
+        ),
+        const SizedBox(width: 2),
+        _buildSegment(
+          context: context,
+          label: 'Off',
+          active: noneActive,
+          onTap: () => onChanged(const ScopeChange(scope: ScopeState.none)),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSegment({
+    required BuildContext context,
+    required String label,
+    required bool active,
+    required VoidCallback onTap,
+  }) {
+    final color = active ? Colors.green : Colors.grey;
     return GestureDetector(
-      onTap: () => _showPopup(context),
-      child: Tooltip(
-        message: scope == ScopeState.selected && selectedWorkspaceIds.isNotEmpty
-            ? _workspaceNames()
-            : '',
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            border: Border.all(color: color.withAlpha(100)),
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        decoration: BoxDecoration(
+          color: active ? color.withAlpha(20) : Colors.transparent,
+          border: Border.all(color: color.withAlpha(active ? 150 : 80)),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            color: color,
+            fontWeight: active ? FontWeight.w700 : FontWeight.w400,
           ),
         ),
       ),
     );
-  }
-
-  String _workspaceNames() {
-    return selectedWorkspaceIds
-        .map((id) {
-          final ws = allWorkspaces.cast<Map<String, dynamic>?>().firstWhere(
-                (w) => w?['id'] == id,
-                orElse: () => null,
-              );
-          return ws?['name'] as String? ?? id;
-        })
-        .join(', ');
-  }
-
-  void _showPopup(BuildContext context) {
-    final renderBox = context.findRenderObject() as RenderBox;
-    final offset = renderBox.localToGlobal(Offset.zero);
-    final size = renderBox.size;
-    showMenu<String>(
-      context: context,
-      position: RelativeRect.fromLTRB(
-        offset.dx,
-        offset.dy + size.height + 4,
-        offset.dx + size.width,
-        offset.dy + size.height + 4,
-      ),
-      items: [
-        PopupMenuItem<String>(
-          value: 'all',
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(scope == ScopeState.all ? Symbols.radio_button_checked : Symbols.radio_button_unchecked, size: 18),
-              const SizedBox(width: 8),
-              const Flexible(child: Text('Enable for all workspaces')),
-            ],
-          ),
-        ),
-        PopupMenuItem<String>(
-          value: 'selected',
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(scope == ScopeState.selected ? Symbols.radio_button_checked : Symbols.radio_button_unchecked, size: 18),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  scope == ScopeState.selected && selectedWorkspaceIds.isNotEmpty
-                      ? 'Enable for selected workspaces (${selectedWorkspaceIds.length})…'
-                      : 'Enable for selected workspaces…',
-                ),
-              ),
-            ],
-          ),
-        ),
-        PopupMenuItem<String>(
-          value: 'none',
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(scope == ScopeState.none ? Symbols.radio_button_checked : Symbols.radio_button_unchecked, size: 18),
-              const SizedBox(width: 8),
-              const Flexible(child: Text('Disable')),
-            ],
-          ),
-        ),
-      ],
-    ).then((value) {
-      if (value == null) return;
-      if (value == 'selected') {
-        _showWorkspaceModal(context);
-      } else {
-        onChanged(ScopeChange(
-          scope: value == 'all' ? ScopeState.all : ScopeState.none,
-        ));
-      }
-    });
   }
 
   void _showWorkspaceModal(BuildContext context) {
@@ -185,38 +142,84 @@ class _WorkspaceChecklistDialogState extends State<_WorkspaceChecklistDialog> {
     _selected = Set<String>.from(widget.selectedIds);
   }
 
+  bool get _allSelected => _selected.length == widget.allWorkspaces.length;
+
+  void _selectAll() {
+    setState(() {
+      _selected = widget.allWorkspaces
+          .map((w) => w['id'] as String)
+          .toSet();
+    });
+  }
+
+  void _deselectAll() {
+    setState(() => _selected.clear());
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Select Workspaces'),
       content: SizedBox(
-        width: 300,
-        child: widget.allWorkspaces.isEmpty
-            ? const Text('No workspaces available.')
-            : ListView(
-                shrinkWrap: true,
-                children: widget.allWorkspaces
-                    .map((ws) {
-                      final id = ws['id'] as String;
-                      final name = ws['name'] as String? ?? id;
-                      return CheckboxListTile(
-                        title: Text(name),
-                        subtitle: Text(id, style: Theme.of(context).textTheme.bodySmall),
-                        value: _selected.contains(id),
-                        onChanged: (checked) {
-                          setState(() {
-                            if (checked == true) {
-                              _selected.add(id);
-                            } else {
-                              _selected.remove(id);
-                            }
-                          });
-                        },
-                        dense: true,
-                      );
-                    })
-                    .toList(),
+        width: 320,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton.icon(
+                  onPressed: _selectAll,
+                  icon: const Icon(Symbols.select_all, size: 14),
+                  label: const Text('All', style: TextStyle(fontSize: 12)),
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _deselectAll,
+                  icon: const Icon(Symbols.deselect, size: 14),
+                  label: const Text('None', style: TextStyle(fontSize: 12)),
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (widget.allWorkspaces.isEmpty)
+              const Text('No workspaces available.')
+            else
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: widget.allWorkspaces
+                      .map((ws) {
+                        final id = ws['id'] as String;
+                        final name = ws['name'] as String? ?? id;
+                        return CheckboxListTile(
+                          title: Text(name, style: const TextStyle(fontSize: 13)),
+                          subtitle: Text(id, style: Theme.of(context).textTheme.bodySmall),
+                          value: _selected.contains(id),
+                          onChanged: (checked) {
+                            setState(() {
+                              if (checked == true) {
+                                _selected.add(id);
+                              } else {
+                                _selected.remove(id);
+                              }
+                            });
+                          },
+                          dense: true,
+                        );
+                      })
+                      .toList(),
+                ),
               ),
+          ],
+        ),
       ),
       actions: [
         TextButton(

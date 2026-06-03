@@ -4,7 +4,7 @@ import 'package:executive_assistant/widgets/scope_picker.dart';
 
 void main() {
   group('ScopePicker', () {
-    testWidgets('shows All badge when scope is all', (tester) async {
+    testWidgets('shows All ✓, Select, Off segments', (tester) async {
       await tester.pumpWidget(_wrap(
         ScopePicker(
           scope: ScopeState.all,
@@ -12,74 +12,62 @@ void main() {
         ),
       ));
       expect(find.text('All ✓'), findsOneWidget);
-    });
-
-    testWidgets('shows count badge when scope is selected', (tester) async {
-      await tester.pumpWidget(_wrap(
-        ScopePicker(
-          scope: ScopeState.selected,
-          selectedWorkspaceIds: ['ws-1', 'ws-2', 'ws-3'],
-          onChanged: (_) {},
-        ),
-      ));
-      expect(find.text('3 WS ✓'), findsOneWidget);
-    });
-
-    testWidgets('shows Off badge when scope is none', (tester) async {
-      await tester.pumpWidget(_wrap(
-        ScopePicker(
-          scope: ScopeState.none,
-          onChanged: (_) {},
-        ),
-      ));
+      expect(find.text('Select'), findsOneWidget);
       expect(find.text('Off'), findsOneWidget);
     });
 
-    testWidgets('tapping badge opens popup menu', (tester) async {
+    testWidgets('highlights All when scope is all', (tester) async {
       await tester.pumpWidget(_wrap(
         ScopePicker(
           scope: ScopeState.all,
           onChanged: (_) {},
         ),
       ));
-      await tester.tap(find.text('All ✓'));
-      await tester.pumpAndSettle();
-      expect(find.text('Enable for all workspaces'), findsOneWidget);
-      expect(find.text('Enable for selected workspaces…'), findsOneWidget);
-      expect(find.text('Disable'), findsOneWidget);
+      // All should have bold style
+      final allText = tester.widget<Text>(find.text('All ✓'));
+      expect(allText.style?.fontWeight, FontWeight.w700);
+      final offText = tester.widget<Text>(find.text('Off'));
+      expect(offText.style?.fontWeight, FontWeight.w400);
     });
 
-    testWidgets('choosing All from popup fires onChanged', (tester) async {
+    testWidgets('shows count when scope is selected', (tester) async {
+      await tester.pumpWidget(_wrap(
+        ScopePicker(
+          scope: ScopeState.selected,
+          selectedWorkspaceIds: ['ws-1', 'ws-2'],
+          onChanged: (_) {},
+        ),
+      ));
+      expect(find.text('2 WS'), findsOneWidget);
+    });
+
+    testWidgets('tapping All fires onChanged immediately', (tester) async {
       ScopeChange? result;
       await tester.pumpWidget(_wrap(
         ScopePicker(
           scope: ScopeState.none,
+          onChanged: (c) => result = c,
+        ),
+      ));
+      await tester.tap(find.text('All ✓'));
+      await tester.pumpAndSettle();
+      expect(result?.scope, ScopeState.all);
+    });
+
+    testWidgets('tapping Off fires onChanged immediately', (tester) async {
+      ScopeChange? result;
+      await tester.pumpWidget(_wrap(
+        ScopePicker(
+          scope: ScopeState.all,
           onChanged: (c) => result = c,
         ),
       ));
       await tester.tap(find.text('Off'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Enable for all workspaces'));
-      await tester.pumpAndSettle();
-      expect(result?.scope, ScopeState.all);
-    });
-
-    testWidgets('choosing Disable from popup fires onChanged', (tester) async {
-      ScopeChange? result;
-      await tester.pumpWidget(_wrap(
-        ScopePicker(
-          scope: ScopeState.all,
-          onChanged: (c) => result = c,
-        ),
-      ));
-      await tester.tap(find.text('All ✓'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Disable'));
-      await tester.pumpAndSettle();
       expect(result?.scope, ScopeState.none);
     });
 
-    testWidgets('choosing Selected opens workspace modal', (tester) async {
+    testWidgets('tapping Select opens workspace modal', (tester) async {
       await tester.pumpWidget(_wrap(
         ScopePicker(
           scope: ScopeState.all,
@@ -91,18 +79,17 @@ void main() {
           onChanged: (_) {},
         ),
       ));
-      await tester.tap(find.text('All ✓'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Enable for selected workspaces…'));
+      await tester.tap(find.text('Select'));
       await tester.pumpAndSettle();
       expect(find.text('Select Workspaces'), findsOneWidget);
       expect(find.text('Alpha'), findsOneWidget);
       expect(find.text('Beta'), findsOneWidget);
+      expect(find.text('All'), findsOneWidget);
+      expect(find.text('None'), findsOneWidget);
       expect(find.text('Apply'), findsOneWidget);
     });
 
-    testWidgets('workspace modal applies selected ids', (tester) async {
-      ScopeChange? result;
+    testWidgets('Select All / Deselect All work in modal', (tester) async {
       await tester.pumpWidget(_wrap(
         ScopePicker(
           scope: ScopeState.all,
@@ -111,24 +98,26 @@ void main() {
             {'id': 'ws-1', 'name': 'Alpha'},
             {'id': 'ws-2', 'name': 'Beta'},
           ],
-          onChanged: (c) => result = c,
+          onChanged: (_) {},
         ),
       ));
-      await tester.tap(find.text('All ✓'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Enable for selected workspaces…'));
+      await tester.tap(find.text('Select'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byType(CheckboxListTile).first);
+      // Select All
+      await tester.tap(find.text('All'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Apply'));
-      await tester.pumpAndSettle();
+      final checkboxes = tester.widgetList<CheckboxListTile>(find.byType(CheckboxListTile));
+      expect(checkboxes.every((c) => c.value == true), isTrue);
 
-      expect(result?.scope, ScopeState.selected);
-      expect(result?.workspaceIds, ['ws-1']);
+      // Deselect All
+      await tester.tap(find.text('None'));
+      await tester.pumpAndSettle();
+      final checkboxes2 = tester.widgetList<CheckboxListTile>(find.byType(CheckboxListTile));
+      expect(checkboxes2.every((c) => c.value == false), isTrue);
     });
 
-    testWidgets('selecting zero workspaces switches to none', (tester) async {
+    testWidgets('applying with zero workspaces switches to none', (tester) async {
       ScopeChange? result;
       await tester.pumpWidget(_wrap(
         ScopePicker(
@@ -140,12 +129,9 @@ void main() {
           onChanged: (c) => result = c,
         ),
       ));
-      await tester.tap(find.text('1 WS ✓'));
+      await tester.tap(find.text('1 WS'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Enable for selected workspaces (1)…'));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byType(CheckboxListTile).first);
+      await tester.tap(find.text('None'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Apply'));
       await tester.pumpAndSettle();
