@@ -23,6 +23,7 @@ dependencies:
   flutter_secure_storage: ^9.2.4
   google_fonts: ^6.2.1
   material_symbols_icons: ^4.2928.1
+  webview_flutter: ^4.13.1
 
 dev_dependencies:
   flutter_test:
