@@ -594,7 +594,8 @@ class SubagentCoordinator:
         return defs
 
     async def list_defs_with_scope(self) -> list[tuple[AgentDef, str]]:
-        """Return agent defs tagged with scope ('workspace' or 'user')."""
+        """Return agent defs tagged with scope ('workspace' or 'user'),
+        filtered by item_scopes (All / Selected / None)."""
         scoped: list[tuple[AgentDef, str]] = []
         seen: set[str] = set()
 
@@ -616,10 +617,31 @@ class SubagentCoordinator:
                         data = yaml.safe_load((d / "config.yaml").read_text()) or {}
                         data.pop("disallowed_tools", None)
                         scoped.append((AgentDef(**data), "user"))
+                        seen.add(d.name)
         except Exception:
             pass
 
-        return scoped
+        # 3. Filter by item_scopes (All / Selected / None)
+        try:
+            from connectkit.item_scopes import ItemScopeDB
+
+            paths = _paths.get_paths(user_id=self.user_id)
+            scope_db = ItemScopeDB(paths.base)
+            all_scoped = scope_db.get_all_scoped(self.user_id, "subagent")
+        except Exception:
+            all_scoped = {}
+
+        filtered: list[tuple[AgentDef, str]] = []
+        for agent_def, file_scope in scoped:
+            if agent_def.name in all_scoped:
+                item = all_scoped[agent_def.name]
+                if item.scope == "none":
+                    continue
+                if item.scope == "selected" and self.workspace_id not in item.workspace_ids:
+                    continue
+            filtered.append((agent_def, file_scope))
+
+        return filtered
 
     def load_def(self, name: str) -> AgentDef | None:
         # 1. Workspace-scoped: prefer PROFILE.md
