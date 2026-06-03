@@ -1,6 +1,6 @@
 ---
-name: skill-creator
-description: Create new skills using the skill_create tool. When creating skills, use skill_create with the skill name and full SKILL.md content - it automatically saves to the correct user skills directory from config. Never use files_write or mkdir for skill creation.
+name: skill-creation
+description: Create, modify, and evaluate skills using the files_* tools. When creating skills, use files_write to write SKILL.md files to the skills directory, then call skills_reload() to refresh the registry. Never use skill_create — it has been removed.
 ---
 
 # Skill Creator

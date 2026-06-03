@@ -63,7 +63,7 @@ def skills_load(
     available skills catalog in the system prompt.
 
     Args:
-        name: Skill name (e.g. 'skill-creator', 'autoresearch')
+        name: Skill name (e.g. 'skill-creation', 'autoresearch')
         user_id: User identifier
         workspace_id: Workspace identifier
 

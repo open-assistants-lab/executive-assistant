@@ -86,21 +86,44 @@ moment in the conversation.
 
 ## Canvas Tab
 
-### Open-JSON-UI Component Spec
+### HTML Rendering
 
-The agent generates Open-JSON-UI JSON. The Flutter renderer maps component types to native widgets.
-V1 supported components:
+The agent generates HTML (with optional inline CSS or `<style>` blocks). A Flutter
+`WebView` (`webview_flutter`) renders it in a sandboxed iframe. A JavaScript
+`postMessage` bridge handles user interactions back to the agent.
 
-| Component | Flutter Widget | Properties |
-|-----------|---------------|------------|
-| `text` | `Text` | `value`, `style` (h1/h2/body/caption) |
-| `text_field` | `TextField` | `label`, `value`, `placeholder`, `onChange` |
-| `text_area` | `TextField(maxLines: 6)` | `label`, `value`, `rows`, `onChange` |
-| `checkbox` | `CheckboxListTile` | `label`, `checked`, `onChange` |
-| `dropdown` | `DropdownButton` | `label`, `value`, `options[]`, `onChange` |
-| `button` | `FilledButton` / `OutlinedButton` | `label`, `action`, `variant` (primary/secondary/danger) |
-| `section` | `ExpansionTile` | `title`, `collapsed`, `children[]` |
-| `card` | `Card` | `title`, `children[]` |
+```html
+<!-- Agent generates: -->
+<div class="skill-form" style="padding:16px;font-family:system-ui">
+  <h2>New Skill</h2>
+  <input name="name" placeholder="Name" value="commit-writer">
+  <textarea name="description" placeholder="Description"></textarea>
+  <textarea name="content" placeholder="Skill instructions" rows="8"></textarea>
+  <button onclick="postMessage({action:'save',fields:{...}})">Save</button>
+</div>
+```
+
+**Why HTML over Open-JSON-UI or A2UI:**
+- Agents already know HTML/CSS well — no protocol to learn
+- No component catalog to build and maintain
+- No renderer mapping to implement — `webview_flutter` exists
+- Unlimited flexibility — any UI the agent can describe
+- `canvas-painting` skill provides templates and validation
+
+#### Required Fields Validation
+
+The `canvas-painting` skill includes field schemas for known surface types.
+The system prompt embeds these schemas so the agent always generates complete forms.
+
+Backend validation before sending `canvas_update` to the frontend:
+
+```python
+CANVAS_SCHEMAS = {
+    "skill-form": ["name", "description", "content"],
+    "subagent-form": ["name", "description", "model", "system_prompt"],
+    "result-card": [],  # free-form
+}
+```
 
 ### WebSocket Events
 
@@ -215,34 +238,23 @@ Canvas surfaces have state (form field values, checkbox states). State flows thr
 | `desktop_layout.dart` | Remove Files from sidebar |
 | `tablet_rail.dart` | Remove Files from sidebar |
 | `workspace_panel.dart` | Replace 4 tabs with 3 (Canvas, Files, Capabilities) |
-| `canvas_tab.dart` (new) | Open-JSON-UI renderer widget |
+| `canvas_tab.dart` (new) | WebView widget with postMessage bridge |
 | `capabilities_tab.dart` (new) | Unified Tools/Skills/Subagents view |
 | `chat_screen.dart` | Render skills_load as inline event |
-| `open_json_ui_renderer.dart` (new) | Maps Open-JSON-UI components → Flutter widgets |
+| `canvas_painter.dart` (new) | Backend: canvas-painting skill (SKILL.md seed) |
+| `skills_seed/skill-creation/` | Renamed from skill-creator, SKILL.md updated |
 
-### Widget: `OpenJsonUiRenderer`
+### Widget: `CanvasTab`
+
+Uses `webview_flutter` to render agent-generated HTML in a sandboxed WebView. A
+JavaScript `postMessage` bridge relays user interactions (button clicks, form
+submissions) back to the agent via the existing WebSocket.
 
 ```dart
-class OpenJsonUiRenderer extends StatelessWidget {
-  final List<Map<String, dynamic>> components;
-  
-  Widget build(BuildContext context) {
-    return ListView(
-      children: components.map(_buildComponent).toList(),
-    );
-  }
-  
-  Widget _buildComponent(Map<String, dynamic> spec) {
-    return switch (spec['type']) {
-      'text' => Text(spec['value']),
-      'text_field' => _buildTextField(spec),
-      'checkbox' => _buildCheckbox(spec),
-      'button' => _buildButton(spec),
-      'section' => _buildSection(spec),
-      'card' => _buildCard(spec),
-      _ => SizedBox.shrink(),
-    };
-  }
+class CanvasTab extends ConsumerStatefulWidget {
+  // Listens for canvas_update events on WebSocket
+  // Each surface renders as a WebView with unique surface_id
+  // postMessage bridge sends user actions back to chat
 }
 ```
 
@@ -306,12 +318,24 @@ enums are removed. `_WorkspacePanelTab` becomes: `{files, canvas, capabilities}`
 ## Non-Goals
 
 - AG-UI adoption (use existing WebSocket, revise later)
-- A2UI adoption (use Open-JSON-UI for simpler spec)
-- `canvas_create` agent tool (agent generates JSON inline, backend forwards)
+- A2UI / Open-JSON-UI adoption (use HTML + WebView for simpler implementation)
+- `canvas_create` agent tool (agent generates HTML inline, backend wraps in canvas_update)
 - Full bidirectional state sync (V1: user actions → agent → updated canvas, no real-time
   optimistic updates)
 - Capabilities bulk operations (scope picker per item only)
-- Canvas for arbitrary HTML/iframes (Open-JSON-UI components only)
+- Canvas for arbitrary HTML/iframes (sandboxed WebView only)
+
+### Canvas Skill
+
+A new seed skill `canvas-painting` ships alongside `skill-creation`. It provides:
+
+- HTML/CSS templates for common surface types (skill forms, subagent forms, result cards)
+- Required-field schemas for each surface type
+- postMessage bridge pattern documentation
+- Field validation rules
+
+Skills follow the `{domain}-{action}` naming pattern:
+`skill-creation`, `canvas-painting`, `subagent-creation`
 
 ## Migration Path
 
