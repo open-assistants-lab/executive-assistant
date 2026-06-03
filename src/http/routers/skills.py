@@ -124,7 +124,7 @@ def _to_summary(skill: dict[str, Any], loaded_names: set[str]) -> SkillSummary:
         description=skill.get("description", ""),
         scope="all",
         workspace_id=None,
-        is_loaded=name in loaded_names,
+        is_loaded=skill["name"] in loaded_names,
         disable_model_invocation=_disable_model_invocation(metadata),
     )
 
