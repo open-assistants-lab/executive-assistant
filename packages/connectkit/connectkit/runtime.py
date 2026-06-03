@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +39,7 @@ class ConnectorRuntime:
         self.user_id = user_id
         self._specs: list[ConnectorSpec] = []
         self._load_specs()
+        self._resolve_defaults()
 
     def _load_specs(self) -> None:
         if self.spec_dir.exists():
@@ -48,6 +50,45 @@ class ConnectorRuntime:
 
     def reload(self) -> None:
         self._load_specs()
+        self._resolve_defaults()
+
+    def _resolve_defaults(self) -> None:
+        """Fill required_field defaults from environment variables.
+
+        Candidates (in order) for field ``client_id`` on ``google-workspace``
+        (whose CLI command is ``gws``):
+          1. DEFAULT_GWS_CLIENT_ID
+          2. GWS_CLIENT_ID
+          3. DEFAULT_GOOGLE_WORKSPACE_CLIENT_ID
+          4. GOOGLE_WORKSPACE_CLIENT_ID
+        """
+        for spec in self._specs:
+            service_upper = spec.name.upper().replace("-", "_").replace(".", "_")
+            for field in spec.auth.required_fields:
+                if field.default:
+                    continue
+                field_upper = field.name.upper()
+                candidates: list[str] = []
+                # Prefer the tool command abbreviation (e.g. GWS)
+                ts_list = spec.get_tool_sources()
+                if ts_list:
+                    ts = ts_list[0]
+                    cmd = getattr(ts, "command", None)
+                    if cmd:
+                        cmd_upper = cmd.upper()
+                        candidates.extend([
+                            f"DEFAULT_{cmd_upper}_{field_upper}",
+                            f"{cmd_upper}_{field_upper}",
+                        ])
+                candidates.extend([
+                    f"DEFAULT_{service_upper}_{field_upper}",
+                    f"{service_upper}_{field_upper}",
+                ])
+                for key in candidates:
+                    val = os.environ.get(key)
+                    if val:
+                        field.default = val
+                        break
 
     def list_available(self) -> list[dict[str, Any]]:
         connected = set(self.vault.list_connected())
