@@ -112,19 +112,15 @@ keyed by user.
 
 ### Storage
 
-A unified `capabilities` table (or per-resource tables) tracks scope per item:
+A unified `item_scopes` table tracks scope per item:
 
 ```
-capabilities:
+item_scopes:
   user_id, resource_type (tool/skill/subagent), resource_name,
   scope (all/selected/none), workspace_ids (json list)
 ```
 
-Backward compatibility: during migration, existing per-workspace tool state is
-converted per the rules in Migration Path below. Existing "personal" scope tools
-(global, no workspace override) map to `scope=all`. Tools with explicit
-per-workspace enable/disable map to `scope=selected` with the union of all
-workspace IDs.
+See Migration Path below for the conversion rules.
 
 ## Frontend Changes
 
@@ -152,10 +148,16 @@ class ScopePicker extends StatelessWidget {
 }
 ```
 
-On tap, shows a popup menu anchored to the badge:
-1. Three radio options: All / Selected / None
-2. If "Selected" is chosen, tapping it opens a modal dialog with a scrollable
-   checklist of workspaces and an "Apply" button.
+On tap, the badge opens a popup menu with three options:
+1. **All** — applies immediately, no further action needed
+2. **Selected…** — always opens the workspace modal. Current selection is shown
+   as a subtitle (e.g. "3 workspaces"). User can add/remove workspaces, then
+   "Apply" to confirm.
+3. **None** — applies immediately, disables the item everywhere
+
+When scope is already "Selected", tapping the badge reopens the same popup.
+This lets the user edit their workspace list at any time without cycling
+through other states.
 
 ### Badge display
 
@@ -183,7 +185,7 @@ When an agent loop is created for workspace W, the backend resolves available
 tools/skills/subagents by querying:
 
 ```sql
-SELECT * FROM capabilities
+SELECT * FROM item_scopes
 WHERE user_id = ?
   AND (
     scope = 'all'
@@ -192,11 +194,10 @@ WHERE user_id = ?
 ```
 
 Items with `scope=none` or `scope=selected` without W in `workspace_ids`
-are excluded from the agent's tool list. This replaces the current logic in
-`create_sdk_loop()` that loads tools per-workspace from the old schema.
+are excluded from the agent's tool list.
 
 Skills are treated the same way — `SkillRegistry` filters loaded skills
-against the capabilities table before injecting them into the agent.
+against the `item_scopes` table before injecting them into the agent.
 
 Subagents follow the same pattern — available subagents are filtered by
 workspace scope before the coordinator can invoke them.
@@ -208,30 +209,41 @@ workspace scope before the coordinator can invoke them.
    Items with `scope=none` are not available anywhere.
 
 2. **New tool added by SDK update**: Defaults to `scope=all` (opt-out — new
-   capabilities are available everywhere until explicitly restricted). Same
-   for new skills and subagents added via registry updates.
+   bundled capabilities are available everywhere until explicitly restricted).
 
-3. **Workspace deleted**: References to deleted workspaces in `workspace_ids` are
+3. **New skill/subagent installed from registry**: Same as SDK tools — defaults
+   to `scope=all`. Registry-provided items are treated like bundled capabilities.
+
+4. **Workspace deleted**: References to deleted workspaces in `workspace_ids` are
    cleaned up by the backend on delete. If no workspaces remain, the item
    automatically falls back to `scope=none`.
 
-4. **Workspace renamed**: Uses workspace ID internally, so rename has no effect.
+5. **Workspace renamed**: Uses workspace ID internally, so rename has no effect.
 
-5. **Default state for new user-created items** (skills/subagents created by the
+6. **Default state for new user-created items** (skills/subagents created by the
    user): Default to `scope=selected` with the current workspace preselected.
    This is the conservative default — user explicitly expands scope.
 
-6. **Bulk operations**: Future consideration — not in V1. Each item is
+7. **Bulk operations**: Future consideration — not in V1. Each item is
    independently configurable.
 
-7. **"Personal" workspace after migration**: Continues to exist for chat
+8. **"Personal" workspace after migration**: Continues to exist for chat
    history, files, and conversations. For tools/skills/subagents, it has no
    special meaning — it's just another workspace in the picker list.
 
-8. **Item enabled in both personal and specific workspace (conflict resolution)**:
+9. **Item enabled in both personal and specific workspace (conflict resolution)**:
    During migration, if a tool has state in both personal AND workspace W, the
    union is taken: `scope=selected` with `workspace_ids` containing all
    workspaces where it was explicitly enabled (ignoring personal).
+
+10. **Workspace list for the modal**: The modal's workspace checklist is sourced
+    from the existing `GET /workspaces` endpoint (currently used by the sidebar).
+    No new endpoint needed.
+
+11. **Storage table naming**: The `item_scopes` table is used instead of
+    `capabilities` to avoid collision with the existing `capabilities.yaml`
+    / `capabilities.py` concept. The table name distinguishes scope storage
+    from capability definitions.
 
 ## Non-Goals
 
@@ -242,7 +254,7 @@ workspace scope before the coordinator can invoke them.
 
 ## Migration Path
 
-1. Add the `capabilities` table and scope API endpoints
+1. Add the `item_scopes` table and scope API endpoints
 2. Migrate existing per-workspace tool state:
    - If tool is enabled in personal scope AND has no per-workspace overrides →
      `scope=all`
