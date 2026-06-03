@@ -81,16 +81,6 @@ class _ToolsPanelState extends ConsumerState<ToolsPanel> {
                   ],
                 ),
                 SizedBox(height: tokens.spacing.sm),
-                ScopeSwitcher(
-                  scope: _scope,
-                  onChanged: (s) {
-                    setState(() {
-                      _scope = s;
-                    });
-                    _load();
-                  },
-                ),
-                SizedBox(height: tokens.spacing.sm),
                 TextField(
                   controller: _searchController,
                   decoration: const InputDecoration(
@@ -100,6 +90,16 @@ class _ToolsPanelState extends ConsumerState<ToolsPanel> {
                   ),
                   onChanged: (v) =>
                       ref.read(toolsProvider.notifier).setSearch(v),
+                ),
+                SizedBox(height: tokens.spacing.sm),
+                ScopeSwitcher(
+                  scope: _scope,
+                  onChanged: (s) {
+                    setState(() {
+                      _scope = s;
+                    });
+                    _load();
+                  },
                 ),
               ],
             ),
