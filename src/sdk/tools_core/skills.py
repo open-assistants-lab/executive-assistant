@@ -9,6 +9,7 @@ Design:
   2. When a task matches a skill's description, call skills_load(name).
   3. After creating/editing/deleting a SKILL.md file via files_* tools,
      call skills_reload() to refresh the catalog.
+  4. Both tools respect item_scopes (All / Selected / None) per workspace.
 """
 
 from __future__ import annotations
@@ -25,11 +26,29 @@ logger = get_logger()
 
 
 def _get_registry(user_id: str, workspace_id: str = "personal"):
-    """Resolve the SkillRegistry for the given user and workspace."""
+    return get_skill_registry(user_id=user_id, workspace_id=workspace_id)
+
+
+def _is_available(name: str, user_id: str, workspace_id: str) -> tuple[bool, str]:
+    """Check item_scopes: returns (available, reason)."""
     try:
-        return get_skill_registry(user_id=user_id, workspace_id=workspace_id)
-    except Exception as exc:
-        raise RuntimeError(f"Could not resolve skill registry: {exc}") from exc
+        from connectkit.item_scopes import ItemScopeDB
+
+        paths = get_paths(user_id, workspace_id=workspace_id)
+        scope_db = ItemScopeDB(paths.base)
+        excluded = scope_db.get_excluded_names(user_id, "skill")
+        if name in excluded:
+            return False, f"Skill '{name}' is disabled (scope=none)."
+        scoped = scope_db.get(user_id, "skill", name)
+        if scoped and scoped.scope == "selected" and workspace_id not in scoped.workspace_ids:
+            return False, f"Skill '{name}' is not enabled for this workspace (scope=selected)."
+    except Exception:
+        pass
+    return True, ""
+
+
+def _get_registry(user_id: str, workspace_id: str = "personal"):
+    return get_skill_registry(user_id=user_id, workspace_id=workspace_id)
 
 
 @tool
@@ -53,8 +72,12 @@ def skills_load(
     """
     try:
         registry = _get_registry(user_id, workspace_id)
-    except RuntimeError as exc:
+    except Exception as exc:
         return str(exc)
+
+    available, reason = _is_available(name, user_id, workspace_id)
+    if not available:
+        return reason
 
     skill = registry.get_skill(name)
     if not skill:
@@ -107,15 +130,23 @@ def skills_reload(
     try:
         registry = _get_registry(user_id, workspace_id)
         registry.reload()
-    except RuntimeError as exc:
+    except Exception as exc:
         return str(exc)
 
     skills = registry.get_all_skills()
     if not skills:
         return "No skills available."
 
-    parts: list[str] = []
+    # Filter by item_scopes for this workspace
+    available_skills = []
     for s in skills:
+        name = s.get("name", "")
+        avail, _ = _is_available(name, user_id, workspace_id)
+        if avail:
+            available_skills.append(s)
+
+    parts: list[str] = []
+    for s in available_skills:
         name = s.get("name", "")
         desc = s.get("description", "") or ""
         loaded = " [loaded]" if name in registry.get_loaded_skills() else ""
