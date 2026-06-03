@@ -220,13 +220,10 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
 
   Future<void> _showCreateDialog() async {
     final wsId = ref.read(currentWorkspaceIdProvider);
-    final defaultScope = wsId == 'personal' ? 'user' : 'workspace';
-
     final nameCtrl = TextEditingController();
     final descriptionCtrl = TextEditingController();
     final modelCtrl = TextEditingController();
     final systemPromptCtrl = TextEditingController();
-    var scope = defaultScope;
     var maxLlmCalls = 50;
     var costLimitUsd = 1.0;
     var timeoutSeconds = 300;
@@ -287,20 +284,6 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
                       hintText: 'Researches topics and summarizes',
                     ),
                     maxLines: 2,
-                  ),
-                  const SizedBox(height: 10),
-                  DropdownButtonFormField<String>(
-                    value: scope,
-                    decoration: const InputDecoration(
-                      labelText: 'Scope',
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'user', child: Text('User')),
-                      DropdownMenuItem(value: 'workspace', child: Text('Workspace')),
-                    ],
-                    onChanged: submitting ? null : (v) {
-                      if (v != null) setDialogState(() => scope = v);
-                    },
                   ),
                   const SizedBox(height: 10),
                   TextField(
@@ -443,7 +426,7 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
                               model: modelCtrl.text.trim().isEmpty
                                   ? null
                                   : modelCtrl.text.trim(),
-                              scope: scope,
+                              scope: 'user',
                               maxLlmCalls: maxLlmCalls,
                               costLimitUsd: costLimitUsd,
                               timeoutSeconds: timeoutSeconds,

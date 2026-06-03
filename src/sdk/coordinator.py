@@ -130,7 +130,7 @@ class SubagentCoordinator:
         self.user_id = user_id
         self.workspace_id = workspace_id
         self.settings = get_settings()
-        self.base_path = _paths.get_paths(user_id, workspace_id=workspace_id).workspace_subagents_dir()
+        self.base_path = _paths.get_paths(user_id=self.user_id).user_subagents_dir()
         self.base_path.mkdir(parents=True, exist_ok=True)
         self._db: WorkQueueDB | None = None
         self._background_tasks: set[asyncio.Task[Any]] = set()
@@ -567,59 +567,24 @@ class SubagentCoordinator:
 
     async def list_defs(self) -> list[AgentDef]:
         defs: list[AgentDef] = []
-        seen: set[str] = set()
-
-        # 1. Workspace-scoped subagents
         if self.base_path.exists():
             for d in self.base_path.iterdir():
                 if d.is_dir() and (d / "config.yaml").exists():
                     agent_def = self.load_def(d.name)
                     if agent_def:
                         defs.append(agent_def)
-                        seen.add(d.name)
-
-        # 2. User-global fallback
-        try:
-            user_dir = _paths.get_paths(user_id=self.user_id).user_subagents_dir()
-            if user_dir.exists():
-                for d in user_dir.iterdir():
-                    if d.is_dir() and d.name not in seen and (d / "config.yaml").exists():
-                        data = yaml.safe_load((d / "config.yaml").read_text()) or {}
-                        data.pop("disallowed_tools", None)
-                        agent_def = AgentDef(**data)
-                        defs.append(agent_def)
-        except Exception:
-            pass
-
         return defs
 
     async def list_defs_with_scope(self) -> list[tuple[AgentDef, str]]:
-        """Return agent defs tagged with scope ('workspace' or 'user'),
-        filtered by item_scopes (All / Selected / None)."""
+        """Return agent defs from user-level dir, filtered by item_scopes."""
         scoped: list[tuple[AgentDef, str]] = []
-        seen: set[str] = set()
 
-        # 1. Workspace-scoped subagents
         if self.base_path.exists():
             for d in self.base_path.iterdir():
                 if d.is_dir() and (d / "config.yaml").exists():
                     agent_def = self.load_def(d.name)
                     if agent_def:
-                        scoped.append((agent_def, "workspace"))
-                        seen.add(d.name)
-
-        # 2. User-global fallback (only for defs NOT seen in workspace)
-        try:
-            user_dir = _paths.get_paths(user_id=self.user_id).user_subagents_dir()
-            if user_dir.exists():
-                for d in user_dir.iterdir():
-                    if d.is_dir() and d.name not in seen and (d / "config.yaml").exists():
-                        data = yaml.safe_load((d / "config.yaml").read_text()) or {}
-                        data.pop("disallowed_tools", None)
-                        scoped.append((AgentDef(**data), "user"))
-                        seen.add(d.name)
-        except Exception:
-            pass
+                        scoped.append((agent_def, "user"))
 
         # 3. Filter by item_scopes (All / Selected / None)
         try:
@@ -644,61 +609,25 @@ class SubagentCoordinator:
         return filtered
 
     def load_def(self, name: str) -> AgentDef | None:
-        # 1. Workspace-scoped: prefer PROFILE.md
+        # Prefer PROFILE.md, fall back to config.yaml
         profile_path = self.base_path / name / "PROFILE.md"
         config_path = self.base_path / name / "config.yaml"
 
         if profile_path.exists():
             try:
                 from agentprofile.parser import load_profile as _load_ap
-
                 profile = _load_ap(str(profile_path))
                 return AgentDef.from_profile(profile.model_dump())
             except Exception as e:
-                logger.error(
-                    "subagent.load_failed",
-                    {"name": name, "error": str(e), "error_type": type(e).__name__},
-                    user_id=self.user_id,
-                )
+                logger.error("subagent.load_failed", {"name": name, "error": str(e), "error_type": type(e).__name__}, user_id=self.user_id)
 
         if config_path.exists():
             try:
                 data = yaml.safe_load(config_path.read_text()) or {}
                 data.pop("disallowed_tools", None)
                 return AgentDef(**data)
-            except yaml.YAMLError as e:
-                logger.error(
-                    "subagent.corrupt_yaml",
-                    {"name": name, "path": str(config_path), "error": str(e)},
-                    user_id=self.user_id,
-                )
             except Exception as e:
-                logger.error(
-                    "subagent.load_failed",
-                    {"name": name, "error": str(e), "error_type": type(e).__name__},
-                    user_id=self.user_id,
-                )
-
-        # 2. User-global fallback
-        try:
-            config_path = _paths.get_paths(user_id=self.user_id).user_subagents_dir() / name / "config.yaml"
-            if config_path.exists():
-                data = yaml.safe_load(config_path.read_text()) or {}
-                data.pop("disallowed_tools", None)
-                return AgentDef(**data)
-        except yaml.YAMLError as e:
-            logger.error(
-                "subagent.corrupt_yaml",
-                {"name": name, "path": str(config_path),
-                 "error": str(e)},
-                user_id=self.user_id,
-            )
-        except Exception as e:
-            logger.error(
-                "subagent.load_failed",
-                {"name": name, "error": str(e), "error_type": type(e).__name__},
-                user_id=self.user_id,
-            )
+                logger.error("subagent.load_failed", {"name": name, "error": str(e), "error_type": type(e).__name__}, user_id=self.user_id)
 
         return None
 

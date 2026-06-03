@@ -190,15 +190,11 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
         final skill = _skills[i];
         final name = skill['name']?.toString() ?? '';
         final description = skill['description']?.toString() ?? '';
-        final scope = _scopeOf(skill);
         final usageCount = _usageCount(name);
         return EaListTile(
           leading: Icon(Symbols.psychology, size: 18, color: context.tokens.colors.accent),
           title: name,
           subtitle: usageCount > 0 ? 'used by $usageCount agents' : (description.isNotEmpty ? description : null),
-          trailingBadges: [
-            _ScopeBadge(label: scope),
-          ],
           trailingActions: [
             IconButton(
               icon: Icon(Symbols.edit, size: 16),
@@ -219,7 +215,6 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
     final name = skill['name']?.toString() ?? '';
     if (name.isEmpty) return;
     final workspaceId = ref.read(currentWorkspaceIdProvider);
-    final defaultScope = _scopeOf(skill);
     final detail = await ref
         .read(apiClientProvider)
         .getSkillDetail(name, workspaceId: workspaceId);
@@ -229,7 +224,6 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
     final contentCtrl = TextEditingController(
       text: detail['content']?.toString() ?? '',
     );
-    var scope = defaultScope;
     var submitting = false;
 
     final t = context.tokens;
@@ -248,9 +242,7 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
                     TextField(
                       controller: descriptionCtrl,
                       style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
-                      ),
+                      decoration: const InputDecoration(labelText: 'Description'),
                     ),
                     const SizedBox(height: 10),
                     TextField(
@@ -258,30 +250,7 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
                       style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
                       minLines: 6,
                       maxLines: 10,
-                      decoration: const InputDecoration(
-                        labelText: 'Content',
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<String>(
-                      value: scope,
-                      decoration: const InputDecoration(
-                        labelText: 'Scope',
-                      ),
-                      items: const [
-                        DropdownMenuItem(value: 'user', child: Text('User')),
-                        DropdownMenuItem(
-                          value: 'workspace',
-                          child: Text('Workspace'),
-                        ),
-                      ],
-                      onChanged: submitting
-                          ? null
-                          : (value) {
-                              if (value != null) {
-                                setDialogState(() => scope = value);
-                              }
-                            },
+                      decoration: const InputDecoration(labelText: 'Content'),
                     ),
                   ],
                 ),
@@ -316,7 +285,7 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
                                 name,
                                 description: descriptionCtrl.text.trim(),
                                 content: contentCtrl.text,
-                                scope: scope,
+                                scope: 'user',
                                 workspaceId: workspaceId,
                               );
                           if (ctx.mounted) Navigator.pop(ctx, true);
@@ -350,7 +319,6 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
   Future<void> _confirmDelete(Map<String, dynamic> skill) async {
     final name = skill['name']?.toString() ?? '';
     if (name.isEmpty) return;
-    final scope = _scopeOf(skill);
     final workspaceId = ref.read(currentWorkspaceIdProvider);
     final confirmed = await showDialog<bool>(
       context: context,
@@ -358,7 +326,7 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
         child: AlertDialog(
           title: Text('Delete skill?', style: context.tokens.typography.textTheme.titleLarge?.copyWith(color: context.tokens.colors.textPrimary)),
           content: Text(
-            'Delete $name from ${scope == 'workspace' ? 'workspace' : 'user'} skills?',
+            'Delete $name?',
             style: context.tokens.typography.textTheme.bodyMedium?.copyWith(color: context.tokens.colors.textPrimary),
           ),
           actions: [
@@ -385,7 +353,7 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
     try {
       await ref
           .read(apiClientProvider)
-          .deleteSkill(name, scope: scope, workspaceId: workspaceId);
+          .deleteSkill(name, scope: 'user', workspaceId: workspaceId);
       await _loadSkills();
     } catch (e) {
       if (!mounted) return;
@@ -397,11 +365,9 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
 
   Future<void> _showCreateDialog() async {
     final workspaceId = ref.read(currentWorkspaceIdProvider);
-    final defaultScope = workspaceId == 'personal' ? 'user' : 'workspace';
     final nameCtrl = TextEditingController();
     final descriptionCtrl = TextEditingController();
     final contentCtrl = TextEditingController();
-    var scope = defaultScope;
     var submitting = false;
 
     final t = context.tokens;
@@ -420,17 +386,13 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
                     TextField(
                       controller: nameCtrl,
                       style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
-                      decoration: const InputDecoration(
-                        labelText: 'Name',
-                      ),
+                      decoration: const InputDecoration(labelText: 'Name'),
                     ),
                     const SizedBox(height: 10),
                     TextField(
                       controller: descriptionCtrl,
                       style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
-                      ),
+                      decoration: const InputDecoration(labelText: 'Description'),
                     ),
                     const SizedBox(height: 10),
                     TextField(
@@ -438,30 +400,7 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
                       style: t.typography.textTheme.bodyLarge?.copyWith(color: t.colors.textPrimary),
                       minLines: 6,
                       maxLines: 10,
-                      decoration: const InputDecoration(
-                        labelText: 'Content',
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<String>(
-                      value: scope,
-                      decoration: const InputDecoration(
-                        labelText: 'Scope',
-                      ),
-                      items: const [
-                        DropdownMenuItem(value: 'user', child: Text('User')),
-                        DropdownMenuItem(
-                          value: 'workspace',
-                          child: Text('Workspace'),
-                        ),
-                      ],
-                      onChanged: submitting
-                          ? null
-                          : (value) {
-                              if (value != null) {
-                                setDialogState(() => scope = value);
-                              }
-                            },
+                      decoration: const InputDecoration(labelText: 'Content'),
                     ),
                   ],
                 ),
@@ -500,7 +439,7 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
                                 name,
                                 descriptionCtrl.text.trim(),
                                 contentCtrl.text,
-                                scope: scope,
+                                scope: 'user',
                                 workspaceId: workspaceId,
                               );
                           if (ctx.mounted) Navigator.pop(ctx, true);
@@ -530,13 +469,6 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
     descriptionCtrl.dispose();
     contentCtrl.dispose();
     if (created == true) await _loadSkills();
-  }
-
-  String _scopeOf(Map<String, dynamic> skill) {
-    final raw = skill['scope']?.toString() ?? 'user';
-    // Map item_scopes values back to file-location scopes
-    if (raw == 'all' || raw == 'selected' || raw == 'none') return 'user';
-    return raw == 'ws' ? 'workspace' : raw;
   }
 }
 
@@ -569,31 +501,6 @@ class _DeferredPopScopeState extends State<_DeferredPopScope> {
         });
       },
       child: widget.child,
-    );
-  }
-}
-
-class _ScopeBadge extends StatelessWidget {
-  final String label;
-
-  const _ScopeBadge({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(left: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: context.tokens.colors.accent.withAlpha(18),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        label,
-        style: context.tokens.typography.textTheme.bodySmall!.copyWith(
-          fontSize: 10,
-          color: context.tokens.colors.accent,
-        ),
-      ),
     );
   }
 }
