@@ -24,8 +24,8 @@ Replace the `ScopeSwitcher` with a **three-state scope picker per item**:
 
 | State | Badge (example) | Behavior |
 |-------|-----------------|----------|
-| **All** | `All WS ✓` (green) | Enabled in every workspace — existing and future |
-| **Selected** | `3 WS ✓` (green) | Enabled for specific workspaces only |
+| **All** | `All ✓` (green) | Enabled in every workspace — existing and future |
+| **Selected** | `3 WS ✓` (green) | Enabled for specific workspaces only. Tooltip on hover/long-press shows workspace names. |
 | **None** | `Off` (grey) | Disabled in all workspaces |
 
 Each tool/skill/subagent toggle becomes a popup menu (tap the state badge):
@@ -36,9 +36,9 @@ Each tool/skill/subagent toggle becomes a popup menu (tap the state badge):
 ○ Disable
 ```
 
-When "Selected" is chosen, a multi-select workspace checklist appears inline below
-the item (or as a second popup). The user picks one or more workspaces to enable
-the item for.
+When "Selected" is chosen, a modal dialog opens with a scrollable checklist of
+all available workspaces and their checkboxes. User selects one or more, then
+confirms with "Apply".
 
 The `ScopeSwitcher` widget is removed from `ToolsPanel`, `SkillsSidebarPanel`, and
 `SubagentsSidebarPanel`.
@@ -52,7 +52,44 @@ All three panels use identical state model and identical UX.
 
 ## Backend Changes
 
-### API: Scope parameter on toggle endpoints
+### GET endpoints
+
+All three resource types return scope data alongside item metadata. Query by
+workspace ID to filter — the backend resolves `scope=all` items automatically:
+
+```
+GET /tools?user_id=U&workspace_id=W
+
+Response:
+[
+  {
+    "name": "shell_execute",
+    "description": "Execute shell commands",
+    "category": "core",
+    "enabled": true,              // computed for this workspace
+    "scope": "all",               // all | selected | none
+    "workspace_ids": [],          // when scope=selected, the list of workspace IDs
+    "read_only": false,
+    "destructive": true,
+    …
+  },
+  {
+    "name": "app_create",
+    "description": "Create a new application",
+    "category": "apps",
+    "enabled": true,              // computed: scope=selected && W is in workspace_ids
+    "scope": "selected",
+    "workspace_ids": ["ws-1", "ws-2"],
+    …
+  },
+  …
+]
+```
+
+The `enabled` field is derived server-side — the frontend doesn't need to
+compute intersection logic. Same pattern for `/skills` and `/subagents`.
+
+### POST / PUT toggle endpoints
 
 Current:
 
@@ -131,20 +168,35 @@ The badge text is derived from the current scope state.
 
 ## Edge Cases
 
-1. **New workspace created**: If a tool has `scope=all`, the new workspace inherits it
-   automatically. If `scope=selected`, it does not (user must explicitly add it).
+1. **New workspace created**: Items with `scope=all` are automatically available.
+   Items with `scope=selected` are not (user must add the workspace explicitly).
+   Items with `scope=none` are not available anywhere.
 
-2. **Workspace deleted**: References to deleted workspaces in `workspace_ids` are
-   cleaned up by the backend on delete.
+2. **New tool added by SDK update**: Defaults to `scope=all` (opt-out — new
+   capabilities are available everywhere until explicitly restricted). Same
+   for new skills and subagents added via registry updates.
 
-3. **Workspace renamed**: Uses workspace ID internally, so rename has no effect.
+3. **Workspace deleted**: References to deleted workspaces in `workspace_ids` are
+   cleaned up by the backend on delete. If no workspaces remain, the item
+   automatically falls back to `scope=none`.
 
-4. **Default state for new items**: New skills/subagents default to `scope=selected`
-   with the current workspace preselected (the most conservative default — user
-   explicitly opts into broader scope).
+4. **Workspace renamed**: Uses workspace ID internally, so rename has no effect.
 
-5. **Bulk operations**: Future consideration — not in V1. The spec intentionally
-   keeps each item independently configurable for maximum control.
+5. **Default state for new user-created items** (skills/subagents created by the
+   user): Default to `scope=selected` with the current workspace preselected.
+   This is the conservative default — user explicitly expands scope.
+
+6. **Bulk operations**: Future consideration — not in V1. Each item is
+   independently configurable.
+
+7. **"Personal" workspace after migration**: Continues to exist for chat
+   history, files, and conversations. For tools/skills/subagents, it has no
+   special meaning — it's just another workspace in the picker list.
+
+8. **Item enabled in both personal and specific workspace (conflict resolution)**:
+   During migration, if a tool has state in both personal AND workspace W, the
+   union is taken: `scope=selected` with `workspace_ids` containing all
+   workspaces where it was explicitly enabled (ignoring personal).
 
 ## Non-Goals
 
@@ -156,10 +208,16 @@ The badge text is derived from the current scope state.
 ## Migration Path
 
 1. Add the `capabilities` table and scope API endpoints
-2. Migrate existing per-workspace tool state to the new model:
-   - If tool is enabled in personal scope → `scope=all`
-   - If tool is enabled only in workspace W → `scope=selected`, `workspace_ids=[W]`
-3. Update `ToolsPanel` → remove ScopeSwitcher, add per-item scope picker
-4. Update `SkillsSidebarPanel` → add per-item scope picker
-5. Update `SubagentsSidebarPanel` → add per-item scope picker
-6. Remove `ScopeSwitcher` widget (or deprecate it)
+2. Migrate existing per-workspace tool state:
+   - If tool is enabled in personal scope AND has no per-workspace overrides →
+     `scope=all`
+   - If tool has per-workspace state (enabled in one or more specific workspaces)
+     → `scope=selected` with the union of all enabled workspace IDs, ignoring
+     the personal scope state
+   - If tool is not enabled anywhere → `scope=none`
+3. Add migration for skills and subagents (currently no per-workspace state —
+   all existing items default to `scope=all`)
+4. Update `ToolsPanel` → remove ScopeSwitcher, add per-item scope picker
+5. Update `SkillsSidebarPanel` → add per-item scope picker
+6. Update `SubagentsSidebarPanel` → add per-item scope picker
+7. Remove `ScopeSwitcher` widget
