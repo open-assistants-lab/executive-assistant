@@ -108,7 +108,14 @@ body: {
 ```
 
 Same for skills and subagents endpoints. The backend stores scope info per item,
-keyed by user.
+keyed by (user_id, resource_type, resource_name).
+
+If a resource has no row in `item_scopes`, the default scope applies:
+- SDK-provided tools → `scope=all` (available everywhere)
+- Registry-installed skills/subagents → `scope=all`
+- User-created skills/subagents → `scope=selected` with current workspace
+
+These defaults match Edge Cases 2, 3, and 6.
 
 ### Storage
 
@@ -130,7 +137,8 @@ See Migration Path below for the conversion rules.
 - Load tools once per workspace (pass `workspace_id` query param)
 - Each tool row shows a tappable scope badge that replaces the existing `Switch`
   widget — the badge communicates both enable state and scope in one tap target
-- Badge tap opens a popup menu: All / Selected / None
+- Badge tap opens a popup menu with human-readable options:
+  "Enable for all workspaces" / "Enable for selected workspaces…" / "Disable"
 - Choosing "Selected" opens a workspace multi-select dialog
 - The header count shows "X / Y enabled" for the current workspace only
 
@@ -231,19 +239,19 @@ workspace scope before the coordinator can invoke them.
    history, files, and conversations. For tools/skills/subagents, it has no
    special meaning — it's just another workspace in the picker list.
 
-9. **Item enabled in both personal and specific workspace (conflict resolution)**:
-   During migration, if a tool has state in both personal AND workspace W, the
-   union is taken: `scope=selected` with `workspace_ids` containing all
-   workspaces where it was explicitly enabled (ignoring personal).
-
-10. **Workspace list for the modal**: The modal's workspace checklist is sourced
+9. **Workspace list for the modal**: The modal's workspace checklist is sourced
     from the existing `GET /workspaces` endpoint (currently used by the sidebar).
     No new endpoint needed.
 
-11. **Storage table naming**: The `item_scopes` table is used instead of
-    `capabilities` to avoid collision with the existing `capabilities.yaml`
-    / `capabilities.py` concept. The table name distinguishes scope storage
-    from capability definitions.
+## Storage Design Notes
+
+- The table is named `item_scopes` to avoid collision with the existing
+  `capabilities.yaml` / `capabilities.py` concept. `item_scopes` is about
+  per-workspace enable state; `capabilities` is about what features exist.
+- If an item has no row in the table, default scoping rules apply (see Edge
+  Cases 2, 3, 6). The backend computes the effective scope at query time.
+- `workspace_ids` is a JSON array stored as text in SQLite. Queries use
+  `json_each()` or equivalent for containment checks.
 
 ## Non-Goals
 
