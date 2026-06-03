@@ -104,6 +104,34 @@ The agent generates HTML (with optional inline CSS or `<style>` blocks). A Flutt
 </div>
 ```
 
+### CSS Styling
+
+The agent controls styling through any valid CSS method — inline `style` attributes,
+`<style>` blocks, or external stylesheets. Three approaches, agent's choice:
+
+```html
+<!-- Inline (compact, self-contained) -->
+<div style="padding:16px; font-family: var(--font); color: var(--text)">
+
+<!-- <style> block (reusable, multi-component) -->
+<style>
+  .skill-form { padding: 16px; border: 1px solid var(--border); }
+  .skill-form input { width: 100%; margin-bottom: 8px; }
+</style>
+
+<!-- External (for complex layouts, Tailwind CDN) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@...">
+```
+
+**Default stylesheet:** The WebView pre-injects a base theme with CSS custom properties
+matching the app's design tokens (colors, spacing, typography). The agent references these
+via `var(--primary)`, `var(--bg)`, `var(--text)`, etc. The `canvas-painting` skill knows
+these variables.
+
+**Isolation:** The WebView is sandboxed — CSS and JS cannot access the Flutter app's DOM,
+local files, or system resources. External stylesheet URLs are allowed but executed in
+the same sandbox.
+
 **Why HTML over Open-JSON-UI or A2UI:**
 - Agents already know HTML/CSS well — no protocol to learn
 - No component catalog to build and maintain
