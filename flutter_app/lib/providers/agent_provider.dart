@@ -25,6 +25,7 @@ class ChatState {
   final bool connected;
   final Set<String> deliveredMessageIds;
   final bool loadingHistory;
+  final List<String> skillsLoaded;
 
   static const _errorSentinel = Object();
 
@@ -40,6 +41,7 @@ class ChatState {
     this.connected = false,
     this.deliveredMessageIds = const {},
     this.loadingHistory = false,
+    this.skillsLoaded = const [],
   });
 
   ChatState copyWith({
@@ -54,6 +56,7 @@ class ChatState {
     bool? connected,
     Set<String>? deliveredMessageIds,
     bool? loadingHistory,
+    List<String>? skillsLoaded,
   }) {
     return ChatState(
       messages: messages ?? this.messages,
@@ -67,6 +70,7 @@ class ChatState {
       connected: connected ?? this.connected,
       deliveredMessageIds: deliveredMessageIds ?? this.deliveredMessageIds,
       loadingHistory: loadingHistory ?? this.loadingHistory,
+      skillsLoaded: skillsLoaded ?? this.skillsLoaded,
     );
   }
 }
@@ -283,6 +287,7 @@ class AgentNotifier extends StateNotifier<ChatState> {
         status: ChatStatus.streaming,
         streamingText: '',
         activeToolCalls: [],
+        skillsLoaded: [],
         error: null,
         loadingHistory: false,
       ),
@@ -332,6 +337,7 @@ class AgentNotifier extends StateNotifier<ChatState> {
         activeToolCalls: [],
         streamingText: '',
         reasoningText: '',
+        skillsLoaded: [],
       ),
     );
   }
@@ -535,6 +541,20 @@ class AgentNotifier extends StateNotifier<ChatState> {
       return;
     }
 
+    // --- Skills Load event ---
+    if (type == 'skills_load') {
+      final name = msg['name']?.toString() ?? 'unknown';
+      _setState(
+        state.copyWith(
+          skillsLoaded: [...state.skillsLoaded, name],
+          status: state.status == ChatStatus.awaitingApproval
+              ? ChatStatus.awaitingApproval
+              : ChatStatus.streaming,
+        ),
+      );
+      return;
+    }
+
     // --- Completion ---
     if (type == 'done') {
       final messageId = msg['message_id']?.toString() ?? '';
@@ -586,6 +606,7 @@ class AgentNotifier extends StateNotifier<ChatState> {
           streamingText: '',
           reasoningText: '',
           activeToolCalls: hasPendingApprovals ? state.activeToolCalls : [],
+          skillsLoaded: [],
           deliveredMessageIds: updatedIds,
           loadingHistory: false,
         ),

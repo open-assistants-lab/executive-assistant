@@ -6,9 +6,8 @@ import 'package:http/http.dart' as http;
 import '../../theme/app_theme.dart';
 import '../../providers/agent_provider.dart';
 import '../../providers/workspace_provider.dart';
-import 'skills_panel.dart';
-import 'subagents_panel.dart';
-import '../tools/tools_workspace_tab.dart';
+import 'canvas_tab.dart';
+import 'capabilities_tab.dart';
 
 typedef WorkspaceFileLoader =
     Future<List<Map<String, dynamic>>> Function(WidgetRef ref);
@@ -106,18 +105,22 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
       }
     });
 
+    ref.listen(canvasProvider, (prev, next) {
+      if (next.surfaces.length != (prev?.surfaces.length ?? 0)) {
+        setState(() => _tab = _WorkspacePanelTab.canvas);
+      }
+    });
+
     return Container(
       color: context.tokens.colors.bgCanvas,
       child: Column(
         children: [
           Expanded(
-            child: _tab == _WorkspacePanelTab.files
-                ? _buildFilesPanel()
-                : _tab == _WorkspacePanelTab.skills
-                ? const SkillsPanel()
-                : _tab == _WorkspacePanelTab.subagents
-                ? const SubagentsPanel()
-                : const ToolsWorkspaceTab(),
+            child: switch (_tab) {
+              _WorkspacePanelTab.canvas => const CanvasTab(),
+              _WorkspacePanelTab.files => _buildFilesPanel(),
+              _WorkspacePanelTab.capabilities => const CapabilitiesTab(),
+            },
           ),
           _BottomTabs(
             selected: _tab,
@@ -234,7 +237,7 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
   }
 }
 
-enum _WorkspacePanelTab { files, tools, skills, subagents }
+enum _WorkspacePanelTab { canvas, files, capabilities }
 
 class _BottomTabs extends StatelessWidget {
   final _WorkspacePanelTab selected;
@@ -253,6 +256,13 @@ class _BottomTabs extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           _BottomTabButton(
+            icon: Symbols.dashboard_customize,
+            activeIcon: Symbols.dashboard_customize,
+            selected: selected == _WorkspacePanelTab.canvas,
+            tooltip: 'Canvas',
+            onTap: () => onSelected(_WorkspacePanelTab.canvas),
+          ),
+          _BottomTabButton(
             icon: Symbols.folder,
             activeIcon: Symbols.folder,
             selected: selected == _WorkspacePanelTab.files,
@@ -260,27 +270,11 @@ class _BottomTabs extends StatelessWidget {
             onTap: () => onSelected(_WorkspacePanelTab.files),
           ),
           _BottomTabButton(
-            icon: Symbols.handyman,
-            activeIcon: Symbols.handyman,
-            selected: selected == _WorkspacePanelTab.tools,
-            tooltip: 'Tools',
-            onTap: () => onSelected(_WorkspacePanelTab.tools),
-          ),
-          const SizedBox(width: 8),
-          _BottomTabButton(
-            icon: Symbols.psychology,
-            activeIcon: Symbols.psychology,
-            selected: selected == _WorkspacePanelTab.skills,
-            tooltip: 'Skills',
-            onTap: () => onSelected(_WorkspacePanelTab.skills),
-          ),
-          const SizedBox(width: 8),
-          _BottomTabButton(
-            icon: Symbols.robot_2,
-            activeIcon: Symbols.robot_2,
-            selected: selected == _WorkspacePanelTab.subagents,
-            tooltip: 'Subagents',
-            onTap: () => onSelected(_WorkspacePanelTab.subagents),
+            icon: Symbols.tune,
+            activeIcon: Symbols.tune,
+            selected: selected == _WorkspacePanelTab.capabilities,
+            tooltip: 'Capabilities',
+            onTap: () => onSelected(_WorkspacePanelTab.capabilities),
           ),
         ],
       ),

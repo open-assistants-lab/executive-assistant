@@ -147,6 +147,7 @@ class _MessageList extends StatelessWidget {
       streamingText: state.streamingText,
       reasoningText: state.reasoningText,
       activeToolCalls: state.activeToolCalls,
+      skillsLoaded: state.skillsLoaded,
       scrollController: scrollController,
       isLoading: state.loadingHistory,
       emptyBuilder: (context) => Center(

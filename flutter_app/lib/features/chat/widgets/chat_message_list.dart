@@ -7,6 +7,7 @@ import 'streaming_bubble.dart';
 import 'reasoning_bubble.dart';
 import 'tool_call_card.dart';
 import 'empty_state.dart';
+import 'skill_load_banner.dart';
 
 const _kScrollBottom = '__bottom__';
 
@@ -16,6 +17,7 @@ class ChatMessageList extends StatefulWidget {
   final String streamingText;
   final String reasoningText;
   final List<ToolCallDisplay> activeToolCalls;
+  final List<String> skillsLoaded;
   final ScrollController scrollController;
   final Widget? header;
   final bool isLoading;
@@ -30,6 +32,7 @@ class ChatMessageList extends StatefulWidget {
     this.streamingText = '',
     this.reasoningText = '',
     this.activeToolCalls = const [],
+    this.skillsLoaded = const [],
     required this.scrollController,
     this.header,
     this.isLoading = false,
@@ -145,7 +148,8 @@ class ChatMessageListState extends State<ChatMessageList> {
     final extras =
         (widget.reasoningText.isNotEmpty ? 1 : 0) +
         (widget.isStreaming && widget.streamingText.isNotEmpty ? 1 : 0) +
-        widget.activeToolCalls.where((tc) => tc.resultPreview == null).length;
+        widget.activeToolCalls.where((tc) => tc.resultPreview == null).length +
+        widget.skillsLoaded.length;
     return widget.messages.length + (widget.header != null ? 1 : 0) + extras;
   }
 
@@ -163,6 +167,9 @@ class ChatMessageListState extends State<ChatMessageList> {
       if (tc.resultPreview == null) {
         extras.add(ToolCallCard(toolCall: tc));
       }
+    }
+    for (final name in widget.skillsLoaded.reversed) {
+      extras.add(SkillLoadBanner(name: name));
     }
     // Build the reversed list: extras (newest streaming) first, then messages
     // in reverse order, then header at the very top of the reversed list.

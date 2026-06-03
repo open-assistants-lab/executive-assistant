@@ -259,6 +259,13 @@ class PongMessage(BaseModel):
     type: str = "pong"
 
 
+class SkillsLoadMessage(BaseModel):
+    """Agent loaded a skill into context."""
+
+    type: str = "skills_load"
+    name: str
+
+
 class CanvasUpdateMessage(BaseModel):
     """Agent-generated HTML canvas update for the Flutter Canvas tab."""
 
@@ -305,6 +312,7 @@ SERVER_MESSAGE_TYPES = {
     "pong": PongMessage,
     # Canvas
     "canvas_update": CanvasUpdateMessage,
+    "skills_load": SkillsLoadMessage,
 }
 
 
@@ -348,6 +356,7 @@ _ServerMessage = (
     | ReasoningMessage
     | InterruptMessage
     | MiddlewareMessage
+    | SkillsLoadMessage
     | DoneMessage
     | ErrorMessage
     | PongMessage

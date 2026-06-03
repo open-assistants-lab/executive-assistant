@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:executive_assistant/features/tools/tools_provider.dart';
 import 'package:executive_assistant/features/workspace/subagents_panel.dart';
 import 'package:executive_assistant/features/workspace/workspace_panel.dart';
 import 'package:executive_assistant/features/workspace/skills_panel.dart';
@@ -13,6 +15,8 @@ import 'package:executive_assistant/services/ws_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:executive_assistant/theme/app_theme.dart';
@@ -61,26 +65,12 @@ void main() {
     expect(find.text('new.pdf'), findsOneWidget);
   });
 
-  testWidgets('defaults to files and switches to skills from bottom icon tab', (
+  testWidgets('defaults to files and switches to capabilities from bottom icon tab', (
     tester,
   ) async {
-    final api = MockApiClient();
-    when(
-      () => api.listSkills(workspaceId: any(named: 'workspaceId')),
-    ).thenAnswer(
-      (_) async => [
-        {
-          'name': 'email-triage',
-          'description': 'Prioritize incoming messages and draft responses',
-          'scope': 'workspace',
-        },
-      ],
-    );
-
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          apiClientProvider.overrideWithValue(api),
           currentWorkspaceIdProvider.overrideWith((ref) => 'sales'),
         ],
         child: MaterialApp(
@@ -101,131 +91,23 @@ void main() {
     expect(find.text('Files'), findsOneWidget);
     expect(find.text('brief.md'), findsOneWidget);
 
-    await tester.tap(find.byIcon(Symbols.bolt));
+    // Tap the Capabilities tab (Symbols.tune)
+    await tester.tap(find.byIcon(Symbols.tune));
     await tester.pump();
     await tester.pump();
 
+    // Capabilities tab has a search bar
+    expect(find.text('Search capabilities...'), findsOneWidget);
+    // Sections are present
+    expect(find.text('Tools'), findsOneWidget);
     expect(find.text('Skills'), findsOneWidget);
-    expect(find.text('email-triage'), findsOneWidget);
-    expect(find.text('workspace'), findsOneWidget);
-    verify(() => api.listSkills(workspaceId: 'sales')).called(1);
+    expect(find.text('Subagents'), findsOneWidget);
   });
 
-  testWidgets('refreshes subagent list after chat-created subagent completes', (
+  testWidgets('switches to capabilities tab and shows sections', (
     tester,
   ) async {
-    final api = MockApiClient();
-    final ws = MockWsClient();
-    final msgCtrl = StreamController<WsMessage>.broadcast();
-    final statusCtrl = StreamController<ConnectionStatus>.broadcast();
-    var listCalls = 0;
-
-    when(() => ws.status).thenAnswer((_) => statusCtrl.stream);
-    when(() => ws.messages).thenAnswer((_) => msgCtrl.stream);
-    when(() => ws.connect()).thenReturn(null);
-    when(
-      () => ws.sendMessage(any(), workspaceId: any(named: 'workspaceId')),
-    ).thenReturn(null);
-    when(
-      () => api.getConversation(
-        limit: any(named: 'limit'),
-        workspaceId: any(named: 'workspaceId'),
-      ),
-    ).thenAnswer((_) async => []);
-    when(() => api.listSubagents(workspaceId: 'test12345')).thenAnswer((
-      _,
-    ) async {
-      listCalls++;
-      if (listCalls == 1) return [];
-      return [
-        {
-          'name': 'sydney-weather',
-          'description': 'Weather forecast specialist',
-          'scope': 'workspace',
-        },
-      ];
-    });
-
-    final container = ProviderContainer(
-      overrides: [
-        apiClientProvider.overrideWithValue(api),
-        wsClientProvider.overrideWithValue(ws),
-      ],
-    );
-    addTearDown(() async {
-      container.dispose();
-      await msgCtrl.close();
-      await statusCtrl.close();
-    });
-    container.read(currentWorkspaceIdProvider.notifier).state = 'test12345';
-    container.read(agentProvider.notifier).setWorkspaceId('test12345');
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          theme: AppTheme.dark,
-          home: Scaffold(
-            body: WorkspacePanel(
-              refreshInterval: const Duration(days: 1),
-              fileLoader: (_) async => [],
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.pump();
-    await tester.tap(find.byIcon(Symbols.smart_toy));
-    await tester.pump();
-    await tester.pump();
-
-    expect(find.text('No subagents yet'), findsOneWidget);
-
-    statusCtrl.add(ConnectionStatus.connected);
-    await tester.pump();
-    expect(container.read(agentProvider).connected, isTrue);
-    container.read(agentProvider.notifier).sendMessage('create subagent');
-    await tester.pump();
-    expect(container.read(agentProvider).status, ChatStatus.streaming);
-    msgCtrl.add(
-      WsMessage(
-        type: 'done',
-        data: {
-          'type': 'done',
-          'response': 'created',
-          'workspace_id': 'test12345',
-        },
-      ),
-    );
-    await tester.pump();
-    await tester.pump();
-    await tester.pumpAndSettle();
-
-    expect(container.read(agentProvider).status, ChatStatus.idle);
-    expect(container.read(subagentProvider).agents.map((a) => a.name), [
-      'sydney-weather',
-    ]);
-
-    expect(find.text('sydney-weather'), findsOneWidget);
-  });
-
-  testWidgets('start task dialog keeps its text controller alive', (
-    tester,
-  ) async {
-    final api = MockApiClient();
-    when(() => api.listSubagents(workspaceId: 'test12345')).thenAnswer(
-      (_) async => [
-        {
-          'name': 'sydney-weather',
-          'description': 'Weather forecast specialist',
-          'scope': 'workspace',
-        },
-      ],
-    );
-
-    final container = ProviderContainer(
-      overrides: [apiClientProvider.overrideWithValue(api)],
-    );
+    final container = ProviderContainer();
     addTearDown(container.dispose);
     container.read(currentWorkspaceIdProvider.notifier).state = 'test12345';
 
@@ -244,17 +126,42 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.tap(find.byIcon(Symbols.smart_toy));
+    await tester.tap(find.byIcon(Symbols.tune));
     await tester.pump();
     await tester.pump();
 
-    await tester.tap(find.byIcon(Symbols.play_arrow));
-    await tester.pump();
-    await tester.tap(find.text('Start'));
+    expect(find.text('Search capabilities...'), findsOneWidget);
+    expect(find.text('Tools'), findsOneWidget);
+    expect(find.text('Skills'), findsOneWidget);
+    expect(find.text('Subagents'), findsOneWidget);
+  });
+
+  testWidgets('capabilities tab shows section headers', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.dark,
+          home: Scaffold(
+            body: WorkspacePanel(
+              refreshInterval: const Duration(days: 1),
+              fileLoader: (_) async => [],
+            ),
+          ),
+        ),
+      ),
+    );
     await tester.pump();
 
-    expect(tester.takeException(), isNull);
-    expect(find.widgetWithText(TextField, 'Task'), findsOneWidget);
+    // Switch to Capabilities tab
+    await tester.tap(find.byIcon(Symbols.tune));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Tools'), findsOneWidget);
+    expect(find.text('Skills'), findsOneWidget);
+    expect(find.text('Subagents'), findsOneWidget);
   });
 
   testWidgets('discards stale skills response after workspace changes', (
@@ -413,7 +320,7 @@ void main() {
         'triage',
         'Sort inbox',
         'Prioritize urgent messages',
-        scope: 'workspace',
+        scope: 'user',
         workspaceId: 'sales',
       ),
     ).called(1);

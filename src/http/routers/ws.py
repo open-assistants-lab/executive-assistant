@@ -69,6 +69,7 @@ async def _run_agent_stream(
     ai_content_parts: list[str] = []
     reasoning_parts: list[str] = []
     tool_metadata_list: list[dict] = []
+    skill_load_names: dict[str, str] = {}
 
     try:
         async for chunk in run_sdk_agent_stream(
@@ -97,6 +98,8 @@ async def _run_agent_stream(
                 tool_metadata_list.append(
                     {"tool_name": tool_name, "tool_call_id": call_id}
                 )
+                if tool_name == "skills_load":
+                    skill_load_names[call_id] = (chunk.args or {}).get("name", "unknown")
                 await websocket.send_json(_with_workspace(chunk.to_ws_message()))
 
             elif canonical == "tool_input_delta":
@@ -119,7 +122,7 @@ async def _run_agent_stream(
                 tool_name = chunk.tool or "unknown"
                 call_id = chunk.call_id or "unknown"
                 result_preview = chunk.result_preview or ""
-                from src.http.ws_protocol import ToolResultMessage
+                from src.http.ws_protocol import SkillsLoadMessage, ToolResultMessage
 
                 await websocket.send_json(
                     ToolResultMessage(
@@ -128,6 +131,13 @@ async def _run_agent_stream(
                         result_preview=result_preview[:500],
                     ).model_dump() | {"workspace_id": workspace_id}
                 )
+
+                if tool_name == "skills_load":
+                    skill_name = skill_load_names.pop(call_id, "unknown")
+                    await websocket.send_json(
+                        SkillsLoadMessage(name=skill_name).model_dump()
+                        | {"workspace_id": workspace_id}
+                    )
 
             elif chunk.type == "interrupt":
                 if pending_ref is not None:
