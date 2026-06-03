@@ -534,6 +534,8 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
 
   String _scopeOf(Map<String, dynamic> skill) {
     final raw = skill['scope']?.toString() ?? 'user';
+    // Map item_scopes values back to file-location scopes
+    if (raw == 'all' || raw == 'selected' || raw == 'none') return 'user';
     return raw == 'ws' ? 'workspace' : raw;
   }
 }
