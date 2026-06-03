@@ -74,9 +74,10 @@ async def list_tools(
             workspace_ids = item_scope.workspace_ids
             enabled = _is_enabled(scope, workspace_ids, workspace_id)
         else:
+            # Not configured yet — default to scope=all (available everywhere)
             scope = "all"
             workspace_ids = []
-            enabled = _tool_default(annotations)
+            enabled = True
 
         tools_list.append(
             {
