@@ -252,18 +252,24 @@ async def create_sdk_loop(user_id: str, workspace_id: str = "personal", model: s
 
     tools = get_native_tools()
 
-    # Filter tools by workspace capabilities (user → workspace merge)
-    from src.sdk.capabilities import load_capabilities, merge_capabilities, tool_enabled
+    # Filter tools by per-workspace scope via item_scopes table
+    from connectkit.item_scopes import ItemScopeDB
     from src.storage.paths import get_paths as _get_paths
 
     paths = _get_paths(user_id, workspace_id=workspace_id)
-    user_caps = load_capabilities(paths.root)
-    ws_caps = load_capabilities(paths.root / "Workspaces" / workspace_id)
-    caps = merge_capabilities(user_caps, ws_caps)
+    scope_db = ItemScopeDB(paths.base)
+    excluded = scope_db.get_excluded_names(user_id, "tool")
+    scoped_available = scope_db.get_available_names(user_id, "tool", workspace_id)
+
+    def _tool_available_by_default(t: Any) -> bool:
+        ann = t.annotations.model_dump() if hasattr(t, "annotations") else {}
+        return not ann.get("destructive", False)
 
     tools = [
         t for t in tools
-        if tool_enabled(caps, t.name, t.annotations.model_dump())
+        if t.name not in excluded and (
+            t.name in scoped_available or _tool_available_by_default(t)
+        )
     ]
     t2 = time.monotonic()
 
