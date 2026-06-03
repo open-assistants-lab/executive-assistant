@@ -170,23 +170,50 @@ class ToolsNotifier extends StateNotifier<ToolsState> {
     required String scope,
     required List<String> workspaceIds,
   }) async {
-    final uri = Uri.parse(
-      'http://$host/tools/$toolName?user_id=$userId',
-    );
-    await _client.patch(
-      uri,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'scope': scope,
-        'workspace_ids': workspaceIds,
-      }),
-    );
-    // Reload to get updated enabled/computed state
-    final workspaceId = state.tools
-        .firstWhere((t) => t.name == toolName)
-        .workspaceIds
-        .firstOrNull ?? 'personal';
-    await loadTools(host: host, userId: userId, workspaceId: workspaceId);
+    // Optimistic update — compute enabled from scope
+    final enabled = scope == 'all' ||
+        (scope == 'selected' && workspaceIds.isNotEmpty);
+
+    final updated = state.tools.map((t) {
+      if (t.name == toolName) {
+        return ToolItem(
+          name: t.name, description: t.description, category: t.category,
+          annotations: t.annotations, parameters: t.parameters,
+          enabled: enabled, source: t.source,
+          scope: scope, workspaceIds: workspaceIds,
+        );
+      }
+      return t;
+    }).toList();
+    state = _copyWith(state, tools: updated);
+
+    try {
+      final uri = Uri.parse(
+        'http://$host/tools/$toolName?user_id=$userId',
+      );
+      await _client.patch(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'scope': scope,
+          'workspace_ids': workspaceIds,
+        }),
+      );
+    } catch (_) {
+      // Revert on failure
+      final reverted = state.tools.map((t) {
+        if (t.name == toolName) {
+          return ToolItem(
+            name: t.name, description: t.description, category: t.category,
+            annotations: t.annotations, parameters: t.parameters,
+            enabled: !enabled, source: t.source,
+            scope: t.scope, workspaceIds: t.workspaceIds,
+          );
+        }
+        return t;
+      }).toList();
+      state = _copyWith(state, tools: reverted);
+    }
   }
 }
 
