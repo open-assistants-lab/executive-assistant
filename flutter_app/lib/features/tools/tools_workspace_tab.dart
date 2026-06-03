@@ -16,7 +16,9 @@ class _ToolsWorkspaceTabState extends ConsumerState<ToolsWorkspaceTab> {
   @override
   void initState() {
     super.initState();
-    _load();
+    // Defer provider mutation until after the current frame builds.
+    // Modifying a provider inside initState is not allowed in Riverpod.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
   void _load() {
