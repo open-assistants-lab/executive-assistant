@@ -14,7 +14,7 @@ from src.storage.paths import DEFAULT_USER_ID, _validate_path_id, get_paths
 
 router = APIRouter(prefix="/skills", tags=["skills"])
 
-SkillScope = Literal["user", "workspace"]
+SkillScope = Literal["user", "workspace", "all"]
 
 
 class SkillCreateRequest(BaseModel):
@@ -122,9 +122,9 @@ def _to_summary(skill: dict[str, Any], loaded_names: set[str]) -> SkillSummary:
     return SkillSummary(
         name=skill["name"],
         description=skill.get("description", ""),
-        scope=_skill_scope(skill),
-        workspace_id=_skill_workspace_id(skill),
-        is_loaded=skill["name"] in loaded_names,
+        scope="all",
+        workspace_id=None,
+        is_loaded=name in loaded_names,
         disable_model_invocation=_disable_model_invocation(metadata),
     )
 
