@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../providers/agent_provider.dart';
@@ -27,9 +28,20 @@ class _ConnectAuthFormState extends ConsumerState<ConnectAuthForm> {
   final Map<String, TextEditingController> _ctrls = {};
   bool _connecting = false;
   bool _browserOpened = false;
+  bool _showAdvanced = false;
   Timer? _pollTimer;
 
   bool get _isPkce => widget.spec['pkce'] == true;
+
+  bool get _hasPrefilledDefaults {
+    final fields = (widget.spec['required_fields'] as List? ?? [])
+        .cast<Map<String, dynamic>>();
+    if (fields.isEmpty) return false;
+    return fields.every((f) {
+      final def = f['default'] as String? ?? '';
+      return def.isNotEmpty;
+    });
+  }
 
   @override
   void initState() {
@@ -78,12 +90,48 @@ class _ConnectAuthFormState extends ConsumerState<ConnectAuthForm> {
           ),
           const SizedBox(height: 16),
           if (_isPkce) ...[
-            ...fields.map(_buildField),
+            if (_hasPrefilledDefaults) ...[
+              Text(
+                'Pre-configured credentials are included. Click "Open Browser" '
+                'to authorize, or expand Advanced to use your own OAuth app.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.color
+                          ?.withAlpha(180),
+                    ),
+              ),
+              const SizedBox(height: 8),
+              InkWell(
+                onTap: () => setState(() => _showAdvanced = !_showAdvanced),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _showAdvanced ? Symbols.expand_less : Symbols.expand_more,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Advanced',
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  ],
+                ),
+              ),
+              if (_showAdvanced) ...[
+                const SizedBox(height: 4),
+                ...fields.map(_buildField),
+              ],
+            ] else ...[
+              ...fields.map(_buildField),
+            ],
             const SizedBox(height: 8),
             Row(
               children: [
                 Icon(
-                  _browserOpened ? Icons.check_circle : Icons.open_in_browser,
+                  _browserOpened ? Symbols.check_circle : Symbols.open_in_browser,
                   size: 16,
                   color: _browserOpened ? Colors.green : Colors.grey,
                 ),
@@ -173,7 +221,6 @@ class _ConnectAuthFormState extends ConsumerState<ConnectAuthForm> {
       child: TextFormField(
         controller: ctrl,
         obscureText: obscure,
-        readOnly: _isPkce && name == 'client_id' && ctrl.text.isNotEmpty,
         decoration: InputDecoration(
           labelText: label,
           isDense: true,
