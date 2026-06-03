@@ -102,6 +102,7 @@ class _SubagentsSidebarPanelState
 
     final tokens = context.tokens;
     final filtered = _filtered;
+    final workspaces = ref.watch(workspaceListProvider).valueOrNull ?? [];
 
     return Container(
       color: tokens.colors.bgCanvas,
@@ -153,7 +154,7 @@ class _SubagentsSidebarPanelState
                                 EdgeInsets.symmetric(horizontal: tokens.spacing.md),
                             itemCount: filtered.length,
                             itemBuilder: (_, i) =>
-                                _buildRow(filtered[i], tokens),
+                                _buildRow(filtered[i], tokens, workspaces),
                           ),
           ),
         ],
@@ -188,7 +189,7 @@ class _SubagentsSidebarPanelState
     );
   }
 
-  Widget _buildRow(Map<String, dynamic> agent, EaTokens tokens) {
+  Widget _buildRow(Map<String, dynamic> agent, EaTokens tokens, List<Map<String, dynamic>> workspaces) {
     final name = agent['name']?.toString() ?? '';
     final desc = agent['description']?.toString() ?? '';
     final status = agent['status']?.toString() ?? '';
@@ -231,6 +232,7 @@ class _SubagentsSidebarPanelState
                     ? ScopeState.none
                     : ScopeState.all,
             selectedWorkspaceIds: wids,
+            allWorkspaces: workspaces,
             onChanged: (c) => _setScope(name, c.scope.name, c.workspaceIds),
           ),
         ],

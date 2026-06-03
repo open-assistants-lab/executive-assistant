@@ -101,6 +101,7 @@ class _SkillsSidebarPanelState extends ConsumerState<SkillsSidebarPanel> {
 
     final tokens = context.tokens;
     final filtered = _filtered;
+    final workspaces = ref.watch(workspaceListProvider).valueOrNull ?? [];
 
     return Container(
       color: tokens.colors.bgCanvas,
@@ -152,7 +153,7 @@ class _SkillsSidebarPanelState extends ConsumerState<SkillsSidebarPanel> {
                                 EdgeInsets.symmetric(horizontal: tokens.spacing.md),
                             itemCount: filtered.length,
                             itemBuilder: (_, i) =>
-                                _buildRow(filtered[i], tokens),
+                                _buildRow(filtered[i], tokens, workspaces),
                           ),
           ),
         ],
@@ -187,7 +188,7 @@ class _SkillsSidebarPanelState extends ConsumerState<SkillsSidebarPanel> {
     );
   }
 
-  Widget _buildRow(Map<String, dynamic> skill, EaTokens tokens) {
+  Widget _buildRow(Map<String, dynamic> skill, EaTokens tokens, List<Map<String, dynamic>> workspaces) {
     final name = skill['name']?.toString() ?? '';
     final desc = skill['description']?.toString() ?? '';
     final isLoaded = skill['is_loaded'] == true;
@@ -229,6 +230,7 @@ class _SkillsSidebarPanelState extends ConsumerState<SkillsSidebarPanel> {
                     ? ScopeState.none
                     : ScopeState.all,
             selectedWorkspaceIds: wids,
+            allWorkspaces: workspaces,
             onChanged: (c) => _setScope(name, c.scope.name, c.workspaceIds),
           ),
         ],
