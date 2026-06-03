@@ -8,7 +8,9 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field, ValidationError
 
+from connectkit.item_scopes import ItemScopeDB, ScopeKind
 from src.sdk.subagent_models import AgentDef, TaskStatus
+from src.storage.paths import get_paths
 
 
 router = APIRouter(prefix="/subagents", tags=["subagents"])
@@ -93,6 +95,16 @@ async def list_subagents(
     coordinator = get_coordinator(user_id, workspace_id)
     scoped_defs = await coordinator.list_defs_with_scope()
 
+    paths = get_paths(user_id)
+    scope_db = ItemScopeDB(paths.base)
+    all_scoped = scope_db.get_all_scoped(user_id, "subagent")
+
+    def resolve(name: str, default_scope: str) -> tuple[str, list[str]]:
+        if name in all_scoped:
+            item = all_scoped[name]
+            return item.scope, item.workspace_ids
+        return ("all", [])
+
     return {
         "agents": [
             {
@@ -109,9 +121,11 @@ async def list_subagents(
                 "output_schema": d.output_schema,
                 "handoff_instructions": d.handoff_instructions,
                 "artifact_policy": d.artifact_policy,
-                "scope": scope,
+                "scope": scp,
+                "workspace_ids": wids,
             }
             for d, scope in scoped_defs
+            for scp, wids in [resolve(d.name, scope)]
         ]
     }
 
@@ -279,3 +293,20 @@ async def start_subagent(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return {"job_id": task_id, "status": "pending", "subagent": name}
+
+
+@router.patch("/{name}/scope")
+async def set_subagent_scope(
+    name: str,
+    body: dict,
+    user_id: str = Query("default_user"),
+):
+    """Set scope via item_scopes."""
+    scope: ScopeKind = body.get("scope", "all")
+    if scope not in ("all", "selected", "none"):
+        raise HTTPException(status_code=400, detail="scope must be all, selected, or none")
+    wids = body.get("workspace_ids", [])
+    paths = get_paths(user_id)
+    scope_db = ItemScopeDB(paths.base)
+    scope_db.set(user_id, "subagent", name, scope, wids)
+    return {"name": name, "scope": scope, "workspace_ids": wids}

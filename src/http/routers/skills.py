@@ -8,6 +8,9 @@ import yaml
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from connectkit.item_scopes import ItemScopeDB, ScopeKind
+from src.storage.paths import get_paths
+
 from src.skills.models import _is_valid_skill_name, parse_skill_file
 from src.skills.registry import get_skill_registry
 from src.storage.paths import DEFAULT_USER_ID, _validate_path_id, get_paths
@@ -35,6 +38,7 @@ class SkillSummary(BaseModel):
     description: str
     scope: SkillScope
     workspace_id: str | None = None
+    workspace_ids: list[str] = Field(default_factory=list)
     is_loaded: bool = False
     disable_model_invocation: bool = False
 
@@ -224,9 +228,22 @@ async def list_skills(user_id: str = "default_user", workspace_id: str = "person
     _validate_workspace_id(workspace_id)
     registry = _get_registry(user_id, workspace_id)
     loaded_names = set(registry.get_loaded_skills())
-    return SkillListResponse(
-        skills=[_to_summary(skill, loaded_names) for skill in registry.get_all_skills()]
-    )
+    paths = get_paths(user_id)
+    scope_db = ItemScopeDB(paths.base)
+    all_scoped = scope_db.get_all_scoped(user_id, "skill")
+
+    summaries = []
+    for skill in registry.get_all_skills():
+        name = skill["name"]
+        summary = _to_summary(skill, loaded_names)
+        if name in all_scoped:
+            item = all_scoped[name]
+            summary.scope = item.scope  # type: ignore[assignment]
+            summary.workspace_ids = item.workspace_ids
+        # If not in item_scopes, scope stays "all" (set by _to_summary)
+        summaries.append(summary)
+
+    return SkillListResponse(skills=summaries)
 
 
 @router.get("/{skill_name}", response_model=SkillDetail)
@@ -332,3 +349,22 @@ async def delete_skill(
     registry.reload()
     _reset_sdk_loops_for_scope(user_id, workspace_id, valid_scope)
     return {"status": "deleted", "name": skill_name, "scope": valid_scope}
+
+
+@router.patch("/{skill_name}/scope")
+async def set_skill_scope(
+    skill_name: str,
+    body: dict,
+    user_id: str = "default_user",
+):
+    """Set scope via item_scopes."""
+    _validate_user_id(user_id)
+    _validate_skill_name(skill_name)
+    scope: ScopeKind = body.get("scope", "all")
+    if scope not in ("all", "selected", "none"):
+        raise HTTPException(status_code=400, detail="scope must be all, selected, or none")
+    wids = body.get("workspace_ids", [])
+    paths = get_paths(user_id)
+    scope_db = ItemScopeDB(paths.base)
+    scope_db.set(user_id, "skill", skill_name, scope, wids)
+    return {"name": skill_name, "scope": scope, "workspace_ids": wids}
