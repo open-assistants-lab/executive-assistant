@@ -8,6 +8,7 @@ import '../../features/workspace/workspace_panel.dart';
 import '../../features/tools/tools_panel.dart';
 import '../../features/skills/skills_sidebar_panel.dart';
 import '../../features/subagents/subagents_sidebar_panel.dart';
+import '../../features/connectors/connectors_modal.dart';
 import '../layout/responsive_shell.dart';
 import '../../theme/tokens/motion.dart';
 import '../../theme/app_theme.dart';
@@ -85,6 +86,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) => CustomTransitionPage(
               key: state.pageKey,
               child: const SubagentsSidebarPanel(),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+              transitionDuration: EaMotion.standard.fluid,
+            ),
+          ),
+          GoRoute(
+            path: '/connectors',
+            name: 'connectors',
+            pageBuilder: (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const ConnectorsModal(),
               transitionsBuilder: (context, animation, secondaryAnimation, child) {
                 return FadeTransition(opacity: animation, child: child);
               },
