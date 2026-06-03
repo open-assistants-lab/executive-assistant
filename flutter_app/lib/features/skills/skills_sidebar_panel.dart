@@ -65,12 +65,14 @@ class _SkillsSidebarPanelState extends ConsumerState<SkillsSidebarPanel> {
 
   Future<void> _setScope(
       String name, String scope, List<String> wids) async {
-    final host = ref.read(hostProvider);
-    final uri = Uri.parse(
-        'http://$host/skills/$name/scope?user_id=default_user');
-    await http.Client().patch(uri,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'scope': scope, 'workspace_ids': wids}));
+    try {
+      final host = ref.read(hostProvider);
+      final uri = Uri.parse(
+          'http://$host/skills/$name/scope?user_id=default_user');
+      await http.Client().patch(uri,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'scope': scope, 'workspace_ids': wids}));
+    } catch (_) {}
     await _loadSkills();
   }
 
