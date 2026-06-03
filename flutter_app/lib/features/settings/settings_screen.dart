@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import '../../providers/agent_provider.dart';
 import '../../theme/app_theme.dart';
@@ -91,10 +92,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings', style: TextStyle(fontSize: 16)),
-        leading: IconButton(
-          icon: const Icon(Symbols.close, size: 20),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+          leading: IconButton(
+            icon: const Icon(Symbols.close, size: 20),
+            onPressed: () {
+              if (Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              } else {
+                GoRouter.of(context).go('/workspace');
+              }
+            },
+          ),
       ),
       body: _loadingSettings
           ? const Center(child: CircularProgressIndicator())
