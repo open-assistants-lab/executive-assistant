@@ -39,7 +39,7 @@ class _SkillsSidebarPanelState extends ConsumerState<SkillsSidebarPanel> {
               children: [
                 Row(
                   children: [
-                    Icon(Symbols.bolt,
+                    Icon(Symbols.psychology,
                         size: 18, color: tokens.colors.accent),
                     const SizedBox(width: 8),
                     Text('Skills',

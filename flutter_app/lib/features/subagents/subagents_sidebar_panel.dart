@@ -40,7 +40,7 @@ class _SubagentsSidebarPanelState extends ConsumerState<SubagentsSidebarPanel> {
               children: [
                 Row(
                   children: [
-                    Icon(Symbols.smart_toy,
+                    Icon(Symbols.robot_2,
                         size: 18, color: tokens.colors.accent),
                     const SizedBox(width: 8),
                     Text('Subagents',
