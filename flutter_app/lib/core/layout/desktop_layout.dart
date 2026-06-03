@@ -14,8 +14,6 @@ import '../../features/chat/widgets/jump_to_bottom_button.dart';
 import '../../features/companion/companion_pulse.dart';
 import '../../features/companion/companion_context_pill.dart';
 import '../../features/companion/companion_toast.dart';
-import '../../features/settings/settings_screen.dart';
-import '../../features/connectors/connectors_modal.dart';
 
 enum DesktopSidebarItem {
   email(
@@ -317,7 +315,7 @@ class Sidebar extends ConsumerWidget {
                 child: SidebarItem(
                   item: DesktopSidebarItem.connectors,
                   selected: false,
-                  onTap: () => _showConnectors(context),
+                  onTap: () => context.go('/connectors'),
                 ),
               ),
               Padding(
@@ -332,7 +330,7 @@ class Sidebar extends ConsumerWidget {
                       child: SidebarItem(
                         item: DesktopSidebarItem.settings,
                         selected: false,
-                        onTap: () => _showSettings(context),
+                        onTap: () => context.go('/settings'),
                       ),
                     ),
                     IconButton(
@@ -395,24 +393,6 @@ class Sidebar extends ConsumerWidget {
           ),
         ],
       ),
-    );
-  }
-
-  void _showSettings(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (_) => const SettingsScreen(),
-    );
-  }
-
-  void _showConnectors(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (_) => const ConnectorsModal(),
     );
   }
 
