@@ -120,19 +120,23 @@ capabilities:
   scope (all/selected/none), workspace_ids (json list)
 ```
 
-Backward compatibility: existing per-workspace enable/disable state migrates to
-`scope=selected` with `workspace_ids=[current_ws]`. Existing global ("personal")
-state migrates to `scope=all`.
+Backward compatibility: during migration, existing per-workspace tool state is
+converted per the rules in Migration Path below. Existing "personal" scope tools
+(global, no workspace override) map to `scope=all`. Tools with explicit
+per-workspace enable/disable map to `scope=selected` with the union of all
+workspace IDs.
 
 ## Frontend Changes
 
 ### `ToolsPanel`
 
 - Remove `_scope` state and `ScopeSwitcher` widget
-- Load tools once (global view), not per-scope
-- Each tool row shows a tappable scope badge
+- Load tools once per workspace (pass `workspace_id` query param)
+- Each tool row shows a tappable scope badge that replaces the existing `Switch`
+  widget — the badge communicates both enable state and scope in one tap target
 - Badge tap opens a popup menu: All / Selected / None
 - Choosing "Selected" opens a workspace multi-select dialog
+- The header count shows "X / Y enabled" for the current workspace only
 
 ### `ScopePicker` (new shared widget)
 
@@ -148,11 +152,10 @@ class ScopePicker extends StatelessWidget {
 }
 ```
 
-On tap, shows:
+On tap, shows a popup menu anchored to the badge:
 1. Three radio options: All / Selected / None
-2. If "Selected" is chosen, a scrollable checklist of available workspaces
-   with checkboxes appears inline
-3. A "Done" or "Apply" button confirms the selection
+2. If "Selected" is chosen, tapping it opens a modal dialog with a scrollable
+   checklist of workspaces and an "Apply" button.
 
 ### Badge display
 
@@ -165,6 +168,38 @@ Each item row shows one of:
 ```
 
 The badge text is derived from the current scope state.
+
+### Badge replaces Switch
+
+Each item row currently has a `Switch` widget on the right (for tools: on/off toggle;
+for skills/subagents: coming soon). With the scope model, the `Switch` is replaced
+by a tappable `TextButton` or `Chip` showing the state badge. Tapping it reveals
+the scope picker popup menu. The visual result is cleaner — one interactive element
+per row instead of two (switch + scope indicator).
+
+## Agent Loop Integration
+
+When an agent loop is created for workspace W, the backend resolves available
+tools/skills/subagents by querying:
+
+```sql
+SELECT * FROM capabilities
+WHERE user_id = ?
+  AND (
+    scope = 'all'
+    OR (scope = 'selected' AND workspace_ids CONTAINS ?)
+  )
+```
+
+Items with `scope=none` or `scope=selected` without W in `workspace_ids`
+are excluded from the agent's tool list. This replaces the current logic in
+`create_sdk_loop()` that loads tools per-workspace from the old schema.
+
+Skills are treated the same way — `SkillRegistry` filters loaded skills
+against the capabilities table before injecting them into the agent.
+
+Subagents follow the same pattern — available subagents are filtered by
+workspace scope before the coordinator can invoke them.
 
 ## Edge Cases
 
