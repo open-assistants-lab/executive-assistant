@@ -13,7 +13,12 @@ class ConnectorsModal extends StatelessWidget {
       child: Column(
         children: [
           Padding(
-            padding: EdgeInsets.all(tokens.spacing.md),
+            padding: EdgeInsets.fromLTRB(
+                tokens.spacing.md,
+                tokens.spacing.lg,
+                tokens.spacing.md,
+                tokens.spacing.md,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

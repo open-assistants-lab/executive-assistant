@@ -112,7 +112,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: _loadingSettings
                 ? const Center(child: CircularProgressIndicator())
                 : ListView(
-                    padding: EdgeInsets.all(tokens.spacing.md),
+            padding: EdgeInsets.fromLTRB(
+                tokens.spacing.md,
+                tokens.spacing.lg,
+                tokens.spacing.md,
+                tokens.spacing.md,
+            ),
                     children: [
                       _sectionHeader('Server', tokens),
                       _tile('URL', settings.host, Symbols.dns, tokens: tokens),

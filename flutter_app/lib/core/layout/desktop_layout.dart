@@ -256,9 +256,12 @@ class Sidebar extends ConsumerWidget {
                               selected: isActive,
                               selectedTileColor: tokens.colors.bgElevated,
                               hoverColor: tokens.colors.bgElevated,
-                              onTap: () => ref
-                                  .read(chatTabNotifierProvider.notifier)
-                                  .openWorkspace(id, name),
+                              onTap: () {
+                                ref
+                                    .read(chatTabNotifierProvider.notifier)
+                                    .openWorkspace(id, name);
+                                context.go('/workspace');
+                              },
                               ),
                             ],
                           );
