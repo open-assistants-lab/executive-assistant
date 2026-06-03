@@ -194,10 +194,10 @@ def _get_skills_context(user_id: str, workspace_id: str = "personal") -> str:
 
         # Account for header overhead toward budget
         header_lines = [
-            "\n\n## Available Skills",
+            "\n\n<available_skills>",
             "When a task matches a skill description below, call skills_load(name) "
-            "first to get detailed instructions before proceeding. "
-            "Do NOT call skills_list — descriptions are already here.",
+            "first to get detailed instructions. After creating, editing, or deleting "
+            "a SKILL.md file via files_* tools, call skills_reload() to refresh.",
         ]
         header_overhead = sum(len(l) + 1 for l in header_lines) + 1  # +1 newlines
 
@@ -220,6 +220,7 @@ def _get_skills_context(user_id: str, workspace_id: str = "personal") -> str:
         lines.append("")
         for name, desc in entries:
             lines.append(f"- **{name}**: {desc}")
+        lines.append("</available_skills>")
         return "\n".join(lines)
     except Exception:
         return ""

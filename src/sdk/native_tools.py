@@ -82,11 +82,8 @@ from src.sdk.tools_core.research import (
 )
 from src.sdk.tools_core.shell import shell_execute
 from src.sdk.tools_core.skills import (
-    skill_delete,
-    skills_list,
     skills_load,
-    skills_search,
-    sql_write_query,
+    skills_reload,
 )
 from src.sdk.tools_core.subagent import (
     subagent_cancel,
@@ -207,11 +204,8 @@ def _register_all() -> None:
     registry.register(mcp_reload)
     registry.register(mcp_tools)
 
-    registry.register(skills_list)
-    registry.register(skills_search)
     registry.register(skills_load)
-    registry.register(skill_delete)
-    registry.register(sql_write_query)
+    registry.register(skills_reload)
 
     registry.register(research_start)
     registry.register(research_list)

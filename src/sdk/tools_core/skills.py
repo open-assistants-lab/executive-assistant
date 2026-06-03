@@ -1,301 +1,135 @@
-"""Skills tools -- SDK-native implementation.
+"""Skills tools — SDK-native implementation.
 
 Skills are on-demand knowledge modules (SKILL.md files) that agents can
 load when handling specific task types.
 
 Design:
-  1. Skill descriptions are injected into the system prompt at startup.
-     The agent always knows what skills are available — no discovery step needed.
-  2. When a task matches a skill's description, call skills_load(name) directly.
-  3. skills_list() and skills_search() are available for explicit queries
-     (e.g., "what skills do you have?" or finding recently added user skills).
+  1. Skill catalog is injected into the system prompt at startup.
+     The agent always knows what skills are available.
+  2. When a task matches a skill's description, call skills_load(name).
+  3. After creating/editing/deleting a SKILL.md file via files_* tools,
+     call skills_reload() to refresh the catalog.
 """
 
 from __future__ import annotations
 
-import re
-import shutil
-from pathlib import Path
+import logging
 
-from src.app_logging import get_logger
-from src.sdk.tools import ToolAnnotations, tool
-from src.skills.registry import SkillRegistry, get_skill_registry
+from src.sdk.tools import tool, ToolAnnotations
 from src.storage.paths import get_paths
+from src.app_logging import get_logger
+
+from src.skills.registry import get_skill_registry
 
 logger = get_logger()
 
 
-def _get_registry(user_id: str, workspace_id: str) -> SkillRegistry:
-    return get_skill_registry(user_id=user_id, workspace_id=workspace_id)
-
-
-def _skill_scope(skill: dict) -> str:
-    return skill.get("metadata", {}).get("scope") or "user"
-
-
-def _validate_scope(scope: str) -> str | None:
-    if scope not in ("user", "workspace"):
-        return f"Invalid scope: '{scope}'. Must be 'user' or 'workspace'."
-    return None
-
-
-def _reset_sdk_loop(user_id: str, workspace_id: str) -> None:
-    from src.sdk.runner import reset_sdk_loop
-
-    reset_sdk_loop(user_id, workspace_id)
-
-
-def _reset_sdk_loops_for_scope(user_id: str, workspace_id: str, scope: str) -> None:
-    if scope == "user":
-        from src.sdk.runner import reset_user_sdk_loops
-
-        reset_user_sdk_loops(user_id)
-    else:
-        _reset_sdk_loop(user_id, workspace_id)
-
-
-@tool
-def skills_list(user_id: str = "default_user", workspace_id: str = "personal") -> str:
-    """List all available skills; use skills_load for full instructions.
-
-    Skill descriptions are always available in your system prompt context.
-    Call this explicitly when the user asks "what skills do you have?" or
-    when you want to see user-created skills that may have been added recently.
-
-    Then use skills_load(skill_name) to get full instructions for a specific skill.
-
-    Args:
-        user_id: User identifier
-        workspace_id: Workspace identifier
-
-    Returns:
-        List of available skills with names, descriptions, and source layers
-    """
-    registry = _get_registry(user_id, workspace_id)
-    skills = registry.get_all_skills()
-
-    if not skills:
-        return "No skills available."
-
-    lines = ["Available skills:\n"]
-    for skill in skills:
-        lines.append(f"  - [{_skill_scope(skill)}] {skill['name']}: {skill['description']}")
-
-    lines.append("\nUse skills_load(skill_name) to get detailed instructions.")
-    return "\n".join(lines)
-
-
-skills_list.annotations = ToolAnnotations(title="List Skills", read_only=True, idempotent=True)
-
-
-@tool
-def skills_search(
-    query: str, user_id: str = "default_user", workspace_id: str = "personal"
-) -> str:
-    """Search for skills matching a query.
-
-    Use this when you're looking for skills related to a specific task or topic
-    but don't know the exact skill name.
-
-    Args:
-        query: Search terms (e.g., 'research', 'sql', 'browser')
-        user_id: User identifier
-        workspace_id: Workspace identifier
-
-    Returns:
-        Matching skills with names and descriptions
-    """
-    registry = _get_registry(user_id, workspace_id)
-    skills = registry.get_all_skills()
-
-    if not skills:
-        return "No skills available."
-
-    query_lower = query.lower()
-    matches = []
-    for skill in skills:
-        name = skill["name"].lower()
-        description = skill.get("description", "").lower()
-        content = skill.get("content", "").lower()
-        if query_lower in name or query_lower in description or query_lower in content:
-            matches.append(skill)
-
-    if not matches:
-        all_names = ", ".join(s["name"] for s in skills)
-        return f"No skills matching '{query}'. Available skills: {all_names}"
-
-    lines = [f"Skills matching '{query}':\n"]
-    for skill in matches:
-        lines.append(f"  - [{_skill_scope(skill)}] {skill['name']}: {skill['description']}")
-
-    lines.append("\nUse skills_load(skill_name) to get detailed instructions.")
-    return "\n".join(lines)
-
-
-skills_search.annotations = ToolAnnotations(title="Search Skills", read_only=True, idempotent=True)
+def _get_registry(user_id: str, workspace_id: str = "personal"):
+    """Resolve the SkillRegistry for the given user and workspace."""
+    try:
+        return get_skill_registry(user_id=user_id, workspace_id=workspace_id)
+    except Exception as exc:
+        raise RuntimeError(f"Could not resolve skill registry: {exc}") from exc
 
 
 @tool
 def skills_load(
-    skill_name: str, user_id: str = "default_user", workspace_id: str = "personal"
+    name: str,
+    user_id: str = "default_user",
+    workspace_id: str = "personal",
 ) -> str:
-    """Load the full content of a skill into the agent's context.
+    """Load a skill's full SKILL.md content into context.
 
-    Use this when you need detailed information about handling a specific
-    type of request. This will provide you with comprehensive instructions,
-    policies, and guidelines for the skill area.
+    Call this when the current task matches a skill's description from the
+    available skills catalog in the system prompt.
 
     Args:
-        skill_name: The name of the skill to load (e.g., 'skill-creator')
+        name: Skill name (e.g. 'skill-creator', 'autoresearch')
         user_id: User identifier
         workspace_id: Workspace identifier
 
     Returns:
-        Full skill content, or error message if not found
+        The skill's full instructions, or an error if not found.
     """
-    from src.skills.models import _is_valid_skill_name
+    try:
+        registry = _get_registry(user_id, workspace_id)
+    except RuntimeError as exc:
+        return str(exc)
 
-    if not _is_valid_skill_name(skill_name):
-        return f"Invalid skill name: '{skill_name}'."
-
-    registry = _get_registry(user_id, workspace_id)
-
-    skill = registry.get_skill(skill_name)
-
+    skill = registry.get_skill(name)
     if not skill:
-        available = ", ".join(registry.list_skills())
-        return f"Skill '{skill_name}' not found. Available skills: {available}"
+        available = [s["name"] for s in registry.get_all_skills()]
+        return f"Skill '{name}' not found. Available skills: {', '.join(available) or 'none'}."
 
-    registry.mark_skill_loaded(skill_name)
+    parts = [
+        f"<skill_content name=\"{skill.get('name', name)}\">",
+        skill.get("content", "").strip(),
+        "</skill_content>",
+    ]
 
-    # Get skill directory for resource enumeration
-    skill_path = skill.get("path")
-    content = skill["content"]
+    if not skill.get("content"):
+        return f"Skill '{name}' exists but has no content."
 
-    # Substitute ${SKILL_DIR} placeholder with actual path
-    if skill_path:
-        content = re.sub(r"\$\{SKILL_DIR\}", skill_path, content)
+    registry.touch(name)
 
-    parts = [f"# {skill['name']} [{_skill_scope(skill)}]\n\n{content}"]
-
-    # Enumerate supporting files
-    if skill_path:
-        skill_dir = Path(skill_path)
-        if skill_dir.is_dir():
-            resources = []
-            for item in sorted(skill_dir.rglob("*")):
-                if item.is_file() and item.name != "SKILL.md":
-                    rel = item.relative_to(skill_dir)
-                    resources.append(str(rel))
-
-            if resources:
-                parts.append("\n---\n")
-                parts.append(f"Skill directory: {skill_path}")
-                parts.append("Supporting files:")
-                for r in resources:
-                    parts.append(f"  - {r}")
-                parts.append(
-                    "\nRelative paths in the content above resolve against the skill directory."
-                )
+    logger.info(
+        "skill.loaded",
+        {"name": name},
+        user_id=user_id,
+    )
 
     return "\n".join(parts)
 
 
-skills_load.annotations = ToolAnnotations(title="Load Skill", read_only=True, idempotent=True)
+skills_load.annotations = ToolAnnotations(
+    title="Load Skill", read_only=True, idempotent=True
+)
 
 
 @tool
-def skill_delete(
-    skill_name: str,
-    scope: str = "user",
+def skills_reload(
     user_id: str = "default_user",
     workspace_id: str = "personal",
 ) -> str:
-    """Delete a skill from the requested scope.
+    """Reload the skill registry after creating, editing, or deleting SKILL.md files.
+
+    Call this after using files_write, files_edit, or files_delete to create,
+    modify, or remove a SKILL.md file. The registry must be reloaded for the
+    new or changed skill to appear in the available skills catalog.
 
     Args:
-        skill_name: Skill name to delete
-        scope: Skill scope, either 'user' or 'workspace'
         user_id: User identifier
         workspace_id: Workspace identifier
 
     Returns:
-        Success or error message
+        Updated list of available skills with their descriptions.
     """
-    from src.skills.models import _is_valid_skill_name
-
-    if error := _validate_scope(scope):
-        return error
-
-    if not _is_valid_skill_name(skill_name):
-        return f"Invalid skill name: '{skill_name}'."
-
-    paths = get_paths(user_id, workspace_id=workspace_id)
-    target_root = paths.workspace_skills_dir() if scope == "workspace" else paths.user_skills_dir()
-    skill_dir = target_root / skill_name
-
-    resolved = skill_dir.resolve()
-    skills_root = target_root.resolve()
-    if not resolved.is_relative_to(skills_root):
-        return f"Invalid skill name: '{skill_name}' resolves outside skills directory."
-
-    if not skill_dir.exists():
-        return f"Skill '{skill_name}' not found in {scope} scope."
-    if not skill_dir.is_dir():
-        return f"Skill path for '{skill_name}' is not a directory."
-
     try:
-        shutil.rmtree(skill_dir)
-
         registry = _get_registry(user_id, workspace_id)
         registry.reload()
-        _reset_sdk_loops_for_scope(user_id, workspace_id, scope)
+    except RuntimeError as exc:
+        return str(exc)
 
-        logger.info(
-            "skill.deleted",
-            {"name": skill_name, "scope": scope, "path": str(skill_dir)},
-            user_id=user_id,
-        )
+    skills = registry.get_all_skills()
+    if not skills:
+        return "No skills available."
 
-        return f"Successfully deleted {scope} skill '{skill_name}'"
-    except Exception as e:
-        logger.error("skill.delete.error", {"name": skill_name, "error": str(e)}, user_id=user_id)
-        return f"Error deleting skill: {e}"
+    parts: list[str] = []
+    for s in skills:
+        name = s.get("name", "")
+        desc = s.get("description", "") or ""
+        loaded = " [loaded]" if name in registry.get_loaded_skills() else ""
+        parts.append(f"  {name}: {desc}{loaded}")
 
+    logger.info(
+        "skill.reloaded",
+        {"count": len(skills)},
+        user_id=user_id,
+    )
 
-skill_delete.annotations = ToolAnnotations(title="Delete Skill", destructive=True)
-
-
-@tool
-def sql_write_query(
-    query: str,
-    database: str,
-    user_id: str = "default_user",
-    workspace_id: str = "personal",
-) -> str:
-    """Write and validate a SQL query for a specific database.
-
-    The required skill must be loaded first using skills_load.
-
-    Args:
-        query: The SQL query to validate
-        database: Database name (e.g., 'sql-analytics', 'inventory')
-        user_id: User identifier
-        workspace_id: Workspace identifier
-
-    Returns:
-        Validated query or error
-    """
-    registry = _get_registry(user_id, workspace_id)
-    skills_loaded = list(registry._loaded_skills) if hasattr(registry, "_loaded_skills") else []
-
-    if database not in skills_loaded:
-        return (
-            f"Error: You must load the '{database}' skill first. "
-            f"Use skills_load('{database}') to load the database schema."
-        )
-
-    return f"SQL Query for {database}:\n\n```sql\n{query}\n```\n\nQuery validated against {database} schema"
+    return "Skills reloaded:\n" + "\n".join(parts)
 
 
-sql_write_query.annotations = ToolAnnotations(title="Write SQL Query", open_world=True)
+skills_reload.annotations = ToolAnnotations(
+    title="Reload Skills", read_only=False, destructive=False, idempotent=True
+)
