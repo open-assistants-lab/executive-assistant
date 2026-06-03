@@ -162,6 +162,19 @@ def _get_skills_context(user_id: str, workspace_id: str = "personal") -> str:
         if not skills:
             return ""
 
+        # Filter by item_scopes (All / Selected / None)
+        from connectkit.item_scopes import ItemScopeDB
+        from src.storage.paths import get_paths as _get_paths
+
+        paths = _get_paths(user_id, workspace_id=workspace_id)
+        scope_db = ItemScopeDB(paths.base)
+        excluded = scope_db.get_excluded_names(user_id, "skill")
+
+        skills = [
+            s for s in skills
+            if s.get("name") not in excluded
+        ]
+
         visible_skills = [
             s
             for s in skills
