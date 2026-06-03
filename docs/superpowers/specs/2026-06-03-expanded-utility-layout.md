@@ -45,7 +45,7 @@ Current (all routes):                 After this change:
 - `/tools` — `ToolsPanel` (88 tools, category sections)
 - `/skills` — `SkillsSidebarPanel`
 - `/subagents` — `SubagentsSidebarPanel`
-- `/connectors` — `ConnectorsModal` (currently a modal — needs to be promoted to a full panel)
+- `/connectors` — `ConnectorsModal` (already a full panel — just add the route)
 - `/settings` — `SettingsScreen`
 
 **Normal routes (keep current three-column layout):**
@@ -63,14 +63,14 @@ in `ResponsiveShell` to decide which layout to render. The simplest split:
 - `DesktopUtilityLayout` (new, two-column: sidebar | expanded panel) is
   used for utility routes
 
-The sidebar widget (`_Sidebar`) stays identical in both layouts. The
-expanded panel is the `child` from `ResponsiveShell` — same widget tree,
-just wider container.
+The sidebar widget (`Sidebar`, renamed from `_Sidebar`) stays identical
+in both layouts. The expanded panel is the `child` from `ResponsiveShell`
+— same widget tree, just wider container.
 
 ```dart
 // ResponsiveShell.build
 if (isUtilityRoute(state.matchedLocation)) {
-  return DesktopUtilityLayout(child: child);
+  return DesktopUtilityLayout(sidebar: const Sidebar(width: 240), child: child);
 } else {
   return DesktopLayout(child: child);
 }
@@ -162,20 +162,18 @@ ShellRoute(
 )
 ```
 
-### Connectors panel promotion
+### Connectors route
 
-Currently `ConnectorsModal` is opened via a method call (likely a
-`showDialog` or similar). To make it a routed panel:
+`ConnectorsModal` is already a full panel widget (has its own `Scaffold`
++ `AppBar`). The only work needed:
 
-1. Create a new widget `ConnectorsPanel` (or rename `ConnectorsModal` →
-  `ConnectorsPanel` and remove the dialog wrapper)
-2. Wire it to `/connectors` in `app_router.dart`
-3. Replace the modal-open call site with a `context.go('/connectors')`
-  (or keep the modal behavior and just add the route as an alternate
-  entry point)
+1. Add the `/connectors` route in `app_router.dart` (it's currently
+   missing despite being referenced in the sidebar)
+2. Fix the close button (`Navigator.of(context).pop()`) to work in
+   both dialog and routed contexts
 
-The exact promotion approach depends on how `ConnectorsModal` is
-currently invoked — needs investigation during implementation.
+The sidebar's `DesktopSidebarItem.connectors` already declares
+`path: '/connectors'`, so adding the route completes the wiring.
 
 ## Testing
 

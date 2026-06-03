@@ -6,7 +6,7 @@
 
 **Architecture:** Add a `DesktopUtilityLayout` (two-column: sidebar + full-width child) alongside the existing `DesktopLayout` (three-column: sidebar + chat + content). `ResponsiveShell` branches on the current route to pick the right layout. The sidebar widget is reused unchanged.
 
-**Tech Stack:** Flutter, GoRouter, Riverpod, existing `_Sidebar` widget from `desktop_layout.dart`.
+**Tech Stack:** Flutter, GoRouter, Riverpod, existing `Sidebar` widget (renamed from `_Sidebar`) in `desktop_layout.dart`.
 
 ---
 
@@ -68,9 +68,10 @@ void main() {
 }
 ```
 
-Note: the test accepts a `sidebar` widget parameter directly (not a `_Sidebar`
-class) so the test doesn't need to mock the full sidebar's providers. The
-production code will pass the real `_Sidebar` widget.
+Note: the test accepts a `sidebar` widget parameter directly (not a
+full `Sidebar` widget) so the test doesn't need to mock all of the
+sidebar's providers (workspace list, current workspace, theme). The
+production code in Task 2 will pass the real `Sidebar` widget.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -198,7 +199,7 @@ ShellRoute(
 ),
 ```
 
-- [ ] **Step 3: Update ResponsiveShell to branch on route**
+- [ ] **Step 4: Update ResponsiveShell to branch on route**
 
 In `flutter_app/lib/core/layout/responsive_shell.dart`, replace the file
 contents with:
@@ -243,7 +244,7 @@ class ResponsiveShell extends ConsumerWidget {
 }
 ```
 
-- [ ] **Step 3: Verify no analyzer issues**
+- [ ] **Step 5: Verify no analyzer issues**
 
 ```bash
 cd /Users/eddy/Developer/Python/executive-assistant/flutter_app
@@ -252,7 +253,7 @@ flutter analyze lib/core/layout/responsive_shell.dart lib/core/router/app_router
 
 Expected: No new issues.
 
-- [ ] **Step 4: Run existing tests to check for regressions**
+- [ ] **Step 6: Run existing tests to check for regressions**
 
 ```bash
 cd /Users/eddy/Developer/Python/executive-assistant/flutter_app
@@ -262,12 +263,13 @@ flutter test test/core/layout/ test/core/responsive_test.dart 2>&1 | tail -5
 Expected: Existing tests still pass. (Some may be pre-existing
 failures — that's OK, just verify no new failures.)
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 cd /Users/eddy/Developer/Python/executive-assistant
 git add flutter_app/lib/core/layout/responsive_shell.dart \
-        flutter_app/lib/core/router/app_router.dart
+        flutter_app/lib/core/router/app_router.dart \
+        flutter_app/lib/core/layout/desktop_layout.dart
 git commit -m "feat: branch ResponsiveShell on utility routes"
 ```
 
@@ -349,16 +351,148 @@ git commit -m "feat: /connectors route with modal close fix"
 
 ---
 
-## Task 4: Add responsive_shell route-mapping test
+## Task 4: Test isUtilityRoute and ResponsiveShell layout selection
 
 **Files:**
-- Create: `flutter_app/test/core/layout/responsive_shell_test.dart`
+- Create: `flutter_app/test/core/router/app_router_test.dart` (pure function test)
+- Create: `flutter_app/test/core/layout/responsive_shell_test.dart` (widget test)
 
 - [ ] **Step 1: Read the existing responsive test file for context**
 
 ```bash
 cd /Users/eddy/Developer/Python/executive-assistant/flutter_app
 head -50 test/core/responsive_test.dart
+```
+
+- [ ] **Step 2: Test isUtilityRoute as a pure function**
+
+`GoRouterState` is hard to construct in tests (it's not exposed via
+`routerDelegate.currentConfiguration.matches` — those are
+`RouteMatch`, not `GoRouterState`). Test the classification function
+directly instead.
+
+Create `flutter_app/test/core/router/app_router_test.dart`:
+
+```dart
+import 'package:executive_assistant/core/router/app_router.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  group('isUtilityRoute', () {
+    test('returns true for utility routes', () {
+      for (final path in const [
+        '/tools', '/skills', '/subagents', '/connectors', '/settings',
+      ]) {
+        expect(isUtilityRoute(path), isTrue, reason: '$path should be utility');
+      }
+    });
+
+    test('returns false for non-utility routes', () {
+      for (final path in const [
+        '/workspace', '/email', '/chat', '/tasks', '/contacts', '/more',
+      ]) {
+        expect(isUtilityRoute(path), isFalse, reason: '$path should NOT be utility');
+      }
+    });
+
+    test('returns false for unknown routes', () {
+      expect(isUtilityRoute('/unknown'), isFalse);
+      expect(isUtilityRoute(''), isFalse);
+    });
+  });
+}
+```
+
+- [ ] **Step 3: Run the pure function test to verify it passes**
+
+```bash
+cd /Users/eddy/Developer/Python/executive-assistant/flutter_app
+flutter test test/core/router/app_router_test.dart 2>&1 | tail -3
+```
+
+Expected: PASS (3 tests)
+
+- [ ] **Step 4: Widget test for ResponsiveShell using a real GoRouter**
+
+Create `flutter_app/test/core/layout/responsive_shell_test.dart`:
+
+```dart
+import 'package:executive_assistant/core/layout/desktop_layout.dart';
+import 'package:executive_assistant/core/layout/desktop_utility_layout.dart';
+import 'package:executive_assistant/core/layout/responsive_shell.dart';
+import 'package:executive_assistant/core/router/app_router.dart';
+import 'package:executive_assistant/theme/app_theme.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+
+void main() {
+  // Pump the full app with a given initial location, then extract the
+  // GoRouterState from the current BuildContext (GoRouterState.of(context)).
+  Future<GoRouterState> pumpAt(
+    WidgetTester tester,
+    String location,
+  ) async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final router = container.read(appRouterProvider);
+    router.go(location);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    return GoRouterState.of(tester.element(find.byType(MaterialApp).first));
+  }
+
+  testWidgets('utility routes render DesktopUtilityLayout', (tester) async {
+    for (final path in const [
+      '/tools', '/skills', '/subagents', '/connectors', '/settings',
+    ]) {
+      final state = await pumpAt(tester, path);
+      expect(
+        find.byType(DesktopUtilityLayout),
+        findsOneWidget,
+        reason: 'Expected utility layout for $path',
+      );
+    }
+  });
+
+  testWidgets('non-utility routes render DesktopLayout', (tester) async {
+    for (final path in const ['/workspace', '/email']) {
+      final state = await pumpAt(tester, path);
+      expect(
+        find.byType(DesktopLayout),
+        findsOneWidget,
+        reason: 'Expected desktop layout for $path',
+      );
+    }
+  });
+}
+```
+
+- [ ] **Step 5: Run the widget test to verify it passes**
+
+```bash
+cd /Users/eddy/Developer/Python/executive-assistant/flutter_app
+flutter test test/core/layout/responsive_shell_test.dart 2>&1 | tail -3
+```
+
+Expected: PASS (2 tests)
+
+- [ ] **Step 6: Commit**
+
+```bash
+cd /Users/eddy/Developer/Python/executive-assistant
+git add flutter_app/test/core/router/app_router_test.dart \
+        flutter_app/test/core/layout/responsive_shell_test.dart
+git commit -m "test: isUtilityRoute + ResponsiveShell layout selection"
 ```
 
 - [ ] **Step 2: Create a new test file with actual GoRouter-based tests**
