@@ -98,7 +98,7 @@ class DesktopLayout extends ConsumerWidget {
               final contentWidth = remainingWidth * 0.4;
               return Row(
                 children: [
-                  const _Sidebar(width: sidebarWidth),
+                  const Sidebar(width: sidebarWidth),
                   Container(
                     width: 1,
                     color: context.tokens.colors.borderSubtle,
@@ -120,9 +120,9 @@ class DesktopLayout extends ConsumerWidget {
   }
 }
 
-class _Sidebar extends ConsumerWidget {
+class Sidebar extends ConsumerWidget {
   final double width;
-  const _Sidebar({required this.width});
+  const Sidebar({super.key, required this.width});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -281,7 +281,7 @@ class _Sidebar extends ConsumerWidget {
                   horizontal: tokens.spacing.md,
                   vertical: tokens.spacing.xs,
                 ),
-                child: _SidebarItem(
+                child: SidebarItem(
                   item: DesktopSidebarItem.tools,
                   selected: false,
                   onTap: () => context.go('/tools'),
@@ -292,7 +292,7 @@ class _Sidebar extends ConsumerWidget {
                   horizontal: tokens.spacing.md,
                   vertical: tokens.spacing.xs,
                 ),
-                child: _SidebarItem(
+                child: SidebarItem(
                   item: DesktopSidebarItem.skills,
                   selected: false,
                   onTap: () => context.go('/skills'),
@@ -303,7 +303,7 @@ class _Sidebar extends ConsumerWidget {
                   horizontal: tokens.spacing.md,
                   vertical: tokens.spacing.xs,
                 ),
-                child: _SidebarItem(
+                child: SidebarItem(
                   item: DesktopSidebarItem.subagents,
                   selected: false,
                   onTap: () => context.go('/subagents'),
@@ -314,7 +314,7 @@ class _Sidebar extends ConsumerWidget {
                   horizontal: tokens.spacing.md,
                   vertical: tokens.spacing.xs,
                 ),
-                child: _SidebarItem(
+                child: SidebarItem(
                   item: DesktopSidebarItem.connectors,
                   selected: false,
                   onTap: () => _showConnectors(context),
@@ -329,7 +329,7 @@ class _Sidebar extends ConsumerWidget {
                 child: Row(
                   children: [
                     Expanded(
-                      child: _SidebarItem(
+                      child: SidebarItem(
                         item: DesktopSidebarItem.settings,
                         selected: false,
                         onTap: () => _showSettings(context),
@@ -460,21 +460,22 @@ class _Sidebar extends ConsumerWidget {
   }
 }
 
-class _SidebarItem extends StatefulWidget {
+class SidebarItem extends StatefulWidget {
   final DesktopSidebarItem item;
   final bool selected;
   final VoidCallback onTap;
-  const _SidebarItem({
+  const SidebarItem({
+    super.key,
     required this.item,
     required this.selected,
     required this.onTap,
   });
 
   @override
-  State<_SidebarItem> createState() => _SidebarItemState();
+  State<SidebarItem> createState() => _SidebarItemState();
 }
 
-class _SidebarItemState extends State<_SidebarItem> {
+class _SidebarItemState extends State<SidebarItem> {
   bool _hover = false;
 
   @override
@@ -612,6 +613,15 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
     // tab (where activeChatTabProvider doesn't change).
     ref.listen<int>(workspaceSwitchSignalProvider, (prev, next) {
       if (prev != null && prev != next) {
+        // Reset unread state — switching workspaces clears the "new messages"
+        // context. The scroll listener may not fire on position reattachment
+        // (new ScrollPosition starts at 0 with no "change" event), so we
+        // explicitly reset here.
+        setState(() {
+          _showJumpToBottom = false;
+          _unreadCount = 0;
+          _lastSeenMessageCount = 0;
+        });
         _pendingScrollToBottom = true;
         _scrollToBottom();
       }

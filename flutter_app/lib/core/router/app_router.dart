@@ -16,6 +16,16 @@ import '../../services/instrumented_app.dart';
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
 
+const _utilityRoutes = {
+  '/tools',
+  '/skills',
+  '/subagents',
+  '/connectors',
+  '/settings',
+};
+
+bool isUtilityRoute(String path) => _utilityRoutes.contains(path);
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
@@ -30,7 +40,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ShellRoute(
         navigatorKey: _shellNavigatorKey,
         builder: (context, state, child) {
-          return ResponsiveShell(child: child);
+          return ResponsiveShell(state: state, child: child);
         },
         routes: [
           GoRoute(

@@ -5,14 +5,19 @@ import 'package:go_router/go_router.dart';
 import 'package:executive_assistant/core/layout/responsive_shell.dart';
 import 'package:executive_assistant/core/constants/breakpoints.dart';
 
-Widget _buildTestApp(Widget child) {
+Widget _buildTestApp(Widget Function(GoRouterState) builder) {
   final router = GoRouter(
     routes: [
-      GoRoute(
-        path: '/',
-        pageBuilder: (context, state) => NoTransitionPage(
-          child: child,
-        ),
+      ShellRoute(
+        builder: (context, state, child) => builder(state),
+        routes: [
+          GoRoute(
+            path: '/',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: const Text('Content'),
+            ),
+          ),
+        ],
       ),
     ],
   );
@@ -33,7 +38,7 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
 
       await tester.pumpWidget(
-        _buildTestApp(const ResponsiveShell(child: Text('Content'))),
+        _buildTestApp((state) => ResponsiveShell(state: state, child: const Text('Content'))),
       );
       await tester.pump(); await tester.pump(const Duration(milliseconds: 100));
       expect(find.text('Content'), findsOneWidget);
@@ -47,7 +52,7 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
 
       await tester.pumpWidget(
-        _buildTestApp(const ResponsiveShell(child: Text('Content'))),
+        _buildTestApp((state) => ResponsiveShell(state: state, child: const Text('Content'))),
       );
       await tester.pump(); await tester.pump(const Duration(milliseconds: 100));
       expect(find.text('Content'), findsOneWidget);
@@ -61,7 +66,7 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
 
       await tester.pumpWidget(
-        _buildTestApp(const ResponsiveShell(child: Text('Content'))),
+        _buildTestApp((state) => ResponsiveShell(state: state, child: const Text('Content'))),
       );
       await tester.pump(); await tester.pump(const Duration(milliseconds: 100));
       expect(find.text('Content'), findsOneWidget);
@@ -79,7 +84,7 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
 
       await tester.pumpWidget(
-        _buildTestApp(const ResponsiveShell(child: Text('Content'))),
+        _buildTestApp((state) => ResponsiveShell(state: state, child: const Text('Content'))),
       );
       await tester.pump(); await tester.pump(const Duration(milliseconds: 100));
       expect(find.text('Content'), findsOneWidget);
