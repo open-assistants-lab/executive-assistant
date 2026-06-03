@@ -10,6 +10,8 @@ class ToolItem {
   final Map<String, dynamic> parameters;
   final bool enabled;
   final String source;
+  final String scope;
+  final List<String> workspaceIds;
 
   const ToolItem({
     required this.name,
@@ -19,6 +21,8 @@ class ToolItem {
     required this.parameters,
     required this.enabled,
     required this.source,
+    this.scope = 'all',
+    this.workspaceIds = const [],
   });
 
   factory ToolItem.fromJson(Map<String, dynamic> json) => ToolItem(
@@ -29,6 +33,11 @@ class ToolItem {
         parameters: Map<String, dynamic>.from(json['parameters'] ?? {}),
         enabled: json['enabled'] ?? true,
         source: json['source'] ?? 'native',
+        scope: json['scope'] ?? 'all',
+        workspaceIds: (json['workspace_ids'] as List?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            [],
       );
 
   bool get isDestructive => annotations['destructive'] == true;
@@ -121,6 +130,7 @@ class ToolsNotifier extends StateNotifier<ToolsState> {
           name: t.name, description: t.description, category: t.category,
           annotations: t.annotations, parameters: t.parameters,
           enabled: enabled, source: t.source,
+          scope: t.scope, workspaceIds: t.workspaceIds,
         );
       }
       return t;
@@ -144,12 +154,39 @@ class ToolsNotifier extends StateNotifier<ToolsState> {
             name: t.name, description: t.description, category: t.category,
             annotations: t.annotations, parameters: t.parameters,
             enabled: !enabled, source: t.source,
+            scope: t.scope, workspaceIds: t.workspaceIds,
           );
         }
         return t;
       }).toList();
       state = _copyWith(state, tools: reverted);
     }
+  }
+
+  Future<void> setScope({
+    required String host,
+    required String userId,
+    required String toolName,
+    required String scope,
+    required List<String> workspaceIds,
+  }) async {
+    final uri = Uri.parse(
+      'http://$host/tools/$toolName?user_id=$userId',
+    );
+    await _client.patch(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'scope': scope,
+        'workspace_ids': workspaceIds,
+      }),
+    );
+    // Reload to get updated enabled/computed state
+    final workspaceId = state.tools
+        .firstWhere((t) => t.name == toolName)
+        .workspaceIds
+        .firstOrNull ?? 'personal';
+    await loadTools(host: host, userId: userId, workspaceId: workspaceId);
   }
 }
 

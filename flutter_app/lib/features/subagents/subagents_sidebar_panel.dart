@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/scope_switcher.dart';
 
 class SubagentsSidebarPanel extends ConsumerStatefulWidget {
   const SubagentsSidebarPanel({super.key});
@@ -12,7 +11,6 @@ class SubagentsSidebarPanel extends ConsumerStatefulWidget {
 }
 
 class _SubagentsSidebarPanelState extends ConsumerState<SubagentsSidebarPanel> {
-  CapabilityScope _scope = CapabilityScope.workspace;
   final _searchController = TextEditingController();
 
   @override
@@ -57,11 +55,6 @@ class _SubagentsSidebarPanelState extends ConsumerState<SubagentsSidebarPanel> {
                     prefixIcon: Icon(Symbols.search, size: 18),
                     isDense: true,
                   ),
-                ),
-                SizedBox(height: tokens.spacing.sm),
-                ScopeSwitcher(
-                  scope: _scope,
-                  onChanged: (s) => setState(() => _scope = s),
                 ),
               ],
             ),

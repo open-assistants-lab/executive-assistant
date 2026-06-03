@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/agent_provider.dart';
 import '../../providers/workspace_provider.dart';
-import '../../widgets/scope_switcher.dart';
+import '../../widgets/scope_picker.dart';
 import 'tools_provider.dart';
 
 class ToolsPanel extends ConsumerStatefulWidget {
@@ -14,23 +14,18 @@ class ToolsPanel extends ConsumerStatefulWidget {
 }
 
 class _ToolsPanelState extends ConsumerState<ToolsPanel> {
-  CapabilityScope _scope = CapabilityScope.workspace;
   final _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    // Defer provider mutation until after the current frame builds.
-    // Modifying a provider inside initState is not allowed in Riverpod.
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
   void _load() {
     final host = ref.read(hostProvider);
     final userId = ref.read(userIdProvider);
-    final wsId = _scope == CapabilityScope.workspace
-        ? ref.read(currentWorkspaceIdProvider)
-        : 'personal';
+    final wsId = ref.read(currentWorkspaceIdProvider);
     ref.read(toolsProvider.notifier).loadTools(
           host: host,
           userId: userId,
@@ -100,15 +95,6 @@ class _ToolsPanelState extends ConsumerState<ToolsPanel> {
                       ref.read(toolsProvider.notifier).setSearch(v),
                 ),
                 SizedBox(height: tokens.spacing.sm),
-                ScopeSwitcher(
-                  scope: _scope,
-                  onChanged: (s) {
-                    setState(() {
-                      _scope = s;
-                    });
-                    _load();
-                  },
-                ),
               ],
             ),
           ),
@@ -136,20 +122,6 @@ class _ToolsPanelState extends ConsumerState<ToolsPanel> {
                                 '${catSummary?.enabled ?? 0} / ${catSummary?.count ?? items.length}',
                             tools: items,
                             tokens: tokens,
-                            onToggle: (tool, enabled) {
-                              final host = ref.read(hostProvider);
-                              final userId = ref.read(userIdProvider);
-                              final wsId = _scope == CapabilityScope.workspace
-                                  ? ref.read(currentWorkspaceIdProvider)
-                                  : 'personal';
-                              ref.read(toolsProvider.notifier).toggleTool(
-                                    host: host,
-                                    userId: userId,
-                                    workspaceId: wsId,
-                                    toolName: tool.name,
-                                    enabled: enabled,
-                                  );
-                            },
                           );
                         },
                       ),
@@ -165,14 +137,12 @@ class _CategorySection extends StatelessWidget {
   final String count;
   final List<ToolItem> tools;
   final EaTokens tokens;
-  final Function(ToolItem, bool) onToggle;
 
   const _CategorySection({
     required this.title,
     required this.count,
     required this.tools,
     required this.tokens,
-    required this.onToggle,
   });
 
   @override
@@ -210,7 +180,6 @@ class _CategorySection extends StatelessWidget {
                 .map((tool) => _ToolRow(
                       tool: tool,
                       tokens: tokens,
-                      onToggle: (enabled) => onToggle(tool, enabled),
                     ))
                 .toList(),
           ),
@@ -221,19 +190,18 @@ class _CategorySection extends StatelessWidget {
   }
 }
 
-class _ToolRow extends StatelessWidget {
+class _ToolRow extends ConsumerWidget {
   final ToolItem tool;
   final EaTokens tokens;
-  final ValueChanged<bool> onToggle;
 
   const _ToolRow({
     required this.tool,
     required this.tokens,
-    required this.onToggle,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final workspaces = ref.watch(workspaceListProvider).valueOrNull ?? [];
     return Padding(
       padding: EdgeInsets.symmetric(
         horizontal: tokens.spacing.md,
@@ -280,11 +248,25 @@ class _ToolRow extends StatelessWidget {
               ],
             ),
           ),
-          Switch(
-            value: tool.enabled,
-            onChanged: onToggle,
-            activeTrackColor: tokens.colors.accent.withAlpha(80),
-            activeThumbColor: tokens.colors.accent,
+          ScopePicker(
+            scope: tool.scope == 'selected' && tool.workspaceIds.isNotEmpty
+                ? ScopeState.selected
+                : tool.scope == 'none'
+                    ? ScopeState.none
+                    : ScopeState.all,
+            selectedWorkspaceIds: tool.workspaceIds,
+            allWorkspaces: workspaces,
+            onChanged: (change) {
+              final host = ref.read(hostProvider);
+              final userId = ref.read(userIdProvider);
+              ref.read(toolsProvider.notifier).setScope(
+                    host: host,
+                    userId: userId,
+                    toolName: tool.name,
+                    scope: change.scope.name,
+                    workspaceIds: change.workspaceIds,
+                  );
+            },
           ),
         ],
       ),
