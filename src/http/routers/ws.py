@@ -21,6 +21,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from src.app_logging import get_logger
 from src.config.settings import get_settings
 from src.http.auth import verify_key
+from src.http.routers.conversation import _extract_canvas
 from src.http.ws_protocol import (
     ApproveMessage,
     AuthMessage,
@@ -141,6 +142,16 @@ async def _run_agent_stream(
                 response = (
                     "".join(ai_content_parts) if ai_content_parts else "Task completed."
                 )
+
+                canvas_blocks = _extract_canvas(response)
+                for surface in canvas_blocks:
+                    await _handle_canvas_update(
+                        websocket,
+                        surface_id=surface["surface_id"],
+                        action="create",
+                        html=surface["html"],
+                        workspace_id=workspace_id,
+                    )
 
                 reasoning_content = "".join(reasoning_parts) if reasoning_parts else None
 

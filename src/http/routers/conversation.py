@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -19,6 +20,39 @@ _pending_approvals: dict[str, dict] = {}
 
 router = APIRouter(tags=["conversation"])
 logger = get_logger()
+
+# ── Canvas HTML fence block parser ──────────────────────────────────────────
+
+_CANVAS_FENCE = re.compile(
+    r"```html:(canvas|skill-form|subagent-form)\s*\n(.*?)```",
+    re.DOTALL,
+)
+
+CANVAS_SCHEMAS: dict[str, list[str]] = {
+    "skill-form": ["name", "description", "content"],
+    "subagent-form": ["name", "description", "model", "system_prompt"],
+    "canvas": [],
+}
+
+
+def _extract_canvas(text: str, surface_id_prefix: str = "canvas") -> list[dict]:
+    """Extract canvas HTML blocks from agent response text.
+
+    Returns list of dicts ready to emit as canvas_update events.
+    """
+    surfaces: list[dict] = []
+    for i, match in enumerate(_CANVAS_FENCE.finditer(text)):
+        surface_type = match.group(1)
+        html = match.group(2).strip()
+        if not html:
+            continue
+        surfaces.append({
+            "surface_id": f"{surface_id_prefix}-{i}",
+            "action": "create",
+            "html": html,
+            "surface_type": surface_type,
+        })
+    return surfaces
 
 
 def _persist_tool_messages(conversation, tool_events: list[dict], workspace_id: str) -> None:
@@ -222,6 +256,8 @@ async def handle_message(req: MessageRequest, _: None = Depends(require_auth)) -
                 if not response:
                     response = "Task completed."
 
+        canvas_blocks = _extract_canvas(response)
+
         tool_calls_list = None
         if req.verbose:
             seen_call_ids: set[str] = set()
@@ -244,6 +280,11 @@ async def handle_message(req: MessageRequest, _: None = Depends(require_auth)) -
             user_id=user_id,
             channel="http",
         )
+
+        if canvas_blocks:
+            if verbose_data is None:
+                verbose_data = {}
+            verbose_data["canvas_blocks"] = canvas_blocks
 
         return MessageResponse(
             response=response,
@@ -320,6 +361,10 @@ async def message_stream(req: MessageRequest, _: None = Depends(require_auth)):
                 response = "\n".join(result["output"] for result in tool_results)
             if not response:
                 response = "Task completed."
+
+            canvas_blocks = _extract_canvas(response)
+            for surface in canvas_blocks:
+                yield f"data: {json.dumps({'type': 'canvas_update', 'data': surface})}\n\n"
 
             result_by_call_id = {
                 result["tool_call_id"]: result["output"] for result in tool_results
