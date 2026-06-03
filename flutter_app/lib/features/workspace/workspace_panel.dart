@@ -234,7 +234,7 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
   }
 }
 
-enum _WorkspacePanelTab { files, skills, subagents, tools }
+enum _WorkspacePanelTab { files, tools, skills, subagents }
 
 class _BottomTabs extends StatelessWidget {
   final _WorkspacePanelTab selected;
@@ -259,28 +259,28 @@ class _BottomTabs extends StatelessWidget {
             tooltip: 'Files',
             onTap: () => onSelected(_WorkspacePanelTab.files),
           ),
-          const SizedBox(width: 8),
-          _BottomTabButton(
-            icon: Symbols.bolt,
-            activeIcon: Symbols.bolt,
-            selected: selected == _WorkspacePanelTab.skills,
-            tooltip: 'Skills',
-            onTap: () => onSelected(_WorkspacePanelTab.skills),
-          ),
-          const SizedBox(width: 8),
-          _BottomTabButton(
-            icon: Symbols.smart_toy,
-            activeIcon: Symbols.smart_toy,
-            selected: selected == _WorkspacePanelTab.subagents,
-            tooltip: 'Subagents',
-            onTap: () => onSelected(_WorkspacePanelTab.subagents),
-          ),
           _BottomTabButton(
             icon: Symbols.handyman,
             activeIcon: Symbols.handyman,
             selected: selected == _WorkspacePanelTab.tools,
             tooltip: 'Tools',
             onTap: () => onSelected(_WorkspacePanelTab.tools),
+          ),
+          const SizedBox(width: 8),
+          _BottomTabButton(
+            icon: Symbols.psychology,
+            activeIcon: Symbols.psychology,
+            selected: selected == _WorkspacePanelTab.skills,
+            tooltip: 'Skills',
+            onTap: () => onSelected(_WorkspacePanelTab.skills),
+          ),
+          const SizedBox(width: 8),
+          _BottomTabButton(
+            icon: Symbols.robot_2,
+            activeIcon: Symbols.robot_2,
+            selected: selected == _WorkspacePanelTab.subagents,
+            tooltip: 'Subagents',
+            onTap: () => onSelected(_WorkspacePanelTab.subagents),
           ),
         ],
       ),

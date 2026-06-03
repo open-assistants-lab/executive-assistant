@@ -95,7 +95,7 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
             ),
             child: Row(
               children: [
-                Icon(Symbols.bolt, size: 18, color: context.tokens.colors.accent),
+                Icon(Symbols.psychology, size: 18, color: context.tokens.colors.accent),
                 const SizedBox(width: 8),
                 Text(
                   'Skills',
@@ -173,7 +173,7 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Symbols.bolt, size: 40, color: context.tokens.colors.textTertiary),
+            Icon(Symbols.psychology, size: 40, color: context.tokens.colors.textTertiary),
             const SizedBox(height: 8),
             Text(
               'No skills',
@@ -193,7 +193,7 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
         final scope = _scopeOf(skill);
         final usageCount = _usageCount(name);
         return EaListTile(
-          leading: Icon(Symbols.bolt, size: 18, color: context.tokens.colors.accent),
+          leading: Icon(Symbols.psychology, size: 18, color: context.tokens.colors.accent),
           title: name,
           subtitle: usageCount > 0 ? 'used by $usageCount agents' : (description.isNotEmpty ? description : null),
           trailingBadges: [

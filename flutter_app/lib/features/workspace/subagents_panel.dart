@@ -74,7 +74,7 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
       ),
       child: Row(
         children: [
-          Icon(Symbols.smart_toy, size: 18, color: context.tokens.colors.accent),
+          Icon(Symbols.robot_2, size: 18, color: context.tokens.colors.accent),
           const SizedBox(width: 8),
           Text(
             'Subagents',
@@ -143,7 +143,7 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Symbols.smart_toy, size: 40, color: context.tokens.colors.textTertiary),
+            Icon(Symbols.robot_2, size: 40, color: context.tokens.colors.textTertiary),
             const SizedBox(height: 8),
             Text(
               'No subagents yet',
@@ -178,7 +178,7 @@ class _SubagentsPanelState extends ConsumerState<SubagentsPanel> {
           mainAxisSize: MainAxisSize.min,
           children: [
             EaListTile(
-              leading: Icon(Symbols.smart_toy, size: 18, color: context.tokens.colors.accent),
+              leading: Icon(Symbols.robot_2, size: 18, color: context.tokens.colors.accent),
               title: agent.name,
               subtitle: agent.description.isEmpty ? null : agent.description,
               chips: skillChips.isEmpty ? null : skillChips,
