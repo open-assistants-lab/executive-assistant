@@ -13,6 +13,7 @@ import 'package:executive_assistant/services/ws_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:executive_assistant/theme/app_theme.dart';
 
@@ -100,13 +101,13 @@ void main() {
     expect(find.text('Files'), findsOneWidget);
     expect(find.text('brief.md'), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.bolt_outlined));
+    await tester.tap(find.byIcon(Symbols.bolt));
     await tester.pump();
     await tester.pump();
 
     expect(find.text('Skills'), findsOneWidget);
     expect(find.text('email-triage'), findsOneWidget);
-    expect(find.text('ws'), findsOneWidget);
+    expect(find.text('workspace'), findsOneWidget);
     verify(() => api.listSkills(workspaceId: 'sales')).called(1);
   });
 
@@ -174,7 +175,7 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.tap(find.byIcon(Icons.smart_toy_outlined));
+    await tester.tap(find.byIcon(Symbols.smart_toy));
     await tester.pump();
     await tester.pump();
 
@@ -243,13 +244,13 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.tap(find.byIcon(Icons.smart_toy_outlined));
+    await tester.tap(find.byIcon(Symbols.smart_toy));
     await tester.pump();
     await tester.pump();
 
-    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.tap(find.byIcon(Symbols.play_arrow));
     await tester.pump();
-    await tester.tap(find.text('Start new task'));
+    await tester.tap(find.text('Start'));
     await tester.pump();
 
     expect(tester.takeException(), isNull);
@@ -334,7 +335,7 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.byIcon(Icons.refresh));
+    await tester.tap(find.byIcon(Symbols.refresh));
     await tester.pump();
     expect(calls, 2);
 
@@ -389,7 +390,7 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.byIcon(Icons.add));
+    await tester.tap(find.byIcon(Symbols.add));
     await tester.pump();
     await tester.enterText(find.widgetWithText(TextField, 'Name'), 'triage');
     await tester.enterText(
@@ -465,7 +466,7 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      await tester.tap(find.byIcon(Icons.delete_outline));
+      await tester.tap(find.byIcon(Symbols.delete));
       await tester.pump();
       container.read(currentWorkspaceIdProvider.notifier).state = 'support';
       await tester.pump();
@@ -514,7 +515,7 @@ void main() {
       );
       await tester.pump();
 
-      await tester.tap(find.byIcon(Icons.add));
+      await tester.tap(find.byIcon(Symbols.add));
       await tester.pump();
       await tester.enterText(find.widgetWithText(TextField, 'Name'), 'triage');
       await tester.enterText(
@@ -584,15 +585,14 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.byIcon(Icons.add));
+    await tester.tap(find.byIcon(Symbols.add));
     await tester.pumpAndSettle();
-    await tester.drag(find.byType(SingleChildScrollView), const Offset(0, -300));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Advanced'));
+    await tester.drag(find.byType(SingleChildScrollView), const Offset(0, -400));
     await tester.pumpAndSettle();
 
+    expect(find.text('Tools'), findsOneWidget);
     final checkboxes =
-        tester.widgetList<CheckboxListTile>(find.byType(CheckboxListTile));
+        tester.widgetList<Checkbox>(find.byType(Checkbox));
     expect(checkboxes.isNotEmpty, true);
     final first = checkboxes.first;
     expect(first.onChanged, isNotNull);
@@ -682,7 +682,7 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.byIcon(Icons.add));
+    await tester.tap(find.byIcon(Symbols.add));
     await tester.pumpAndSettle();
 
     // Enter invalid name with spaces

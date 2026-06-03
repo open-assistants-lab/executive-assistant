@@ -6,6 +6,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:executive_assistant/services/ws_client.dart';
 import 'package:executive_assistant/services/api_client.dart';
 import 'package:executive_assistant/providers/agent_provider.dart';
+import 'package:executive_assistant/theme/app_theme.dart';
 import 'package:executive_assistant/features/home/home_screen.dart';
 
 class MockWsClient extends Mock implements WsClient {}
@@ -19,6 +20,7 @@ Widget _buildHomeScreen(MockWsClient ws, MockApiClient api) {
       apiClientProvider.overrideWithValue(api),
     ],
     child: MaterialApp(
+      theme: AppTheme.dark,
       home: const Scaffold(body: HomeScreen()),
     ),
   );

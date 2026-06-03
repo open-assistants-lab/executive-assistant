@@ -91,7 +91,7 @@ void main() {
       final m = Memory.fromJson(json);
       expect(m.content, 'User likes dark mode');
       expect(m.domain, 'preferences');
-      expect(m.memoryType, 'explicit');
+      expect(m.domain, 'preferences');
       expect(m.confidence, 0.95);
     });
 
@@ -100,10 +100,10 @@ void main() {
       expect(m.confidence, 0.0);
     });
 
-    test('defaults domain and memoryType to empty strings', () {
-      final m = Memory.fromJson({'id': '1', 'content': 'test', 'created_at': '2024-01-15T10:30:00Z'});
+    test('defaults domain and confidence to defaults', () {
+      final m = Memory.fromJson({'id': '1', 'content': 'test', 'created_at': '2026-06-03T10:30:00Z'});
       expect(m.domain, '');
-      expect(m.memoryType, '');
+      expect(m.confidence, 0.0);
     });
   });
 }

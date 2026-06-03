@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:executive_assistant/core/layout/responsive_shell.dart';
 import 'package:executive_assistant/core/constants/breakpoints.dart';
+import 'package:executive_assistant/theme/app_theme.dart';
 
 Widget _buildTestApp(Widget Function(GoRouterState) builder) {
   final router = GoRouter(
@@ -23,6 +24,7 @@ Widget _buildTestApp(Widget Function(GoRouterState) builder) {
   );
   return ProviderScope(
     child: MaterialApp.router(
+      theme: AppTheme.light,
       routerConfig: router,
     ),
   );

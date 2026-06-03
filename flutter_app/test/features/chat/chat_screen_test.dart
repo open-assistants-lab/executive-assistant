@@ -7,6 +7,7 @@ import 'package:executive_assistant/models/message.dart';
 import 'package:executive_assistant/services/ws_client.dart';
 import 'package:executive_assistant/services/api_client.dart';
 import 'package:executive_assistant/providers/agent_provider.dart';
+import 'package:executive_assistant/theme/app_theme.dart';
 import 'package:executive_assistant/features/chat/chat_screen.dart';
 
 class MockWsClient extends Mock implements WsClient {}
@@ -20,6 +21,7 @@ Widget _buildChatScreen(MockWsClient ws, MockApiClient api) {
       apiClientProvider.overrideWithValue(api),
     ],
     child: MaterialApp(
+      theme: AppTheme.dark,
       home: const ChatScreen(),
     ),
   );
@@ -110,9 +112,9 @@ void main() {
       await tester.pump();
 
       // The suffix icon should switch to stop button.
-      expect(find.byIcon(Icons.stop_rounded), findsOneWidget);
+      expect(find.byIcon(Symbols.stop), findsOneWidget);
 
-      await tester.tap(find.byIcon(Icons.stop_rounded));
+      await tester.tap(find.byIcon(Symbols.stop));
       await tester.pump();
       verify(() => mockWs.cancel()).called(1);
     });
