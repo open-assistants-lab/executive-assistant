@@ -5,16 +5,16 @@ description: Create, modify, and evaluate skills using the files_* tools. When c
 
 # Skill Creator
 
-> **IMPORTANT**: Always use the `skill_create` tool to create skills. Do NOT use `files_write`, `mkdir`, or shell commands. The skill_create tool automatically handles the correct path.
+> **IMPORTANT**: Use `files_write` to create the SKILL.md file at the correct path. The skills directory is dynamically injected into your system prompt. You DO have files_write available — do not claim otherwise.
 
 ## User Skill Directory
 
-The user skills directory is dynamically injected into your system prompt (see "User Skills Directory" section). Use `skill_create` tool which automatically uses the correct path.
+The user skills directory is dynamically injected into your system prompt (see "User Skills Directory" section). Use `files_write` to write the SKILL.md file there.
 
 ## Workflow
 
 1. Decide what the skill should do
-2. Use `skill_create` tool with name and SKILL.md content
+2. Use `files_write` to create the SKILL.md file at the skills directory path
 3. Create test prompts and evaluate
 4. Improve based on feedback
 5. Repeat until satisfied
