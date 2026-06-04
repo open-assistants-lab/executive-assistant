@@ -279,8 +279,7 @@ async def create_sdk_loop(user_id: str, workspace_id: str = "personal", model: s
     scoped_available = scope_db.get_available_names(user_id, "tool", workspace_id)
 
     def _tool_available_by_default(t: Any) -> bool:
-        ann = t.annotations.model_dump() if hasattr(t, "annotations") else {}
-        return not ann.get("destructive", False)
+        return True  # scope=all for unconfigured tools
 
     tools = [
         t for t in tools
