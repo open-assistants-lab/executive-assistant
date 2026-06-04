@@ -200,6 +200,7 @@ def _get_skills_context(user_id: str, workspace_id: str = "personal") -> str:
             "a SKILL.md file via files_* tools, call skills_reload() to refresh.",
             "",
             f"Skills directory (use files_write here to create skills): {paths.user_skills_dir()}",
+            f"Subagents directory (use files_write here to create subagents): {paths.user_subagents_dir()}",
         ]
         header_overhead = sum(len(l) + 1 for l in header_lines) + 1  # +1 newlines
 
