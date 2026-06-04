@@ -15,23 +15,29 @@ is a single fenced code block using a surface-specific fence tag.
 
 ## Output Format
 
-Wrap HTML in a fenced block tagged for the target surface:
+**CRITICAL: The language tag MUST include the colon modifier** — otherwise the
+backend will NOT route the HTML to the Canvas. Use exactly these fence tags:
 
-    ```html:canvas
-    <!DOCTYPE html>
-    <html><body>...</body></html>
-    ```
+For a skill form:
+```html:skill-form
+<html>...</html>
+```
 
-    ```html:skill-form
-    ...form HTML...
-    ```
+For a subagent form:
+```html:subagent-form
+<html>...</html>
+```
 
-    ```html:subagent-form
-    ...form HTML...
-    ```
+For general results or cards:
+```html:canvas
+<html>...</html>
+```
 
-One block per response. The Canvas extracts the fence and renders in an
-isolated, scoped shadow-root environment.
+The colon modifier (`:skill-form`, `:subagent-form`, `:canvas`) is what triggers
+the Canvas pipeline. Without it, the HTML renders as a plain code block in chat.
+
+One block per response. Output NOTHING after the closing fence — no text, no
+explanations. The Canvas extracts and renders the body directly.
 
 ## Surface Types
 

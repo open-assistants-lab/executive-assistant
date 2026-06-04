@@ -28,6 +28,13 @@ _CANVAS_FENCE = re.compile(
     re.DOTALL,
 )
 
+# Fallback: match plain ```html blocks that look like canvas content
+# (contain form elements or buttons). Only used when no :modifier blocks found.
+_HTML_FENCE = re.compile(
+    r"```html\s*\n(.*?)```",
+    re.DOTALL,
+)
+
 CANVAS_SCHEMAS: dict[str, list[str]] = {
     "skill-form": ["name", "description", "content"],
     "subagent-form": ["name", "description", "model", "system_prompt"],
@@ -38,9 +45,13 @@ CANVAS_SCHEMAS: dict[str, list[str]] = {
 def _extract_canvas(text: str, surface_id_prefix: str = "canvas") -> list[dict]:
     """Extract canvas HTML blocks from agent response text.
 
+    Matches both explicit :modifier blocks (html:canvas, html:skill-form,
+    html:subagent-form) and plain ```html blocks as a fallback.
     Returns list of dicts ready to emit as canvas_update events.
     """
     surfaces: list[dict] = []
+
+    # First pass: explicit modifier blocks
     for i, match in enumerate(_CANVAS_FENCE.finditer(text)):
         surface_type = match.group(1)
         html = match.group(2).strip()
@@ -52,6 +63,20 @@ def _extract_canvas(text: str, surface_id_prefix: str = "canvas") -> list[dict]:
             "html": html,
             "surface_type": surface_type,
         })
+
+    # Fallback: plain ```html blocks when no explicit blocks found
+    if not surfaces:
+        for i, match in enumerate(_HTML_FENCE.finditer(text)):
+            html = match.group(1).strip()
+            if not html:
+                continue
+            surfaces.append({
+                "surface_id": f"{surface_id_prefix}-{i}",
+                "action": "create",
+                "html": html,
+                "surface_type": "canvas",
+            })
+
     return surfaces
 
 
