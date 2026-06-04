@@ -138,6 +138,9 @@ async def _run_agent_stream(
                         SkillsLoadMessage(name=skill_name).model_dump()
                         | {"workspace_id": workspace_id}
                     )
+                    if "canvas" in skill_name:
+                        from src.http.routers.conversation import mark_canvas_painting_loaded
+                        mark_canvas_painting_loaded(user_id)
 
             elif chunk.type == "interrupt":
                 if pending_ref is not None:

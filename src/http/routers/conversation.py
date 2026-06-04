@@ -41,8 +41,17 @@ CANVAS_SCHEMAS: dict[str, list[str]] = {
     "canvas": [],
 }
 
+# Track conversations where canvas-painting was loaded — only apply
+# the plain-```html fallback regex when the skill was explicitly loaded.
+_canvas_painting_sessions: set[str] = set()
 
-def _extract_canvas(text: str, surface_id_prefix: str = "canvas") -> list[dict]:
+
+def mark_canvas_painting_loaded(conversation_id: str) -> None:
+    _canvas_painting_sessions.add(conversation_id)
+
+
+def _extract_canvas(text: str, surface_id_prefix: str = "canvas",
+                    use_fallback: bool = False) -> list[dict]:
     """Extract canvas HTML blocks from agent response text.
 
     Matches both explicit :modifier blocks (html:canvas, html:skill-form,
@@ -65,7 +74,8 @@ def _extract_canvas(text: str, surface_id_prefix: str = "canvas") -> list[dict]:
         })
 
     # Fallback: plain ```html blocks when no explicit blocks found
-    if not surfaces:
+    # AND canvas-painting was loaded for this conversation
+    if not surfaces and use_fallback:
         for i, match in enumerate(_HTML_FENCE.finditer(text)):
             html = match.group(1).strip()
             if not html:
@@ -281,7 +291,7 @@ async def handle_message(req: MessageRequest, _: None = Depends(require_auth)) -
                 if not response:
                     response = "Task completed."
 
-        canvas_blocks = _extract_canvas(response)
+        canvas_blocks = _extract_canvas(response, use_fallback=(user_id in _canvas_painting_sessions))
 
         tool_calls_list = None
         if req.verbose:
@@ -387,7 +397,7 @@ async def message_stream(req: MessageRequest, _: None = Depends(require_auth)):
             if not response:
                 response = "Task completed."
 
-            canvas_blocks = _extract_canvas(response)
+            canvas_blocks = _extract_canvas(response, use_fallback=(user_id in _canvas_painting_sessions))
             for surface in canvas_blocks:
                 yield f"data: {json.dumps({'type': 'canvas_update', 'data': surface})}\n\n"
 
