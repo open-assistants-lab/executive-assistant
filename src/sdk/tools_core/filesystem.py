@@ -146,8 +146,12 @@ files_read.annotations = ToolAnnotations(title="Read File", read_only=True, idem
 def files_write(path: str, content: str, user_id: str = "default_user", workspace_id: str = "personal") -> str:
     """Write content to a file (creates or overwrites).
 
+    The path is relative to the workspace files directory. For skills,
+    use the absolute path shown in the skills directory section of your
+    system prompt (e.g. /Users/.../Skills/my-skill/SKILL.md).
+
     Args:
-        path: File path relative to user files
+        path: File path (relative to workspace files, or absolute)
         content: Content to write
         user_id: User identifier
         workspace_id: Workspace ID (defaults to current workspace)

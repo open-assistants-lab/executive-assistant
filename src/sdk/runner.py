@@ -198,6 +198,8 @@ def _get_skills_context(user_id: str, workspace_id: str = "personal") -> str:
             "When a task matches a skill description below, call skills_load(name) "
             "first to get detailed instructions. After creating, editing, or deleting "
             "a SKILL.md file via files_* tools, call skills_reload() to refresh.",
+            "",
+            f"Skills directory (use files_write here to create skills): {paths.user_skills_dir()}",
         ]
         header_overhead = sum(len(l) + 1 for l in header_lines) + 1  # +1 newlines
 
