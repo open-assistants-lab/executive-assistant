@@ -28,8 +28,7 @@ _CANVAS_FENCE = re.compile(
     re.DOTALL,
 )
 
-# Fallback: match plain ```html blocks that look like canvas content
-# (contain form elements or buttons). Only used when no :modifier blocks found.
+# Fallback: catch plain ```html blocks (LLMs don't reliably use :modifier)
 _HTML_FENCE = re.compile(
     r"```html\s*\n(.*?)```",
     re.DOTALL,
@@ -41,26 +40,9 @@ CANVAS_SCHEMAS: dict[str, list[str]] = {
     "canvas": [],
 }
 
-# Track conversations where canvas-painting was loaded — only apply
-# the plain-```html fallback regex when the skill was explicitly loaded.
-_canvas_painting_sessions: set[str] = set()
 
-
-def mark_canvas_painting_loaded(conversation_id: str) -> None:
-    _canvas_painting_sessions.add(conversation_id)
-
-
-def _extract_canvas(text: str, surface_id_prefix: str = "canvas",
-                    use_fallback: bool = False) -> list[dict]:
-    """Extract canvas HTML blocks from agent response text.
-
-    Matches both explicit :modifier blocks (html:canvas, html:skill-form,
-    html:subagent-form) and plain ```html blocks as a fallback.
-    Returns list of dicts ready to emit as canvas_update events.
-    """
+def _extract_canvas(text: str, surface_id_prefix: str = "canvas") -> list[dict]:
     surfaces: list[dict] = []
-
-    # First pass: explicit modifier blocks
     for i, match in enumerate(_CANVAS_FENCE.finditer(text)):
         surface_type = match.group(1)
         html = match.group(2).strip()
@@ -73,9 +55,7 @@ def _extract_canvas(text: str, surface_id_prefix: str = "canvas",
             "surface_type": surface_type,
         })
 
-    # Fallback: plain ```html blocks when no explicit blocks found
-    # AND canvas-painting was loaded for this conversation
-    if not surfaces and use_fallback:
+    if not surfaces:
         for i, match in enumerate(_HTML_FENCE.finditer(text)):
             html = match.group(1).strip()
             if not html:
@@ -291,7 +271,7 @@ async def handle_message(req: MessageRequest, _: None = Depends(require_auth)) -
                 if not response:
                     response = "Task completed."
 
-        canvas_blocks = _extract_canvas(response, use_fallback=(user_id in _canvas_painting_sessions))
+        canvas_blocks = _extract_canvas(response)
 
         tool_calls_list = None
         if req.verbose:
@@ -316,10 +296,9 @@ async def handle_message(req: MessageRequest, _: None = Depends(require_auth)) -
             channel="http",
         )
 
-        if canvas_blocks:
-            if verbose_data is None:
-                verbose_data = {}
-            verbose_data["canvas_blocks"] = canvas_blocks
+        if verbose_data is None:
+            verbose_data = {}
+        verbose_data["canvas_blocks"] = canvas_blocks
 
         return MessageResponse(
             response=response,
@@ -397,7 +376,7 @@ async def message_stream(req: MessageRequest, _: None = Depends(require_auth)):
             if not response:
                 response = "Task completed."
 
-            canvas_blocks = _extract_canvas(response, use_fallback=(user_id in _canvas_painting_sessions))
+            canvas_blocks = _extract_canvas(response)
             for surface in canvas_blocks:
                 yield f"data: {json.dumps({'type': 'canvas_update', 'data': surface})}\n\n"
 

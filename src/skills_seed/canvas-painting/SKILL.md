@@ -15,29 +15,33 @@ is a single fenced code block using a surface-specific fence tag.
 
 ## Output Format
 
-**CRITICAL: The language tag MUST include the colon modifier** — otherwise the
-backend will NOT route the HTML to the Canvas. Use exactly these fence tags:
+**MANDATORY: Use exactly these fence tags.** The colon modifier
+(`:skill-form`, `:subagent-form`, `:canvas`) is REQUIRED. Without it,
+the HTML will NOT route to the Canvas — it stays as a code block in chat.
 
-For a skill form:
+```
 ```html:skill-form
 <html>...</html>
 ```
+```
 
 For a subagent form:
+```
 ```html:subagent-form
 <html>...</html>
 ```
+```
 
-For general results or cards:
+For general results:
+```
 ```html:canvas
 <html>...</html>
 ```
+```
 
-The colon modifier (`:skill-form`, `:subagent-form`, `:canvas`) is what triggers
-the Canvas pipeline. Without it, the HTML renders as a plain code block in chat.
-
-One block per response. Output NOTHING after the closing fence — no text, no
-explanations. The Canvas extracts and renders the body directly.
+**Never** use plain ```html without a colon modifier. Always include exactly
+`:canvas`, `:skill-form`, or `:subagent-form` after `html`. Output nothing
+after the closing fence.
 
 ## Surface Types
 
