@@ -15,14 +15,11 @@ is a single fenced code block using a surface-specific fence tag.
 
 ## Output Format
 
-Deliver HTML content via `canvas_paint(html, surface_type)` OR by
-outputting a fenced code block with a colon modifier after `html`.
-Either method triggers the Canvas tab.
+Use **exactly** these fence tags. The colon modifier after `html` is
+**required** — without it, the HTML renders as a code block in chat
+instead of routing to the Canvas tab.
 
-Preferred (explicit):
-    canvas_paint(html="<html>...</html>", surface_type="skill-form")
-
-Also accepted (implicit — fenced code block):
+**To route to Canvas** (colon modifier):
     ```html:skill-form
     <html>...</html>
     ```
@@ -33,8 +30,10 @@ Also accepted (implicit — fenced code block):
     <html>...</html>
     ```
 
-**Always** include the colon modifier. Output nothing after the closing fence
-if using the fenced-block method.
+**To show a code example in chat** (no modifier):
+    ```html
+    <div>example</div>
+    ```
 
 ## Surface Types
 

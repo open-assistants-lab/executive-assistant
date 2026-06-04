@@ -28,12 +28,6 @@ _CANVAS_FENCE = re.compile(
     re.DOTALL,
 )
 
-# Fallback: catch plain ```html blocks (LLMs don't reliably use :modifier)
-_HTML_FENCE = re.compile(
-    r"```html\s*\n(.*?)```",
-    re.DOTALL,
-)
-
 CANVAS_SCHEMAS: dict[str, list[str]] = {
     "skill-form": ["name", "description", "content"],
     "subagent-form": ["name", "description", "model", "system_prompt"],
@@ -54,19 +48,6 @@ def _extract_canvas(text: str, surface_id_prefix: str = "canvas") -> list[dict]:
             "html": html,
             "surface_type": surface_type,
         })
-
-    if not surfaces:
-        for i, match in enumerate(_HTML_FENCE.finditer(text)):
-            html = match.group(1).strip()
-            if not html:
-                continue
-            surfaces.append({
-                "surface_id": f"{surface_id_prefix}-{i}",
-                "action": "create",
-                "html": html,
-                "surface_type": "canvas",
-            })
-
     return surfaces
 
 
