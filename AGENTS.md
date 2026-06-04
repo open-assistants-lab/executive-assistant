@@ -207,12 +207,18 @@ The codebase has a **custom agent SDK** (`src/sdk/`) that replaces LangChain/Lan
 
 **Key Design Decisions:**
 1. **models.dev integration**: Registry fetches from `https://models.dev/api.json`, caches locally at `data/cache/models.json` with 5-min TTL, falls back to built-in subset. 4172+ models vs. old 20 hardcoded.
-2. **Block-structured streaming**: `text_start/delta/end`, `tool_input_start/delta/end`, `reasoning_start/delta/end`, `tool_result`, `interrupt`, `done`, `error`. Backward-compat aliases: `ai_token→text_delta`, `tool_start→tool_input_start`, `reasoning→reasoning_delta`.
-3. **ToolAnnotations** (MCP-style): `readOnly`, `destructive`, `idempotent`, `openWorld`, `title`. Auto-approves read-only tools, interrupts on destructive ones.
-4. **ToolResult** dual format: `content` (human-readable) + `structured_content` (machine-parseable) + `audience` (user/assistant).
-5. **Provider escape hatches**: `provider_options` on inputs (keyed by provider name), `provider_metadata` on outputs. Enables Anthropic `thinking`, Gemini `thinkingConfig`, OpenAI `logprobs` etc.
-6. **Reasoning as first-class content**: `Message.reasoning` field persists thinking tokens across turns. Anthropic `thinking` blocks handled in `to_anthropic()`/`from_anthropic_block()`.
-7. **Sequential tool execution**: AgentLoop executes tools one at a time (parallel deferred).
+2. **Scope model (All / Selected / None)**: Replaces old per-workspace capabilities.yaml. `item_scopes` SQLite table governs tool/skill/subagent availability per workspace. Unconfigured items default to `scope=all` (available everywhere).
+3. **Skills directory**: Injected into system prompt as `Skills directory: {paths.user_skills_dir()}`. Agent uses `files_write` with absolute path to create SKILL.md files.
+4. **Subagents directory**: Injected as `Subagents directory: {paths.user_subagents_dir()}`.
+5. **files_write absolute paths**: Accepts absolute paths anywhere under `ea_root`, not just workspace files dir.
+6. **Skill catalog injection**: Skill names + descriptions injected into system prompt as `<available_skills>` block. `skills_load` / `skills_reload` are the only skill tools. `skill_create` removed.
+7. **Tool availability**: Unconfigured tools default to available (`scope=all`). Destructive annotation no longer enforces disabled-by-default.
+8. **Block-structured streaming**: `text_start/delta/end`, `tool_input_start/delta/end`, `reasoning_start/delta/end`, `tool_result`, `interrupt`, `done`, `error`. Backward-compat aliases: `ai_token→text_delta`, `tool_start→tool_input_start`, `reasoning→reasoning_delta`.
+9. **ToolAnnotations** (MCP-style): `readOnly`, `destructive`, `idempotent`, `openWorld`, `title`. Auto-approves read-only tools, interrupts on destructive ones.
+10. **ToolResult** dual format: `content` (human-readable) + `structured_content` (machine-parseable) + `audience` (user/assistant).
+11. **Provider escape hatches**: `provider_options` on inputs (keyed by provider name), `provider_metadata` on outputs. Enables Anthropic `thinking`, Gemini `thinkingConfig`, OpenAI `logprobs` etc.
+12. **Reasoning as first-class content**: `Message.reasoning` field persists thinking tokens across turns. Anthropic `thinking` blocks handled in `to_anthropic()`/`from_anthropic_block()`.
+13. **Sequential tool execution**: AgentLoop executes tools one at a time (parallel deferred).
 8. **No checkpoints**: LangGraph checkpoint system was permanently disabled. Conversation history is managed by `MemoryMiddleware` + `SummarizationMiddleware`.
 9. **Parallel tool execution**: `_classify_tool_calls()` splits into `parallel_safe` (read-only or non-destructive), `sequential` (destructive but not needing HITL), and `interrupts` (destructive + not read-only). Concurrent batch via `asyncio.gather()`.
 10. **Usage tracking**: `Message.usage` (type `Usage`) carries token counts from provider responses. Providers populate `Usage` with `input_tokens`, `output_tokens`, `reasoning_tokens`, `cache_read_tokens`, `cache_creation_tokens`. `AgentLoop` extracts usage and passes to `CostTracker.add_usage()`. Streaming uses `StreamChunk.usage_event(Usage)` before `done` event.
