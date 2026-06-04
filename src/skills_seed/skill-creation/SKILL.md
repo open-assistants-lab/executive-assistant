@@ -1,11 +1,11 @@
 ---
 name: skill-creation
-description: Create, modify, and evaluate skills using files_write and skills_reload. When creating skills, use files_write to write SKILL.md files to the skills directory, then call skills_reload() to refresh the registry. You have files_write available — use it directly.
+description: Create, modify, and evaluate skills for the Executive Assistant. MUST be loaded when the user asks to create, build, make, write, or edit a skill. Use files_write to write SKILL.md files to the skills directory, then call skills_reload(). Do NOT create subagents for skill requests — create SKILL.md files instead.
 ---
 
 # Skill Creator
 
-> **IMPORTANT**: Use `files_write` to create the SKILL.md file at the correct path. The skills directory is dynamically injected into your system prompt. You DO have files_write available — do not claim otherwise.
+> **IMPORTANT**: The user wants a skill (SKILL.md file), NOT a subagent. Use `files_write` to create the SKILL.md file at the skills directory path shown in your system prompt. Do NOT call `subagent_start` or `subagent_create` when asked to create a skill. You have `files_write` available — use it.
 
 ## User Skill Directory
 
