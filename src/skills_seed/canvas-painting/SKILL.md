@@ -15,33 +15,26 @@ is a single fenced code block using a surface-specific fence tag.
 
 ## Output Format
 
-**MANDATORY: Use exactly these fence tags.** The colon modifier
-(`:skill-form`, `:subagent-form`, `:canvas`) is REQUIRED. Without it,
-the HTML will NOT route to the Canvas — it stays as a code block in chat.
+Deliver HTML content via `canvas_paint(html, surface_type)` OR by
+outputting a fenced code block with a colon modifier after `html`.
+Either method triggers the Canvas tab.
 
-```
-```html:skill-form
-<html>...</html>
-```
-```
+Preferred (explicit):
+    canvas_paint(html="<html>...</html>", surface_type="skill-form")
 
-For a subagent form:
-```
-```html:subagent-form
-<html>...</html>
-```
-```
+Also accepted (implicit — fenced code block):
+    ```html:skill-form
+    <html>...</html>
+    ```
+    ```html:subagent-form
+    <html>...</html>
+    ```
+    ```html:canvas
+    <html>...</html>
+    ```
 
-For general results:
-```
-```html:canvas
-<html>...</html>
-```
-```
-
-**Never** use plain ```html without a colon modifier. Always include exactly
-`:canvas`, `:skill-form`, or `:subagent-form` after `html`. Output nothing
-after the closing fence.
+**Always** include the colon modifier. Output nothing after the closing fence
+if using the fenced-block method.
 
 ## Surface Types
 

@@ -27,29 +27,28 @@ from src.sdk.tools_core.apps import (
     app_update,
 )
 from src.sdk.tools_core.browser import (
-    browser_back,
     browser_click,
     browser_close_all,
     browser_eval,
-    browser_fill,
-    browser_forward,
     browser_get_html,
     browser_get_text,
     browser_get_title,
     browser_get_url,
-    browser_hover,
+    browser_input,
+    browser_keys,
     browser_open,
-    browser_press,
     browser_screenshot,
     browser_scroll,
     browser_sessions,
-    browser_snapshot,
+    browser_state,
     browser_status,
     browser_tab_close,
     browser_tab_new,
+    browser_tab_switch,
     browser_type,
     browser_wait_text,
 )
+from src.sdk.tools_core.canvas import canvas_paint
 from src.sdk.tools_core.file_search import (
     files_glob_search,
     files_grep_search,
@@ -166,6 +165,7 @@ def _register_all() -> None:
     registry.register(browser_sessions)
     registry.register(browser_close_all)
     registry.register(browser_status)
+    registry.register(canvas_paint)
 
     registry.register(app_create)
     registry.register(app_list)

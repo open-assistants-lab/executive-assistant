@@ -234,6 +234,26 @@ async def _handle_canvas_update(
     )
 
 
+async def _handle_canvas_update_from_preview(
+    call_id: str,
+    result_preview: str,
+    workspace_id: str,
+    websocket: WebSocket,
+    tool_responses: dict,
+) -> None:
+    """Extract HTML from canvas_paint result and broadcast as canvas_update."""
+    html = tool_responses.pop(call_id, result_preview)
+    if not html or len(html) < 10:
+        return
+    await _handle_canvas_update(
+        websocket,
+        surface_id=f"canvas-{abs(hash(html)) % 100000}",
+        action="create",
+        html=html,
+        workspace_id=workspace_id,
+    )
+
+
 @router.websocket("/ws/conversation")
 async def ws_conversation(websocket: WebSocket):
     """WebSocket endpoint for bidirectional agent conversation.
