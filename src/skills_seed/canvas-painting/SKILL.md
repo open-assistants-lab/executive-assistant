@@ -87,29 +87,22 @@ button {
 
 ## `postMessage` Bridge
 
-To communicate with the host app (save data, request actions, close the
-panel), use `window.parent.postMessage`:
+Use the injected `postMessage(data)` function to send user actions back
+to the agent. It is available globally — no import needed.
 
-```js
-window.parent.postMessage({ type: 'canvas:save', payload: {...} }, '*');
-window.parent.postMessage({ type: 'canvas:close' }, '*');
+```html
+<button onclick="postMessage({action:'save',form:'skill-form',fields:{name:document.getElementById('name').value}})">Save</button>
+<button onclick="postMessage({action:'cancel'})">Cancel</button>
 ```
 
-| message type       | payload     | host action           |
-|--------------------|-------------|-----------------------|
-| `canvas:save`      | form fields | persist form data     |
-| `canvas:close`     | —           | close the canvas tab  |
-| `canvas:resize`    | `{height}`  | resize canvas iframe  |
+The `postMessage` function calls `canvasBridge.postMessage(JSON.stringify(data))`
+internally. Always pass a plain object with at least an `action` field.
 
-Listen for host → canvas messages to receive context or initial data:
-
-```js
-window.addEventListener('message', (e) => {
-  if (e.data?.type === 'canvas:init') {
-    // e.data.payload contains seed data
-  }
-});
-```
+| action      | fields    | agent receives |
+|-------------|-----------|---------------|
+| `save`      | `form`, `fields` | `[Canvas submit] {form}: {fields}... Create this.` |
+| `cancel`    | —         | `[Canvas] User cancelled the form.` |
+| any other   | free-form | `[Canvas] {json-serialised data}` |
 
 ## Constraints
 
