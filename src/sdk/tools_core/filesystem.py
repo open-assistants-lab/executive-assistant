@@ -39,9 +39,10 @@ def _resolve_path(path: str | None, user_id: str, workspace_id: str = "personal"
     if get_settings().filesystem.workspace_root:
         if path.startswith("/"):
             resolved = Path(path).resolve()
-            if str(resolved).startswith(str(root_path)):
+            ea_root = paths.ea_root.resolve()
+            if str(resolved).startswith(str(ea_root)):
                 return resolved
-            raise ValueError(f"Absolute path outside workspace: {path}")
+            raise ValueError(f"Absolute path outside EA root: {path}")
         return (root_path / path).resolve()
 
     if path.startswith("/"):
