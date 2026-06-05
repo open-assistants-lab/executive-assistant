@@ -31,7 +31,7 @@ dependencies = [
     "coremem[hybrid]>=0.3.0",
     "agentprofile",
     "hybriddb>=0.4.2",
-    "connectkit>=0.1.1",
+    "connectkit>=0.1.2",
 ]
 
 [tool.uv.sources]

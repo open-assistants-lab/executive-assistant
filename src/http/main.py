@@ -1,5 +1,6 @@
 """HTTP server for Executive Assistant."""
 
+import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -56,6 +57,25 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             await scheduler.start()
             _companion_schedulers["default_user"] = scheduler
             get_logger().info("companion.started", {}, user_id="system")
+
+        # Start connectkit token refresh background task
+        _token_refresh_task: asyncio.Task | None = None
+
+        async def _refresh_loop() -> None:
+            while True:
+                try:
+                    await asyncio.sleep(300)  # every 5 minutes
+                    from connectkit.bridge import ConnectKitBridge
+                    bridge = ConnectKitBridge("system")
+                    await bridge.refresh_all()
+                except Exception:
+                    pass
+
+        try:
+            loop = asyncio.get_event_loop()
+            _token_refresh_task = loop.create_task(_refresh_loop())
+        except Exception:
+            pass
     except Exception:
         pass
 
@@ -65,10 +85,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Stop companion schedulers
     try:
         from src.app_logging import get_logger
-        from src.sdk.companion_scheduler import _companion_schedulers
-        for scheduler in _companion_schedulers.values():
-            await scheduler.stop()
-        _companion_schedulers.clear()
+from src.sdk.companion_scheduler import _companion_schedulers
+
+    for scheduler in _companion_schedulers.values():
+        await scheduler.stop()
+    _companion_schedulers.clear()
+
+    if _token_refresh_task is not None:
+        _token_refresh_task.cancel()
         get_logger().info("companion.stopped", {}, user_id="system")
     except Exception:
         pass
