@@ -89,74 +89,38 @@ class _ConnectAuthFormState extends ConsumerState<ConnectAuthForm> {
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 16),
-          if (_isPkce) ...[
-            if (_hasPrefilledDefaults) ...[
-              Text(
-                'Pre-configured credentials are included. Click "Open Browser" '
-                'to authorize, or expand Advanced to use your own OAuth app.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.color
-                          ?.withAlpha(180),
-                    ),
-              ),
-              const SizedBox(height: 8),
-              InkWell(
-                onTap: () => setState(() => _showAdvanced = !_showAdvanced),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _showAdvanced ? Symbols.expand_less : Symbols.expand_more,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Advanced',
-                      style: Theme.of(context).textTheme.labelSmall,
-                    ),
-                  ],
-                ),
-              ),
-              if (_showAdvanced) ...[
-                const SizedBox(height: 4),
-                ...fields.map(_buildField),
-              ],
-            ] else ...[
-              ...fields.map(_buildField),
-            ],
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(
-                  _browserOpened ? Symbols.check_circle : Symbols.open_in_browser,
-                  size: 16,
-                  color: _browserOpened ? Colors.green : Colors.grey,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    _browserOpened
-                        ? 'Browser opened — authorize and return here.'
-                        : 'Click the button to authorize via your browser.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-              ],
-            ),
-          ] else if (authType == 'oauth2') ...[
+          if (authType == 'oauth2') ...[
             Text(
-              'OAuth2 — click Sign In to authorize:',
-              style: Theme.of(context).textTheme.bodySmall,
+              'Pre-configured credentials are included. Click "Open Browser" '
+              'to authorize, or expand Advanced to use your own OAuth app.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.color
+                        ?.withAlpha(180),
+                  ),
             ),
             const SizedBox(height: 8),
-            if (fields.isNotEmpty) ...[
-              Text(
-                'Optional custom app settings:',
-                style: Theme.of(context).textTheme.bodySmall,
+            InkWell(
+              onTap: () => setState(() => _showAdvanced = !_showAdvanced),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _showAdvanced ? Symbols.expand_less : Symbols.expand_more,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Advanced',
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                ],
               ),
+            ),
+            if (_showAdvanced) ...[
+              const SizedBox(height: 4),
               ...fields.map(_buildField),
             ],
           ] else if (authType == 'api_key')
@@ -180,7 +144,7 @@ class _ConnectAuthFormState extends ConsumerState<ConnectAuthForm> {
                 child: const Text('Cancel'),
               ),
               const SizedBox(width: 8),
-              if (_isPkce && _browserOpened)
+              if ((authType == 'oauth2' || _isPkce) && _browserOpened)
                 FilledButton(
                   onPressed: _connecting ? null : _checkConnected,
                   child: _connecting
@@ -200,7 +164,7 @@ class _ConnectAuthFormState extends ConsumerState<ConnectAuthForm> {
                           height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : Text(_isPkce ? 'Open Browser' : 'Connect'),
+                      : Text(_hasPrefilledDefaults ? 'Open Browser' : 'Connect'),
                 ),
             ],
           ),
@@ -245,12 +209,30 @@ class _ConnectAuthFormState extends ConsumerState<ConnectAuthForm> {
   }
 
   Future<void> _connect() async {
-    if (_isPkce) {
+    final authType = widget.spec['auth_type'] as String? ?? 'none';
+
+    // For OAuth2: store custom creds if user filled Advanced fields, then open browser
+    if (authType == 'oauth2') {
       setState(() => _connecting = true);
       try {
-        final secretCtrl = _ctrls['client_secret'];
-        final clientSecret = secretCtrl?.text;
-        await _openBrowser(clientSecret: clientSecret);
+        // Send any custom credential values to the backend
+        final body = <String, String>{};
+        for (final entry in _ctrls.entries) {
+          if (entry.value.text.isNotEmpty) {
+            body[entry.key] = entry.value.text;
+          }
+        }
+        final host = ref.read(hostProvider);
+        if (body.isNotEmpty) {
+          await http.post(
+            Uri.parse(
+              'http://$host/connectors/connect?service=${widget.spec['name']}&user_id=default_user',
+            ),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(body),
+          );
+        }
+        await _openBrowser(clientSecret: body['client_secret']);
         setState(() {
           _browserOpened = true;
           _connecting = false;
