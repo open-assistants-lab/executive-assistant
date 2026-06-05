@@ -108,8 +108,7 @@ async def _connector_connect(service: str = "", user_id: str = "") -> str:
         return (
             f"To connect {spec['display']}, open this URL in your browser:\n"
             f"{auth_url}\n\n"
-            f"After authorization, the CLI will be auto-installed and "
-            f"tools will become available immediately."
+            f"After authorization, run connector_list to verify the connection."
         )
 
     except ImportError:
@@ -285,3 +284,85 @@ def _get_gateway_url() -> str:
         return getattr(settings, "gateway_url", "http://localhost:8000")
     except Exception:
         return "http://localhost:8000"
+
+
+async def _connector_install_tools(service: str = "", user_id: str = "") -> str:
+    """Install CLI tools for a connected SaaS connector.
+
+    Checks if the CLI binary for a connector is available on PATH.
+    If missing, runs the install command from the connector spec (e.g. npm install).
+
+    Args:
+        service: Connector name (e.g. 'google-workspace'). Leave empty to check all.
+        user_id: User identifier (REQUIRED)
+    """
+    if not user_id:
+        return "Error: user_id is required."
+
+    try:
+        from connectkit.bridge import ConnectKitBridge, _default_spec_dir
+        from connectkit.spec import ConnectorSpec
+        from connectkit.utils import ensure_cli_installed
+
+        specs = {s.name: s for s in ConnectorSpec.from_yaml_dir(_default_spec_dir())}
+        bridge = ConnectKitBridge(user_id=user_id)
+
+        services: list[str] = []
+        if service:
+            if service not in specs:
+                return f"Unknown connector: {service}. Use connector_list to see available services."
+            services = [service]
+        else:
+            services = bridge.vault.list_connected()
+            if not services:
+                return "No connectors are connected. Use connector_connect first."
+
+        installed: list[str] = []
+        for name in services:
+            spec = specs.get(name)
+            if not spec:
+                continue
+            result = ensure_cli_installed(spec)
+            installed.extend(result)
+
+        if not installed:
+            return "All CLI tools are already installed."
+
+        return "Installed: " + ", ".join(installed)
+
+    except ImportError:
+        return "ConnectKit is not installed. pip install connectkit"
+    except Exception as e:
+        logger.warning(
+            "connector.meta.install_tools_failed", {"service": service, "error": str(e)}
+        )
+        return f"Error installing tools: {e}"
+
+
+connector_install_tools = ToolDefinition(
+    name="connector_install_tools",
+    description=(
+        "Install CLI tools for a connected SaaS connector. "
+        "Runs the install command from the connector spec "
+        "(e.g. npm install -g @googleworkspace/cli for Google Workspace). "
+        "\n\nArgs:\n"
+        "    service: Connector name (e.g. 'google-workspace'). Leave empty to check all connected services.\n"
+        "    user_id: User identifier (REQUIRED)"
+    ),
+    parameters={
+        "type": "object",
+        "properties": {
+            "service": {
+                "type": "string",
+                "default": "",
+                "title": "Service",
+                "description": "Connector name (leave empty to check all connected)",
+            },
+            "user_id": {"type": "string", "default": "", "title": "User Id"},
+        },
+    },
+    annotations=ToolAnnotations(
+        title="Install Connector CLI Tools", read_only=False, destructive=False
+    ),
+    function=_connector_install_tools,
+)

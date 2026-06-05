@@ -217,12 +217,14 @@ def _register_all() -> None:
             connector_connect,
             connector_disconnect,
             connector_health,
+            connector_install_tools,
             connector_list,
         )
 
         registry.register(connector_list)
         registry.register(connector_connect)
         registry.register(connector_disconnect)
+        registry.register(connector_install_tools)
         registry.register(connector_health)
     except ImportError:
         pass

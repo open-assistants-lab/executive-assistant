@@ -6,7 +6,8 @@ One YAML file per service. OAuth, token vault, and tool discovery handled automa
 __version__ = "0.1.0"
 
 from connectkit.bridge import ConnectKitBridge
-from connectkit.spec import AuthType, ConnectorSpec, RequiredField, ToolSourceType
+from connectkit.spec import AuthType, ConnectorSpec, RequiredField, ToolSourceType, CLIToolSource
+from connectkit.utils import ensure_cli_installed
 from connectkit.vault import CredentialVault
 
 __all__ = [
@@ -16,4 +17,6 @@ __all__ = [
     "RequiredField",
     "CredentialVault",
     "ConnectKitBridge",
+    "CLIToolSource",
+    "ensure_cli_installed",
 ]

@@ -137,6 +137,7 @@ try:
     from connectkit.bridge import ConnectKitBridge, _default_spec_dir
     from connectkit.oauth import create_oauth_router
     from connectkit.spec import ConnectorSpec
+    from connectkit.utils import ensure_cli_installed
 
     def _vault_factory(user_id: str):
         bridge = ConnectKitBridge(user_id)
@@ -171,11 +172,20 @@ try:
 
     from src.sdk.runner import reset_user_sdk_loops
 
+    def _on_connect(user_id: str) -> None:
+        """After OAuth completes, install missing CLIs and reset loop cache."""
+        bridge = ConnectKitBridge(user_id)
+        for name in bridge.vault.list_connected():
+            spec = next((s for s in _oauth_specs if s.name == name), None)
+            if spec:
+                ensure_cli_installed(spec)
+        reset_user_sdk_loops(user_id)
+
     oauth_router = create_oauth_router(
         specs=_oauth_specs,
         vault_factory=_vault_factory,
         config=_oauth_config,
-        on_connect=reset_user_sdk_loops,
+        on_connect=_on_connect,
     )
     app.include_router(oauth_router)
 except Exception:
