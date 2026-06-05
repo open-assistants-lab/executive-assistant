@@ -162,36 +162,43 @@ class _AppChatFieldState extends State<AppChatField> {
                 borderRadius: tokens.radius.mdAll,
               ),
               clipBehavior: Clip.antiAlias,
-              padding: EdgeInsets.symmetric(
-                horizontal: tokens.spacing.md + 2,
-                vertical: tokens.spacing.md - 2,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 0,
               ),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Expanded(
-                    child: TextField(
-                      controller: widget.controller,
-                      focusNode: widget.focusNode,
-                      enabled: widget.enabled,
-                      textAlignVertical: TextAlignVertical.center,
-                      style: tokens.typography.textTheme.bodyMedium?.copyWith(
-                        fontSize: 13, color: tokens.colors.textPrimary,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: widget.hint,
-                        hintStyle: tokens.typography.textTheme.bodySmall?.copyWith(
-                          fontSize: 13, color: tokens.colors.textTertiary,
+                    child: SizedBox(
+                      height: 32,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextField(
+                          controller: widget.controller,
+                          focusNode: widget.focusNode,
+                          enabled: widget.enabled,
+                          textAlignVertical: TextAlignVertical.center,
+                          style: tokens.typography.textTheme.bodyMedium?.copyWith(
+                            fontSize: 13, color: tokens.colors.textPrimary,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: widget.hint,
+                            hintStyle: tokens.typography.textTheme.bodySmall?.copyWith(
+                              fontSize: 13, color: tokens.colors.textTertiary,
+                            ),
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            errorBorder: InputBorder.none,
+                            disabledBorder: InputBorder.none,
+                            isDense: true,
+                            isCollapsed: true,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                          onSubmitted: (_) => _send(),
                         ),
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        errorBorder: InputBorder.none,
-                        disabledBorder: InputBorder.none,
-                        isDense: true,
-                        isCollapsed: true,
-                        contentPadding: EdgeInsets.zero,
                       ),
-                      onSubmitted: (_) => _send(),
                     ),
                   ),
                   SizedBox(width: tokens.spacing.sm),
