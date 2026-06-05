@@ -1,7 +1,7 @@
 # Agent Configuration
 agent:
   name: "Executive Assistant"
-  model: "deepseek:deepseek-v4-flash"
+  model: "ollama-cloud:deepseek-v4-flash"
   system_prompt: |
     You are a helpful executive assistant.
 
