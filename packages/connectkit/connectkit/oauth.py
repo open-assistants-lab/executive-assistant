@@ -13,6 +13,8 @@ import base64
 import hashlib
 import json
 import secrets
+import shutil
+import subprocess
 from collections.abc import Callable
 from typing import Any
 from urllib.parse import urlencode
@@ -195,6 +197,30 @@ def create_oauth_router(
 
         user_vault = vault_factory(user_id)
         user_vault.store_token(service_name, "oauth2", token_data)
+
+        # Auto-install CLI if connector uses one and it's not found
+        for source in spec.get_tool_sources():
+            if hasattr(source, "command") and not shutil.which(source.command):
+                install_cmd = getattr(source, "install", "")
+                if install_cmd:
+                    logger = __import__("logging").getLogger("connectkit.oauth")
+                    logger.info(
+                        "auto_install_cli",
+                        {"service": service_name, "command": source.command, "install": install_cmd},
+                    )
+                    try:
+                        subprocess.run(
+                            install_cmd,
+                            shell=True,
+                            capture_output=True,
+                            text=True,
+                            timeout=120,
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            "auto_install_cli_failed",
+                            {"service": service_name, "error": str(e)},
+                        )
 
         if on_connect:
             on_connect(user_id)

@@ -401,9 +401,8 @@ executive-assistant/
 │   │   ├── tools.py             # @tool, ToolDefinition, ToolAnnotations, ToolResult, ToolRegistry
 │   │   ├── state.py             # AgentState
 │   │   ├── loop.py              # AgentLoop, Interrupt, RunConfig, CostTracker
-│   │   ├── middleware.py         # Middleware ABC
-│   │   ├── middleware_memory.py  # MemoryMiddleware (SDK-native)
-│   │   ├── middleware_skill.py   # SkillMiddleware (SDK-native)
+│   │   ├── middleware.py             # Middleware ABC
+│   │   ├── middleware_memory.py      # MemoryMiddleware (SDK-native)
 │   │   ├── middleware_summarization.py  # SummarizationMiddleware
 │   │   ├── middleware_observation.py  # ObservationMiddleware (Observer + Reflector)
 │   │   ├── middleware_progress.py  # ProgressMiddleware (subagent progress + doom loop)

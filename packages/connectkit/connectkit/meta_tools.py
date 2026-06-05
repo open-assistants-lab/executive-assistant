@@ -108,7 +108,8 @@ async def _connector_connect(service: str = "", user_id: str = "") -> str:
         return (
             f"To connect {spec['display']}, open this URL in your browser:\n"
             f"{auth_url}\n\n"
-            f"After authorization, run connector_list to verify the connection."
+            f"After authorization, the CLI will be auto-installed and "
+            f"tools will become available immediately."
         )
 
     except ImportError:
