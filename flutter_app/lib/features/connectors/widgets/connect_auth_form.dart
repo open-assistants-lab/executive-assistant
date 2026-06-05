@@ -77,10 +77,24 @@ class _ConnectAuthFormState extends ConsumerState<ConnectAuthForm> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'Connect ${spec['name'] ?? ''}',
+            'Connect ${spec['display'] ?? spec['name'] ?? ''}',
             style: Theme.of(context).textTheme.titleMedium,
           ),
-          const SizedBox(height: 12),
+          if (spec['description'] != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                spec['description'] as String,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.color
+                      ?.withAlpha(140),
+                ),
+              ),
+            ),
+          const SizedBox(height: 16),
           if (_showAdvanced) ...[
             ...fields.map(_buildField),
           ] else if (authType == 'api_key')

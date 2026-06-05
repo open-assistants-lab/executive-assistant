@@ -85,15 +85,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Stop companion schedulers
     try:
         from src.app_logging import get_logger
-from src.sdk.companion_scheduler import _companion_schedulers
+        from src.sdk.companion_scheduler import _companion_schedulers
 
-    for scheduler in _companion_schedulers.values():
-        await scheduler.stop()
-    _companion_schedulers.clear()
+        for scheduler in _companion_schedulers.values():
+            await scheduler.stop()
+        _companion_schedulers.clear()
 
-    if _token_refresh_task is not None:
-        _token_refresh_task.cancel()
-        get_logger().info("companion.stopped", {}, user_id="system")
+        if _token_refresh_task is not None:
+            _token_refresh_task.cancel()
+            get_logger().info("companion.stopped", {}, user_id="system")
     except Exception:
         pass
 
@@ -173,21 +173,13 @@ try:
     import os
 
     def _oauth_config(service: str) -> dict[str, str]:
+        import os
         bridge = ConnectKitBridge("")
         token = bridge.vault.get_token(service) or {}
         result = {
             "client_id": token.get("client_id", ""),
             "client_secret": token.get("client_secret", ""),
         }
-        # Fall back to spec default (shipped in YAML)
-        if not result["client_id"]:
-            spec = next((s for s in _oauth_specs if s.name == service), None)
-            if spec:
-                for f in spec.auth.required_fields:
-                    if f.name == "client_id" and f.default:
-                        result["client_id"] = f.default
-                        break
-        # Fall back to env vars (for DMG / local .env)
         if not result["client_id"]:
             result["client_id"] = os.environ.get("DEFAULT_GWS_CLIENT_ID", "")
         if not result["client_secret"]:
@@ -209,11 +201,11 @@ try:
         specs=_oauth_specs,
         vault_factory=_vault_factory,
         config=_oauth_config,
-        on_connect=_on_connect,
     )
     app.include_router(oauth_router)
-except Exception:
-    pass
+    print(f"Included oauth_router: {[r.path for r in oauth_router.routes]}")
+except Exception as e:
+    import traceback; traceback.print_exc()
 
 app.include_router(connectors_router)
 
