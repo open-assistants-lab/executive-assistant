@@ -1,16 +1,22 @@
 """Workspace-aware skills API tests."""
 
+import warnings
 from pathlib import Path
 
 import pytest
 
 
 class TempPaths:
-    def __init__(self, user_skills: Path, workspace_skills: Path):
+    def __init__(self, user_skills: Path, workspace_skills: Path, base_path: Path):
         self._user_skills = user_skills
         self._workspace_skills = workspace_skills
+        self.base = base_path
 
     def skills_dir(self) -> Path:
+        warnings.warn("skills_dir() deprecated, use user_skills_dir()")
+        return self.user_skills_dir()
+
+    def user_skills_dir(self) -> Path:
         self._user_skills.mkdir(parents=True, exist_ok=True)
         return self._user_skills
 
@@ -49,7 +55,7 @@ def skill_api_tmp(tmp_path, monkeypatch):
     def fake_get_paths(user_id=None, workspace_id=None, **kwargs):
         if workspace_id == "../bad":
             raise ValueError("invalid workspace")
-        return TempPaths(user_root, workspace_root)
+        return TempPaths(user_root, workspace_root, tmp_path / "item-scopes")
 
     def fake_get_skill_registry(user_id="default_user", workspace_id="personal"):
         if workspace_id == "../bad":
@@ -80,13 +86,14 @@ def test_list_returns_user_and_workspace_skills_with_scope_fields(client, skill_
     assert skills["user-skill"] == {
         "name": "user-skill",
         "description": "User skill",
-        "scope": "user",
+        "scope": "all",
         "workspace_id": None,
+        "workspace_ids": [],
         "is_loaded": False,
         "disable_model_invocation": True,
     }
-    assert skills["workspace-skill"]["scope"] == "workspace"
-    assert skills["workspace-skill"]["workspace_id"] == "ws1"
+    assert skills["workspace-skill"]["scope"] == "all"
+    assert skills["workspace-skill"]["workspace_id"] is None
     assert "is_system" not in skills["user-skill"]
 
 
@@ -136,8 +143,8 @@ def test_detail_missing_returns_404(client, skill_api_tmp):
     assert r.status_code == 404
 
 
-def test_create_workspace_skill_writes_to_workspace_scope(client, skill_api_tmp):
-    _, workspace_root = skill_api_tmp
+def test_create_workspace_skill_writes_to_user_scope(client, skill_api_tmp):
+    user_root, _ = skill_api_tmp
 
     r = client.post(
         "/skills",
@@ -151,18 +158,17 @@ def test_create_workspace_skill_writes_to_workspace_scope(client, skill_api_tmp)
     )
 
     assert r.status_code == 200
-    assert (workspace_root / "created-skill" / "SKILL.md").exists()
+    assert (user_root / "created-skill" / "SKILL.md").exists()
     data = r.json()
     assert data["name"] == "created-skill"
-    assert data["scope"] == "workspace"
     assert data["description"] == "Created skill"
 
 
-def test_create_workspace_skill_resets_sdk_loop(client, skill_api_tmp, monkeypatch):
+def test_create_skill_resets_user_loops(client, skill_api_tmp, monkeypatch):
     from src.sdk import runner
 
     reset_calls = []
-    monkeypatch.setattr(runner, "reset_sdk_loop", lambda user_id, workspace_id: reset_calls.append((user_id, workspace_id)))
+    monkeypatch.setattr(runner, "reset_user_sdk_loops", lambda user_id: reset_calls.append(user_id))
 
     r = client.post(
         "/skills",
@@ -176,40 +182,12 @@ def test_create_workspace_skill_resets_sdk_loop(client, skill_api_tmp, monkeypat
     )
 
     assert r.status_code == 200
-    assert reset_calls == [("u1", "ws1")]
-
-
-def test_create_user_skill_resets_all_user_sdk_loops(client, skill_api_tmp, monkeypatch):
-    from src.sdk import runner
-
-    reset_user_calls = []
-    reset_workspace_calls = []
-    monkeypatch.setattr(runner, "reset_user_sdk_loops", lambda user_id: reset_user_calls.append(user_id))
-    monkeypatch.setattr(
-        runner,
-        "reset_sdk_loop",
-        lambda user_id, workspace_id: reset_workspace_calls.append((user_id, workspace_id)),
-    )
-
-    r = client.post(
-        "/skills",
-        json={
-            "name": "created-user-reset",
-            "description": "Created user reset",
-            "content": "# Created\n\nInstructions",
-            "scope": "user",
-        },
-        params={"user_id": "u1", "workspace_id": "ws1"},
-    )
-
-    assert r.status_code == 200
-    assert reset_user_calls == ["u1"]
-    assert reset_workspace_calls == []
+    assert reset_calls == ["u1"]
 
 
 def test_update_skill_content_updates_file_and_returns_detail(client, skill_api_tmp):
-    _, workspace_root = skill_api_tmp
-    write_skill(workspace_root, "update-skill", "Original", "Old content")
+    user_root, _ = skill_api_tmp
+    write_skill(user_root, "update-skill", "Original", "Old content")
 
     r = client.put(
         "/skills/update-skill",
@@ -223,16 +201,16 @@ def test_update_skill_content_updates_file_and_returns_detail(client, skill_api_
     assert data["description"] == "Original"
     assert data["disable_model_invocation"] is True
     assert "New content" in data["content"]
-    assert "New content" in (workspace_root / "update-skill" / "SKILL.md").read_text()
+    assert "New content" in (user_root / "update-skill" / "SKILL.md").read_text()
 
 
-def test_update_skill_resets_sdk_loop(client, skill_api_tmp, monkeypatch):
+def test_update_skill_resets_user_loops(client, skill_api_tmp, monkeypatch):
     from src.sdk import runner
 
-    _, workspace_root = skill_api_tmp
-    write_skill(workspace_root, "update-reset", "Original", "Old content")
+    user_root, _ = skill_api_tmp
+    write_skill(user_root, "update-reset", "Original", "Old content")
     reset_calls = []
-    monkeypatch.setattr(runner, "reset_sdk_loop", lambda user_id, workspace_id: reset_calls.append((user_id, workspace_id)))
+    monkeypatch.setattr(runner, "reset_user_sdk_loops", lambda user_id: reset_calls.append(user_id))
 
     r = client.put(
         "/skills/update-reset",
@@ -241,12 +219,12 @@ def test_update_skill_resets_sdk_loop(client, skill_api_tmp, monkeypatch):
     )
 
     assert r.status_code == 200
-    assert reset_calls == [("u1", "ws1")]
+    assert reset_calls == ["u1"]
 
 
 def test_delete_skill_removes_scoped_dir(client, skill_api_tmp):
-    _, workspace_root = skill_api_tmp
-    skill_dir = write_skill(workspace_root, "delete-skill", "Delete skill")
+    user_root, _ = skill_api_tmp
+    skill_dir = write_skill(user_root, "delete-skill", "Delete skill")
 
     r = client.delete(
         "/skills/delete-skill",
@@ -258,13 +236,13 @@ def test_delete_skill_removes_scoped_dir(client, skill_api_tmp):
     assert not skill_dir.exists()
 
 
-def test_delete_skill_resets_sdk_loop(client, skill_api_tmp, monkeypatch):
+def test_delete_skill_resets_user_loops(client, skill_api_tmp, monkeypatch):
     from src.sdk import runner
 
-    _, workspace_root = skill_api_tmp
-    write_skill(workspace_root, "delete-reset", "Delete reset")
+    user_root, _ = skill_api_tmp
+    write_skill(user_root, "delete-reset", "Delete reset")
     reset_calls = []
-    monkeypatch.setattr(runner, "reset_sdk_loop", lambda user_id, workspace_id: reset_calls.append((user_id, workspace_id)))
+    monkeypatch.setattr(runner, "reset_user_sdk_loops", lambda user_id: reset_calls.append(user_id))
 
     r = client.delete(
         "/skills/delete-reset",
@@ -272,22 +250,24 @@ def test_delete_skill_resets_sdk_loop(client, skill_api_tmp, monkeypatch):
     )
 
     assert r.status_code == 200
-    assert reset_calls == [("u1", "ws1")]
+    assert reset_calls == ["u1"]
 
 
-def test_invalid_scope_returns_400(client, skill_api_tmp):
+def test_create_skill_ignores_deprecated_scope_field(client, skill_api_tmp):
+    user_root, _ = skill_api_tmp
     r = client.post(
         "/skills",
         json={
-            "name": "bad-scope",
-            "description": "Bad scope",
+            "name": "deprecated-scope",
+            "description": "Deprecated scope",
             "content": "Content",
             "scope": "team",
         },
         params={"user_id": "u1", "workspace_id": "ws1"},
     )
 
-    assert r.status_code == 400
+    assert r.status_code == 200
+    assert (user_root / "deprecated-scope" / "SKILL.md").exists()
 
 
 def test_invalid_skill_name_returns_400(client, skill_api_tmp):
@@ -413,8 +393,8 @@ def test_invalid_user_id_is_rejected_before_registry_or_paths(client, monkeypatc
 
 
 def test_create_duplicate_skill_returns_409(client, skill_api_tmp):
-    _, workspace_root = skill_api_tmp
-    write_skill(workspace_root, "duplicate-skill", "Original", "Original content")
+    user_root, _ = skill_api_tmp
+    write_skill(user_root, "duplicate-skill", "Original", "Original content")
 
     r = client.post(
         "/skills",
@@ -428,7 +408,7 @@ def test_create_duplicate_skill_returns_409(client, skill_api_tmp):
     )
 
     assert r.status_code == 409
-    assert "Original content" in (workspace_root / "duplicate-skill" / "SKILL.md").read_text()
+    assert "Original content" in (user_root / "duplicate-skill" / "SKILL.md").read_text()
 
 
 def test_create_blank_description_returns_400_without_file(client, skill_api_tmp):
@@ -450,9 +430,9 @@ def test_create_blank_description_returns_400_without_file(client, skill_api_tmp
 
 
 def test_update_blank_description_returns_400_without_changing_file(client, skill_api_tmp):
-    _, workspace_root = skill_api_tmp
-    write_skill(workspace_root, "no-blank-update", "Original", "Original content")
-    skill_file = workspace_root / "no-blank-update" / "SKILL.md"
+    user_root, _ = skill_api_tmp
+    write_skill(user_root, "no-blank-update", "Original", "Original content")
+    skill_file = user_root / "no-blank-update" / "SKILL.md"
     original = skill_file.read_text()
 
     r = client.put(
@@ -465,7 +445,7 @@ def test_update_blank_description_returns_400_without_changing_file(client, skil
     assert skill_file.read_text() == original
 
 
-def test_update_user_scope_when_workspace_skill_overrides_same_name(client, skill_api_tmp):
+def test_update_picks_user_skill_when_both_exist(client, skill_api_tmp):
     user_root, workspace_root = skill_api_tmp
     write_skill(user_root, "shared-skill", "User original", "User old")
     write_skill(workspace_root, "shared-skill", "Workspace original", "Workspace old")
@@ -477,16 +457,15 @@ def test_update_user_scope_when_workspace_skill_overrides_same_name(client, skil
     )
 
     assert r.status_code == 200
-    assert r.json()["scope"] == "user"
     assert r.json()["description"] == "User updated"
     assert "User new" in (user_root / "shared-skill" / "SKILL.md").read_text()
     assert "Workspace old" in (workspace_root / "shared-skill" / "SKILL.md").read_text()
 
 
 def test_update_preserves_supported_top_level_frontmatter(client, skill_api_tmp):
-    _, workspace_root = skill_api_tmp
+    user_root, _ = skill_api_tmp
     write_skill(
-        workspace_root,
+        user_root,
         "frontmatter-skill",
         "Original",
         "Old content",
@@ -504,7 +483,7 @@ def test_update_preserves_supported_top_level_frontmatter(client, skill_api_tmp)
     )
 
     assert r.status_code == 200
-    updated = (workspace_root / "frontmatter-skill" / "SKILL.md").read_text()
+    updated = (user_root / "frontmatter-skill" / "SKILL.md").read_text()
     assert "description: Updated" in updated
     assert "license: MIT" in updated
     assert "compatibility: '>=1.0'" in updated

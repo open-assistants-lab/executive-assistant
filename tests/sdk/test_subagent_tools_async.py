@@ -115,33 +115,33 @@ def test_subagent_create_parses_new_json_fields_and_validates(monkeypatch):
         def load_def(self, name):
             return None
 
-        async def create(self, agent_def):
-            saved["agent_def"] = agent_def
-            return agent_def
+        async def create(self, profile):
+            saved["profile"] = profile
+            return profile
 
     monkeypatch.setattr(
         mod, "get_coordinator", lambda user_id, workspace_id: FakeCoordinator(), raising=False
     )
-    monkeypatch.setattr(mod, "validate_agent_def", lambda agent_def, **kwargs: [], raising=False)
+    monkeypatch.setattr(mod, "validate_agent_def", lambda profile, **kwargs: [], raising=False)
 
     result = mod.subagent_create.invoke(
         {
             "name": "worker",
             "user_id": "u",
             "workspace_id": "w",
+            "description": "test worker",
+            "model": "anthropic:claude-sonnet-4-20250514",
             "provider_options": '{"anthropic": {"thinking": {"type": "enabled"}}}',
             "output_schema": '{"type": "object"}',
             "handoff_instructions": "return concise output",
-            "artifact_policy": "none",
         }
     )
 
-    agent_def = saved["agent_def"]
+    profile = saved["profile"]
     assert "created successfully" in result
-    assert agent_def.provider_options == {"anthropic": {"thinking": {"type": "enabled"}}}
-    assert agent_def.output_schema == {"type": "object"}
-    assert agent_def.handoff_instructions == "return concise output"
-    assert agent_def.artifact_policy == "none"
+    assert profile.provider_options == {"anthropic": {"thinking": {"type": "enabled"}}}
+    assert profile.output_schema_def == {"type": "object"}
+    assert profile.handoff_instructions == "return concise output"
 
 
 def test_subagent_create_rejects_non_object_provider_options(monkeypatch):
@@ -155,12 +155,12 @@ def test_subagent_create_rejects_non_object_provider_options(monkeypatch):
 
 
 def test_subagent_update_parses_new_fields_and_validates_before_save(monkeypatch):
-    from src.sdk.subagent_models import AgentDef
+    from agentprofile.models import AgentProfile
     from src.sdk.tools_core import subagent as mod
 
     saved = {}
     validated = {}
-    existing = AgentDef(name="worker", description="old")
+    existing = AgentProfile(name="worker", description="old", model="anthropic:claude-sonnet-4-20250514")
 
     class FakeCoordinator:
         def load_def(self, name):
@@ -171,8 +171,8 @@ def test_subagent_update_parses_new_fields_and_validates_before_save(monkeypatch
             saved["kwargs"] = kwargs
             return existing.model_copy(update=kwargs)
 
-    def fake_validate(agent_def, **kwargs):
-        validated["agent_def"] = agent_def
+    def fake_validate(profile, **kwargs):
+        validated["profile"] = profile
         validated["kwargs"] = kwargs
         return []
 
@@ -189,7 +189,6 @@ def test_subagent_update_parses_new_fields_and_validates_before_save(monkeypatch
             "provider_options": '{"anthropic": {"thinking": {"type": "enabled"}}}',
             "output_schema": '{"type": "object"}',
             "handoff_instructions": "return concise output",
-            "artifact_policy": "none",
         }
     )
 
@@ -198,25 +197,23 @@ def test_subagent_update_parses_new_fields_and_validates_before_save(monkeypatch
     assert saved["kwargs"]["provider_options"] == {
         "anthropic": {"thinking": {"type": "enabled"}}
     }
-    assert saved["kwargs"]["output_schema"] == {"type": "object"}
+    assert saved["kwargs"]["output_schema_def"] == {"type": "object"}
     assert saved["kwargs"]["handoff_instructions"] == "return concise output"
-    assert saved["kwargs"]["artifact_policy"] == "none"
-    assert validated["agent_def"].provider_options == {
+    assert validated["profile"].provider_options == {
         "anthropic": {"thinking": {"type": "enabled"}}
     }
-    assert validated["agent_def"].output_schema == {"type": "object"}
-    assert validated["agent_def"].handoff_instructions == "return concise output"
-    assert validated["agent_def"].artifact_policy == "none"
+    assert validated["profile"].output_schema_def == {"type": "object"}
+    assert validated["profile"].handoff_instructions == "return concise output"
     assert validated["kwargs"] == {"user_id": "u", "workspace_id": "w"}
 
 
 def test_subagent_update_rejects_invalid_provider_options_json(monkeypatch):
-    from src.sdk.subagent_models import AgentDef
+    from agentprofile.models import AgentProfile
     from src.sdk.tools_core import subagent as mod
 
     class FakeCoordinator:
         def load_def(self, name):
-            return AgentDef(name="worker")
+            return AgentProfile(name="worker", description="a worker", model="anthropic:claude-sonnet-4-20250514")
 
         async def update(self, name, **kwargs):
             raise AssertionError("update should not be called")
@@ -233,12 +230,12 @@ def test_subagent_update_rejects_invalid_provider_options_json(monkeypatch):
 
 
 def test_subagent_update_rejects_invalid_output_schema_json(monkeypatch):
-    from src.sdk.subagent_models import AgentDef
+    from agentprofile.models import AgentProfile
     from src.sdk.tools_core import subagent as mod
 
     class FakeCoordinator:
         def load_def(self, name):
-            return AgentDef(name="worker")
+            return AgentProfile(name="worker", description="a worker", model="anthropic:claude-sonnet-4-20250514")
 
         async def update(self, name, **kwargs):
             raise AssertionError("update should not be called")
@@ -255,20 +252,20 @@ def test_subagent_update_rejects_invalid_output_schema_json(monkeypatch):
 
 
 def test_subagent_update_rejects_validation_errors_before_save(monkeypatch):
-    from src.sdk.subagent_models import AgentDef
+    from agentprofile.models import AgentProfile
     from src.sdk.tools_core import subagent as mod
 
     validated = {}
 
     class FakeCoordinator:
         def load_def(self, name):
-            return AgentDef(name="worker")
+            return AgentProfile(name="worker", description="a worker", model="anthropic:claude-sonnet-4-20250514")
 
         async def update(self, name, **kwargs):
             raise AssertionError("update should not be called")
 
-    def fake_validate(agent_def, **kwargs):
-        validated["tools"] = agent_def.tools
+    def fake_validate(profile, **kwargs):
+        validated["tools"] = profile.tools
         return ["Unknown tool: not_a_tool"]
 
     monkeypatch.setattr(

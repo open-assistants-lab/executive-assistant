@@ -1,14 +1,13 @@
 """Capabilities API — get/update tool/skill/subagent enable state."""
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 
 from src.sdk.capabilities import (
     load_capabilities,
     merge_capabilities,
     save_capabilities,
 )
-from src.storage.paths import get_paths
-from src.storage.paths import _validate_path_id
+from src.storage.paths import _validate_path_id, get_paths
 
 router = APIRouter(prefix="/capabilities", tags=["capabilities"])
 

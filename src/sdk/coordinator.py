@@ -14,22 +14,23 @@ import shutil
 from typing import Any
 
 import yaml
+from agentprofile.models import AgentProfile
+from agentprofile.parser import dumps_profile
 
 from src.app_logging import get_logger
 from src.config import get_settings
+from src.sdk.agent_validation import _is_denied_memory_tool, validate_agent_def
 from src.sdk.messages import Message
 from src.sdk.middleware_instruction import InstructionMiddleware
 from src.sdk.middleware_progress import ProgressMiddleware
 from src.sdk.subagent_models import (
-    AgentDef,
     SubagentResult,
-    TaskStatus,
     TaskCancelledError,
+    TaskStatus,
 )
-from src.sdk.agent_validation import validate_agent_def, _is_denied_memory_tool
 from src.sdk.work_queue import WorkQueueDB, get_work_queue
-from src.skills import get_skill_registry
 from src.storage import paths as _paths
+
 # Alias: used by callers (e.g. tests) that patch src.sdk.coordinator.get_paths
 get_paths = _paths.get_paths
 
@@ -41,24 +42,14 @@ OPTIONAL_SKILL_LOAD_TOOL = "skills_load"
 DENIED_SKILL_MANAGEMENT_TOOLS = {"skill_delete", "skill_update"}
 
 
-def _build_profile_md(data: dict) -> str:
-    """Build PROFILE.md from an AgentProfile dict (frontmatter + body)."""
-    import yaml as _yaml
-
-    data = dict(data)  # don't mutate caller
-    system_prompt = data.pop("system_prompt", "")
-    yaml_str = _yaml.dump(data, default_flow_style=False, sort_keys=False)
-    return f"---\n{yaml_str.strip()}\n---\n\n{system_prompt.strip()}\n"
-
-
-def _build_tools_for_subagent(agent_def: AgentDef) -> list:
+def _build_tools_for_subagent(profile: AgentProfile) -> list:
     """Build the filtered tool list for a subagent."""
     from src.sdk.native_tools import get_native_tools
 
     all_native = get_native_tools()
     tool_map = {t.name: t for t in all_native}
 
-    allowed = set(agent_def.tools) if agent_def.tools else set(tool_map.keys())
+    allowed = set(profile.tools) if profile.tools else set(tool_map.keys())
     final = {
         name
         for name in allowed
@@ -67,32 +58,32 @@ def _build_tools_for_subagent(agent_def: AgentDef) -> list:
         and name not in DENIED_SKILL_MANAGEMENT_TOOLS
     }
     final.update(MANDATORY_SUBAGENT_TOOLS)
-    if agent_def.skills:
+    if profile.skills:
         final.add(OPTIONAL_SKILL_LOAD_TOOL)
 
     return [tool_map[n] for n in sorted(final) if n in tool_map]
 
 
 def _build_system_prompt(
-    agent_def: AgentDef, user_id: str, workspace_id: str = "personal"
+    profile: AgentProfile, user_id: str, workspace_id: str = "personal"
 ) -> str:
     """Build the system prompt for a subagent, including loaded skill content."""
     parts: list[str] = []
 
-    if agent_def.system_prompt:
-        parts.append(agent_def.system_prompt)
+    if profile.system_prompt:
+        parts.append(profile.system_prompt)
     else:
-        parts.append(f"You are {agent_def.name}, a specialized subagent.")
-        if agent_def.description:
-            parts.append(agent_def.description)
+        parts.append(f"You are {profile.name}, a specialized subagent.")
+        if profile.description:
+            parts.append(profile.description)
 
-    if agent_def.skills:
+    if profile.skills:
         try:
             from src.skills.registry import get_skill_registry
 
             sr = get_skill_registry(user_id=user_id, workspace_id=workspace_id)
             skill_entries = []
-            for skill_name in agent_def.skills:
+            for skill_name in profile.skills:
                 skill = sr.get_skill(skill_name)
                 if skill:
                     desc = skill.get("description", "")
@@ -130,7 +121,7 @@ class SubagentCoordinator:
         self.user_id = user_id
         self.workspace_id = workspace_id
         self.settings = get_settings()
-        self.base_path = _paths.get_paths(user_id=self.user_id).user_subagents_dir()
+        self.base_path = _paths.get_paths(user_id=self.user_id, workspace_id=self.workspace_id).workspace_subagents_dir()
         self.base_path.mkdir(parents=True, exist_ok=True)
         self._db: WorkQueueDB | None = None
         self._background_tasks: set[asyncio.Task[Any]] = set()
@@ -158,12 +149,12 @@ class SubagentCoordinator:
                 self._recovery_task = asyncio.create_task(self._recover_stale_jobs())
         return self._db
 
-    async def create(self, agent_def: AgentDef) -> AgentDef:
-        agent_path = self.base_path / agent_def.name
+    async def create(self, profile: AgentProfile) -> AgentProfile:
+        agent_path = self.base_path / profile.name
         agent_path.mkdir(parents=True, exist_ok=True)
 
-        # Write AgentProfile (PROFILE.md format)
-        profile_data = agent_def.to_profile()
+        # Validate profile dict
+        profile_data = profile.model_dump()
         try:
             from src.sdk.agent_profile import validate_profile
 
@@ -171,7 +162,7 @@ class SubagentCoordinator:
             if errors:
                 logger.warning(
                     "subagent.profile_validation",
-                    {"name": agent_def.name, "errors": errors},
+                    {"name": profile.name, "errors": errors},
                     user_id=self.user_id,
                 )
         except Exception:
@@ -179,38 +170,35 @@ class SubagentCoordinator:
 
         # Write PROFILE.md (frontmatter + body)
         (agent_path / "PROFILE.md").write_text(
-            _build_profile_md(profile_data)
+            dumps_profile(profile)
         )
 
         # Write companion files
-        if agent_def.provider_options:
+        if profile.provider_options:
             (agent_path / "provider.json").write_text(
-                json.dumps(agent_def.provider_options, indent=2)
+                json.dumps(profile.provider_options, indent=2)
             )
-        if agent_def.output_schema:
+        if profile.output_schema_def:
             (agent_path / "output-schema.json").write_text(
-                json.dumps(agent_def.output_schema, indent=2)
+                json.dumps(profile.output_schema_def, indent=2)
             )
 
         # Write legacy config.yaml for backward compat
-        config_data = agent_def.model_dump(exclude_none=True)
+        config_data = profile.model_dump(exclude_none=True)
         config_data.pop("disallowed_tools", None)
         config_path = agent_path / "config.yaml"
         config_path.write_text(
             yaml.dump(config_data, default_flow_style=False)
         )
 
-        if agent_def.mcp_config:
-            (agent_path / ".mcp.json").write_text(json.dumps(agent_def.mcp_config, indent=2))
-
         logger.info(
             "subagent.created",
-            {"name": agent_def.name, "model": agent_def.model},
+            {"name": profile.name, "model": profile.model},
             user_id=self.user_id,
         )
-        return agent_def
+        return profile
 
-    async def update(self, name: str, **kwargs: Any) -> AgentDef | None:
+    async def update(self, name: str, **kwargs: Any) -> AgentProfile | None:
         current = self.load_def(name)
         if current is None:
             return None
@@ -221,25 +209,21 @@ class SubagentCoordinator:
         agent_path = self.base_path / name
 
         # Write PROFILE.md
-        profile_data = updated.to_profile()
-        (agent_path / "PROFILE.md").write_text(_build_profile_md(profile_data))
+        (agent_path / "PROFILE.md").write_text(dumps_profile(updated))
 
         # Write companion files
         if updated.provider_options:
             (agent_path / "provider.json").write_text(
                 json.dumps(updated.provider_options, indent=2)
             )
-        if updated.output_schema:
+        if updated.output_schema_def:
             (agent_path / "output-schema.json").write_text(
-                json.dumps(updated.output_schema, indent=2)
+                json.dumps(updated.output_schema_def, indent=2)
             )
 
         # Write legacy config.yaml for backward compat
         config_path = agent_path / "config.yaml"
         config_path.write_text(yaml.dump(updated.model_dump(exclude_none=True), default_flow_style=False))
-
-        if "mcp_config" in update_data and update_data["mcp_config"] is not None:
-            (agent_path / ".mcp.json").write_text(json.dumps(update_data["mcp_config"], indent=2))
 
         logger.info(
             "subagent.updated",
@@ -260,18 +244,18 @@ class SubagentCoordinator:
         result output. Kept for backward compatibility but delegates should use
         delegate() for new code.
         """
-        agent_def = self.load_def(agent_name)
-        if agent_def is None:
+        profile = self.load_def(agent_name)
+        if profile is None:
             raise ValueError(f"Subagent '{agent_name}' not found. Create it first with subagent_create.")
 
         db = await self._get_db()
-        task_id = await db.insert_task(agent_name, task, agent_def, parent_id)
+        task_id = await db.insert_task(agent_name, task, profile, parent_id)
         await db.set_running(task_id)
 
         try:
             result = await asyncio.wait_for(
-                self._run_loop(task_id, agent_def, task, db),
-                timeout=agent_def.timeout_seconds,
+                self._run_loop(task_id, profile, task, db),
+                timeout=profile.timeout_seconds,
             )
             completed = await db.set_completed(task_id, result)
             if not completed:
@@ -279,7 +263,7 @@ class SubagentCoordinator:
         except TaskCancelledError:
             await db.set_cancelled(task_id)
         except TimeoutError:
-            failed = await db.set_failed(task_id, f"timeout after {agent_def.timeout_seconds}s")
+            failed = await db.set_failed(task_id, f"timeout after {profile.timeout_seconds}s")
             if not failed:
                 await self._set_cancelled_if_requested(task_id, db)
         except Exception as e:
@@ -302,30 +286,30 @@ class SubagentCoordinator:
         Unlike start(), this blocks until the subagent completes.
         No claim_task or heartbeat needed — runs in-process.
 
-        The effective timeout is min(timeout_seconds, agent_def.timeout_seconds).
+        The effective timeout is min(timeout_seconds, profile.timeout_seconds).
         """
-        agent_def = self.load_def(agent_name)
-        if agent_def is None:
+        profile = self.load_def(agent_name)
+        if profile is None:
             raise ValueError(
                 f"Subagent '{agent_name}' not found. "
                 f"Create it first with subagent_create."
             )
 
-        errors = validate_agent_def(agent_def, user_id=self.user_id, workspace_id=self.workspace_id)
+        errors = validate_agent_def(profile, user_id=self.user_id, workspace_id=self.workspace_id)
         if errors:
             raise ValueError("Invalid subagent definition: " + "; ".join(errors))
 
         effective_timeout = min(
-            timeout_seconds or agent_def.timeout_seconds,
-            agent_def.timeout_seconds,
+            timeout_seconds or profile.timeout_seconds,
+            profile.timeout_seconds,
         )
 
         db = await self._get_db()
-        task_id = await db.insert_task(agent_name, task, agent_def, parent_id)
+        task_id = await db.insert_task(agent_name, task, profile, parent_id)
 
         try:
             result: SubagentResult = await asyncio.wait_for(
-                self._run_loop(task_id, agent_def, task, db),
+                self._run_loop(task_id, profile, task, db),
                 timeout=effective_timeout,
             )
             completed = await db.set_completed(task_id, result)
@@ -352,16 +336,16 @@ class SubagentCoordinator:
         task: str,
         parent_id: str | None = None,
     ) -> str:
-        agent_def = self.load_def(agent_name)
-        if agent_def is None:
+        profile = self.load_def(agent_name)
+        if profile is None:
             raise ValueError(f"Subagent '{agent_name}' not found. Create it first with subagent_create.")
 
-        errors = validate_agent_def(agent_def, user_id=self.user_id, workspace_id=self.workspace_id)
+        errors = validate_agent_def(profile, user_id=self.user_id, workspace_id=self.workspace_id)
         if errors:
             raise ValueError("Invalid subagent definition: " + "; ".join(errors))
 
         db = await self._get_db()
-        task_id = await db.insert_task(agent_name, task, agent_def, parent_id)
+        task_id = await db.insert_task(agent_name, task, profile, parent_id)
         background_task = asyncio.create_task(self._run_job(task_id))
         self._background_tasks.add(background_task)
         background_task.add_done_callback(self._on_background_task_done)
@@ -398,14 +382,14 @@ class SubagentCoordinator:
         if row is None:
             return
 
-        agent_def = AgentDef(**json.loads(row.get("config") or "{}"))
+        profile = AgentProfile(**json.loads(row.get("config") or "{}"))
         task = row["task"]
         heartbeat_task = asyncio.create_task(self._heartbeat_loop(task_id, worker_id, db))
 
         try:
             result = await asyncio.wait_for(
-                self._run_loop(task_id, agent_def, task, db),
-                timeout=agent_def.timeout_seconds,
+                self._run_loop(task_id, profile, task, db),
+                timeout=profile.timeout_seconds,
             )
             latest = await db.get_task(task_id)
             if latest and latest["status"] == TaskStatus.CANCELLING.value:
@@ -417,7 +401,7 @@ class SubagentCoordinator:
         except TaskCancelledError:
             await db.set_cancelled(task_id)
         except TimeoutError:
-            failed = await db.set_failed(task_id, f"timeout after {agent_def.timeout_seconds}s")
+            failed = await db.set_failed(task_id, f"timeout after {profile.timeout_seconds}s")
             if not failed:
                 await self._set_cancelled_if_requested(task_id, db)
         except Exception as e:
@@ -441,7 +425,7 @@ class SubagentCoordinator:
     async def _run_loop(
         self,
         task_id: str,
-        agent_def: AgentDef,
+        profile: AgentProfile,
         task: str,
         db: WorkQueueDB,
     ) -> SubagentResult:
@@ -454,21 +438,21 @@ class SubagentCoordinator:
         except ImportError:
             logger.warning(
                 "subagent.missing_observation_middleware",
-                {"task_id": task_id, "agent": agent_def.name},
+                {"task_id": task_id, "agent": profile.name},
                 user_id=self.user_id,
             )
             ObservationMiddleware = None  # noqa: N806
 
-        model_str = agent_def.model or self.settings.agent.model
+        model_str = profile.model or self.settings.agent.model
         provider = create_model_from_config(model_str)
 
-        tools = _build_tools_for_subagent(agent_def)
-        system_prompt = _build_system_prompt(agent_def, self.user_id, self.workspace_id)
+        tools = _build_tools_for_subagent(profile)
+        system_prompt = _build_system_prompt(profile, self.user_id, self.workspace_id)
 
         run_config = RunConfig(
-            max_llm_calls=agent_def.max_llm_calls,
-            cost_limit_usd=agent_def.cost_limit_usd,
-            provider_options=agent_def.provider_options or None,
+            max_llm_calls=profile.max_llm_calls,
+            cost_limit_usd=profile.cost_limit_usd,
+            provider_options=profile.provider_options or None,
         )
 
         progress_mw = ProgressMiddleware(task_id, db)
@@ -529,7 +513,7 @@ class SubagentCoordinator:
         output, truncated = _extract_output(result_messages)
 
         return SubagentResult(
-            name=agent_def.name,
+            name=profile.name,
             task=task,
             success=True,
             output=output,
@@ -547,8 +531,8 @@ class SubagentCoordinator:
         return await db.add_instruction(task_id, message)
 
     async def delete(self, name: str) -> bool:
-        agent_def = self.load_def(name)
-        if agent_def is None:
+        profile = self.load_def(name)
+        if profile is None:
             return False
         db = await self._get_db()
         await db.request_cancel_active_tasks_for_agent(name)
@@ -565,26 +549,26 @@ class SubagentCoordinator:
         db = await self._get_db()
         return await db.get_result(task_id)
 
-    async def list_defs(self) -> list[AgentDef]:
-        defs: list[AgentDef] = []
+    async def list_defs(self) -> list[AgentProfile]:
+        defs: list[AgentProfile] = []
         if self.base_path.exists():
             for d in self.base_path.iterdir():
                 if d.is_dir() and (d / "config.yaml").exists():
-                    agent_def = self.load_def(d.name)
-                    if agent_def:
-                        defs.append(agent_def)
+                    profile = self.load_def(d.name)
+                    if profile:
+                        defs.append(profile)
         return defs
 
-    async def list_defs_with_scope(self) -> list[tuple[AgentDef, str]]:
+    async def list_defs_with_scope(self) -> list[tuple[AgentProfile, str]]:
         """Return agent defs from user-level dir, filtered by item_scopes."""
-        scoped: list[tuple[AgentDef, str]] = []
+        scoped: list[tuple[AgentProfile, str]] = []
 
         if self.base_path.exists():
             for d in self.base_path.iterdir():
                 if d.is_dir() and (d / "config.yaml").exists():
-                    agent_def = self.load_def(d.name)
-                    if agent_def:
-                        scoped.append((agent_def, "user"))
+                    profile = self.load_def(d.name)
+                    if profile:
+                        scoped.append((profile, "user"))
 
         # 3. Filter by item_scopes (All / Selected / None)
         try:
@@ -596,19 +580,19 @@ class SubagentCoordinator:
         except Exception:
             all_scoped = {}
 
-        filtered: list[tuple[AgentDef, str]] = []
-        for agent_def, file_scope in scoped:
-            if agent_def.name in all_scoped:
-                item = all_scoped[agent_def.name]
+        filtered: list[tuple[AgentProfile, str]] = []
+        for profile, file_scope in scoped:
+            if profile.name in all_scoped:
+                item = all_scoped[profile.name]
                 if item.scope == "none":
                     continue
                 if item.scope == "selected" and self.workspace_id not in item.workspace_ids:
                     continue
-            filtered.append((agent_def, file_scope))
+            filtered.append((profile, file_scope))
 
         return filtered
 
-    def load_def(self, name: str) -> AgentDef | None:
+    def load_def(self, name: str) -> AgentProfile | None:
         # Prefer PROFILE.md, fall back to config.yaml
         profile_path = self.base_path / name / "PROFILE.md"
         config_path = self.base_path / name / "config.yaml"
@@ -616,8 +600,7 @@ class SubagentCoordinator:
         if profile_path.exists():
             try:
                 from agentprofile.parser import load_profile as _load_ap
-                profile = _load_ap(str(profile_path))
-                return AgentDef.from_profile(profile.model_dump())
+                return _load_ap(str(profile_path))
             except Exception as e:
                 logger.error("subagent.load_failed", {"name": name, "error": str(e), "error_type": type(e).__name__}, user_id=self.user_id)
 
@@ -625,7 +608,7 @@ class SubagentCoordinator:
             try:
                 data = yaml.safe_load(config_path.read_text()) or {}
                 data.pop("disallowed_tools", None)
-                return AgentDef(**data)
+                return AgentProfile(**data)
             except Exception as e:
                 logger.error("subagent.load_failed", {"name": name, "error": str(e), "error_type": type(e).__name__}, user_id=self.user_id)
 
@@ -634,8 +617,8 @@ class SubagentCoordinator:
     def is_valid(self, name: str) -> bool:
         """Check if a subagent config exists and is loadable.
 
-        Returns False for: missing agent, corrupt YAML, or invalid AgentDef.
-        Returns True for: valid, loadable AgentDef.
+        Returns False for: missing agent, corrupt YAML, or invalid AgentProfile.
+        Returns True for: valid, loadable AgentProfile.
         """
         return self.load_def(name) is not None
 

@@ -143,7 +143,7 @@ todos_list, todos_add, todos_update, todos_delete, todos_extract
 files_glob_search, files_grep_search, files_list, files_read, files_write, files_edit, files_delete
 
 # Other tools
-shell_execute, time_get, memory_get_history, memory_search, skills_list, skills_load
+shell_execute, time_get, memory_get_history, memory_search, skills_load, skills_reload
 ```
 
 ### Pydantic Models
@@ -181,29 +181,35 @@ except Exception as e:
 
 The codebase has a **custom agent SDK** (`src/sdk/`) that replaces LangChain/LangGraph. All LangChain code and dependencies have been removed.
 
-**SDK Core (~7,500 lines, 35 files, 800+ tests):**
+**SDK Core (~17,200 lines, 66 files, 832+ tests):**
 
 | Module | Lines | Purpose |
 |--------|-------|---------|
-| `messages.py` | 438 | `Message`, `ToolCall`, `StreamChunk` — unified message types with block-structured streaming |
-| `tools.py` | 280 | `@tool`, `ToolDefinition`, `ToolAnnotations`, `ToolResult`, `ToolRegistry` |
-| `loop.py` | 707 | `AgentLoop` (ReAct), `RunConfig`, `CostTracker`, `Interrupt`, guardrails, handoffs, tracing |
-| `providers/` | ~1,500 | `OllamaLocal`, `OllamaCloud`, `OpenAIProvider`, `AnthropicProvider`, `GeminiProvider` |
-| `registry.py` | 354 | models.dev integration — 4172+ models, 110+ providers, auto-updated |
+| `messages.py` | 413 | `Message`, `ToolCall`, `StreamChunk` — unified message types with block-structured streaming |
+| `tools.py` | 297 | `@tool`, `ToolDefinition`, `ToolAnnotations`, `ToolResult`, `ToolRegistry` |
+| `loop.py` | 1,178 | `AgentLoop` (ReAct), `RunConfig`, `CostTracker`, `Interrupt`, guardrails, handoffs, tracing |
+| `providers/` | ~1,365 | `OllamaLocal`, `OllamaCloud`, `OpenAIProvider`, `AnthropicProvider`, `GeminiProvider` |
+| `registry.py` | 388 | models.dev integration — 4172+ models, 110+ providers, auto-updated |
+| `registry_update.py` | 159 | Auto-update registry from models.dev API |
 | `validation.py` | 158 | `normalize_tool_schema()`, `repair_tool_call()` |
 | `guardrails.py` | 60 | `InputGuardrail`, `OutputGuardrail`, `ToolGuardrail`, `GuardrailTripwire` |
 | `handoffs.py` | 92 | `Handoff`, `HandoffInput` — model-driven agent transfer |
-| `tracing.py` | 172 | `TraceProvider`, `Span`, `SpanContext`, `ConsoleTraceProcessor`, `JsonTraceProcessor` |
-| `native_tools.py` | 260 | ToolRegistry with get_native_tools() / get_native_tool_names() + category mapping |
-| `capabilities.py` | 85 | `load_capabilities`, `merge_capabilities`, `tool_enabled` — per-scope enable state |
-| `agent_validation.py` | 70 | `validate_agent_def` — extracted from coordinator (no circular imports) |
-| `agent_profile.py` | 60 | EA-specific AgentProfile validation (models.dev + tools + skills) |
-| `subagent_models.py` | 130 | `AgentDef`, `SubagentResult`, `TaskStatus`, `TaskCancelledError`. Drops `disallowed_tools`. |
-| `work_queue.py` | 254 | `WorkQueueDB` — aiosqlite per-user SQLite work queue |
-| `coordinator.py` | 700 | `SubagentCoordinator` — PROFILE.md support, capabilities filtering |
-| `middleware_progress.py` | 85 | `ProgressMiddleware` — progress updates, doom loop detection |
-| `middleware_instruction.py` | 58 | `InstructionMiddleware` — cancel signal, course-correction injection |
-| `runner.py` | 520 | `create_sdk_loop`, `run_sdk_agent` — capabilities-filtered tool registration |
+| `tracing.py` | 204 | `TraceProvider`, `Span`, `SpanContext`, `ConsoleTraceProcessor`, `JsonTraceProcessor` |
+| `native_tools.py` | 270 | ToolRegistry with get_native_tools() / get_native_tool_names() + category mapping |
+| `capabilities.py` | 71 | `load_capabilities`, `merge_capabilities`, `tool_enabled` — per-scope enable state |
+| `agent_validation.py` | 65 | `validate_agent_def` — extracted from coordinator (no circular imports) |
+| `agent_profile.py` | 51 | EA-specific AgentProfile validation (models.dev + tools + skills) |
+| `subagent_models.py` | 94 | `AgentDef`, `SubagentResult`, `TaskStatus`, `TaskCancelledError`. Drops `disallowed_tools`. |
+| `work_queue.py` | 441 | `WorkQueueDB` — aiosqlite per-user SQLite work queue |
+| `coordinator.py` | 633 | `SubagentCoordinator` — PROFILE.md support, capabilities filtering |
+| `middleware_progress.py` | 88 | `ProgressMiddleware` — progress updates, doom loop detection |
+| `middleware_instruction.py` | 62 | `InstructionMiddleware` — cancel signal, course-correction injection |
+| `runner.py` | 537 | `create_sdk_loop`, `run_sdk_agent` — capabilities-filtered tool registration |
+| `workspace_models.py` | 128 | `Workspace`, workspace-level path models |
+| `companion_scheduler.py` | 308 | Background companion agent scheduling |
+| `research.py` | 293 | Deep research orchestration |
+| `state.py` | 78 | `AgentState` — simplified agent state |
+| `tools_core/` (32 files) | 8,562 | ★ SDK-native tool implementations (~100 tools) |
 
 **Key Design Decisions:**
 1. **models.dev integration**: Registry fetches from `https://models.dev/api.json`, caches locally at `data/cache/models.json` with 5-min TTL, falls back to built-in subset. 4172+ models vs. old 20 hardcoded.
@@ -418,11 +424,13 @@ executive-assistant/
 │   │   ├── tools_core/          # ★ SDK-native tool implementations (~100 tools)
 │   │   │   ├── time.py, shell.py, filesystem.py, file_search.py
 │   │   │   ├── file_versioning.py, todos.py, contacts.py
-│   │   │   ├── memory.py, email.py, firecrawl.py, browser_use.py
-│   │   │   ├── subagent.py, workspace.py, message.py, apps.py
+│   │   │   ├── memory.py, email.py, browser.py, message.py
+│   │   │   ├── subagent.py, workspace.py, apps.py
 │   │   │   ├── web.py, summarize.py, user_prompt.py, observation.py
-│   │   │   ├── mcp.py, mcp_bridge.py, skills.py, research.py
-│   │   │   └── connectkit.py
+│   │   │   ├── mcp.py, mcp_bridge.py, mcp_manager.py, mcp_config.py
+│   │   │   ├── skills.py, research.py, shell.py, cli_adapter.py
+│   │   │   ├── todos_storage.py, contacts_storage.py, companion_db.py
+│   │   │   ├── email_db.py, email_sync.py
 │   │   └── providers/
 │   │       ├── base.py           # LLMProvider ABC, ModelInfo, ModelCost
 │   │       ├── ollama.py         # OllamaLocal + OllamaCloud
@@ -512,6 +520,7 @@ executive-assistant/
 | **10.2** | ✅ Done | +20 | MCP Tool Bridge |
 | **11** | ✅ Done | +38 | Subagent V1 (work_queue, coordinator, middlewares, 8 tools) |
 | **12** | ✅ Done | — | Unified Capabilities, AgentProfile, OSS repos, Flutter tools UI |
+| **13** | ✅ Done | ~943 SDK+unit | Skills/subagents scoping UI, ScopePicker, API CRUD, workspace isolation |
 
 ### Subagent V1 Architecture
 
@@ -563,7 +572,7 @@ SQLite work_queue-backed coordination with supervisor pattern. Full design in `d
 
 ### Phase 7: Tool Migration Status
 
-**73 tools migrated to `src/sdk/tools_core/`:**
+**All tools migrated to `src/sdk/tools_core/` (32 files, ~8,500 lines):**
 
 | Module | Tools | Count |
 |--------|-------|-------|
@@ -576,13 +585,15 @@ SQLite work_queue-backed coordination with supervisor pattern. Full design in `d
 | `contacts.py` | `contacts_list`, `contacts_get`, `contacts_add`, `contacts_update`, `contacts_delete`, `contacts_search` | 6 |
 | `memory.py` | `memory_get_history`, `memory_search`, `memory_search_all`, `memory_search_insights`, `memory_connect` | 5 |
 | `email.py` | `email_connect`, `email_disconnect`, `email_accounts`, `email_list`, `email_get`, `email_search`, `email_send`, `email_sync` | 8 |
-| `firecrawl.py` | `scrape_url`, `search_web`, `map_url`, `crawl_url`, `get_crawl_status`, `cancel_crawl`, `firecrawl_status`, `firecrawl_agent` | 8 |
-| `browser_use.py` | `browser_open`, `browser_state`, `browser_click`, `browser_input`, `browser_type`, `browser_keys`, `browser_scroll`, `browser_screenshot`, `browser_eval`, `browser_get_title`, `browser_get_text`, `browser_get_html`, `browser_get_url`, `browser_tab_new`, `browser_tab_switch`, `browser_tab_close`, `browser_wait_text`, `browser_sessions`, `browser_close_all`, `browser_status` | 20 |
+| `browser.py` | `browser_open`, `browser_state`, `browser_click`, `browser_input`, `browser_type`, `browser_keys`, `browser_scroll`, `browser_screenshot`, `browser_eval`, `browser_get_title`, `browser_get_text`, `browser_get_html`, `browser_get_url`, `browser_tab_new`, `browser_tab_switch`, `browser_tab_close`, `browser_wait_text`, `browser_sessions`, `browser_close_all`, `browser_status` | 20 |
 | `subagent.py` | `subagent_create`, `subagent_update`, `subagent_start`, `subagent_check`, `subagent_tasks`, `subagent_list`, `subagent_instruct`, `subagent_cancel`, `subagent_delete` | 9 |
+| `apps.py` | `app_create`, `app_list`, `app_schema`, `app_delete`, `app_insert`, `app_update`, `app_delete_row`, `app_column_add`, `app_column_delete`, `app_column_rename` | 10 |
+| `skills.py` | `skills_load`, `skills_reload` | 2 |
+| `web.py` | `web_search`, `web_scrape` | 2 |
+| `workspace.py` | `workspace_create`, `workspace_list`, `workspace_info`, `workspace_delete`, `workspace_switch` | 5 |
+| `mcp.py` | `mcp_list`, `mcp_reload`, `mcp_tools` | 3 |
 
-**NOT YET MIGRATED:**
-- Apps (14 tools) — `src/tools/apps/tools.py`
-- Skills (3 tools) — `src/skills/tools.py` (skills_list/skill_create/sql_write_query use get_skill_registry factory)
+Skills tools were refactored significantly: `skill_create` removed (use `files_write`), `skills_list` removed (catalog injected in system prompt), `sql_write_query` removed.
 
 **NOW AVAILABLE VIA MCP BRIDGE:**
 - MCP tools are dynamically discovered and registered as `mcp__{server}__{tool}` via `MCPToolBridge`

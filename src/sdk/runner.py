@@ -164,6 +164,7 @@ def _get_skills_context(user_id: str, workspace_id: str = "personal") -> str:
 
         # Filter by item_scopes (All / Selected / None)
         from connectkit.item_scopes import ItemScopeDB
+
         from src.storage.paths import get_paths as _get_paths
 
         paths = _get_paths(user_id, workspace_id=workspace_id)
@@ -202,7 +203,7 @@ def _get_skills_context(user_id: str, workspace_id: str = "personal") -> str:
             f"Skills directory (use files_write here to create skills): {paths.user_skills_dir()}",
             f"Subagents directory (use files_write here to create subagents): {paths.user_subagents_dir()}",
         ]
-        header_overhead = sum(len(l) + 1 for l in header_lines) + 1  # +1 newlines
+        header_overhead = sum(len(line) + 1 for line in header_lines) + 1  # +1 newlines
 
         entries: list[tuple[str, str]] = []
         total_chars = header_overhead
@@ -271,6 +272,7 @@ async def create_sdk_loop(user_id: str, workspace_id: str = "personal", model: s
 
     # Filter tools by per-workspace scope via item_scopes table
     from connectkit.item_scopes import ItemScopeDB
+
     from src.storage.paths import get_paths as _get_paths
 
     paths = _get_paths(user_id, workspace_id=workspace_id)

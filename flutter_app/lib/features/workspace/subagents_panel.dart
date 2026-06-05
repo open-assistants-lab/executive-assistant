@@ -973,7 +973,11 @@ class _ScopeBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
-        label == 'workspace' ? 'ws' : 'user',
+        label == 'workspace'
+            ? 'ws'
+            : label == 'all'
+                ? 'all'
+                : 'user',
         style: context.tokens.typography.textTheme.bodySmall!.copyWith(
           fontSize: 10,
           color: context.tokens.colors.accent,

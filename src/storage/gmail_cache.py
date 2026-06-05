@@ -14,9 +14,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from hybriddb import HybridDB, SearchMode
+
 from src.app_logging import get_logger
 from src.config import get_settings
-from hybriddb import HybridDB, SearchMode
 from src.storage.paths import get_paths
 
 logger = get_logger()

@@ -19,6 +19,6 @@ class TestTimeTool:
         """Test time_get returns current time."""
         from src.sdk.tools_core.time import time_get
 
-        result = time_get.invoke({"user_id": "test"})
+        result = time_get.invoke({})
         assert isinstance(result, str)
         assert len(result) > 0

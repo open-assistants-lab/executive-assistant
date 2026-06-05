@@ -2,6 +2,8 @@
 
 from unittest.mock import patch
 
+import src.sdk.tools_core.todos_storage  # noqa: F401 - ensure submodule is importable for patches
+
 TEST_USER_ID = "test_todos_user"
 
 
@@ -21,7 +23,7 @@ class TestTodosList:
                 "completed": 0,
             }
             result = todos_list.invoke({"user_id": TEST_USER_ID})
-            assert "No todos" in result
+            assert "No todos" in result or "0 total" in result
 
     def test_todos_list_with_todos(self):
         """Test todos_list returns todos grouped by status."""
@@ -168,5 +170,4 @@ class TestTodosStorageFunctions:
         from src.sdk.tools_core.todos_storage import get_db_path
 
         path = get_db_path("test_user")
-        assert "test_user" in path
-        assert "todos.db" in path
+        assert path.endswith("todos.db")

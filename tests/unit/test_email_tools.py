@@ -89,7 +89,7 @@ class TestEmailAccounts:
                 "folders": ["INBOX"],
             }
         }
-        with patch("src.sdk.tools_core.email_db.load_accounts", return_value=mock_accounts):
+        with patch("src.sdk.tools_core.email.load_accounts", return_value=mock_accounts):
             result = email_accounts.invoke({"user_id": "test_user"})
             assert "Personal" in result
             assert "test@gmail.com" in result

@@ -122,7 +122,7 @@ async def test_subagent_isolation_between_workspaces():
     from unittest.mock import patch
 
     from src.sdk.coordinator import SubagentCoordinator
-    from src.sdk.subagent_models import AgentDef
+    from agentprofile.models import AgentProfile
     from src.storage.paths import DataPaths
 
     with tempfile.TemporaryDirectory() as d:
@@ -143,12 +143,12 @@ async def test_subagent_isolation_between_workspaces():
             coord_a = SubagentCoordinator("test_user", workspace_id="ws-a")
             coord_b = SubagentCoordinator("test_user", workspace_id="ws-b")
 
-            agent_def = AgentDef(
+            profile = AgentProfile(
                 name="writer",
                 description="Report writer for project alpha",
                 tools=["time_get"],
             )
-            await coord_a.create(agent_def)
+            await coord_a.create(profile)
 
             defs_a = await coord_a.list_defs()
             defs_b = await coord_b.list_defs()
@@ -164,7 +164,7 @@ async def test_same_name_subagent_in_different_workspaces():
     from unittest.mock import patch
 
     from src.sdk.coordinator import SubagentCoordinator
-    from src.sdk.subagent_models import AgentDef
+    from agentprofile.models import AgentProfile
     from src.storage.paths import DataPaths
 
     with tempfile.TemporaryDirectory() as d:
@@ -185,13 +185,13 @@ async def test_same_name_subagent_in_different_workspaces():
             coord_a = SubagentCoordinator("test_user", workspace_id="ws-a")
             coord_b = SubagentCoordinator("test_user", workspace_id="ws-b")
 
-            ad_a = AgentDef(
+            ad_a = AgentProfile(
                 name="researcher",
                 description="Research for project alpha",
                 model="ollama:minimax-m2.5",
                 tools=["time_get", "memory_search"],
             )
-            ad_b = AgentDef(
+            ad_b = AgentProfile(
                 name="researcher",
                 description="Research for project beta",
                 model="anthropic:claude-sonnet-4-20250514",
@@ -219,7 +219,7 @@ async def test_subagent_delete_in_one_workspace_does_not_affect_other():
     from unittest.mock import patch
 
     from src.sdk.coordinator import SubagentCoordinator
-    from src.sdk.subagent_models import AgentDef
+    from agentprofile.models import AgentProfile
     from src.storage.paths import DataPaths
 
     with tempfile.TemporaryDirectory() as d:
@@ -240,7 +240,7 @@ async def test_subagent_delete_in_one_workspace_does_not_affect_other():
             coord_a = SubagentCoordinator("test_user", workspace_id="ws-a")
             coord_b = SubagentCoordinator("test_user", workspace_id="ws-b")
 
-            agent = AgentDef(name="shared", description="Exists in both", tools=["time_get"])
+            agent = AgentProfile(name="shared", description="Exists in both", tools=["time_get"])
             await coord_a.create(agent)
             await coord_b.create(agent)
 

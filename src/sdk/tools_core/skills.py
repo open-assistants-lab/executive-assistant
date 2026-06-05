@@ -14,13 +14,10 @@ Design:
 
 from __future__ import annotations
 
-import logging
-
-from src.sdk.tools import tool, ToolAnnotations
-from src.storage.paths import get_paths
 from src.app_logging import get_logger
-
+from src.sdk.tools import ToolAnnotations, tool
 from src.skills.registry import get_skill_registry
+from src.storage.paths import get_paths
 
 logger = get_logger()
 
@@ -93,7 +90,7 @@ def skills_load(
     if not skill.get("content"):
         return f"Skill '{name}' exists but has no content."
 
-    registry.touch(name)
+    registry.mark_skill_loaded(name)
 
     logger.info(
         "skill.loaded",

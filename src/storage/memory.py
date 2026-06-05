@@ -11,8 +11,9 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from src.app_logging import get_logger
 from hybriddb import HybridDB
+
+from src.app_logging import get_logger
 
 logger = get_logger()
 

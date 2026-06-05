@@ -20,10 +20,14 @@ Public API:
     normalize_tool_schema, repair_tool_call - validation
     get_model_info, list_models, get_provider, list_providers, refresh - models.dev registry
     HybridDB, SearchMode, EmbeddingModelError - hybrid search database
-    AgentDef, SubagentResult, TaskStatus, TaskCancelledError - subagent models
+    AgentProfile - portable agent definition (from agentprofile OSS package)
+    SubagentResult, TaskStatus, TaskCancelledError - subagent models
     WorkQueueDB, get_work_queue - work queue database
     SubagentCoordinator, get_coordinator - subagent coordination
 """
+
+from agentprofile.models import AgentProfile
+from hybriddb import EmbeddingModelError, HybridDB, SearchMode
 
 from src.sdk.coordinator import SubagentCoordinator, get_coordinator
 from src.sdk.guardrails import (
@@ -34,7 +38,6 @@ from src.sdk.guardrails import (
     ToolGuardrail,
 )
 from src.sdk.handoffs import Handoff, HandoffInput
-from hybriddb import EmbeddingModelError, HybridDB, SearchMode
 from src.sdk.loop import AgentLoop, CostTracker, Interrupt, RunConfig
 from src.sdk.messages import Message, StreamChunk, ToolCall, Usage
 from src.sdk.middleware import Middleware
@@ -47,7 +50,6 @@ from src.sdk.providers.ollama import OllamaCloud
 from src.sdk.registry import get_model_info, get_provider, list_models, list_providers, refresh
 from src.sdk.state import AgentState
 from src.sdk.subagent_models import (
-    AgentDef,
     CostLimitExceededError,
     MaxCallsExceededError,
     SubagentResult,
@@ -118,7 +120,7 @@ __all__ = [
     "SpanType",
     "normalize_tool_schema",
     "repair_tool_call",
-    "AgentDef",
+    "AgentProfile",
     "SubagentResult",
     "TaskStatus",
     "TaskCancelledError",

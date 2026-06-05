@@ -5,14 +5,13 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from fastapi import APIRouter, HTTPException, Query
+from connectkit.item_scopes import ItemScopeDB, ScopeKind
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from connectkit.item_scopes import ItemScopeDB, ScopeKind
-from src.storage.paths import get_paths
 from src.skills.models import _is_valid_skill_name, parse_skill_file
 from src.skills.registry import get_skill_registry
-from src.storage.paths import DEFAULT_USER_ID, _validate_path_id
+from src.storage.paths import DEFAULT_USER_ID, _validate_path_id, get_paths
 
 router = APIRouter(prefix="/skills", tags=["skills"])
 

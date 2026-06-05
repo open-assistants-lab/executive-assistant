@@ -46,7 +46,6 @@ def _tool_default(annotations: dict[str, Any] | None) -> bool:
     """
     if not annotations:
         return True
-    read_only = annotations.get("read_only", False)
     destructive = annotations.get("destructive", False)
     if destructive:
         return False

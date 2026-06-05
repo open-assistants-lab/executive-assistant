@@ -99,3 +99,4 @@ pythonpath = ["."]
 python_version = "3.11"
 strict = true
 ignore_missing_imports = true
+exclude = ["src/skills_seed/"]

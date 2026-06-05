@@ -51,7 +51,7 @@ async def get_workspaces(user_id: str = "default_user"):
 async def create_workspace(req: CreateWorkspaceRequest):
     ws = Workspace.from_name(req.name)
     ws.description = req.description
-    ws.custom_instructions = req.instructions
+    ws.custom_instructions = req.prompt
     if "model_override" in req.model_fields_set:
         ws.model_override = req.model_override
 

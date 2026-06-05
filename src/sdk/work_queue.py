@@ -12,9 +12,10 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import aiosqlite
+from agentprofile.models import AgentProfile
 
 from src.app_logging import get_logger
-from src.sdk.subagent_models import AgentDef, SubagentResult, TaskStatus
+from src.sdk.subagent_models import SubagentResult, TaskStatus
 from src.storage.paths import get_paths
 
 logger = get_logger()
@@ -104,7 +105,7 @@ class WorkQueueDB:
         self,
         agent_name: str,
         task: str,
-        config: AgentDef,
+        config: AgentProfile,
         parent_id: str | None = None,
     ) -> str:
         db = await self._get_db()

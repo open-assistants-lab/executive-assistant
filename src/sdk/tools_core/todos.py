@@ -182,7 +182,7 @@ todos_list.annotations = ToolAnnotations(title="List Todos", read_only=True, ide
 @tool
 def todos_add(
     user_id: str,
-    content: str,
+    content: str = "",
     status: str = "pending",
     priority: int = 0,
     due_date: int | None = None,
@@ -222,7 +222,7 @@ todos_add.annotations = ToolAnnotations(title="Add Todo")
 @tool
 def todos_update(
     user_id: str,
-    todo_id: str,
+    todo_id: str = "",
     content: str | None = None,
     status: str | None = None,
     priority: int | None = None,
@@ -266,7 +266,7 @@ todos_update.annotations = ToolAnnotations(title="Update Todo")
 @tool
 def todos_delete(
     user_id: str,
-    todo_id: str,
+    todo_id: str = "",
 ) -> str:
     """Delete a todo.
 
@@ -294,7 +294,7 @@ todos_delete.annotations = ToolAnnotations(title="Delete Todo", destructive=True
 
 @tool
 def todos_extract(
-    user_id: str,
+    user_id: str = "",
     email_id: str | None = None,
     account_name: str | None = None,
     limit: int = 10,
@@ -310,6 +310,9 @@ def todos_extract(
     Returns:
         Extraction results
     """
+    if not user_id:
+        return "Error: user_id is required."
+
     from sqlalchemy import text
 
     from src.sdk.tools_core.email_db import get_account_id_by_name, get_engine

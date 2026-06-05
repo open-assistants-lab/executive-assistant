@@ -11,5 +11,5 @@ class TestSkillRegistry:
         from src.skills.registry import SkillRegistry
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            registry = SkillRegistry(system_dir=tmpdir)
+            registry = SkillRegistry(skills_dir=tmpdir)
             assert registry is not None

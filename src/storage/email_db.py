@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 def _get_db(user_id: str):
     """Get or create a HybridDB instance for the user's email store."""
     from hybriddb import HybridDB
+
     from src.storage.paths import get_paths
 
     paths = get_paths(user_id)
@@ -190,6 +191,6 @@ def _row_to_email(row: dict) -> dict:
         "snippet": row.get("snippet", ""),
         "received_at": row.get("received_at", ""),
         "is_read": bool(row.get("is_read")),
-        "labels": [l.strip() for l in labels.split(",") if l.strip()],
+        "labels": [label.strip() for label in labels.split(",") if label.strip()],
         "thread_id": row.get("thread_id", ""),
     }

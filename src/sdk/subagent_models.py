@@ -1,14 +1,15 @@
-"""Subagent models — AgentDef, SubagentResult, and task status types.
+"""Subagent models — SubagentResult, task status types, and error classes.
 
 V1 subagent architecture: delegation-and-return with SQLite work_queue coordination.
+
+Agent definition is now handled by the OSS `agentprofile` package (AgentProfile).
 """
 
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 DEFAULT_DISALLOWED_TOOLS = [
     "subagent_create",
@@ -52,68 +53,6 @@ class TaskStatus(StrEnum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
-
-
-class AgentDef(BaseModel):
-    """Declarative subagent definition.
-
-    Created dynamically at runtime or loaded from persisted config.
-    Can be reused (invoke by name) or amended (partial update).
-    """
-
-    name: str = Field(..., min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9_-]+$")
-    description: str = ""
-    workspace_id: str = "personal"
-    model: str | None = None
-    provider_options: dict[str, Any] = Field(default_factory=dict)
-    system_prompt: str | None = None
-    tools: list[str] | None = None
-    skills: list[str] = Field(default_factory=list)
-    tags: list[str] = Field(default_factory=list)
-    max_llm_calls: int = DEFAULT_MAX_LLM_CALLS
-    cost_limit_usd: float = DEFAULT_COST_LIMIT_USD
-    timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS
-    mcp_config: dict[str, Any] | None = None
-    output_schema: dict[str, Any] | None = None
-    handoff_instructions: str | None = None
-    artifact_policy: str | None = None
-
-    model_config = {"extra": "ignore"}
-
-    def to_profile(self) -> dict[str, Any]:
-        """Serialize to AgentProfile-compatible dict."""
-        data: dict[str, Any] = {
-            "version": 1,
-            "name": self.name,
-            "description": self.description,
-            "model": self.model or "",
-            "tools": self.tools or [],
-            "system_prompt": self.system_prompt or "",
-            "skills": self.skills or [],
-            "tags": self.tags or [],
-            "handoff_instructions": self.handoff_instructions,
-        }
-        if self.provider_options:
-            data["provider"] = "provider.json"
-        if self.output_schema:
-            data["output_schema"] = "output-schema.json"
-        return data
-
-    @classmethod
-    def from_profile(cls, data: dict[str, Any]) -> "AgentDef":
-        """Create AgentDef from an AgentProfile dict."""
-        return cls(
-            name=data["name"],
-            description=data.get("description", ""),
-            model=data.get("model"),
-            tools=data.get("tools"),
-            system_prompt=data.get("system_prompt"),
-            skills=data.get("skills", []),
-            tags=data.get("tags", []),
-            output_schema=data.get("output_schema_def"),
-            provider_options=data.get("provider_options", {}),
-            handoff_instructions=data.get("handoff_instructions"),
-        )
 
 
 class SubagentResult(BaseModel):

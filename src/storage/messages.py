@@ -6,7 +6,7 @@ Message/SearchResult dataclasses and public API for callers.
 
 import json
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 from coremem.backends.hybrid import HybridBackend
@@ -38,7 +38,6 @@ def _patch_coremem_for_integer_pk() -> None:
     def _patched(self, memories):  # type: ignore[no-untyped-def]
         if not memories:
             return []
-        ids: list[str] = []
         rows: list[dict] = []
         for m in memories:
             rows.append(
@@ -51,7 +50,7 @@ def _patch_coremem_for_integer_pk() -> None:
                     "metadata": json.dumps(m.metadata or {}),
                     "ts": m.ts.isoformat()
                     if m.ts
-                    else datetime.now(timezone.utc).isoformat(),
+                    else datetime.now(UTC).isoformat(),
                 }
             )
         actual_ids = self._db.insert_batch("messages", rows)
@@ -222,7 +221,40 @@ class MessageStore:
         return len(self._core.fetch_all(ts_after=ts_after, ts_before=ts_before))
 
     def delete_messages_for_workspace(self, workspace_id: str) -> int:
-        return self._core.delete(metadata={"workspace_id": workspace_id})
+        """Delete all messages for a workspace.
+
+        Uses direct SQLite DELETE because coremem's delete method cannot
+        resolve auto-assigned integer ids via DuckDB (id shows as None
+        due to the _patch_coremem_for_integer_pk patch that omits id
+        from INSERT statements).
+        """
+        with self._core._backend._db._connect() as cur:
+            cur.execute(
+                "DELETE FROM messages WHERE json_extract(metadata, '$.workspace_id') = ?",
+                [workspace_id],
+            )
+            count = cur.rowcount
+            cur.execute(
+                "DELETE FROM _journal WHERE app_table = 'messages'"
+                " AND json_extract(metadata, '$.workspace_id') = ?",
+                [workspace_id],
+            )
+        if self._core._backend._db._chroma is not None:
+            try:
+                memories = self._core.fetch(limit=10000, metadata={"workspace_id": workspace_id})
+                ids = [m.id for m in memories if m.id != "None"]
+                if ids:
+                    self._core._backend._db._chroma.delete(
+                        collection_name="messages_content",
+                        ids=ids,
+                    )
+            except Exception:
+                pass
+        try:
+            self._core._backend._db.sync_duckdb_table("messages")
+        except Exception:
+            pass
+        return count
 
     def clear(self) -> None:
         self._core.clear()

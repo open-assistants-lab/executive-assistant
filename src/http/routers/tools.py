@@ -1,12 +1,10 @@
 """Tools API — list tools with metadata, toggle enabled per scope."""
 
+from connectkit.item_scopes import ItemScopeDB, ScopeKind
 from fastapi import APIRouter, HTTPException, Query
 
-from src.sdk.native_tools import get_native_tool_names, get_tool_category
-from src.sdk.capabilities import load_capabilities, merge_capabilities, tool_enabled
-from src.storage.paths import get_paths
-from src.storage.paths import _validate_path_id
-from connectkit.item_scopes import ItemScopeDB, ScopeKind
+from src.sdk.native_tools import get_tool_category
+from src.storage.paths import _validate_path_id, get_paths
 
 router = APIRouter(prefix="/tools", tags=["tools"])
 
@@ -112,7 +110,6 @@ async def list_tools(
 
 def _tool_default(annotations: dict) -> bool:
     """Derive default enabled state from tool annotations."""
-    read_only = annotations.get("read_only", False)
     destructive = annotations.get("destructive", False)
     if destructive:
         return False

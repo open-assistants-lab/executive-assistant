@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.config import get_settings
+from src.config import get_settings  # noqa: E402
 
 
 class LogLevel(IntEnum):

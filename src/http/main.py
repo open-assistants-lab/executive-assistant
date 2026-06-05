@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from src.http.routers import (
+    capabilities_router,
     # DISABLED: contacts, todos — pending redesign
     # contacts_router,
     companion_router,
@@ -19,7 +20,6 @@ from src.http.routers import (
     skills_router,
     subagents_router,
     tools_router,
-    capabilities_router,
     # todos_router,
     user_prompt_router,
     workspace_router,

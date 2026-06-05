@@ -5,7 +5,6 @@ from src.storage.paths import get_paths
 
 def get_all_user_ids() -> list[str]:
     """Get all user IDs from data/private directory."""
-    from src.storage.paths import get_paths
 
     users_path = get_paths().base / "private"
     if not users_path.exists():

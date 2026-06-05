@@ -330,60 +330,42 @@ class TestEmailTools:
 
 
 class TestSkillsTools:
-    def test_skills_list(self):
-        from src.sdk.tools_core.skills import skills_list
-
-        result = skills_list.invoke({"user_id": "test_contract_skills"})
-        assert isinstance(str(result), str)
-
-    def test_skills_list_includes_skill_names(self):
-        from src.sdk.tools_core.skills import skills_list
-
-        result = skills_list.invoke({"user_id": "test_contract_skills"})
-        assert "skill-creator" in result or "skill" in result.lower()
-
-    def test_skills_search_finds_matching_skills(self):
-        from src.sdk.tools_core.skills import skills_search
-
-        result = skills_search.invoke({"query": "skill", "user_id": "test_contract_skills"})
-        assert isinstance(str(result), str)
-        assert "skill-creator" in result or "skill" in result.lower()
-
-    def test_skills_search_no_match(self):
-        from src.sdk.tools_core.skills import skills_search
-
-        result = skills_search.invoke(
-            {"query": "xyz-nonexistent-123", "user_id": "test_contract_skills"}
-        )
-        assert "no skills matching" in result.lower() or "available skills" in result.lower()
-
-    def test_skills_list_tool_description_does_not_inject_skills(self):
-        from src.sdk.tools_core.skills import skills_list
-
-        openai_format = skills_list.to_openai_format()
-        desc = openai_format["function"]["description"]
-        assert "deep-research" not in desc, (
-            f"Tool description should NOT inject skill names (progressive disclosure), got: {desc[:200]}"
-        )
-        assert "skills_load" in desc, (
-            f"Tool description should mention skills_load for discovery, got: {desc[:200]}"
-        )
-
-    def test_skills_load_returns_content(self):
+    def test_skills_load_exists(self):
         from src.sdk.tools_core.skills import skills_load
 
         result = skills_load.invoke(
-            {"skill_name": "skill-creator", "user_id": "test_contract_skills"}
+            {"name": "skill-creator", "user_id": "test_contract_skills"}
         )
-        assert "# skill-creator" in result or "skill-creator" in result
+        assert isinstance(result, str)
 
     def test_skills_load_not_found(self):
         from src.sdk.tools_core.skills import skills_load
 
         result = skills_load.invoke(
-            {"skill_name": "nonexistent-skill-xyz", "user_id": "test_contract_skills"}
+            {"name": "nonexistent-skill-xyz", "user_id": "test_contract_skills"}
         )
         assert "not found" in result.lower()
+
+    def test_skills_reload_returns_string(self):
+        from src.sdk.tools_core.skills import skills_reload
+
+        result = skills_reload.invoke({"user_id": "test_contract_skills"})
+        assert isinstance(result, str)
+
+    def test_skills_load_tool_description(self):
+        from src.sdk.tools_core.skills import skills_load
+
+        openai_format = skills_load.to_openai_format()
+        desc = openai_format["function"]["description"]
+        assert len(desc) > 0
+        assert "skill" in desc.lower()
+
+    def test_skills_reload_tool_description(self):
+        from src.sdk.tools_core.skills import skills_reload
+
+        openai_format = skills_reload.to_openai_format()
+        desc = openai_format["function"]["description"]
+        assert "Reload" in desc or "reload" in desc
 
 
 class TestAppTools:

@@ -51,6 +51,11 @@ def _extract_canvas(text: str, surface_id_prefix: str = "canvas") -> list[dict]:
     return surfaces
 
 
+def _strip_canvas_fences(text: str) -> str:
+    """Remove ```html:canvas/skill-form/subagent-form ... ``` fence blocks from text."""
+    return _CANVAS_FENCE.sub("", text).strip()
+
+
 def _persist_tool_messages(conversation, tool_events: list[dict], workspace_id: str) -> None:
     for event in tool_events:
         output = event.get("output")
@@ -253,6 +258,7 @@ async def handle_message(req: MessageRequest, _: None = Depends(require_auth)) -
                     response = "Task completed."
 
         canvas_blocks = _extract_canvas(response)
+        response = _strip_canvas_fences(response)
 
         tool_calls_list = None
         if req.verbose:
@@ -360,6 +366,7 @@ async def message_stream(req: MessageRequest, _: None = Depends(require_auth)):
             canvas_blocks = _extract_canvas(response)
             for surface in canvas_blocks:
                 yield f"data: {json.dumps({'type': 'canvas_update', 'data': surface})}\n\n"
+            response = _strip_canvas_fences(response)
 
             result_by_call_id = {
                 result["tool_call_id"]: result["output"] for result in tool_results

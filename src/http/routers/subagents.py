@@ -5,13 +5,13 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from agentprofile.models import AgentProfile
+from connectkit.item_scopes import ItemScopeDB, ScopeKind
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field, ValidationError
 
-from connectkit.item_scopes import ItemScopeDB, ScopeKind
-from src.sdk.subagent_models import AgentDef, TaskStatus
+from src.sdk.subagent_models import TaskStatus
 from src.storage.paths import get_paths
-
 
 router = APIRouter(prefix="/subagents", tags=["subagents"])
 
@@ -29,7 +29,6 @@ class SubagentCreateRequest(BaseModel):
     timeout_seconds: int = 300
     output_schema: dict[str, Any] | None = None
     handoff_instructions: str | None = None
-    artifact_policy: str | None = None
     tags: list[str] = Field(default_factory=list)
 
 
@@ -46,7 +45,6 @@ class SubagentUpdateRequest(BaseModel):
     timeout_seconds: int | None = None
     output_schema: dict[str, Any] | None = None
     handoff_instructions: str | None = None
-    artifact_policy: str | None = None
 
 
 class SubagentStartRequest(BaseModel):
@@ -118,9 +116,8 @@ async def list_subagents(
                 "cost_limit_usd": d.cost_limit_usd,
                 "timeout_seconds": d.timeout_seconds,
                 "provider_options": d.provider_options,
-                "output_schema": d.output_schema,
+                "output_schema": d.output_schema_def,
                 "handoff_instructions": d.handoff_instructions,
-                "artifact_policy": d.artifact_policy,
                 "scope": scp,
                 "workspace_ids": wids,
             }
@@ -136,7 +133,8 @@ async def create_subagent(
     user_id: str = Query("default_user"),
     workspace_id: str = Query("personal"),
 ):
-    from src.sdk.coordinator import get_coordinator, validate_agent_def
+    from src.sdk.agent_validation import validate_agent_def
+    from src.sdk.coordinator import get_coordinator
 
     _validate_context_ids(user_id, workspace_id)
     coordinator = get_coordinator(user_id, workspace_id)
@@ -144,15 +142,36 @@ async def create_subagent(
         raise HTTPException(status_code=400, detail=f"Subagent '{body.name}' already exists.")
 
     try:
-        agent_def = AgentDef(**body.model_dump(), workspace_id=workspace_id)
+        data = body.model_dump()
+        agent_profile = AgentProfile(
+            name=data["name"],
+            description=data.get("description", ""),
+            model=data.get("model") or "",
+            tools=data.get("tools") or [],
+            system_prompt=data.get("system_prompt") or "",
+            skills=data.get("skills", []),
+            max_llm_calls=data.get("max_llm_calls", 50),
+            cost_limit_usd=data.get("cost_limit_usd", 1.0),
+            timeout_seconds=data.get("timeout_seconds", 300),
+            provider_options=data.get("provider_options", {}),
+            handoff_instructions=data.get("handoff_instructions"),
+            tags=data.get("tags", []),
+        )
+        output_schema = data.get("output_schema")
+        if output_schema:
+            agent_profile.output_schema_def = output_schema
     except ValidationError as e:
-        raise HTTPException(status_code=422, detail=e.errors()) from e
+        errors = e.errors()
+        for err in errors:
+            if "ctx" in err and "error" in err["ctx"]:
+                err["ctx"]["error"] = str(err["ctx"]["error"])
+        raise HTTPException(status_code=422, detail=errors) from e
 
-    errors = validate_agent_def(agent_def, user_id=user_id, workspace_id=workspace_id)
+    errors = validate_agent_def(agent_profile, user_id=user_id, workspace_id=workspace_id)
     if errors:
         raise HTTPException(status_code=400, detail={"errors": errors})
 
-    await coordinator.create(agent_def)
+    await coordinator.create(agent_profile)
     return {"status": "created", "name": body.name, "workspace_id": workspace_id}
 
 
@@ -234,7 +253,8 @@ async def update_subagent(
     user_id: str = Query("default_user"),
     workspace_id: str = Query("personal"),
 ):
-    from src.sdk.coordinator import get_coordinator, validate_agent_def
+    from src.sdk.agent_validation import validate_agent_def
+    from src.sdk.coordinator import get_coordinator
 
     _validate_context_ids(user_id, workspace_id)
     coordinator = get_coordinator(user_id, workspace_id)
@@ -248,7 +268,7 @@ async def update_subagent(
     candidate_data = current.model_dump()
     candidate_data.update({k: v for k, v in update_data.items() if v is not None})
     try:
-        candidate = AgentDef(**candidate_data)
+        candidate = AgentProfile(**candidate_data)
     except ValidationError as e:
         raise HTTPException(status_code=422, detail=e.errors()) from e
 

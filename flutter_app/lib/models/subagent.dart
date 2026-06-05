@@ -38,7 +38,7 @@ class SubagentAgentDef {
       name: json['name']?.toString() ?? '',
       description: json['description']?.toString() ?? '',
       model: json['model']?.toString(),
-      scope: json['scope']?.toString() == 'workspace' ? 'workspace' : 'user',
+      scope: json['scope']?.toString() ?? 'all',
       tools: json['tools'] != null
           ? List<String>.from(json['tools'] as List)
           : null,

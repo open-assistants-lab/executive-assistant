@@ -42,7 +42,7 @@ class TestSkillsEndpoints:
         assert r.status_code == 200
         data = r.json()
         assert data["name"] == "test-skill-api"
-        assert data["scope"] == "user"
+        assert data["scope"] == "all"
 
     def test_delete_skill(self, client, test_user_id):
         client.post(

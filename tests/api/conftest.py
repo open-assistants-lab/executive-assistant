@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -14,6 +15,7 @@ def isolated_data_path():
     """Keep API contract tests from reading or deleting local app data."""
     with tempfile.TemporaryDirectory() as data_path:
         os.environ["DEPLOYMENT_DATA_PATH"] = data_path
+        os.environ["DEPLOYMENT_EA_ROOT"] = str(Path(data_path) / "ea_root")
 
         from src.config import reload_settings
         from src.storage.messages import _stores
@@ -21,6 +23,7 @@ def isolated_data_path():
         reload_settings()
         _stores.clear()
         yield data_path
+        del os.environ["DEPLOYMENT_EA_ROOT"]
 
 
 @pytest.fixture(scope="session")

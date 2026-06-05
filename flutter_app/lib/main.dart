@@ -10,9 +10,9 @@ import 'services/test_instrumentation.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
   await loadScrollPositionsFromPrefs();
   runZonedGuarded(() {
+    WidgetsFlutterBinding.ensureInitialized();
     runApp(
       InstrumentedApp(
         child: const ProviderScope(child: ExecutiveAssistantApp()),

@@ -1,5 +1,6 @@
 # DISABLED: contacts, todos — pending redesign
 # from src.http.routers.contacts import router as contacts_router
+from src.http.routers.capabilities import router as capabilities_router
 from src.http.routers.companion import router as companion_router
 from src.http.routers.conversation import router as conversation_router
 from src.http.routers.email import router as email_router
@@ -9,7 +10,6 @@ from src.http.routers.settings import router as settings_router
 from src.http.routers.skills import router as skills_router
 from src.http.routers.subagents import router as subagents_router
 from src.http.routers.tools import router as tools_router
-from src.http.routers.capabilities import router as capabilities_router
 
 # from src.http.routers.todos import router as todos_router
 from src.http.routers.user_prompt import router as user_prompt_router

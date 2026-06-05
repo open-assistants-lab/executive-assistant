@@ -91,6 +91,7 @@ class AgentNotifier extends StateNotifier<ChatState> {
   final Map<String, DateTime> _toolStartTimes = {};
   final Set<String> _seenContentHashes = {};
   bool _transportConnected = false;
+  void Function(Map<String, dynamic>)? onCanvasUpdate;
 
   AgentNotifier(this._wsClient, this._apiClient) : super(const ChatState()) {
     _statusSubscription = _wsClient.status.listen(_onStatusChange);
@@ -552,6 +553,12 @@ class AgentNotifier extends StateNotifier<ChatState> {
               : ChatStatus.streaming,
         ),
       );
+      return;
+    }
+
+    // --- Canvas Update event ---
+    if (type == 'canvas_update') {
+      onCanvasUpdate?.call(msg.data);
       return;
     }
 

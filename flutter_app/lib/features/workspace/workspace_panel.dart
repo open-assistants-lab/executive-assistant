@@ -38,6 +38,9 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
     super.initState();
     _loadFiles();
     _refreshTimer = Timer.periodic(widget.refreshInterval, (_) => _loadFiles());
+    ref.read(agentProvider.notifier).onCanvasUpdate = (event) {
+      ref.read(canvasProvider.notifier).onCanvasUpdate(event);
+    };
   }
 
   @override
@@ -95,7 +98,10 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
   @override
   Widget build(BuildContext context) {
     ref.listen(currentWorkspaceIdProvider, (prev, next) {
-      if (prev != next) _loadFiles();
+      if (prev != next) {
+        _loadFiles();
+        ref.read(canvasProvider.notifier).setActiveWorkspace(next);
+      }
     });
 
     ref.listen<ChatState>(agentProvider, (prev, next) {
@@ -116,11 +122,14 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
       child: Column(
         children: [
           Expanded(
-            child: switch (_tab) {
-              _WorkspacePanelTab.canvas => const CanvasTab(),
-              _WorkspacePanelTab.files => _buildFilesPanel(),
-              _WorkspacePanelTab.capabilities => const CapabilitiesTab(),
-            },
+            child: IndexedStack(
+              index: _tab.index,
+              children: [
+                const CanvasTab(),
+                _buildFilesPanel(),
+                const CapabilitiesTab(),
+              ],
+            ),
           ),
           _BottomTabs(
             selected: _tab,

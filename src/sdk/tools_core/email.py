@@ -27,8 +27,8 @@ SETTINGS = get_settings()
 
 @tool
 def email_connect(
-    email: str,
-    password: str,
+    email: str = "",
+    password: str = "",
     account_name: str | None = None,
     user_id: str = "",
 ) -> str:
@@ -340,8 +340,8 @@ email_get.annotations = ToolAnnotations(title="Get Email", read_only=True, idemp
 
 @tool
 def email_search(
-    query: str,
-    account_name: str,
+    query: str = "",
+    account_name: str = "",
     folder: str = "INBOX",
     limit: int = 20,
     user_id: str = "",

@@ -2,32 +2,122 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/agent_provider.dart';
+import '../../providers/workspace_provider.dart';
 
-// ── Provider ──────────────────────────────────────────────────
+// ── Data Model ───────────────────────────────────────────────
 
 class CanvasSurface {
   final String surfaceId;
   final String action;
   final String html;
-  const CanvasSurface({required this.surfaceId, required this.action, required this.html});
+
+  const CanvasSurface({
+    required this.surfaceId,
+    required this.action,
+    required this.html,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'surface_id': surfaceId,
+    'action': action,
+    'html': html,
+  };
+
+  factory CanvasSurface.fromJson(Map<String, dynamic> json) {
+    return CanvasSurface(
+      surfaceId: json['surface_id']?.toString() ?? '',
+      action: json['action']?.toString() ?? '',
+      html: json['html']?.toString() ?? '',
+    );
+  }
 }
 
 class CanvasState {
-  final List<CanvasSurface> surfaces;
+  final Map<String, List<CanvasSurface>> _surfacesByWs;
+  final String activeWorkspaceId;
   final String? lastAction;
-  const CanvasState({this.surfaces = const [], this.lastAction});
+
+  const CanvasState({
+    Map<String, List<CanvasSurface>>? surfacesByWs,
+    this.activeWorkspaceId = 'personal',
+    this.lastAction,
+  }) : _surfacesByWs = surfacesByWs ?? const {};
+
+  List<CanvasSurface> get surfaces =>
+      _surfacesByWs[activeWorkspaceId] ?? const [];
+
+  Map<String, List<CanvasSurface>> get allSurfaces =>
+      Map.unmodifiable(_surfacesByWs);
 }
 
-class CanvasProvider extends StateNotifier<CanvasState> {
-  CanvasProvider() : super(const CanvasState());
+// ── Persistence ──────────────────────────────────────────────
 
-  void onCanvasUpdate(Map<String, dynamic> event) {
-    final action = event['action'] as String;
-    var surfaces = List<CanvasSurface>.from(state.surfaces);
-    final surfaceId = event['surface_id'] as String;
+const _kStorageKey = 'canvas_surfaces';
+
+Future<Map<String, List<CanvasSurface>>> _loadSurfaces() async {
+  final prefs = await SharedPreferences.getInstance();
+  final raw = prefs.getString(_kStorageKey);
+  if (raw == null || raw.isEmpty) return {};
+  try {
+    final decoded = jsonDecode(raw) as Map<String, dynamic>;
+    final result = <String, List<CanvasSurface>>{};
+    for (final entry in decoded.entries) {
+      result[entry.key] = (entry.value as List)
+          .map((e) => CanvasSurface.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    return result;
+  } catch (_) {
+    return {};
+  }
+}
+
+Future<void> _saveSurfaces(Map<String, List<CanvasSurface>> data) async {
+  final prefs = await SharedPreferences.getInstance();
+  final encoded = data.map(
+    (k, v) => MapEntry(k, v.map((s) => s.toJson()).toList()),
+  );
+  await prefs.setString(_kStorageKey, jsonEncode(encoded));
+}
+
+// ── Provider ─────────────────────────────────────────────────
+
+class CanvasProvider extends StateNotifier<CanvasState> {
+  CanvasProvider() : super(const CanvasState()) {
+    _init();
+  }
+
+  Future<void> _init() async {
+    final loaded = await _loadSurfaces();
+    if (loaded.isNotEmpty) {
+      state = CanvasState(surfacesByWs: loaded, activeWorkspaceId: 'personal');
+    }
+  }
+
+  void _persist() {
+    _saveSurfaces(state._surfacesByWs);
+  }
+
+  void setActiveWorkspace(String id) {
+    state = CanvasState(
+      surfacesByWs: state._surfacesByWs,
+      activeWorkspaceId: id,
+      lastAction: state.lastAction,
+    );
+  }
+
+  void onCanvasUpdate(Map<String, dynamic> event, {String? workspaceId}) {
+    final wsId = workspaceId ?? event['workspace_id']?.toString() ?? 'personal';
+    final action = event['action'] as String? ?? 'create';
+    final surfaceId = event['surface_id'] as String? ?? '';
+    final html = event['html'] as String? ?? '';
+
+    final updated = Map<String, List<CanvasSurface>>.from(state._surfacesByWs);
+    var surfaces = List<CanvasSurface>.from(updated[wsId] ?? []);
 
     if (action == 'destroy') {
       surfaces.removeWhere((s) => s.surfaceId == surfaceId);
@@ -35,26 +125,35 @@ class CanvasProvider extends StateNotifier<CanvasState> {
       final idx = surfaces.indexWhere((s) => s.surfaceId == surfaceId);
       if (idx >= 0) {
         surfaces[idx] = CanvasSurface(
-          surfaceId: surfaceId, action: action,
-          html: event['html'] as String? ?? '',
+          surfaceId: surfaceId,
+          action: action,
+          html: html,
         );
       }
     } else {
+      surfaces.removeWhere((s) => s.surfaceId == surfaceId);
       surfaces.add(CanvasSurface(
-        surfaceId: surfaceId, action: action,
-        html: event['html'] as String? ?? '',
+        surfaceId: surfaceId,
+        action: action,
+        html: html,
       ));
     }
 
-    state = CanvasState(surfaces: surfaces, lastAction: action);
+    updated[wsId] = surfaces;
+
+    state = CanvasState(
+      surfacesByWs: updated,
+      activeWorkspaceId: state.activeWorkspaceId,
+      lastAction: action,
+    );
+    _persist();
   }
 }
 
-final canvasProvider = StateNotifierProvider<CanvasProvider, CanvasState>(
-  (ref) => CanvasProvider(),
-);
+final canvasProvider =
+    StateNotifierProvider<CanvasProvider, CanvasState>((ref) => CanvasProvider());
 
-// ── Widget ────────────────────────────────────────────────────
+// ── Widget ───────────────────────────────────────────────────
 
 class CanvasTab extends ConsumerStatefulWidget {
   const CanvasTab({super.key});
@@ -64,6 +163,30 @@ class CanvasTab extends ConsumerStatefulWidget {
 }
 
 class _CanvasTabState extends ConsumerState<CanvasTab> {
+  final Map<String, WebViewController> _controllers = {};
+
+  @override
+  void dispose() {
+    _controllers.clear();
+    super.dispose();
+  }
+
+  String _htmlFor(CanvasSurface surface) {
+    return '''
+      <html>
+      <head>$_baseStyle</head>
+      <body>
+        ${surface.html}
+        <script>
+          function postMessage(data) {
+            canvasBridge.postMessage(JSON.stringify(data));
+          }
+        </script>
+      </body>
+      </html>
+    ''';
+  }
+
   static const _baseStyle = '''
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
@@ -120,51 +243,67 @@ class _CanvasTabState extends ConsumerState<CanvasTab> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(canvasProvider);
+    final surfaces = state.surfaces;
+    final wsId = ref.watch(currentWorkspaceIdProvider);
 
-    if (state.surfaces.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Symbols.dashboard, size: 48,
-                color: context.tokens.colors.textTertiary),
-            const SizedBox(height: 16),
-            Text('Agent-generated content appears here',
-                style: context.tokens.typography.textTheme.bodySmall),
-          ],
-        ),
+    if (surfaces.isNotEmpty) {
+      final allKeys = <String>{};
+      for (final ws in state.allSurfaces.entries) {
+        for (final s in ws.value) {
+          final key = '$wsId::${s.surfaceId}';
+          allKeys.add(key);
+          _ensureController(s, key);
+        }
+      }
+
+      final activeKeys = surfaces.map((s) => '$wsId::${s.surfaceId}').toSet();
+      _controllers.keys.where((k) => !allKeys.contains(k)).toList().forEach(_controllers.remove);
+
+      return Stack(
+        children: [
+          for (final entry in state.allSurfaces.entries)
+            for (final s in entry.value)
+              _webViewFor(s, '${entry.key}::${s.surfaceId}', activeKeys),
+        ],
       );
     }
 
-    return ListView.builder(
-      itemCount: state.surfaces.length,
-      itemBuilder: (_, i) {
-        final surface = state.surfaces[i];
-        final controller = WebViewController()
-          ..setJavaScriptMode(JavaScriptMode.unrestricted)
-          ..addJavaScriptChannel(
-            'canvasBridge',
-            onMessageReceived: (msg) => _onCanvasAction(msg.message),
-          )
-          ..loadHtmlString('''
-            <html>
-            <head>$_baseStyle</head>
-            <body>
-              ${surface.html}
-              <script>
-                function postMessage(data) {
-                  canvasBridge.postMessage(JSON.stringify(data));
-                }
-              </script>
-            </body>
-            </html>
-          ''');
-
-        return SizedBox(
-          height: 400,
-          child: WebViewWidget(controller: controller),
-        );
-      },
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Symbols.dashboard, size: 48,
+              color: context.tokens.colors.textTertiary),
+          const SizedBox(height: 16),
+          Text('Agent-generated content appears here',
+              style: context.tokens.typography.textTheme.bodySmall),
+        ],
+      ),
     );
+  }
+
+  Widget _webViewFor(CanvasSurface surface, String cacheKey, Set<String> activeKeys) {
+    _ensureController(surface, cacheKey);
+    return Offstage(
+      offstage: !activeKeys.contains(cacheKey),
+      child: SizedBox.expand(
+        child: Container(
+          color: const Color(0xFF1e1e2e),
+          child: WebViewWidget(controller: _controllers[cacheKey]!),
+        ),
+      ),
+    );
+  }
+
+  void _ensureController(CanvasSurface surface, String cacheKey) {
+    if (_controllers.containsKey(cacheKey)) return;
+    final controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..addJavaScriptChannel(
+        'canvasBridge',
+        onMessageReceived: (msg) => _onCanvasAction(msg.message),
+      )
+      ..loadHtmlString(_htmlFor(surface));
+    _controllers[cacheKey] = controller;
   }
 }

@@ -8,13 +8,18 @@ TEST_USER_ID = "test_filesystem_user"
 
 
 @pytest.fixture
-def user_workspace(tmp_path):
-    """Create a temporary user workspace."""
-    workspace = tmp_path / "data" / "users" / TEST_USER_ID / "workspace"
-    workspace.mkdir(parents=True)
+def user_workspace(tmp_path, monkeypatch):
+    """Create a temporary user workspace with mocked get_paths."""
+    from src.storage.paths import DataPaths, get_paths as real_get_paths
+
+    def mock_get_paths(user_id="default_user", workspace_id="personal"):
+        return DataPaths(ea_root=str(tmp_path), user_id=user_id, workspace_id=workspace_id)
+
+    monkeypatch.setattr("src.sdk.tools_core.filesystem.get_paths", mock_get_paths)
+    monkeypatch.setattr("src.sdk.tools_core.file_search.get_paths", mock_get_paths)
+
+    workspace = DataPaths(ea_root=str(tmp_path), user_id=TEST_USER_ID).workspace_files_dir()
     yield workspace
-    if workspace.parent.exists():
-        shutil.rmtree(workspace.parent)
 
 
 class TestFilesList:
@@ -245,7 +250,7 @@ class TestFilesGlobSearch:
         result = files_glob_search.invoke(
             {"pattern": "*.xyz", "path": ".", "user_id": TEST_USER_ID}
         )
-        assert "no files found" in result.lower() or result.strip() == ""
+        assert "no files" in result.lower() or result.strip() == ""
 
 
 class TestFilesGrepSearch:

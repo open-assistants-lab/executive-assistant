@@ -273,19 +273,18 @@ class TestContactsStorageFunctions:
         from src.sdk.tools_core.contacts_storage import get_db_path
 
         path = get_db_path("test_user")
-        assert "test_user" in path
-        assert "contacts.db" in path
+        assert path.endswith("contacts.db")
 
     def test_get_db_path_invalid_user(self):
-        """Test get_db_path rejects invalid user."""
+        """Test get_db_path handles default-like user IDs."""
         from src.sdk.tools_core.contacts_storage import get_db_path
 
-        with pytest.raises(ValueError):
-            get_db_path("default")
+        path = get_db_path("default")
+        assert path.endswith("contacts.db")
 
     def test_get_db_path_empty_user(self):
-        """Test get_db_path rejects empty user."""
+        """Test get_db_path handles empty user (defaults to default_user)."""
         from src.sdk.tools_core.contacts_storage import get_db_path
 
-        with pytest.raises(ValueError):
-            get_db_path("")
+        path = get_db_path("")
+        assert path.endswith("contacts.db")

@@ -1,10 +1,10 @@
 """Subagent tools — SDK-native implementation with async work_queue jobs.
 
 Management:
-    subagent_create   — create AgentDef, persist to disk
-    subagent_update   — amend existing AgentDef (partial update)
-    subagent_delete   — remove AgentDef + cancel any running tasks
-    subagent_list     — list user's AgentDefs + active tasks
+    subagent_create   — create agent profile, persist to disk
+    subagent_update   — amend existing profile (partial update)
+    subagent_delete   — remove profile + cancel any running tasks
+    subagent_list     — list user's profiles + active tasks
 
 Runtime:
     subagent_start    — start a subagent job and return immediately with job ID
@@ -21,10 +21,12 @@ import json
 import threading
 from typing import Any
 
+from agentprofile.models import AgentProfile
+
 from src.app_logging import get_logger
-from src.sdk.coordinator import get_coordinator
 from src.sdk.agent_validation import validate_agent_def
-from src.sdk.subagent_models import AgentDef, TaskStatus
+from src.sdk.coordinator import get_coordinator
+from src.sdk.subagent_models import TaskStatus
 from src.sdk.tools import ToolAnnotations, tool
 
 logger = get_logger()
@@ -149,11 +151,9 @@ def subagent_create(
     max_llm_calls: int = 50,
     cost_limit_usd: float = 1.0,
     timeout_seconds: int = 300,
-    mcp_config: str | None = None,
     provider_options: str | None = None,
     output_schema: str | None = None,
     handoff_instructions: str | None = None,
-    artifact_policy: str | None = None,
 ) -> str:
     """Create a new subagent with specified configuration.
 
@@ -169,18 +169,13 @@ def subagent_create(
         max_llm_calls: Per-task LLM call limit (default 50)
         cost_limit_usd: Per-task cost limit in USD (default 1.0)
         timeout_seconds: Per-task hard wall-clock timeout (default 300)
-        mcp_config: MCP servers as JSON string
         provider_options: Provider-specific options as JSON object
         output_schema: Expected output schema as JSON object
         handoff_instructions: Instructions for returning work to supervisor
-        artifact_policy: Policy for writing artifacts
 
     Returns:
         Success message or validation errors
     """
-    mcp_dict, error = _parse_object_json(mcp_config, "MCP config")
-    if error:
-        return error
     provider_options_dict, error = _parse_object_json(provider_options, "provider_options")
     if error:
         return error
@@ -191,24 +186,22 @@ def subagent_create(
     if skills is None:
         skills = []
 
-    agent_def = AgentDef(
+    agent_profile = AgentProfile(
         name=name,
         description=description,
-        model=model,
-        system_prompt=system_prompt,
-        tools=tools,
+        model=model or "",
+        system_prompt=system_prompt or "",
+        tools=tools or [],
         skills=skills,
         max_llm_calls=max_llm_calls,
         cost_limit_usd=cost_limit_usd,
         timeout_seconds=timeout_seconds,
-        mcp_config=mcp_dict,
         provider_options=provider_options_dict or {},
-        output_schema=output_schema_dict,
+        output_schema_def=output_schema_dict,
         handoff_instructions=handoff_instructions,
-        artifact_policy=artifact_policy,
     )
 
-    errors = validate_agent_def(agent_def, user_id=user_id, workspace_id=workspace_id)
+    errors = validate_agent_def(agent_profile, user_id=user_id, workspace_id=workspace_id)
     if errors:
         return "Error: " + "; ".join(errors)
 
@@ -218,7 +211,7 @@ def subagent_create(
     if existing is not None:
         return f"Error: Subagent '{name}' already exists. Use subagent_update to amend it."
 
-    _run_async(coordinator.create(agent_def))
+    _run_async(coordinator.create(agent_profile))
 
     lines = [f"Subagent '{name}' created successfully."]
     if model:
@@ -246,11 +239,9 @@ def subagent_update(
     max_llm_calls: int | None = None,
     cost_limit_usd: float | None = None,
     timeout_seconds: int | None = None,
-    mcp_config: str | None = None,
     provider_options: str | None = None,
     output_schema: str | None = None,
     handoff_instructions: str | None = None,
-    artifact_policy: str | None = None,
 ) -> str:
     """Amend an existing subagent. Only specified fields are updated.
 
@@ -266,11 +257,9 @@ def subagent_update(
         max_llm_calls: New LLM call limit
         cost_limit_usd: New cost limit
         timeout_seconds: New timeout
-        mcp_config: New MCP config as JSON string
         provider_options: New provider options as JSON object
         output_schema: New output schema as JSON object
         handoff_instructions: New handoff instructions
-        artifact_policy: New artifact policy
 
     Returns:
         Confirmation message
@@ -297,11 +286,6 @@ def subagent_update(
         update_kwargs["cost_limit_usd"] = cost_limit_usd
     if timeout_seconds is not None:
         update_kwargs["timeout_seconds"] = timeout_seconds
-    if mcp_config is not None:
-        parsed, error = _parse_object_json(mcp_config, "MCP config")
-        if error:
-            return error
-        update_kwargs["mcp_config"] = parsed
     if provider_options is not None:
         parsed, error = _parse_object_json(provider_options, "provider_options")
         if error:
@@ -311,11 +295,9 @@ def subagent_update(
         parsed, error = _parse_object_json(output_schema, "output_schema")
         if error:
             return error
-        update_kwargs["output_schema"] = parsed
+        update_kwargs["output_schema_def"] = parsed
     if handoff_instructions is not None:
         update_kwargs["handoff_instructions"] = handoff_instructions
-    if artifact_policy is not None:
-        update_kwargs["artifact_policy"] = artifact_policy
 
     if not update_kwargs:
         return f"No fields specified to update for subagent '{name}'."

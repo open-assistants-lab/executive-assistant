@@ -5,10 +5,11 @@ import re
 from datetime import date, timedelta
 from typing import Any
 
+from coremem.query import expand_queries
+
 from src.app_logging import get_logger
 from src.sdk.tools import ToolAnnotations, tool
 from src.storage.messages import SearchResult, get_message_store
-from coremem.query import expand_queries
 
 logger = get_logger()
 _coremem_cache: dict[str, Any] = {}
