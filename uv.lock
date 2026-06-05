@@ -444,7 +444,7 @@ wheels = [
 
 [[package]]
 name = "connectkit"
-version = "0.1.3"
+version = "0.1.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
@@ -454,9 +454,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5c/71/4bca1fbaba92fc002d7f3f1d451df2911dc57d6310085adbfb067d7eb584/connectkit-0.1.3.tar.gz", hash = "sha256:156bba992efc2db72bbfdac056677b717b5febdc1162a01f01f5758f9d09a421", size = 160246, upload-time = "2026-06-05T14:00:58.008Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5a/3c/e4690b48602a08c6594bb45d53f14275b4e2d1ee69f2f3b513dc1898f592/connectkit-0.1.4.tar.gz", hash = "sha256:a838e18101e1ad685476617ce4025c47ca2c3e08d7b60529e3fc485d6136c4a6", size = 160807, upload-time = "2026-06-05T14:11:06.11Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/59/2b/144df0a3f269a4fecd4cdba8d53917a63a05c199bc23b7e0449a4dfa9c04/connectkit-0.1.3-py3-none-any.whl", hash = "sha256:0f4c127b7592fdaac2720f2ff4fc2a063a06bdf3801420d9d8af76507bdf45f5", size = 328229, upload-time = "2026-06-05T14:00:56.473Z" },
+    { url = "https://files.pythonhosted.org/packages/57/22/4022933d636973ca10de0b7b5288db9bf5951deeff20108b308ef0e3fc94/connectkit-0.1.4-py3-none-any.whl", hash = "sha256:3a7d3a405c590f14bc09532b666ac4edf60bcbd22466a69c351aa72177c798fd", size = 328851, upload-time = "2026-06-05T14:11:04.407Z" },
 ]
 
 [[package]]
@@ -743,7 +743,7 @@ requires-dist = [
     { name = "aiosqlite", specifier = ">=0.20.0" },
     { name = "apscheduler", specifier = ">=3.11.2" },
     { name = "chromadb", specifier = ">=1.5.0" },
-    { name = "connectkit", specifier = ">=0.1.2" },
+    { name = "connectkit", specifier = "==0.1.4" },
     { name = "coremem", extras = ["hybrid"], specifier = ">=0.3.0" },
     { name = "cryptography", specifier = ">=41.0.0" },
     { name = "duckdb", specifier = ">=1.0.0" },
