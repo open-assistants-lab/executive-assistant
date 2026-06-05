@@ -213,19 +213,10 @@ def _register_all() -> None:
 
     # ConnectKit meta-tools
     try:
-        from connectkit.meta_tools import (
-            connector_connect,
-            connector_disconnect,
-            connector_health,
-            connector_install_tools,
-            connector_list,
-        )
+        from src.sdk.tools_core.connector_adapter import get_connector_tools
 
-        registry.register(connector_list)
-        registry.register(connector_connect)
-        registry.register(connector_disconnect)
-        registry.register(connector_install_tools)
-        registry.register(connector_health)
+        for td in get_connector_tools():
+            registry.register(td)
     except ImportError:
         pass
 
