@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 from agentprofile.models import AgentProfile
-from connectkit.item_scopes import ItemScopeDB, ScopeKind
+from src.sdk.item_scopes import ItemScopeDB, ScopeKind
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field, ValidationError
 

@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from connectkit.item_scopes import ItemScopeDB, ScopeKind
+from src.sdk.item_scopes import ItemScopeDB, ScopeKind
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 

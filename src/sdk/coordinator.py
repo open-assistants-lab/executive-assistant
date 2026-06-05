@@ -572,7 +572,7 @@ class SubagentCoordinator:
 
         # 3. Filter by item_scopes (All / Selected / None)
         try:
-            from connectkit.item_scopes import ItemScopeDB
+            from src.sdk.item_scopes import ItemScopeDB
 
             paths = _paths.get_paths(user_id=self.user_id)
             scope_db = ItemScopeDB(paths.base)

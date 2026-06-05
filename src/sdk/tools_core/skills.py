@@ -29,7 +29,7 @@ def _get_registry(user_id: str, workspace_id: str = "personal"):
 def _is_available(name: str, user_id: str, workspace_id: str) -> tuple[bool, str]:
     """Check item_scopes: returns (available, reason)."""
     try:
-        from connectkit.item_scopes import ItemScopeDB
+        from src.sdk.item_scopes import ItemScopeDB
 
         paths = get_paths(user_id, workspace_id=workspace_id)
         scope_db = ItemScopeDB(paths.base)

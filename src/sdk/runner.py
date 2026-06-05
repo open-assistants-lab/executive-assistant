@@ -163,7 +163,7 @@ def _get_skills_context(user_id: str, workspace_id: str = "personal") -> str:
             return ""
 
         # Filter by item_scopes (All / Selected / None)
-        from connectkit.item_scopes import ItemScopeDB
+        from src.sdk.item_scopes import ItemScopeDB
 
         from src.storage.paths import get_paths as _get_paths
 
@@ -271,7 +271,7 @@ async def create_sdk_loop(user_id: str, workspace_id: str = "personal", model: s
     tools = get_native_tools()
 
     # Filter tools by per-workspace scope via item_scopes table
-    from connectkit.item_scopes import ItemScopeDB
+    from src.sdk.item_scopes import ItemScopeDB
 
     from src.storage.paths import get_paths as _get_paths
 

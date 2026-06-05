@@ -1,6 +1,6 @@
 """Tools API — list tools with metadata, toggle enabled per scope."""
 
-from connectkit.item_scopes import ItemScopeDB, ScopeKind
+from src.sdk.item_scopes import ItemScopeDB, ScopeKind
 from fastapi import APIRouter, HTTPException, Query
 
 from src.sdk.native_tools import get_tool_category

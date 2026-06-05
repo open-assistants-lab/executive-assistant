@@ -31,19 +31,11 @@ dependencies = [
     "coremem[hybrid]>=0.3.0",
     "agentprofile",
     "hybriddb>=0.4.2",
-    "connectkit",
+    "connectkit>=0.1.0",
 ]
 
 [tool.uv.sources]
 agentprofile = { path = "/Users/eddy/Developer/Python/AgentProfile", editable = true }
-connectkit = { workspace = true, editable = true }
-
-[tool.uv.workspace]
-members = [
-    "packages/connectkit",
-]
-
-
 
 [project.optional-dependencies]
 http = [
