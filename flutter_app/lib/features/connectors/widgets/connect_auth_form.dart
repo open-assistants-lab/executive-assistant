@@ -31,8 +31,6 @@ class _ConnectAuthFormState extends ConsumerState<ConnectAuthForm> {
   bool _showAdvanced = false;
   Timer? _pollTimer;
 
-  bool get _isPkce => widget.spec['pkce'] == true;
-
   bool get _hasPrefilledDefaults {
     final fields = (widget.spec['required_fields'] as List? ?? [])
         .cast<Map<String, dynamic>>();
@@ -46,13 +44,12 @@ class _ConnectAuthFormState extends ConsumerState<ConnectAuthForm> {
   @override
   void initState() {
     super.initState();
-    if (_isPkce) {
+    if (_hasPrefilledDefaults) {
       final fields = (widget.spec['required_fields'] as List? ?? [])
           .cast<Map<String, dynamic>>();
       for (final f in fields) {
         final name = f['name'] as String;
-        final ctrl = TextEditingController(text: f['default'] as String? ?? '');
-        _ctrls[name] = ctrl;
+        _ctrls[name] = TextEditingController();
       }
     }
   }
@@ -83,89 +80,73 @@ class _ConnectAuthFormState extends ConsumerState<ConnectAuthForm> {
             'Connect ${spec['name'] ?? ''}',
             style: Theme.of(context).textTheme.titleMedium,
           ),
-          const SizedBox(height: 4),
-          Text(
-            spec['description'] ?? '',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 16),
-          if (authType == 'oauth2') ...[
-            Text(
-              'Pre-configured credentials are included. Click "Open Browser" '
-              'to authorize, or expand Advanced to use your own OAuth app.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.color
-                        ?.withAlpha(180),
-                  ),
-            ),
-            const SizedBox(height: 8),
-            InkWell(
-              onTap: () => setState(() => _showAdvanced = !_showAdvanced),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    _showAdvanced ? Symbols.expand_less : Symbols.expand_more,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Advanced',
-                    style: Theme.of(context).textTheme.labelSmall,
-                  ),
-                ],
-              ),
-            ),
-            if (_showAdvanced) ...[
-              const SizedBox(height: 4),
-              ...fields.map(_buildField),
-            ],
+          const SizedBox(height: 12),
+          if (_showAdvanced) ...[
+            ...fields.map(_buildField),
           ] else if (authType == 'api_key')
             ...fields.map(_buildField)
           else if (authType == 'basic')
             ...fields.map(_buildField)
-          else
+          else if (authType == 'none')
             Text(
-              'No credentials needed. Click Connect to enable.',
+              'No credentials needed.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           const SizedBox(height: 16),
           Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              TextButton(
-                onPressed: () {
-                  _pollTimer?.cancel();
-                  Navigator.of(context).pop();
-                },
-                child: const Text('Cancel'),
-              ),
-              const SizedBox(width: 8),
-              if ((authType == 'oauth2' || _isPkce) && _browserOpened)
-                FilledButton(
-                  onPressed: _connecting ? null : _checkConnected,
-                  child: _connecting
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text("I've Authorized"),
+              if (authType == 'oauth2' && !_showAdvanced)
+                TextButton.icon(
+                  icon: const Icon(Symbols.tune, size: 14),
+                  label: const Text('Advanced'),
+                  onPressed: () => setState(() => _showAdvanced = true),
+                  style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                )
+              else if (_showAdvanced)
+                TextButton.icon(
+                  icon: const Icon(Symbols.tune, size: 14),
+                  label: const Text('Default credentials'),
+                  onPressed: () => setState(() => _showAdvanced = false),
+                  style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
                 )
               else
-                FilledButton(
-                  onPressed: _connecting ? null : _connect,
-                  child: _connecting
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(_hasPrefilledDefaults ? 'Open Browser' : 'Connect'),
-                ),
+                const Spacer(),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      _pollTimer?.cancel();
+                      Navigator.of(context).pop();
+                    },
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 8),
+                  if (_browserOpened)
+                    FilledButton(
+                      onPressed: _connecting ? null : _checkConnected,
+                      child: _connecting
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text("I've Authorized"),
+                    )
+                  else
+                    FilledButton(
+                      onPressed: _connecting ? null : _connect,
+                      child: _connecting
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Open Browser'),
+                    ),
+                ],
+              ),
             ],
           ),
         ],
@@ -199,7 +180,6 @@ class _ConnectAuthFormState extends ConsumerState<ConnectAuthForm> {
     final service = widget.spec['name'] as String;
     var url = 'http://$host/auth/login?service=$service&user_id=default_user';
     if (clientSecret != null && clientSecret.isNotEmpty) {
-      // Google's token endpoint requires client_secret even with PKCE
       url += '&client_secret=${Uri.encodeQueryComponent(clientSecret)}';
     }
     final uri = Uri.parse(url);
@@ -211,11 +191,9 @@ class _ConnectAuthFormState extends ConsumerState<ConnectAuthForm> {
   Future<void> _connect() async {
     final authType = widget.spec['auth_type'] as String? ?? 'none';
 
-    // For OAuth2: store custom creds if user filled Advanced fields, then open browser
     if (authType == 'oauth2') {
       setState(() => _connecting = true);
       try {
-        // Send any custom credential values to the backend
         final body = <String, String>{};
         for (final entry in _ctrls.entries) {
           if (entry.value.text.isNotEmpty) {
