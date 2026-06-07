@@ -62,7 +62,7 @@ class _ProviderCardState extends ConsumerState<ProviderCard> {
   Future<void> _saveKey() async {
     setState(() => _saving = true);
     final settings = ref.read(settingsProvider.notifier);
-    await settings.setApiKey(widget.providerId, _keyCtrl.text);
+    await settings.setApiKey(widget.providerId, _keyCtrl.text.trim());
     if (!mounted) return;
     setState(() => _saving = false);
   }

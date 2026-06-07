@@ -28,7 +28,7 @@ dependencies = [
     "openai>=1.0.0",
     "aiohttp>=3.9.0",
     "sqlalchemy>=2.0.0",
-    "coremem[hybrid]>=0.3.0",
+    "coremem>=0.7.1",
     "agentprofile",
     "hybriddb>=0.4.2",
     "connectkit==0.1.4",

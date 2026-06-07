@@ -163,6 +163,8 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   void setHost(String host) {
     SharedPreferences.getInstance().then((p) => p.setString('ea_host', host));
     state = state.copyWith(host: host);
+    ref.read(hostProvider.notifier).state = host;
+    ref.read(agentProvider.notifier).updateHost(host);
   }
 }
 

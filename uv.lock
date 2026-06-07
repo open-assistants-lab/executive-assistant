@@ -461,21 +461,17 @@ wheels = [
 
 [[package]]
 name = "coremem"
-version = "0.3.0"
+version = "0.7.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "chromadb" },
+    { name = "hybriddb" },
     { name = "numpy" },
+    { name = "python-dotenv" },
     { name = "sentence-transformers" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/36/55/b79a530dc501945fec79a3c5d88e11443a51a0eecc54cfd3d6b391581f70/coremem-0.3.0.tar.gz", hash = "sha256:45cac029e68fb6f345a27a53a19cfb3d62d71100afbc8b2d812f4482639ee375", size = 259753, upload-time = "2026-06-01T03:29:37.197Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5c/9e/0abaaf909a985c45087990be142a82cf464bfc77dab6febf31a73ba11cba/coremem-0.3.0-py3-none-any.whl", hash = "sha256:67b5aaa82c7f54e74fb515203d75ed3d3bdcaa37f4627fa8fb471df2923f1e5f", size = 24422, upload-time = "2026-06-01T03:29:38.646Z" },
-]
-
-[package.optional-dependencies]
-hybrid = [
-    { name = "hybriddb" },
+    { url = "https://files.pythonhosted.org/packages/15/34/ca7f12e4ff485fd9b0155f4c23a3c714700cd13cd8e81931cb90455c852f/coremem-0.7.1-py3-none-any.whl", hash = "sha256:2539b09ed6e2cdd7b69de7f56485d0d9212ae5c401983b26719f1f90b5cb9d38", size = 46775, upload-time = "2026-06-07T17:11:53.324Z" },
 ]
 
 [[package]]
@@ -686,7 +682,7 @@ dependencies = [
     { name = "apscheduler" },
     { name = "chromadb" },
     { name = "connectkit" },
-    { name = "coremem", extra = ["hybrid"] },
+    { name = "coremem" },
     { name = "cryptography" },
     { name = "duckdb" },
     { name = "fastapi" },
@@ -744,7 +740,7 @@ requires-dist = [
     { name = "apscheduler", specifier = ">=3.11.2" },
     { name = "chromadb", specifier = ">=1.5.0" },
     { name = "connectkit", specifier = "==0.1.4" },
-    { name = "coremem", extras = ["hybrid"], specifier = ">=0.3.0" },
+    { name = "coremem", specifier = ">=0.7.1" },
     { name = "cryptography", specifier = ">=41.0.0" },
     { name = "duckdb", specifier = ">=1.0.0" },
     { name = "fastapi", specifier = ">=0.129.0" },
