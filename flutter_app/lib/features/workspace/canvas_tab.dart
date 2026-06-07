@@ -250,7 +250,7 @@ class _CanvasTabState extends ConsumerState<CanvasTab> {
       final allKeys = <String>{};
       for (final ws in state.allSurfaces.entries) {
         for (final s in ws.value) {
-          final key = '$wsId::${s.surfaceId}';
+          final key = '${ws.key}::${s.surfaceId}';
           allKeys.add(key);
           _ensureController(s, key);
         }
@@ -296,7 +296,13 @@ class _CanvasTabState extends ConsumerState<CanvasTab> {
   }
 
   void _ensureController(CanvasSurface surface, String cacheKey) {
-    if (_controllers.containsKey(cacheKey)) return;
+    final existing = _controllers[cacheKey];
+    if (existing != null) {
+      if (surface.action == 'update') {
+        existing.loadHtmlString(_htmlFor(surface));
+      }
+      return;
+    }
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..addJavaScriptChannel(
