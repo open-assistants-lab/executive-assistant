@@ -16,15 +16,17 @@ class OnboardingNotifier extends StateNotifier<bool?> {
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     final complete = prefs.getBool(_onboardingKey) ?? false;
-    if (!complete) {
-      final keys = prefs.getKeys();
-      final hasAnyKey = keys.any((k) => k.startsWith('ea_key_'));
-      state = hasAnyKey;
-      if (hasAnyKey) {
-        await prefs.setBool(_onboardingKey, true);
-      }
-    } else {
+    if (complete) {
       state = true;
+      return;
+    }
+    final keys = prefs.getKeys();
+    final hasAnyKey = keys.any((k) => k.startsWith('ea_key_'));
+    if (hasAnyKey) {
+      await prefs.setBool(_onboardingKey, true);
+      state = true;
+    } else {
+      state = false;
     }
   }
 

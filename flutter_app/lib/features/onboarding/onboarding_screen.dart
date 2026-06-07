@@ -55,6 +55,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         return;
       }
     } catch (_) {}
+    if (!mounted) return;
     setState(() => _loading = false);
   }
 
@@ -368,7 +369,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         Icon(
           _testResult == true
               ? Symbols.check_circle
-              : Symbols.check_circle,
+              : Symbols.settings,
           size: 64,
           color: _testResult == true
               ? Colors.green
