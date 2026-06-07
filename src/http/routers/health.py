@@ -42,7 +42,8 @@ async def list_models_endpoint():
                 "name": pname,
                 "models": [],
             }
-        if m.id not in providers[pid]["models"]:
-            providers[pid]["models"].append(m.id)
+        entry = {"id": m.id, "name": m.name}
+        if entry not in providers[pid]["models"]:
+            providers[pid]["models"].append(entry)
 
     return {"providers": list(providers.values()), "total": len(models)}

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../core/crash_reporting.dart';
 import 'test_instrumentation.dart';
 
 /// Wraps the app with test instrumentation.
@@ -49,6 +50,7 @@ class _InstrumentedAppState extends State<InstrumentedApp>
     _originalOnError = FlutterError.onError;
     FlutterError.onError = (details) {
       _inst.onFlutterError(details);
+      reportError(details.exception, details.stack);
       _originalOnError?.call(details);
     };
   }

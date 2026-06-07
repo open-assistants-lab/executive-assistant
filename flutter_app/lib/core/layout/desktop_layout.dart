@@ -673,6 +673,7 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
             connected: state.connected,
             isDisconnected: state.status == ChatStatus.disconnected,
             onReconnect: () => ref.read(agentProvider.notifier).connect(),
+            backendStatus: state.backendStatus,
           ),
           Expanded(
             child: Stack(

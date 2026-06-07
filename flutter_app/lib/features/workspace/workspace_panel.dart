@@ -8,6 +8,8 @@ import '../../providers/agent_provider.dart';
 import '../../providers/workspace_provider.dart';
 import 'canvas_tab.dart';
 import 'capabilities_tab.dart';
+import 'learn_checklist_provider.dart';
+import 'learn_checklist_widget.dart' show htmlForChecklistItem;
 
 typedef WorkspaceFileLoader =
     Future<List<Map<String, dynamic>>> Function(WidgetRef ref);
@@ -117,10 +119,15 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
       }
     });
 
+    final checklist = ref.watch(learnChecklistProvider);
+    final showChecklist = !checklist.dismissed &&
+        checklist.completed.length < checklistItems.length;
+
     return Container(
       color: context.tokens.colors.bgCanvas,
       child: Column(
         children: [
+          if (showChecklist) _buildChecklistBanner(),
           Expanded(
             child: IndexedStack(
               index: _tab.index,
@@ -134,6 +141,73 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
           _BottomTabs(
             selected: _tab,
             onSelected: (tab) => setState(() => _tab = tab),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChecklistBanner() {
+    final state = ref.read(learnChecklistProvider);
+    final remaining = checklistItems.where((i) => !state.completed.contains(i.id)).toList();
+    final tokens = context.tokens;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+      decoration: BoxDecoration(
+        color: tokens.colors.accent.withAlpha(12),
+        border: Border(bottom: BorderSide(color: tokens.colors.borderSubtle)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(Symbols.school, size: 16, color: tokens.colors.accent),
+              const SizedBox(width: 6),
+              Text(
+                'Learn Executive Assistant',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: tokens.colors.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${remaining.length} of ${checklistItems.length}',
+                style: TextStyle(fontSize: 10, color: tokens.colors.textTertiary),
+              ),
+              const SizedBox(width: 6),
+              InkWell(
+                onTap: () => ref.read(learnChecklistProvider.notifier).dismiss(),
+                child: Icon(Symbols.close, size: 14, color: tokens.colors.textTertiary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 56,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: remaining.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 6),
+              itemBuilder: (_, i) {
+                final item = remaining[i];
+                return _ChecklistChip(
+                  item: item,
+                  onShowMe: () {
+                    ref.read(learnChecklistProvider.notifier).complete(item.id);
+                    ref.read(canvasProvider.notifier).onCanvasUpdate({
+                      'action': 'create',
+                      'surface_id': 'learn_${item.id}',
+                      'html': htmlForChecklistItem(item.id),
+                    });
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -242,6 +316,55 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
           ),
         );
       },
+    );
+  }
+}
+
+class _ChecklistChip extends StatelessWidget {
+  final LearnChecklistItem item;
+  final VoidCallback onShowMe;
+
+  const _ChecklistChip({required this.item, required this.onShowMe});
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.tokens;
+    return Card(
+      margin: EdgeInsets.zero,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onShowMe,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 160),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(item.icon, style: const TextStyle(fontSize: 14)),
+              const SizedBox(height: 4),
+              Text(
+                item.title,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: tokens.colors.textPrimary,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Show me',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: tokens.colors.accent,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

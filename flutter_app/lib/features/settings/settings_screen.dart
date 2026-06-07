@@ -2,6 +2,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../models/provider_model.dart';
 import '../../providers/agent_provider.dart';
 import '../../theme/app_theme.dart';
 import '../connectors/widgets/provider_card.dart';
@@ -36,6 +39,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     super.dispose();
   }
 
+  List<ProviderModel> _parseModels(List models) {
+    return models.map((m) {
+      if (m is Map) {
+        return (id: m['id'] as String? ?? '', name: m['name'] as String? ?? '');
+      }
+      return (id: m.toString(), name: m.toString());
+    }).toList();
+  }
+
   Future<void> _loadProviders() async {
     try {
       final host = ref.read(hostProvider);
@@ -43,7 +55,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (resp.statusCode == 200) {
         final data = jsonDecode(resp.body) as Map<String, dynamic>;
         final list = (data['providers'] as List? ?? [])
-            .map((p) => p as Map<String, dynamic>)
+            .map((p) {
+              final m = p as Map<String, dynamic>;
+              m['models'] = _parseModels(m['models'] as List? ?? []);
+              return m;
+            })
             .toList();
         setState(() {
           _providers = list;
@@ -63,7 +79,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       list = list.where((p) {
         if ((p['name'] as String).toLowerCase().contains(q)) return true;
         final models = p['models'] as List? ?? [];
-        return models.any((m) => m.toString().toLowerCase().contains(q));
+        return models.any((m) {
+          final model = m as ProviderModel;
+          return model.name.toLowerCase().contains(q) || model.id.toLowerCase().contains(q);
+        });
       }).toList();
     }
     list.sort((a, b) {
@@ -169,7 +188,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         ..._sortedProviders.map((p) {
                           final pid = p['id'] as String;
                           final name = p['name'] as String? ?? pid;
-                          final models = List<String>.from(p['models'] ?? []);
+                          final models = List<ProviderModel>.from(p['models'] ?? []);
                           final hasKey =
                               (settings.providerKeys.containsKey(pid) &&
                                       settings.providerKeys[pid]!.isNotEmpty) ||
@@ -192,6 +211,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         Symbols.folder,
                         tokens: tokens,
                       ),
+                      _tile(
+                        'Report Issue',
+                        'Open a pre-filled GitHub issue',
+                        Symbols.bug_report,
+                        tokens: tokens,
+                        onTap: _reportIssue,
+                      ),
                       const SizedBox(height: 24),
                     ],
                   ),
@@ -199,6 +225,52 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _reportIssue() async {
+    final info = await PackageInfo.fromPlatform();
+    final version = '${info.version}+${info.buildNumber}';
+    final platform = 'macOS';
+    final backendStatus = ref.read(agentProvider).status;
+
+    final body = '''
+## Environment
+
+- **App Version:** $version
+- **Platform:** $platform
+- **Backend Status:** $backendStatus
+
+## Description
+
+<!-- Describe the issue here -->
+
+## Steps to Reproduce
+
+1. 
+2. 
+3. 
+
+## Expected Behavior
+
+
+
+## Actual Behavior
+
+
+
+## Additional Context
+
+''';
+
+    final uri = Uri.parse(
+      'https://github.com/open-assistants-lab/executive-assistant/issues/new'
+      '?labels=bug&template=bug_report.md'
+      '&title=${Uri.encodeComponent('[BUG] ')}'
+      '&body=${Uri.encodeComponent(body)}',
+    );
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   Widget _sectionHeader(String title, var tokens) {
@@ -220,6 +292,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     String subtitle,
     IconData icon, {
     required var tokens,
+    VoidCallback? onTap,
   }) {
     return ListTile(
       leading: Icon(icon, size: 20, color: tokens.colors.textSecondary),
@@ -231,7 +304,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         subtitle,
         style: TextStyle(fontSize: 12, color: tokens.colors.textSecondary),
       ),
+      trailing: onTap != null
+          ? Icon(Symbols.open_in_new, size: 14, color: tokens.colors.accent)
+          : null,
       dense: true,
+      onTap: onTap,
     );
   }
 
@@ -256,7 +333,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     for (final p in connectedProviders) {
       final pid = p['id'] as String;
       final name = p['name'] as String? ?? pid;
-      final models = List<String>.from(p['models'] ?? []);
+      final models = List<ProviderModel>.from(p['models'] ?? []);
 
       items.add(DropdownMenuItem<String>(
         value: '__header__$pid',
@@ -272,7 +349,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ));
 
       for (final m in models) {
-        final modelValue = '$pid:$m';
+        final modelValue = '$pid:${m.id}';
         items.add(DropdownMenuItem<String>(
           value: modelValue,
           child: Row(
@@ -287,7 +364,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     : tokens.colors.textTertiary,
               ),
               const SizedBox(width: 8),
-              Text(m, style: const TextStyle(fontSize: 13)),
+              Text(m.name, style: const TextStyle(fontSize: 13)),
             ],
           ),
         ));

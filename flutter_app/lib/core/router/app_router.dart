@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/chat/chat_screen.dart';
 import '../../features/email/email_list_screen.dart';
+import '../../features/onboarding/onboarding_screen.dart';
+import '../../features/onboarding/onboarding_provider.dart';
 import '../../features/workspace/workspace_panel.dart';
 import '../../features/tools/tools_panel.dart';
 import '../../features/skills/skills_sidebar_panel.dart';
@@ -29,15 +31,36 @@ const _utilityRoutes = {
 bool isUtilityRoute(String path) => _utilityRoutes.contains(path);
 
 final appRouterProvider = Provider<GoRouter>((ref) {
+  final onboardingComplete = ref.watch(onboardingCompleteProvider);
+
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     observers: [EaRouteObserver()],
     initialLocation: '/workspace',
+    redirect: (context, state) {
+      if (onboardingComplete == null) return null; // still loading
+
+      final path = state.uri.path;
+      final isOnboarding = path == '/onboarding';
+
+      if (!onboardingComplete && !isOnboarding) {
+        return '/onboarding';
+      }
+      if (onboardingComplete && isOnboarding) {
+        return '/workspace';
+      }
+      return null;
+    },
     routes: [
       // Redirect root to workspace
       GoRoute(
         path: '/',
         redirect: (_, __) => '/workspace',
+      ),
+      GoRoute(
+        path: '/onboarding',
+        name: 'onboarding',
+        builder: (context, state) => const OnboardingScreen(),
       ),
       ShellRoute(
         navigatorKey: _shellNavigatorKey,

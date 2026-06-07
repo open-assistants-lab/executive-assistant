@@ -18,15 +18,6 @@ subagent:
   # Default model for subagents (uses main agent model if not specified)
   # model: "ollama-cloud:minimax-m2.5"
 
-# Database
-database:
-  host: "localhost"
-  port: 5432
-  name: "executive_assistant"
-  user: "postgres"
-  password: "" # Set via env var DB_PASSWORD
-  pool_size: 10
-
 # Memory / Checkpointing
 memory:
   # Checkpointer: LangGraph SQLite (DISABLED - resource intensive in production)
@@ -59,28 +50,16 @@ observability:
     json_dir: "data/logs"
   langfuse:
     enabled: true
-    public_key: "" # Set via env var
-    secret_key: "" # Set via env var
     host: "https://cloud.langfuse.com"
-    environment: "development" # production, development, staging (per Langfuse docs).
+    environment: "development" # production, development, staging
 
 # API Server
 api:
   host: "0.0.0.0"
   port: 8000
-  reload: false
-  workers: 1 # Single-threaded per user constraint
-
-# CLI
-cli:
-  history_file: "~/.ea_history"
-  prompt: "> "
 
 # Tools
 tools:
-  firecrawl:
-    api_key: "" # Set via env var FIRECRAWL_API_KEY
-    base_url: "" # For self-hosted, e.g., "http://localhost:3002"
   max_retries: 3
   timeout: 30
 

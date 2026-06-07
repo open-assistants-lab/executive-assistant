@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/crash_reporting.dart';
 import 'core/router/app_router.dart';
 import 'providers/workspace_provider.dart';
 import 'services/instrumented_app.dart';
@@ -11,8 +12,10 @@ import 'theme/app_theme.dart';
 
 void main() async {
   await loadScrollPositionsFromPrefs();
+  WidgetsFlutterBinding.ensureInitialized();
+  await initCrashReporting();
+
   runZonedGuarded(() {
-    WidgetsFlutterBinding.ensureInitialized();
     runApp(
       InstrumentedApp(
         child: const ProviderScope(child: ExecutiveAssistantApp()),
@@ -20,6 +23,7 @@ void main() async {
     );
   }, (error, stack) {
     TestInstrumentation().onZoneError(error, stack);
+    reportError(error, stack);
   });
 }
 

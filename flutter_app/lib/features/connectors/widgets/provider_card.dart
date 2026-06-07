@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../models/provider_model.dart';
 import '../../../theme/app_theme.dart';
 import '../../settings/providers/settings_provider.dart';
 
@@ -7,7 +8,7 @@ class ProviderCard extends ConsumerStatefulWidget {
   final String providerId;
   final String providerName;
   final bool hasKey;
-  final List<String> models;
+  final List<ProviderModel> models;
   final String? selectedModel;
 
   const ProviderCard({
@@ -27,11 +28,43 @@ class _ProviderCardState extends ConsumerState<ProviderCard> {
   bool _expanded = false;
   final _keyCtrl = TextEditingController();
   bool _saving = false;
+  bool _testing = false;
+  bool? _testResult;
+  String? _testError;
 
   @override
   void dispose() {
     _keyCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _testKey() async {
+    final key = _keyCtrl.text.trim();
+    if (key.isEmpty) return;
+
+    setState(() {
+      _testing = true;
+      _testResult = null;
+      _testError = null;
+    });
+
+    final settings = ref.read(settingsProvider.notifier);
+    final result = await settings.testApiKey(widget.providerId, key);
+
+    if (!mounted) return;
+    setState(() {
+      _testing = false;
+      _testResult = result.valid;
+      _testError = result.error;
+    });
+  }
+
+  Future<void> _saveKey() async {
+    setState(() => _saving = true);
+    final settings = ref.read(settingsProvider.notifier);
+    await settings.setApiKey(widget.providerId, _keyCtrl.text);
+    if (!mounted) return;
+    setState(() => _saving = false);
   }
 
   @override
@@ -76,56 +109,105 @@ class _ProviderCardState extends ConsumerState<ProviderCard> {
                 horizontal: 16,
                 vertical: 8,
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _keyCtrl,
-                      obscureText: true,
-                      decoration: InputDecoration(
-                        hintText: 'API key for ${widget.providerName}',
-                        labelText: widget.hasKey ? 'API Key' : null,
-                        isDense: true,
-                        border: const OutlineInputBorder(),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _keyCtrl,
+                          obscureText: true,
+                          decoration: InputDecoration(
+                            hintText: 'API key for ${widget.providerName}',
+                            labelText: widget.hasKey ? 'API Key' : null,
+                            isDense: true,
+                            border: const OutlineInputBorder(),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            suffixIcon: _saving || _testing
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: Padding(
+                                      padding: EdgeInsets.all(10),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                  )
+                                : null,
+                          ),
+                          style: const TextStyle(fontSize: 13),
+                          onChanged: (_) {
+                            if (_testResult != null) {
+                              setState(() {
+                                _testResult = null;
+                                _testError = null;
+                              });
+                            }
+                          },
                         ),
-                        suffixIcon: _saving
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton(
+                        onPressed: _testing ? null : _saveKey,
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                          ),
+                        ),
+                        child: Text(
+                          widget.hasKey ? 'Change' : 'Save',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _testing || _keyCtrl.text.trim().isEmpty
+                            ? null
+                            : _testKey,
+                        icon: _testing
                             ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: Padding(
-                                  padding: EdgeInsets.all(10),
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
+                                width: 12,
+                                height: 12,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 1.5,
                                 ),
                               )
-                            : null,
+                            : const Icon(Symbols.network_check, size: 14),
+                        label: const Text('Test', style: TextStyle(fontSize: 11)),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          visualDensity: VisualDensity.compact,
+                        ),
                       ),
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: () async {
-                      setState(() => _saving = true);
-                      await settings.setApiKey(
-                        widget.providerId,
-                        _keyCtrl.text,
-                      );
-                      setState(() => _saving = false);
-                    },
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                      ),
-                    ),
-                    child: Text(
-                      widget.hasKey ? 'Change' : 'Save',
-                      style: const TextStyle(fontSize: 12),
-                    ),
+                      if (_testResult != null) ...[
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _testResult == true
+                                ? '✓ Connection works'
+                                : '✗ ${_testError ?? "Connection failed"}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: _testResult == true
+                                  ? Colors.green
+                                  : tokens.colors.error,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),
@@ -144,10 +226,10 @@ class _ProviderCardState extends ConsumerState<ProviderCard> {
               )
             else
               ...widget.models.map((m) {
-                final modelValue = '${widget.providerId}:$m';
+                final modelValue = '${widget.providerId}:${m.id}';
                 final isSelected = modelValue == widget.selectedModel;
                 return ListTile(
-                  title: Text(m, style: const TextStyle(fontSize: 12)),
+                  title: Text(m.name, style: const TextStyle(fontSize: 12)),
                   // ignore: deprecated_member_use
                   leading: Radio<String>(
                     value: modelValue,

@@ -65,6 +65,7 @@ class _DemoScreenState extends ConsumerState<DemoScreen> {
                   connected: state.connected,
                   isDisconnected: state.status == ChatStatus.disconnected,
                   onReconnect: () => ref.read(agentProvider.notifier).connect(),
+                  backendStatus: state.backendStatus,
                 ),
                 Expanded(
                   child: state.messages.isEmpty && state.streamingText.isEmpty

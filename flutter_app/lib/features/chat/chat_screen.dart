@@ -110,6 +110,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             connected: isConnected,
             isDisconnected: state.status == ChatStatus.disconnected,
             onReconnect: _connect,
+            backendStatus: state.backendStatus,
           ),
           Expanded(
             child: _MessageList(
@@ -120,8 +121,61 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
           if (state.status == ChatStatus.error && state.error != null)
             ErrorBar(error: state.error!),
+          if (state.messages.isEmpty && state.streamingText.isEmpty)
+            _SuggestionChips(
+              onTap: (text) => ref.read(agentProvider.notifier).sendMessage(text),
+            ),
           const ChatInput(),
         ],
+      ),
+    );
+  }
+}
+
+class _SuggestionChips extends StatelessWidget {
+  final void Function(String text) onTap;
+
+  const _SuggestionChips({required this.onTap});
+
+  static const _suggestions = [
+    ('Summarize my inbox', 'Quick overview of recent emails'),
+    ('What\'s on my calendar today?', 'Today\'s schedule at a glance'),
+    ('Draft a reply to a recent email', 'Respond to the latest message'),
+    ('Help me organize my tasks', 'List and prioritize what\'s due'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 4,
+        alignment: WrapAlignment.center,
+        children: _suggestions.map((s) {
+          return ActionChip(
+            label: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  s.$1,
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+                ),
+                Text(
+                  s.$2,
+                  style: TextStyle(
+                    fontSize: 9,
+                    color: context.tokens.colors.textTertiary,
+                  ),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            onPressed: () => onTap(s.$1),
+            visualDensity: VisualDensity.compact,
+          );
+        }).toList(),
       ),
     );
   }

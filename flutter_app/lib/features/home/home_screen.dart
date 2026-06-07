@@ -76,6 +76,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             isDisconnected: state.status == ChatStatus.disconnected,
             onReconnect: () =>
                 ref.read(agentProvider.notifier).connect(),
+            backendStatus: state.backendStatus,
           ),
           Expanded(
             child: CustomScrollView(

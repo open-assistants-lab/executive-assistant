@@ -1,4 +1,4 @@
-"""Settings API — per-user overrides for API keys and default model."""
+"""Settings API — per-user overrides for API keys, default model, and key validation."""
 
 from __future__ import annotations
 
@@ -19,6 +19,12 @@ class UpdateSettingsRequest(BaseModel):
 
 class SetApiKeyRequest(BaseModel):
     """Request body for POST /settings/api-keys."""
+    provider: str
+    api_key: str
+
+
+class TestKeyRequest(BaseModel):
+    """Request body for POST /settings/test-key."""
     provider: str
     api_key: str
 
@@ -119,6 +125,54 @@ async def set_api_key(
     data.setdefault("provider_keys", {})[body.provider] = body.api_key
     _write_settings(user_id, data)
     return {"status": "stored", "provider": body.provider}
+
+
+@router.post("/test-key")
+async def test_api_key(body: TestKeyRequest):
+    """Test whether an API key is valid for the given provider.
+
+    Makes a minimal API call (list models) to verify the key works.
+    Returns success/failure with an error message on failure.
+    """
+    from src.sdk.providers.factory import create_provider
+    from src.sdk.registry import get_provider as get_provider_meta
+
+    provider = body.provider
+    api_key = body.api_key
+
+    if not api_key:
+        return {"valid": False, "error": "API key is empty"}
+
+    try:
+        meta = get_provider_meta(provider)
+        provider_type = meta.get("type", "openai-compatible") if meta else "openai-compatible"
+
+        prov = create_provider(provider_type, api_key=api_key)
+        try:
+            if hasattr(prov, "_client"):
+                await prov._client.models.list()
+            else:
+                return {"valid": False, "error": f"Cannot test provider type: {provider_type}"}
+        except Exception as e:
+            status = getattr(e, "status_code", None) or getattr(
+                getattr(e, "response", None), "status_code", None
+            )
+            body = getattr(e, "body", None) or getattr(
+                getattr(e, "response", None), "text", str(e)
+            )
+            if status == 401:
+                return {"valid": False, "error": "Invalid API key (401 Unauthorized)"}
+            if status == 403:
+                return {"valid": False, "error": "API key lacks permission (403 Forbidden)"}
+            if status == 429:
+                return {"valid": True, "warning": "Rate limited — key appears valid"}
+            return {"valid": False, "error": str(body)[:200]}
+
+        return {"valid": True}
+
+    except Exception as e:
+        logger.warning("test-key failed for %s: %s", provider, e)
+        return {"valid": False, "error": f"Could not test key: {e}"}
 
 
 @router.delete("/api-keys/{provider}")

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/message.dart';
+import '../services/backend_service.dart';
 import '../services/ws_client.dart';
 import '../services/api_client.dart';
 
@@ -26,6 +27,7 @@ class ChatState {
   final Set<String> deliveredMessageIds;
   final bool loadingHistory;
   final List<String> skillsLoaded;
+  final BackendStatus backendStatus;
 
   static const _errorSentinel = Object();
 
@@ -42,6 +44,7 @@ class ChatState {
     this.deliveredMessageIds = const {},
     this.loadingHistory = false,
     this.skillsLoaded = const [],
+    this.backendStatus = BackendStatus.stopped,
   });
 
   ChatState copyWith({
@@ -57,6 +60,7 @@ class ChatState {
     Set<String>? deliveredMessageIds,
     bool? loadingHistory,
     List<String>? skillsLoaded,
+    BackendStatus? backendStatus,
   }) {
     return ChatState(
       messages: messages ?? this.messages,
@@ -71,6 +75,7 @@ class ChatState {
       deliveredMessageIds: deliveredMessageIds ?? this.deliveredMessageIds,
       loadingHistory: loadingHistory ?? this.loadingHistory,
       skillsLoaded: skillsLoaded ?? this.skillsLoaded,
+      backendStatus: backendStatus ?? this.backendStatus,
     );
   }
 }
@@ -78,8 +83,10 @@ class ChatState {
 class AgentNotifier extends StateNotifier<ChatState> {
   final WsClient _wsClient;
   final ApiClient _apiClient;
+  final BackendService _backendService;
   StreamSubscription? _statusSubscription;
   StreamSubscription? _messageSubscription;
+  StreamSubscription? _backendSubscription;
   bool _disposed = false;
   bool _loadingHistory = false;
   final List<WsMessage> _bufferedMessages = [];
@@ -91,11 +98,15 @@ class AgentNotifier extends StateNotifier<ChatState> {
   final Map<String, DateTime> _toolStartTimes = {};
   final Set<String> _seenContentHashes = {};
   bool _transportConnected = false;
+  bool _backendReady = false;
   void Function(Map<String, dynamic>)? onCanvasUpdate;
 
-  AgentNotifier(this._wsClient, this._apiClient) : super(const ChatState()) {
+  AgentNotifier(this._wsClient, this._apiClient, this._backendService)
+      : super(const ChatState()) {
     _statusSubscription = _wsClient.status.listen(_onStatusChange);
     _messageSubscription = _wsClient.messages.listen(_onMessage);
+    _backendSubscription = _backendService.status.listen(_onBackendStatus);
+    _backendService.start();
   }
 
   void setWorkspaceId(String id) {
@@ -155,7 +166,37 @@ class AgentNotifier extends StateNotifier<ChatState> {
   }
 
   void connect() {
+    if (!_backendReady) {
+      _setState(
+        state.copyWith(
+          status: ChatStatus.disconnected,
+          error: 'Backend starting… waiting for server',
+        ),
+      );
+      return;
+    }
     _wsClient.connect();
+  }
+
+  void _onBackendStatus(BackendStatus status) {
+    if (_disposed) return;
+    if (status == BackendStatus.running && !_backendReady) {
+      _backendReady = true;
+      _setState(state.copyWith(backendStatus: status, error: null));
+      _wsClient.connect();
+    } else if (status == BackendStatus.crashed) {
+      _backendReady = false;
+      _setState(
+        state.copyWith(
+          backendStatus: status,
+          connected: false,
+          status: ChatStatus.disconnected,
+          error: 'Backend crashed — restarting',
+        ),
+      );
+    } else {
+      _setState(state.copyWith(backendStatus: status));
+    }
   }
 
   Future<void> loadHistory({int limit = 100}) async {
@@ -367,8 +408,10 @@ class AgentNotifier extends StateNotifier<ChatState> {
   void updateHost(String host) {
     _wsClient.updateHost(host);
     _apiClient.updateHost(host);
+    _backendService.stop();
+    _backendReady = false;
     _wsClient.disconnect();
-    _wsClient.connect();
+    _backendService.start();
   }
 
   void updateUserId(String userId) {
@@ -756,12 +799,20 @@ class AgentNotifier extends StateNotifier<ChatState> {
     _disposed = true;
     _statusSubscription?.cancel();
     _messageSubscription?.cancel();
+    _backendSubscription?.cancel();
     super.dispose();
   }
 }
 
 final hostProvider = StateProvider<String>((ref) => '127.0.0.1:8080');
 final userIdProvider = StateProvider<String>((ref) => 'default_user');
+
+final backendServiceProvider = Provider<BackendService>((ref) {
+  final host = ref.watch(hostProvider);
+  final service = BackendService(host: host);
+  ref.onDispose(() => service.dispose());
+  return service;
+});
 
 final wsClientProvider = Provider<WsClient>((ref) {
   final client = WsClient(
@@ -783,6 +834,7 @@ final agentProvider = StateNotifierProvider<AgentNotifier, ChatState>((ref) {
   return AgentNotifier(
     ref.watch(wsClientProvider),
     ref.watch(apiClientProvider),
+    ref.watch(backendServiceProvider),
   );
 });
 

@@ -125,6 +125,24 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     } catch (_) {}
   }
 
+  Future<({bool valid, String? error})> testApiKey(
+    String provider,
+    String apiKey,
+  ) async {
+    try {
+      final resp = await http.post(
+        Uri.parse('$_baseUrl/settings/test-key'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'provider': provider, 'api_key': apiKey}),
+      );
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      final valid = data['valid'] == true;
+      return (valid: valid, error: data['error'] as String?);
+    } catch (e) {
+      return (valid: false, error: 'Could not reach backend: $e');
+    }
+  }
+
   Future<void> removeApiKey(String provider) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('ea_key_$provider');

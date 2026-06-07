@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/error_messages.dart';
 import '../../../theme/app_theme.dart';
 import '../../../providers/agent_provider.dart';
 
@@ -23,7 +24,7 @@ class ErrorBar extends ConsumerWidget {
           SizedBox(width: tokens.spacing.sm),
           Expanded(
             child: Text(
-              error,
+              humanReadableError(error),
               style: tokens.typography.textTheme.bodySmall?.copyWith(
                 color: tokens.colors.error,
               ),

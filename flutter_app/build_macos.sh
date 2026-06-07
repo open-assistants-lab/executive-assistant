@@ -17,7 +17,19 @@ uv run pyinstaller --clean "$FLUTTER_DIR/backend.spec"
 
 echo "==> Building Flutter macOS app..."
 cd "$FLUTTER_DIR"
-flutter build macos --release
+
+# Pass Sparkle feed URL and Sentry DSN to the build.
+# These are referenced in Info.plist (SPARKLE_FEED_URL) and Dart (sentry_dsn).
+export SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-}"
+export SPARKLE_ED_KEY="${SPARKLE_ED_KEY:-}"
+
+SENTRY_ARGS=""
+if [ -n "${SENTRY_DSN:-}" ]; then
+  SENTRY_ARGS="$SENTRY_ARGS --dart-define=sentry_dsn=$SENTRY_DSN"
+  echo "  Sentry DSN configured"
+fi
+
+flutter build macos --release $SENTRY_ARGS
 
 echo "==> Embedding backend into .app bundle..."
 # Flutter build produces 'flutter_app.app' (from PRODUCT_NAME in AppInfo.xcconfig)

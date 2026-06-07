@@ -94,6 +94,8 @@ class LangfuseConfig(_BaseSettings):
     host: str = "https://cloud.langfuse.com"
     environment: str = ""  # production, development, staging
 
+    model_config = ConfigDict(env_prefix="LANGFUSE_")
+
 
 class LoggingConfig(_BaseSettings):
     """Logging configuration."""

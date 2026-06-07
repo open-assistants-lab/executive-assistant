@@ -201,6 +201,7 @@ try:
         specs=_oauth_specs,
         vault_factory=_vault_factory,
         config=_oauth_config,
+        base_url="http://localhost:8080",
     )
     app.include_router(oauth_router)
     print(f"Included oauth_router: {[r.path for r in oauth_router.routes]}")
