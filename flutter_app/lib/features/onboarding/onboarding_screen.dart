@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,26 +18,48 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   int _step = 0;
   bool _loading = true;
+  bool _waitingForBackend = false;
   List<Map<String, dynamic>> _providers = [];
   String? _selectedProvider;
   final _keyCtrl = TextEditingController();
   bool _testing = false;
   bool? _testResult;
   String? _testError;
+  Timer? _healthTimer;
 
   @override
   void initState() {
     super.initState();
-    _loadProviders();
+    _loadProviders().then((loaded) {
+      if (!loaded && _providers.isEmpty) {
+        _startHealthPoll();
+      }
+    });
   }
 
   @override
   void dispose() {
     _keyCtrl.dispose();
+    _healthTimer?.cancel();
     super.dispose();
   }
 
-  Future<void> _loadProviders() async {
+  void _startHealthPoll() {
+    setState(() => _waitingForBackend = true);
+    _healthTimer?.cancel();
+    _healthTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
+      try {
+        final host = ref.read(hostProvider);
+        final resp = await http.get(Uri.parse('http://$host/health'));
+        if (resp.statusCode == 200) {
+          _healthTimer?.cancel();
+          _loadProviders();
+        }
+      } catch (_) {}
+    });
+  }
+
+  Future<bool> _loadProviders() async {
     try {
       final host = ref.read(hostProvider);
       final resp = await http.get(Uri.parse('http://$host/models'));
@@ -48,15 +71,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         list.sort(
           (a, b) => (a['name'] as String).compareTo(b['name'] as String),
         );
+        if (!mounted) return true;
         setState(() {
           _providers = list;
           _loading = false;
+          _waitingForBackend = false;
         });
-        return;
+        return true;
       }
     } catch (_) {}
-    if (!mounted) return;
+    if (!mounted) return false;
     setState(() => _loading = false);
+    return false;
   }
 
   Future<void> _testKey() async {
@@ -124,7 +150,31 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
             child: _loading
-                ? const Center(child: CircularProgressIndicator())
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(),
+                        if (_waitingForBackend) ...[
+                          const SizedBox(height: 16),
+                          Text(
+                            'Starting up…',
+                            style: tokens.typography.textTheme.bodyMedium?.copyWith(
+                              color: tokens.colors.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'The backend is starting — this should only take a moment.',
+                            textAlign: TextAlign.center,
+                            style: tokens.typography.textTheme.bodySmall?.copyWith(
+                              color: tokens.colors.textTertiary,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  )
                 : _buildContent(tokens),
           ),
         ),

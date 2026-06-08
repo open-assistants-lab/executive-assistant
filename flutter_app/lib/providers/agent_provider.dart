@@ -7,6 +7,8 @@ import '../services/backend_service.dart';
 import '../services/ws_client.dart';
 import '../services/api_client.dart';
 
+String resolvedUserId = 'default_user';
+
 enum ChatStatus { idle, streaming, error, awaitingApproval, disconnected }
 
 final selectedModelProvider = StateProvider<String>(
@@ -99,6 +101,7 @@ class AgentNotifier extends StateNotifier<ChatState> {
   final Set<String> _seenContentHashes = {};
   bool _transportConnected = false;
   bool _backendReady = false;
+  bool _welcomeSent = false;
   void Function(Map<String, dynamic>)? onCanvasUpdate;
 
   AgentNotifier(this._wsClient, this._apiClient, this._backendService)
@@ -161,6 +164,32 @@ class AgentNotifier extends StateNotifier<ChatState> {
       state.copyWith(
         messages: [...state.messages, assistantMsg],
         streamingText: '',
+      ),
+    );
+  }
+
+  Future<void> _maybeSendWelcome() async {
+    if (_welcomeSent) return;
+    if (state.messages.isNotEmpty) return;
+    _welcomeSent = true;
+    final welcome = ChatMessage(
+      id: 'welcome_${DateTime.now().millisecondsSinceEpoch}',
+      role: 'assistant',
+      content: 'Hey there! 👋 I\'m your Executive Assistant.\n\n'
+          'I\'d love to get to know you — what\'s your name, and what brings you here? '
+          'Here are a few things I can help with:\n\n'
+          '• **Stay on top of email** — read, draft, and send messages\n'
+          '• **Manage your calendar** — check schedule, find free slots\n'
+          '• **Track tasks** — create todo lists and stay organized\n'
+          '• **Research and learn** — search the web, summarize articles\n'
+          '• **Work with files** — read, write, and organize documents\n\n'
+          'Tell me a bit about yourself and what you\'d like to accomplish!',
+      timestamp: DateTime.now(),
+    );
+    _setState(
+      state.copyWith(
+        messages: [welcome],
+        status: ChatStatus.idle,
       ),
     );
   }
@@ -277,6 +306,7 @@ class AgentNotifier extends StateNotifier<ChatState> {
           );
         }
       } else {
+        await _maybeSendWelcome();
         _setState(state.copyWith(loadingHistory: false));
       }
     } catch (e, stack) {
@@ -390,6 +420,7 @@ class AgentNotifier extends StateNotifier<ChatState> {
 
   void clearHistory({bool loading = false}) {
     _seenContentHashes.clear();
+    _welcomeSent = false;
     if (loading) {
       _historyLoadedWorkspaces.remove(_workspaceId);
     }
@@ -805,7 +836,7 @@ class AgentNotifier extends StateNotifier<ChatState> {
 }
 
 final hostProvider = StateProvider<String>((ref) => '127.0.0.1:8080');
-final userIdProvider = StateProvider<String>((ref) => 'default_user');
+final userIdProvider = StateProvider<String>((ref) => resolvedUserId);
 
 final backendServiceProvider = Provider<BackendService>((ref) {
   final host = ref.watch(hostProvider);

@@ -90,20 +90,21 @@ to GitHub Releases. Manual builds don't ship.
 
 ### Should-have (remaining)
 
-#### 3. First message gets to know the user
+#### 3. First message gets to know the user ✅
 
-Not a generic greeting. Something like:
+On first launch (no chat history), the assistant sends a welcome message:
 
-> "Hi, I'm your Executive Assistant! I can help with email, tasks, research,
-> and more. To start, could you tell me your name and what you'd like help with?"
+> "Hey there! 👋 I'm your Executive Assistant. I'd love to get to know you — what's your name, and what brings you here? ..."
 
-This seeds memory/observations immediately and makes the first interaction feel
-personalized.
+Lists possible use cases (email, calendar, tasks, research, files) and asks the user about themselves and their goals. Implemented as a local assistant message in `AgentNotifier._maybeSendWelcome()`, no API call needed.
 
-#### 4. Auto-generated local identity
+#### 4. Auto-generated local identity ✅
 
-Generate a UUID for `user_id` on first launch, persist in SharedPreferences.
-The user should never see or think about user IDs.
+Generates a UUID v4 on first launch via `main.dart`, persists in SharedPreferences as `ea_user_id`, and feeds into `userIdProvider`. The user never sees "default_user".
+
+**Files:**
+- `lib/providers/agent_provider.dart` — `resolvedUserId` module-level, `_maybeSendWelcome()`
+- `lib/main.dart` — UUID generation at startup
 
 ### Nice-to-have (remaining)
 
