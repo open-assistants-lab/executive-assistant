@@ -97,8 +97,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   bool _isConnected(Map<String, dynamic> p, SettingsState settings) {
     final pid = p['id'] as String;
-    return (settings.providerKeys.containsKey(pid) &&
-            settings.providerKeys[pid]!.isNotEmpty) ||
+    return (settings.providerKeys[pid]?.isNotEmpty ?? false) ||
         settings.providerKeyStatus[pid] == true;
   }
 

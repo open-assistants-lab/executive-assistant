@@ -49,14 +49,14 @@ def test_add_message_with_embedding_bypasses_default_embedding() -> None:
     store = _store()
     calls: list[str] = []
 
-    original_ingest = store._core._backend.ingest
+    original_ingest = store._core.ingest
 
-    def tracking_ingest(memory, embedding=None):
+    def tracking_ingest(role, content, embedding=None, **kw):
         if embedding is not None:
             calls.append("custom_embedding_provided")
-        return original_ingest(memory, embedding=embedding)
+        return original_ingest(role, content, embedding=embedding, **kw)
 
-    store._core._backend.ingest = tracking_ingest
+    store._core.ingest = tracking_ingest
 
     store.add_message_with_embedding("user", "custom-vec", [0.5] * 384)
 
@@ -92,7 +92,7 @@ def test_clear_works_when_empty() -> None:
 def test_message_table_has_chronological_indexes() -> None:
     store = _store()
 
-    indexes = store._core._backend._db.raw_query("PRAGMA index_list(messages)")
+    indexes = store._core._db.raw_query("PRAGMA index_list(messages)")
     names = {idx["name"] for idx in indexes}
 
     assert "idx_messages_ts" in names

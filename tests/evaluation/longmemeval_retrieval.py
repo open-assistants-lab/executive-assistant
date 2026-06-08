@@ -42,7 +42,6 @@ def _reset_store(user_id: str):
     """Create or reset the persistent store for evaluation."""
     global _PERSISTENT_TMP
     from src.storage.messages import MessageStore, _stores
-    from coremem.backends.hybrid import HybridBackend
     from coremem.core import MemoryCore
     from src.sdk.tools_core.message import _coremem_cache
 
@@ -50,10 +49,10 @@ def _reset_store(user_id: str):
         _PERSISTENT_TMP = tempfile.mkdtemp(prefix="lme_")
         store = MessageStore(user_id, base_dir=Path(_PERSISTENT_TMP))
         _stores[f"{user_id}:msgstore"] = store
-        _coremem_cache[f"{user_id}:coremem"] = MemoryCore(backend=HybridBackend(path=_PERSISTENT_TMP))
+        _coremem_cache[f"{user_id}:coremem"] = MemoryCore(path=_PERSISTENT_TMP)
     else:
         store = _stores.get(f"{user_id}:msgstore")
-        with store.db._connect() as cur:
+        with store._core.db._connect() as cur:
             for tbl in ("messages", "chroma_mappings", "duckdb_data"):
                 try:
                     cur.execute(f"DELETE FROM {tbl}")

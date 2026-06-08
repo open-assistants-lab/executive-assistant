@@ -1,66 +1,18 @@
 """Message storage using CoreMem.
 
-Thin adapter over MemoryCore + HybridBackend, preserving the
+Thin adapter over MemoryCore, preserving the
 Message/SearchResult dataclasses and public API for callers.
 """
 
-import json
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from pathlib import Path
 
-from coremem.backends.hybrid import HybridBackend
 from coremem.core import MemoryCore
 from coremem.types import Memory as _CoreMem
 from coremem.types import SearchResult as _CoreMemResult
 
 from src.storage.paths import get_paths
-
-
-def _patch_coremem_for_integer_pk() -> None:
-    """Patch HybridBackend.ingest_batch to omit non-numeric string ids.
-
-    The OSS coremem library generates uuid-hex string ids (e.g. "a3b4c5d6e7f8")
-    and passes them as the `id` column value. Our SQLite schema has
-    `id INTEGER PRIMARY KEY AUTOINCREMENT`, and SQLite raises
-    `IntegrityError: datatype mismatch` when a non-numeric string is
-    inserted into an INTEGER PRIMARY KEY column.
-
-    The fix: omit the `id` field from the row dict and let SQLite assign
-    the autoincrement value. `insert_batch` in HybridDB already returns
-    the assigned ids via `lastrowid`, so the return contract is preserved.
-    """
-    if getattr(HybridBackend.ingest_batch, "_ea_patched", False):
-        return
-
-    _original = HybridBackend.ingest_batch
-
-    def _patched(self, memories):  # type: ignore[no-untyped-def]
-        if not memories:
-            return []
-        rows: list[dict] = []
-        for m in memories:
-            rows.append(
-                {
-                    "content": m.content,
-                    "role": m.role,
-                    "session_id": m.session_id or "",
-                    "user_id": m.user_id,
-                    "agent_id": m.agent_id,
-                    "metadata": json.dumps(m.metadata or {}),
-                    "ts": m.ts.isoformat()
-                    if m.ts
-                    else datetime.now(UTC).isoformat(),
-                }
-            )
-        actual_ids = self._db.insert_batch("messages", rows)
-        return [str(i) for i in actual_ids]
-
-    _patched._ea_patched = True  # type: ignore[attr-defined]
-    HybridBackend.ingest_batch = _patched  # type: ignore[assignment]
-
-
-_patch_coremem_for_integer_pk()
 
 
 @dataclass
@@ -104,17 +56,17 @@ class MessageStore:
             base_path = paths.conversation_dir()
         base_path.mkdir(parents=True, exist_ok=True)
 
-        self._core = MemoryCore(backend=HybridBackend(path=str(base_path)))
+        self._core = MemoryCore(path=str(base_path))
 
         try:
-            with self._core._backend._db._connect() as cur:
+            with self._core.db._connect() as cur:
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(ts)")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_messages_role ON messages(role)")
         except Exception:
             pass
 
         try:
-            self._core._backend._db.register_duckdb_table("messages")
+            self._core.db.register_duckdb_table("messages")
         except Exception:
             pass
 
@@ -228,7 +180,7 @@ class MessageStore:
         due to the _patch_coremem_for_integer_pk patch that omits id
         from INSERT statements).
         """
-        with self._core._backend._db._connect() as cur:
+        with self._core.db._connect() as cur:
             cur.execute(
                 "DELETE FROM messages WHERE json_extract(metadata, '$.workspace_id') = ?",
                 [workspace_id],
@@ -239,19 +191,19 @@ class MessageStore:
                 " AND json_extract(metadata, '$.workspace_id') = ?",
                 [workspace_id],
             )
-        if self._core._backend._db._chroma is not None:
+        if self._core.db._chroma is not None:
             try:
                 memories = self._core.fetch(limit=10000, metadata={"workspace_id": workspace_id})
                 ids = [m.id for m in memories if m.id != "None"]
                 if ids:
-                    self._core._backend._db._chroma.delete(
+                    self._core.db._chroma.delete(
                         collection_name="messages_content",
                         ids=ids,
                     )
             except Exception:
                 pass
         try:
-            self._core._backend._db.sync_duckdb_table("messages")
+            self._core.db.sync_duckdb_table("messages")
         except Exception:
             pass
         return count

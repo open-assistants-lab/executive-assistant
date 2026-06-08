@@ -27,7 +27,6 @@ def _get_message_core(user_id: str, workspace_id: str = "personal"):
     LLM expansion is disabled by default — enabled by setting
     MEMORY_EXPANSION_MODEL env var.
     """
-    from coremem.backends.hybrid import HybridBackend
     from coremem.core import MemoryCore
 
     from src.storage.paths import get_paths
@@ -39,7 +38,7 @@ def _get_message_core(user_id: str, workspace_id: str = "personal"):
 
         llm_provider = _try_create_llm_provider()
         _coremem_cache[cache_key] = MemoryCore(
-            backend=HybridBackend(path=conv_path),
+            path=conv_path,
             llm_provider=llm_provider,
         )
     return _coremem_cache[cache_key]
