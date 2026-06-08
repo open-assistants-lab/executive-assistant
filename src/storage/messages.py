@@ -7,6 +7,7 @@ Message/SearchResult dataclasses and public API for callers.
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
+import sqlite3
 
 from coremem.core import MemoryCore
 from coremem.types import Memory as _CoreMem
@@ -56,6 +57,9 @@ class MessageStore:
             base_path = paths.conversation_dir()
         base_path.mkdir(parents=True, exist_ok=True)
 
+        # Migrate id column BEFORE MemoryCore initializes HybridDB+FTS triggers
+        self._migrate_id_column(base_path)
+
         self._core = MemoryCore(path=str(base_path))
 
         try:
@@ -67,6 +71,47 @@ class MessageStore:
 
         try:
             self._core.db.register_duckdb_table("messages")
+        except Exception:
+            pass
+
+    @staticmethod
+    def _migrate_id_column(base_path: Path) -> None:
+        """Migrate messages.id from INTEGER PK to TEXT PK if needed.
+
+        The old schema used INTEGER PRIMARY KEY AUTOINCREMENT, but CoreMem
+        generates string UUIDs. This mismatch causes HybridDB FTS triggers
+        to attempt using a string as an FTS5 rowid, raising:
+            IntegrityError: datatype mismatch
+
+        Must run BEFORE MemoryCore is created so HybridDB sees TEXT PK
+        and uses new.rowid (not new.id) in FTS triggers.
+        """
+        db_path = base_path / "app.db"
+        if not db_path.exists():
+            return
+        try:
+            conn = sqlite3.connect(str(db_path))
+            info = conn.execute("PRAGMA table_info('messages')").fetchone()
+            if info and 'INTEGER' in (info[2] or '').upper():
+                conn.executescript(f"""
+                    DROP TABLE IF EXISTS messages_new;
+                    CREATE TABLE messages_new (
+                        id TEXT PRIMARY KEY,
+                        ts TEXT NOT NULL,
+                        role TEXT NOT NULL,
+                        content TEXT,
+                        metadata TEXT,
+                        session_id TEXT,
+                        user_id TEXT,
+                        agent_id TEXT
+                    );
+                    INSERT INTO messages_new(id, ts, role, content, metadata, session_id, user_id, agent_id)
+                        SELECT CAST(id AS TEXT), ts, role, content, metadata, session_id, user_id, agent_id
+                        FROM messages;
+                    DROP TABLE messages;
+                    ALTER TABLE messages_new RENAME TO messages;
+                """)
+            conn.close()
         except Exception:
             pass
 
