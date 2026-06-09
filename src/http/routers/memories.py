@@ -1,6 +1,13 @@
+from datetime import UTC, datetime, timedelta
+
 from fastapi import APIRouter, Query
 
 router = APIRouter(prefix="/memories", tags=["memories"])
+
+
+def _get_core(user_id: str, workspace_id: str):
+    from src.storage.messages import get_message_store
+    return get_message_store(user_id, workspace_id).core
 
 
 @router.get("/observations")
@@ -11,9 +18,9 @@ async def list_observations(
     limit: int = 50,
 ):
     """List recent observations."""
-    from src.storage.memory import get_memory_store
-    store = get_memory_store(user_id, workspace_id)
-    results = store.get_recent_observations(days=days, limit=limit)
+    core = _get_core(user_id, workspace_id)
+    cutoff = (datetime.now(UTC) - timedelta(days=days)).isoformat()
+    results = core.get_observations(ts_after=cutoff, limit=limit)
     return {"observations": results}
 
 
@@ -24,9 +31,8 @@ async def list_reflections(
     limit: int = 20,
 ):
     """List reflections (patterns and insights)."""
-    from src.storage.memory import get_memory_store
-    store = get_memory_store(user_id, workspace_id)
-    results = store.get_reflections(limit=limit)
+    core = _get_core(user_id, workspace_id)
+    results = core.get_reflections(limit=limit)
     return {"reflections": results}
 
 
@@ -39,11 +45,8 @@ async def search_reflections(
     workspace_id: str = "personal",
 ):
     """Search reflections."""
-    from src.storage.memory import get_memory_store
-    store = get_memory_store(user_id, workspace_id)
-    results = store.search_reflections(query, method=method, limit=limit)
-    for r in results:
-        store.boost_reflection(r["id"])
+    core = _get_core(user_id, workspace_id)
+    results = core.search_reflections(query, limit=limit)
     return {"query": query, "method": method, "results": results}
 
 
@@ -55,9 +58,8 @@ async def search_observations(
     workspace_id: str = "personal",
 ):
     """Search observations."""
-    from src.storage.memory import get_memory_store
-    store = get_memory_store(user_id, workspace_id)
-    results = store.search_observations(query, limit=limit)
+    core = _get_core(user_id, workspace_id)
+    results = core.search_observations(query, limit=limit)
     return {"query": query, "results": results}
 
 
@@ -66,7 +68,9 @@ async def clear_memories(
     user_id: str = "default_user",
     workspace_id: str = "personal",
 ):
-    """Reset memory store cache."""
-    from src.storage.memory import clear_memory_store_cache
-    clear_memory_store_cache()
+    """Delete all messages, observations, and reflections for the user."""
+    core = _get_core(user_id, workspace_id)
+    core.clear()
+    core._db.raw_query("DELETE FROM observations")
+    core._db.raw_query("DELETE FROM reflections")
     return {"status": "cleared", "user_id": user_id, "workspace_id": workspace_id}

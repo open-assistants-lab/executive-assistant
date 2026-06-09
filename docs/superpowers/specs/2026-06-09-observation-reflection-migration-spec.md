@@ -26,10 +26,75 @@ memory_profile / memory_reflection tools
   └── read from MemoryStore
 ```
 
-**3 files to delete:**
+**3 files to delete (plus CoreMem PR):**
 - `src/storage/memory.py` (MemoryStore, `get_memory_store`, `clear_memory_store_cache`)
 - `src/sdk/tools_core/observation.py` (run_observer, run_reflector, prompts)
-- `src/sdk/middleware_observation.py` (ObservationMiddleware — rewritten)
+- `src/sdk/middleware_observation.py` (ObservationMiddleware — no longer needed)
+
+---
+
+## 1a. CoreMem Changes Required PR
+
+A PR to `open-assistants-lab/CoreMem` adding a background polling loop to `ObserverPipeline` (mirroring `ReflectorPipeline`):
+
+### `ObserverPipeline.start()` / `.stop()` / `._run_loop()`
+
+```python
+async def start(self) -> None:
+    """Start background observer worker. Idempotent."""
+    if self._task is not None and not self._task.done():
+        return
+    self._task = asyncio.create_task(self._run_loop())
+
+async def stop(self) -> None:
+    """Stop background observer worker. Idempotent."""
+    if self._task is None:
+        return
+    if self._task.done():
+        self._task = None
+        return
+    self._task.cancel()
+    try:
+        await asyncio.wait_for(self._task, timeout=30.0)
+    except (asyncio.CancelledError, asyncio.TimeoutError):
+        pass
+    self._task = None
+
+async def _run_loop(self) -> None:
+    """Background loop: poll for new messages and extract observations.
+    Auto-restarts on crash with exponential backoff."""
+    backoff = 1.0
+    max_backoff = 60.0
+    while True:
+        try:
+            await asyncio.sleep(60.0)
+            await self.extract()
+            backoff = 1.0
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.warning("Observer worker error, restarting in %ss: %s", backoff, e)
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, max_backoff)
+```
+
+### `MemoryCore.start_pipelines()` / `.stop_pipelines()`
+
+```python
+async def start_pipelines(self) -> None:
+    """Start background observer and reflector workers."""
+    if self._observer_pipeline:
+        await self._observer_pipeline.start()
+    if self._reflector_pipeline:
+        await self._reflector_pipeline.start()
+
+async def stop_pipelines(self) -> None:
+    """Stop background observer and reflector workers."""
+    if self._observer_pipeline:
+        await self._observer_pipeline.stop()
+    if self._reflector_pipeline:
+        await self._reflector_pipeline.stop()
+```
 
 ---
 
@@ -44,18 +109,18 @@ MessageStore (MemoryCore @ conversation/)
   └── reflections table (CoreMem _REFLECTIONS_SCHEMA — 8 cols)
 
 No separate MemoryStore. No separate DB for memory.
+No ObservationMiddleware — both pipelines run as background workers owned by MemoryCore.
 
-ObservationMiddleware — rewritten to use:
-  └── coremem.observer.ObserverPipeline (via MemoryCore._observer_pipeline)
-        ├── token_threshold=100 (instead of 8000)
-        ├── min_turns=1 (instead of 3)
-        ├── 5 parallel LFs (entities, actions, preferences, temporal, sentiment)
-        ├── alignment-gated source quotes (EXACT/FUZZY/NONE)
-        ├── classification + durability filter (12 memory_types)
-        └── semantic dedup + merge (duplicate/refine/supersede/contradict)
-
-ReflectorMiddleware — rewritten to use:
-  └── coremem.reflector.ReflectorPipeline (via MemoryCore._reflector_pipeline)
+Both pipelines owned by MemoryCore:
+  ├── coremem.observer.ObserverPipeline (background polling every 60s)
+  │     ├── token_threshold=100 (instead of 8000)
+  │     ├── min_turns=1 (instead of 3)
+  │     ├── 5 parallel LFs (entities, actions, preferences, temporal, sentiment)
+  │     ├── alignment-gated source quotes (EXACT/FUZZY/NONE)
+  │     ├── classification + durability filter (12 memory_types)
+  │     └── semantic dedup + merge (duplicate/refine/supersede/contradict)
+  │
+  └── coremem.reflector.ReflectorPipeline (background polling every 60s)
         ├── interval_hours=24 (unchanged)
         ├── trigger_every_n_observations=50 (new — hybrid OR trigger)
         ├── min_observations=10 (unchanged)
@@ -154,34 +219,15 @@ Existing `data/users/{user_id}/memory/app.db` needs to be migrated into `data/us
 
 ### 4.1 MessageStore changes (`src/storage/messages.py`)
 
-- `MemoryCore` constructor gets `enable_observations=True`, `enable_reflections=True`
+- `MemoryCore` constructor gets `enable_observations=True`, `enable_reflections=True`, `observation_kwargs={"session_id": ""}`
 - Add `_migrate_memory_store()` that copies data from old `memory/app.db` into `conversation/app.db` (run once, gated by sentinel)
-- **Expose `core` as a public property** — middleware and tools need access to `MemoryCore.observations()`, `.reflections()`, `.get_pending_reflections()`, `.apply_decay()`
-- **Middleware uses MemoryCore's internal pipelines** — `MemoryCore` already creates `_observer_pipeline` and `_reflector_pipeline` when `enable_observations=True`. The middleware accesses these via `core._observer_pipeline` / `core._reflector_pipeline` instead of creating separate instances. No duplicate pipelines.
+- **Expose `core` as a public property** — tools need access to `MemoryCore.observations()` and `.reflections()`
+- **Start pipelines after init** — `MessageStore.__init__` is synchronous. Wrap in a helper: check for running event loop with `asyncio.get_running_loop()`, and if found, `asyncio.create_task(core.start_pipelines())`. If no loop, defer — pipelines start on first message ingest. This fires up both background workers (poll every 60s).
+- **Stop pipelines on shutdown** — `core.stop_pipelines()` in any cleanup path (optional, for clean teardown)
 
-### 4.2 ObservationMiddleware rewritten (`src/sdk/middleware_observation.py`)
+### 4.2 Delete `src/sdk/middleware_observation.py`
 
-```python
-class ObservationMiddleware(Middleware):
-    def __init__(self, user_id, workspace_id, ...):
-        store = get_message_store(user_id, workspace_id)
-        core = store.core  # MemoryCore with enable_observations=True
-
-        # Use MemoryCore's internal pipelines — no duplicate instances
-        self._observer = core._observer_pipeline
-        self._reflector = core._reflector_pipeline
-
-    def after_agent(self, state):
-        asyncio.create_task(self._observer.extract())
-        asyncio.create_task(self._reflector.maybe_run())
-        return None
-```
-
-**Key design decisions:**
-- `session_id=""` — EA doesn't use session IDs. `MemoryCore.ingest()` defaults to `session_id=""`, so `ObserverPipeline.fetch(session_id="")` matches all messages. Set via `observation_kwargs={"session_id": ""}` on `MemoryCore`.
-- Provider model — CoreMem's `ObserverPipeline` uses `create_provider("deepseek:deepseek-v4-flash")` (its own factory), NOT EA's `create_model_from_config()`. If EA uses a different model, pass `observation_model` and `reflect_model` to `MemoryCore` constructor.
-- `embedding_fn` — If not provided, the cosine similarity quality gate in `ReflectorPipeline` is skipped. To enable it, pass via `reflect_kwargs={"embedding_fn": ...}` on `MemoryCore`.
-- `apply_decay()` — CoreMem's `MemoryCore.apply_decay()` exists (flat 0.9 multiplier, half-life model). EA's middleware called it before the reflector. After migration, the middleware does NOT call it — CoreMem's `ReflectorPipeline` handles its own decay internally. The behavior differs from EA's per-reflection `decay_rate` with weekly check, but this is CoreMem's design.
+No replacement needed. Both pipelines run as background workers owned by `MemoryCore`.
 
 ### 4.3 Delete `src/storage/memory.py`
 
@@ -193,7 +239,15 @@ class ObservationMiddleware(Middleware):
 
 - `run_observer`, `run_reflector`, prompts removed
 
-### 4.5 Memory tools updated (`src/sdk/tools_core/memory.py`)
+### 4.5 Coordinator updated (`src/sdk/coordinator.py`)
+
+- Remove `ObservationMiddleware` import and construction (lines 437-474). Middleware no longer exists — pipelines run as background workers in `MemoryCore`.
+
+### 4.6 Runner updated (`src/sdk/runner.py`)
+
+- Remove `ObservationMiddleware` import and construction at lines 29, 365. Middleware no longer exists.
+
+### 4.7 Memory tools updated (`src/sdk/tools_core/memory.py`)
 
 ```python
 def _get_core(user_id, workspace_id):
@@ -266,7 +320,7 @@ def memory_reflection(query, method="hybrid", limit=5, user_id="default_user", w
 - `days` filter computed manually via `ts_after` — CoreMem's `get_observations()` doesn't have a `days` parameter.
 - No emoji priority — use `importance` as a percentage label `[80%]` instead.
 
-### 4.6 HTTP router updated (`src/http/routers/memories.py`)
+### 4.8 HTTP router updated (`src/http/routers/memories.py`)
 
 - Replace `get_memory_store(user_id, workspace_id)` with `get_message_store(user_id, workspace_id).core`
 - `list_observations`: `core.get_observations(ts_after=cutoff, limit=limit)` instead of `store.get_recent_observations(days=days, limit=limit)`
@@ -275,21 +329,15 @@ def memory_reflection(query, method="hybrid", limit=5, user_id="default_user", w
 - `search_observations`: `core.search_observations(query, limit=limit)` instead of `store.search_observations(query, limit=limit)`
 - `clear_memories`: Replace `clear_memory_store_cache()` with `core.clear()` + raw SQL deletes for observations/reflections — deletes all messages, observations, and reflections for the user. Workspace-level add/read/update/delete for observations and reflections is handled via the existing HTTP endpoints. Note: `MemoryCore.clear()` only deletes messages; observations/reflections need explicit `DELETE FROM observations` and `DELETE FROM reflections`.
 
-### 4.7 Coordinator updated (`src/sdk/coordinator.py`)
-
-- `ObservationMiddleware` construction at line 465 — no signature change needed (still `user_id`, `workspace_id`)
-
-### 4.8 Runner updated (`src/sdk/runner.py`)
-
-- `ObservationMiddleware` construction at line 365 — no signature change needed
-
 ### 4.9 Test updates
 
 - `tests/sdk/test_memory.py` — update patches from `src.storage.memory.get_memory_store` to `src.storage.messages.get_message_store`
 - `tests/sdk/test_workspace_isolation.py` — `MemoryStore` test at line 75 needs to be rewritten for `MessageStore` + `MemoryCore`
 - `tests/perf/perf_instrument.py` — instruments `MemoryStore.__init__` (line 168). Update to instrument `MessageStore` or `MemoryCore` instead.
-- `tests/benchmarks/longmemeval/eval.py` — imports `run_observer` from `tools_core.observation.py` (line 523). Update to use `ObserverPipeline` or remove.
+- `tests/benchmarks/longmemeval/eval.py` — imports `run_observer` from `tools_core.observation.py` (line 523) and uses it directly as `await run_observer(chunk, obs_model, all_obs)`. Replace with `ObserverPipeline.extract()` — or since this is a benchmark that wants synchronous invocation, create a temporary `ObserverPipeline(memory=..., session_id="")` and call `extract()` on it.
 - `tests/sdk/test_tool_contracts.py` — `memory_profile` and `memory_reflection` tests at lines 292-301 — update patches.
+- `tests/sdk/test_subagent_v1.py` — no changes needed. `memory_profile`/`memory_reflection` tool exclusions in subagent config are unrelated to this migration.
+- `tests/sdk/test_coordinator.py` — remove `ObservationMiddleware` mock/assert if present.
 
 ---
 
@@ -299,12 +347,12 @@ def memory_reflection(query, method="hybrid", limit=5, user_id="default_user", w
 |--------|------|--------|
 | DELETE | `src/storage/memory.py` (244 lines) | Entirely replaced by MemoryCore |
 | DELETE | `src/sdk/tools_core/observation.py` (187 lines) | Replaced by ObserverPipeline |
-| REWRITE | `src/sdk/middleware_observation.py` (164 → ~80 lines) | Create pipeline, trigger `.extract()`/`.maybe_run()` |
-| MODIFY | `src/storage/messages.py` | Enable observations on MemoryCore + migration + public `core` property |
-| MODIFY | `src/sdk/tools_core/memory.py` (~95 lines) | Switch to `core.observations()`/`reflections()`, emoji mapping |
+| DELETE | `src/sdk/middleware_observation.py` (164 lines) | No longer needed — pipelines are background workers |
+| MODIFY | `src/storage/messages.py` | Enable observations on MemoryCore + migration + public `core` property + start pipelines |
+| MODIFY | `src/sdk/tools_core/memory.py` (~95 lines) | Switch to `core.observations()`/`reflections()`, remove `boost_reflection()` |
 | MODIFY | `src/http/routers/memories.py` | Replace `get_memory_store` → `MessageStore.core` |
-| MODIFY | `src/sdk/coordinator.py` | No signature change needed |
-| MODIFY | `src/sdk/runner.py` | No signature change needed |
+| MODIFY | `src/sdk/coordinator.py` | Remove ObservationMiddleware import and construction |
+| MODIFY | `src/sdk/runner.py` | Remove ObservationMiddleware import and construction |
 | MODIFY | `tests/sdk/test_memory.py` | Update patches |
 | MODIFY | `tests/sdk/test_workspace_isolation.py` | Rewrite MemoryStore test |
 | MODIFY | `tests/perf/perf_instrument.py` | Update instrument target |
@@ -347,15 +395,17 @@ def memory_reflection(query, method="hybrid", limit=5, user_id="default_user", w
 
 ## 8. Implementation Order
 
-1. **Schema migration** — Add `_migrate_memory_store()` to `MessageStore.__init__`, copy data from old `memory/app.db` to `conversation/app.db` using raw SQL to preserve IDs
-2. **Enable observations on MemoryCore** — `enable_observations=True, enable_reflections=True` in `MessageStore`, expose `core` as public property
-3. **Rewrite ObservationMiddleware** — Use `ObserverPipeline` + `ReflectorPipeline` with `session_id=""`, call `apply_decay()` before reflector
-4. **Update memory tools** — Switch from `MemoryStore` to `MemoryCore`, add emoji→importance mapping, remove `boost_reflection()`
-5. **Update HTTP router** — Replace `get_memory_store` with `MessageStore.core`
-6. **Delete old files** — `storage/memory.py`, `tools_core/observation.py`
-7. **Fix remaining callers** — `coordinator.py`, `runner.py`, `perf_instrument.py`, `longmemeval/eval.py`
-8. **Update tests**
-9. **Run validation** — Ensure `memory_profile` and `memory_reflection` tools work end-to-end
+1. **Add `start()`/`stop()`/`_run_loop()` to CoreMem's `ObserverPipeline`** — PR to `open-assistants-lab/CoreMem`
+2. **Add `start_pipelines()`/`stop_pipelines()` to CoreMem's `MemoryCore`** — same PR
+3. **Update `coremem` dependency** — point EA at the new version with the background loop
+4. **Schema migration** — Add `_migrate_memory_store()` to `MessageStore.__init__`, copy data from old `memory/app.db` to `conversation/app.db` using raw SQL to preserve IDs
+5. **Enable observations on MemoryCore** — `enable_observations=True, enable_reflections=True` in `MessageStore`, expose `core` as public property, call `asyncio.create_task(core.start_pipelines())` after init
+6. **Update memory tools** — Switch from `MemoryStore` to `MemoryCore`, remove `boost_reflection()`, use `importancescore` percentage label
+7. **Update HTTP router** — Replace `get_memory_store` with `MessageStore.core`
+8. **Delete old files** — `storage/memory.py`, `tools_core/observation.py`, `middleware_observation.py`
+9. **Fix remaining callers** — `coordinator.py`, `runner.py`, `perf_instrument.py`, `longmemeval/eval.py`
+10. **Update tests**
+11. **Run validation** — Ensure `memory_profile` and `memory_reflection` tools work end-to-end
 
 ---
 

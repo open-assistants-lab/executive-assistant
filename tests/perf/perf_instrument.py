@@ -165,22 +165,6 @@ def instrument_all() -> None:
         pass
 
     try:
-        from src.storage.memory import MemoryStore
-
-        _orig_init = MemoryStore.__init__
-
-        def _patched_memstore_init(self: Any, *args: Any, **kwargs: Any) -> None:
-            _orig_init(self, *args, **kwargs)
-            key = f"memstore:{self.user_id}"
-            if key not in _instrumented:
-                instrument_memory_store(self)
-                _instrumented.add(key)
-
-        MemoryStore.__init__ = _patched_memstore_init
-    except Exception:
-        pass
-
-    try:
         from src.sdk.middleware_memory import MemoryMiddleware
 
         _orig_init = MemoryMiddleware.__init__

@@ -4,10 +4,12 @@ Thin adapter over MemoryCore, preserving the
 Message/SearchResult dataclasses and public API for callers.
 """
 
+import asyncio
+import json
+import sqlite3
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
-import sqlite3
 
 from coremem.core import MemoryCore
 from coremem.types import Memory as _CoreMem
@@ -60,7 +62,15 @@ class MessageStore:
         # Migrate id column BEFORE MemoryCore initializes HybridDB+FTS triggers
         self._migrate_id_column(base_path)
 
-        self._core = MemoryCore(path=str(base_path))
+        # Migrate old memory store data into conversation DB
+        self._migrate_memory_store(user_id, base_path)
+
+        self._core = MemoryCore(
+            path=str(base_path),
+            enable_observations=True,
+            enable_reflections=True,
+            observation_kwargs={"session_id": ""},
+        )
 
         try:
             with self._core.db._connect() as cur:
@@ -73,6 +83,17 @@ class MessageStore:
             self._core.db.register_duckdb_table("messages")
         except Exception:
             pass
+
+        # Start background observer and reflector workers
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(self._core.start_pipelines())
+        except RuntimeError:
+            pass  # No event loop — pipelines start on first ingest
+
+    @property
+    def core(self) -> MemoryCore:
+        return self._core
 
     @staticmethod
     def _migrate_id_column(base_path: Path) -> None:
@@ -94,7 +115,7 @@ class MessageStore:
             conn = sqlite3.connect(str(db_path))
             info = conn.execute("PRAGMA table_info('messages')").fetchone()
             if info and 'INTEGER' in (info[2] or '').upper():
-                conn.executescript(f"""
+                conn.executescript("""
                     DROP TABLE IF EXISTS messages_new;
                     CREATE TABLE messages_new (
                         id TEXT PRIMARY KEY,
@@ -121,6 +142,95 @@ class MessageStore:
         except Exception:
             if conn is not None:
                 conn.close()
+
+    @staticmethod
+    def _migrate_memory_store(user_id: str, base_path: Path) -> None:
+        """Migrate old memory/app.db observations and reflections into conversation/app.db.
+
+        Runs once per user. Gated by sentinel file in conversation dir.
+        """
+        sentinel = base_path / ".memory_migrated"
+        if sentinel.exists():
+            return
+
+        from src.storage.paths import get_paths
+        old_path = get_paths(user_id).user_memory_dir() / "app.db"
+        if not old_path.exists():
+            sentinel.touch()
+            return
+
+        try:
+            old_conn = sqlite3.connect(str(old_path))
+            new_conn = sqlite3.connect(str(base_path / "app.db"))
+
+            # Check if old DB has observations table
+            tables = [r[0] for r in old_conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )]
+            if "observations" in tables:
+                rows = old_conn.execute(
+                    "SELECT id, content, priority, observation_ts, "
+                    "referenced_date, source_message_range FROM observations"
+                ).fetchall()
+                for row in rows:
+                    oid, content, priority, obs_ts, ref_date, src_range = row
+                    importance = 0.3
+                    if priority == "🔴":
+                        importance = 0.8
+                    elif priority == "🟡":
+                        importance = 0.5
+                    new_conn.execute(
+                        "INSERT OR IGNORE INTO observations "
+                        "(id, kind, content, source_quote, source_fact_ids, "
+                        "source_message_ids, referenced_date, observation_ts, "
+                        "user_id, agent_id, session_id, alignment_tier, "
+                        "alignment_confidence, importance, confidence, "
+                        "memory_type, durability, sensitivity, status, "
+                        "valid_from, valid_to, superseded_by, entities, "
+                        "reflected, embedding) "
+                        "VALUES (?, 'fact', ?, '', '[]', ?, ?, ?, "
+                        "?, '', '', '', "
+                        "?, 0.800, "
+                        "'', 'durable', 'normal', 'candidate', "
+                        "'', '', '', '[]', "
+                        "0, '')",
+                        (oid, content, json.dumps([src_range]) if src_range else "[]",
+                         ref_date or "", obs_ts or "",
+                         user_id, importance),
+                    )
+
+            if "reflections" in tables:
+                rows = old_conn.execute(
+                    "SELECT id, content, domain, linked_observation_ids, "
+                    "confidence FROM reflections"
+                ).fetchall()
+                for row in rows:
+                    rid, content, domain, linked, confidence = row
+                    if isinstance(linked, str):
+                        try:
+                            json.loads(linked)
+                        except (json.JSONDecodeError, TypeError):
+                            linked = json.dumps([linked])
+                    else:
+                        linked = json.dumps(linked or [])
+                    new_conn.execute(
+                        "INSERT OR IGNORE INTO reflections "
+                        "(id, content, domain, linked_observation_ids, "
+                        "score, embedding, user_id, session_id) "
+                        "VALUES (?, ?, ?, ?, "
+                        "?, '', ?, '')",
+                        (rid, content, domain or "", linked,
+                         float(confidence) if confidence else 0.6,
+                         user_id),
+                    )
+
+            new_conn.commit()
+            new_conn.close()
+            old_conn.close()
+        except Exception:
+            pass  # Migration failed — non-fatal, old DB still exists
+
+        sentinel.touch()
 
     def add_message(self, role: str, content: str, metadata: dict | None = None) -> str:
         result = self._core.ingest(role, content or "(empty)", metadata=metadata)

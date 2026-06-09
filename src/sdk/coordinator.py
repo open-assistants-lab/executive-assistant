@@ -433,16 +433,6 @@ class SubagentCoordinator:
         from src.sdk.middleware_summarization import SummarizationMiddleware
         from src.sdk.providers.factory import create_model_from_config
 
-        try:
-            from src.sdk.middleware_observation import ObservationMiddleware
-        except ImportError:
-            logger.warning(
-                "subagent.missing_observation_middleware",
-                {"task_id": task_id, "agent": profile.name},
-                user_id=self.user_id,
-            )
-            ObservationMiddleware = None  # noqa: N806
-
         model_str = profile.model or self.settings.agent.model
         provider = create_model_from_config(model_str)
 
@@ -460,18 +450,6 @@ class SubagentCoordinator:
         summarization_mw = SummarizationMiddleware()
 
         middlewares = [progress_mw, instruction_mw, summarization_mw]
-        if ObservationMiddleware is not None:
-            try:
-                observation_mw = ObservationMiddleware(
-                    user_id=self.user_id, workspace_id=self.workspace_id
-                )
-                middlewares.append(observation_mw)
-            except Exception as e:
-                logger.warning(
-                    "subagent.observation_middleware_init_failed",
-                    {"task_id": task_id, "error": str(e)},
-                    user_id=self.user_id,
-                )
 
         loop = AgentLoop(
             provider=provider,

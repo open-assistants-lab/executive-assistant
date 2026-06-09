@@ -1,8 +1,8 @@
 """Tools API — list tools with metadata, toggle enabled per scope."""
 
-from src.sdk.item_scopes import ItemScopeDB, ScopeKind
 from fastapi import APIRouter, HTTPException, Query
 
+from src.sdk.item_scopes import ItemScopeDB, ScopeKind
 from src.sdk.native_tools import get_tool_category
 from src.storage.paths import _validate_path_id, get_paths
 

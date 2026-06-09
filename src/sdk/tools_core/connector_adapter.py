@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from connectkit.meta_tools import TOOL_SPECS
 from connectkit.sdk_adapter import ToolSpec
+
 from src.sdk.tools import ToolAnnotations, ToolDefinition
 
 

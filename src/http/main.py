@@ -173,7 +173,6 @@ try:
     import os
 
     def _oauth_config(service: str) -> dict[str, str]:
-        import os
         bridge = ConnectKitBridge("")
         token = bridge.vault.get_token(service) or {}
         result = {
@@ -205,7 +204,7 @@ try:
     )
     app.include_router(oauth_router)
     print(f"Included oauth_router: {[r.path for r in oauth_router.routes]}")
-except Exception as e:
+except Exception:
     import traceback; traceback.print_exc()
 
 app.include_router(connectors_router)

@@ -100,73 +100,41 @@ def report_stats(name: str, values: list[float]) -> dict:
 
 
 def seed_data() -> None:
-    from src.storage.memory import get_memory_store
     from src.storage.messages import get_message_store
 
-    store = get_memory_store(TEST_USER, TEST_WORKSPACE)
-    messages = get_message_store(TEST_USER, TEST_WORKSPACE)
+    store = get_message_store(TEST_USER, TEST_WORKSPACE)
+    core = store.core
 
-    existing = store.list_memories(limit=1)
+    existing = core.get_observations(limit=1)
     if existing:
-        store.clear_all()
-
-    for trigger, action, domain, mem_type in SAMPLE_MEMORIES:
-        store.add_memory(
-            trigger=trigger,
-            action=action,
-            domain=domain,
-            memory_type=mem_type,
-            confidence=0.7,
-            source="learned",
-        )
+        core._db.raw_query("DELETE FROM observations")
+        core._db.raw_query("DELETE FROM reflections")
 
     for role, content in SAMPLE_CONVERSATION:
-        messages.add_message(role, content)
+        store.add_message(role, content)
 
-    print(f"Seeded {len(SAMPLE_MEMORIES)} memories and {len(SAMPLE_CONVERSATION)} messages")
+    print(f"Seeded {len(SAMPLE_CONVERSATION)} messages")
 
 
 def run_component_benchmarks(num_runs: int) -> dict:
-    from src.sdk.tools_core.apps import get_embedding
-    from src.storage.memory import get_memory_store
+    from src.storage.messages import get_message_store
 
-    store = get_memory_store(TEST_USER, TEST_WORKSPACE)
+    store = get_message_store(TEST_USER, TEST_WORKSPACE)
+    core = store.core
     results: dict[str, Any] = {}
 
     # ── 1. Embedding cost (most critical) ──
     print("  [1/7] Embedding generation (all-MiniLM-L6-v2, 384-dim)...")
     embed_times: list[float] = []
     for _ in range(5):
-        get_embedding("warmup text")
+        core.db._get_embedding("warmup text")
     for i in range(20):
         with timed(f"embed_run_{i}", embed_times):
-            get_embedding("What is my current job title and company name")
+            core.db._get_embedding("What is my current job title and company name")
     results["embedding"] = report_stats("get_embedding (all-MiniLM-L6-v2, 384d)", embed_times)
 
-    # ── 2. get_memory_context (profile summary) ──
-    print("  [2/6] get_memory_context (summary profile)...")
-    ctx_times: list[float] = []
-    for _ in range(num_runs):
-        with timed("context", ctx_times):
-            store.get_memory_context(detail_level="summary")
-    results["get_memory_context"] = report_stats("get_memory_context (summary)", ctx_times)
-
-    # ── 3. find_facts_for_query ──
-    print("  [3/6] find_facts_for_query (SQLite FTS5 + fallback)...")
-    facts_times: list[float] = []
-    fact_queries = [
-        "What is my job title",
-        "Where do I live",
-        "What's my tech stack",
-        "Who is my manager",
-    ] * (num_runs // 4 + 1)
-    for q in fact_queries[:num_runs]:
-        with timed("facts", facts_times):
-            store.find_facts_for_query(q, limit=6)
-    results["find_facts"] = report_stats("find_facts_for_query (FTS5 + fallback)", facts_times)
-
-    # ── 4. search_hybrid (ChromaDB + FTS5 + RRF) ──
-    print("  [4/6] search_hybrid (ChromaDB vector + FTS5 + RRF) — MOST EXPENSIVE...")
+    # ── 2. search_hybrid (ChromaDB + FTS5 + RRF) on messages ──
+    print("  [2/7] search_hybrid (ChromaDB vector + FTS5 + RRF) — MOST EXPENSIVE...")
     hybrid_times: list[float] = []
     hybrid_queries = [
         "What programming languages do I use",
@@ -175,11 +143,32 @@ def run_component_benchmarks(num_runs: int) -> dict:
     ] * (num_runs // 3 + 1)
     for q in hybrid_queries[:num_runs]:
         with timed("hybrid", hybrid_times):
-            store.search_hybrid(q, limit=8)
+            core.search_enhanced(q, limit=8)
     results["search_hybrid"] = report_stats("search_hybrid (ChromaDB+FTS5+RRF)", hybrid_times)
 
+    # ── 3. search_observations (hybrid) ──
+    print("  [3/7] search_observations (hybrid)...")
+    obs_times: list[float] = []
+    obs_queries = [
+        "What is my job title",
+        "Where do I live",
+        "What's my tech stack",
+    ] * (num_runs // 3 + 1)
+    for q in obs_queries[:num_runs]:
+        with timed("obs", obs_times):
+            core.search_observations(q, limit=6)
+    results["search_observations"] = report_stats("search_observations (hybrid)", obs_times)
+
+    # ── 4. get_observations (recent) ──
+    print("  [4/7] get_observations (recent)...")
+    recent_times: list[float] = []
+    for _ in range(num_runs):
+        with timed("recent", recent_times):
+            core.get_observations(limit=20)
+    results["get_observations"] = report_stats("get_observations (recent 20)", recent_times)
+
     # ── 5. Full retrieval pipeline ──
-    print("  [5/6] Full retrieval pipeline (facts + hybrid)...")
+    print("  [5/7] Full retrieval pipeline...")
     pipeline_times: list[float] = []
     pipeline_queries = [
         "What do you remember about my job and preferences?",
@@ -188,28 +177,25 @@ def run_component_benchmarks(num_runs: int) -> dict:
     ] * (num_runs // 3 + 1)
     for q in pipeline_queries[:num_runs]:
         start = time.perf_counter()
-        store.find_facts_for_query(q, limit=6)
-        store.search_hybrid(q, limit=8)
+        core.search_observations(q, limit=6)
+        core.search_enhanced(q, limit=8)
         pipeline_times.append((time.perf_counter() - start) * 1000)
     results["retrieval_pipeline"] = report_stats("Full retrieval pipeline (2 DB queries)", pipeline_times)
 
-    # ── 6. upsert_fact_memory (write path) ──
-    print("  [6/6] upsert_fact_memory (write path)...")
+    # ── 6. insert_observations (write path) ──
+    print("  [6/7] insert_observations (write path)...")
     upsert_times: list[float] = []
-    upsert_facts = [
-        ("user", "favorite_food", "Sushi", "personal"),
-        ("user", "timezone", "MST", "location"),
-        ("user", "certification", "AWS Solutions Architect", "skills"),
-        ("user", "parking_spot", "Level 3, Section B", "work"),
-        ("user", "phone", "iPhone 16 Pro", "personal"),
+    upsert_obs = [
+        {"content": "User likes Sushi", "kind": "fact", "user_id": TEST_USER},
+        {"content": "User is in MST timezone", "kind": "fact", "user_id": TEST_USER},
+        {"content": "User has AWS Solutions Architect cert", "kind": "fact", "user_id": TEST_USER},
+        {"content": "User parks at Level 3, Section B", "kind": "fact", "user_id": TEST_USER},
+        {"content": "User has iPhone 16 Pro", "kind": "fact", "user_id": TEST_USER},
     ]
-    for entity, attr, value, domain in upsert_facts:
+    for obs in upsert_obs:
         with timed("upsert", upsert_times):
-            store.upsert_fact_memory(
-                entity=entity, attribute=attr, value=value,
-                domain=domain, confidence=0.8, source="learned",
-            )
-    results["upsert_fact_memory"] = report_stats("upsert_fact_memory (write)", upsert_times)
+            core.insert_observations([obs])
+    results["insert_observations"] = report_stats("insert_observations (write)", upsert_times)
 
     # ── 7. journal processing cost ──
     print("  [7/7] What-if: cost breakdown (embedding = N × HybridDB search)...")

@@ -520,7 +520,8 @@ async def evaluate_qa_direct(instances: list[LongMemEvalInstance], max_instances
                 raise Exception("Injection failed: 0 messages stored")
 
             from src.sdk.providers.factory import create_model_from_config
-            from src.sdk.tools_core.observation import run_observer
+            from coremem.observer import Observer
+            from coremem.types import Memory
                         obs_model = create_model_from_config(
                 os.environ.get("OBSERVER_MODEL")
                 or os.environ.get("DEFAULT_MODEL")
@@ -543,10 +544,17 @@ async def evaluate_qa_direct(instances: list[LongMemEvalInstance], max_instances
                 chunk_sz = 100
                 all_obs: list[dict] = []
                 chunks = (len(msg_dicts) + chunk_sz - 1) // chunk_sz
+                observer = Observer(model=obs_model.model if hasattr(obs_model, 'model') else str(obs_model))
                 for chunk_start in range(0, len(msg_dicts), chunk_sz):
                     chunk = msg_dicts[chunk_start:chunk_start + chunk_sz]
                     try:
-                        chunk_obs = await run_observer(chunk, obs_model, all_obs[:] if all_obs else None)
+                        mems = [
+                            Memory(id="", role=m["role"], content=m["content"],
+                                   ts=datetime.fromisoformat(m["ts"]) if m.get("ts") else None,
+                                   session_id="", user_id="", agent_id="")
+                            for m in chunk
+                        ]
+                        chunk_obs = await observer.run(mems, all_obs[:] if all_obs else None)
                         if chunk_obs:
                             all_obs.extend(chunk_obs)
                     except Exception:

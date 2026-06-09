@@ -86,18 +86,17 @@ def test_memory_stores_have_different_paths():
     assert mem_a != mem_b
 
 
-def test_memory_stores_are_separate():
-    """Each workspace gets its own memory store."""
-    from src.storage.memory import MemoryStore
+def test_memory_stores_are_per_user():
+    """MessageStore is per-user, not per-workspace."""
+    from src.storage.messages import get_message_store
 
-    with tempfile.TemporaryDirectory() as d:
-        store_a = MemoryStore("test_user", base_dir=f"{d}/ws-a/memory")
-        store_b = MemoryStore("test_user", base_dir=f"{d}/ws-b/memory")
+    store_a = get_message_store("test_user", workspace_id="ws-a")
+    store_b = get_message_store("test_user", workspace_id="ws-b")
 
-        assert store_a.user_id == "test_user"
-        assert store_b.user_id == "test_user"
-        # Different underlying HybridDB paths
-        assert store_a.db.path != store_b.db.path
+    assert store_a.user_id == "test_user"
+    assert store_b.user_id == "test_user"
+    # Same user shares the same MemoryCore regardless of workspace
+    assert store_a.core is store_b.core
 
 
 def test_file_paths_per_workspace():

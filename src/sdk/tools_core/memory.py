@@ -1,13 +1,14 @@
-"""Memory tools — read from unified MemoryStore (observations + reflections)."""
+"""Memory tools — read from MemoryCore (observations + reflections)."""
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from src.sdk.tools import ToolAnnotations, tool
 
 
-def _get_memory_store(user_id: str, workspace_id: str) -> Any:
-    from src.storage.memory import get_memory_store
-    return get_memory_store(user_id, workspace_id)
+def _get_core(user_id: str, workspace_id: str) -> Any:
+    from src.storage.messages import get_message_store
+    return get_message_store(user_id, workspace_id).core
 
 
 @tool
@@ -28,18 +29,19 @@ def memory_profile(
         user_id: User identifier
         workspace_id: Workspace ID (defaults to current workspace)
     """
-    store = _get_memory_store(user_id, workspace_id)
-    recent = store.get_recent_observations(days=7, limit=50)
+    core = _get_core(user_id, workspace_id)
+    cutoff = (datetime.now(UTC) - timedelta(days=7)).isoformat()
+    results = core.get_observations(ts_after=cutoff, limit=50)
 
-    if not recent:
+    if not results:
         return "No observations available. Try message_search to find specific facts from conversation history."
 
     parts = ["## Working Memory (Recent Observations)\n"]
-    for obs in recent:
-        priority = obs.get("priority", "\U0001f7e2")
+    for obs in results:
+        importance = float(obs.get("importance", 0.3))
         ts = str(obs.get("observation_ts", ""))[:10]
         content = str(obs.get("content", ""))
-        parts.append(f"{priority} {ts} {content}")
+        parts.append(f"[{importance:.0%}] {ts} {content}")
 
     return "\n".join(parts)
 
@@ -61,7 +63,7 @@ def memory_reflection(
 
     Reflections are higher-order patterns discovered by the Reflector from
     analyzing observations across time. May be empty if the Reflector hasn't
-    run yet (requires 10+ observations and 24h interval).
+    run yet (requires 10+ observations and 24h interval or 50 unreflected facts).
 
     Use when looking for themes, trends, or synthesized understanding about
     the user. For specific fact recall, use message_search instead.
@@ -73,19 +75,18 @@ def memory_reflection(
         user_id: User identifier
         workspace_id: Workspace ID (defaults to current workspace)
     """
-    store = _get_memory_store(user_id, workspace_id)
-    results = store.search_reflections(query, method=method, limit=limit)
+    core = _get_core(user_id, workspace_id)
+    results = core.reflections(query=query, limit=limit)
 
     if not results:
         return f"No reflections found for: {query}"
 
     parts = [f"## Reflections for '{query}'\n"]
     for i, refl in enumerate(results, 1):
-        confidence = float(refl.get("confidence", 0.6))
+        score = float(refl.get("score", 1.0))
         domain = str(refl.get("domain", ""))
         content = str(refl.get("content", ""))
-        parts.append(f"{i}. [{domain}] {content} (confidence: {confidence:.0%})")
-        store.boost_reflection(refl["id"])
+        parts.append(f"{i}. [{domain}] {content} (confidence: {score:.0%})")
 
     return "\n".join(parts)
 

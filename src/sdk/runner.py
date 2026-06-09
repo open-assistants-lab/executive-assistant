@@ -26,7 +26,6 @@ from src.app_logging import get_logger
 from src.config import get_settings
 from src.sdk.loop import AgentLoop
 from src.sdk.messages import Message, StreamChunk
-from src.sdk.middleware_observation import ObservationMiddleware
 from src.sdk.middleware_summarization import SummarizationMiddleware
 from src.sdk.native_tools import get_native_tools
 from src.sdk.providers.factory import create_model_from_config
@@ -164,7 +163,6 @@ def _get_skills_context(user_id: str, workspace_id: str = "personal") -> str:
 
         # Filter by item_scopes (All / Selected / None)
         from src.sdk.item_scopes import ItemScopeDB
-
         from src.storage.paths import get_paths as _get_paths
 
         paths = _get_paths(user_id, workspace_id=workspace_id)
@@ -272,7 +270,6 @@ async def create_sdk_loop(user_id: str, workspace_id: str = "personal", model: s
 
     # Filter tools by per-workspace scope via item_scopes table
     from src.sdk.item_scopes import ItemScopeDB
-
     from src.storage.paths import get_paths as _get_paths
 
     paths = _get_paths(user_id, workspace_id=workspace_id)
@@ -361,10 +358,6 @@ async def create_sdk_loop(user_id: str, workspace_id: str = "personal", model: s
             )
         )
 
-    middlewares.append(
-        ObservationMiddleware(user_id=user_id, workspace_id=workspace_id)
-    )
-    # middlewares.append(MemoryMiddleware(user_id=user_id, workspace_id=workspace_id))
     t4 = time.monotonic()
 
     loop = AgentLoop(
