@@ -380,13 +380,14 @@ async def create_sdk_loop(user_id: str, workspace_id: str = "personal", model: s
         for td in get_custom_tools(user_id=user_id, workspace_id=workspace_id):
             if not is_core_tool(td.name):
                 tool_file = find_tool_file(td.name, user_tools_dir, workspace_tools_dir)
-                reconstruct_data = {"command": "", "install": []}
+                reconstruct_data = {"command": "", "install": [], "tool_dir": ""}
                 if tool_file:
                     meta = load_tool_meta(tool_file)
                     if meta:
                         reconstruct_data = {
                             "command": meta.get("command", ""),
                             "install": meta.get("install", []),
+                            "tool_dir": str(tool_file.parent),
                         }
                 idx.index_tool(td, tool_type="custom", namespace="custom",
                                reconstruct=reconstruct_data)

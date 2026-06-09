@@ -68,13 +68,14 @@ def tool_reload() -> str:
         for td in get_custom_tools(user_id=loop.user_id or "default_user", workspace_id=loop.workspace_id or "personal"):
             if not is_core_tool(td.name):
                 tool_file = find_tool_file(td.name, user_tools_dir, workspace_tools_dir)
-                reconstruct_data = {"command": "", "install": []}
+                reconstruct_data = {"command": "", "install": [], "tool_dir": ""}
                 if tool_file:
                     meta = load_tool_meta(tool_file)
                     if meta:
                         reconstruct_data = {
                             "command": meta.get("command", ""),
                             "install": meta.get("install", []),
+                            "tool_dir": str(tool_file.parent),
                         }
                 loop._tool_index.index_tool(td, tool_type="custom", namespace="custom", reconstruct=reconstruct_data)
                 custom_count += 1

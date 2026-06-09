@@ -60,3 +60,82 @@ class TestClearConversation:
     def test_clear_conversation_default_user(self, client):
         r = client.delete("/conversation")
         assert r.status_code == 200
+
+
+class TestEditorParser:
+    """Tests for _extract_editor() and _render_editor_surface()."""
+
+    def test_extract_editor_basic(self):
+        from src.http.routers.conversation import _extract_editor
+
+        text = '```html:editor\nfilePath: /test/file.md\n---\n\n# Hello\n\nWorld\n```'
+        result = _extract_editor(text)
+        assert len(result) == 1
+        assert result[0]["surface_type"] == "editor"
+        assert result[0]["file_path"] == "/test/file.md"
+        assert "Hello" in result[0]["html"]
+
+    def test_extract_editor_multiple(self):
+        from src.http.routers.conversation import _extract_editor
+
+        text = (
+            '```html:editor\nfilePath: /a.md\n---\n\nFile A\n```\n'
+            'Some text\n'
+            '```html:editor\nfilePath: /b.md\n---\n\nFile B\n```'
+        )
+        result = _extract_editor(text)
+        assert len(result) == 2
+
+    def test_extract_editor_no_file_path(self):
+        from src.http.routers.conversation import _extract_editor
+
+        text = '```html:editor\n---\n\nContent\n```'
+        result = _extract_editor(text)
+        assert result == []
+
+    def test_extract_editor_empty(self):
+        from src.http.routers.conversation import _extract_editor
+
+        text = 'No fences here'
+        result = _extract_editor(text)
+        assert result == []
+
+    def test_extract_editor_interleaved_with_canvas(self):
+        from src.http.routers.conversation import _extract_editor, _extract_surfaces, _extract_canvas
+
+        text = (
+            '```html:canvas\n<div>hello</div>\n```\n'
+            '```html:editor\nfilePath: /f.md\n---\n\ncontent\n```'
+        )
+        surfaces = _extract_surfaces(text)
+        assert len(surfaces) == 2
+        assert surfaces[0]["surface_type"] == "canvas"
+        assert surfaces[1]["surface_type"] == "editor"
+
+        canvas = _extract_canvas(text)
+        assert len(canvas) == 1
+        assert canvas[0]["surface_type"] == "canvas"
+
+        editor = _extract_editor(text)
+        assert len(editor) == 1
+        assert editor[0]["surface_type"] == "editor"
+
+    def test_strip_editor_fences(self):
+        from src.http.routers.conversation import _strip_canvas_fences
+
+        text = (
+            'Some text\n'
+            '```html:editor\nfilePath: /f.md\n---\n\ncontent\n```\n'
+            'More text'
+        )
+        result = _strip_canvas_fences(text)
+        assert "```html:editor" not in result
+        assert "Some text" in result
+        assert "More text" in result
+
+    def test_render_editor_surface_contains_editor_id(self):
+        from src.http.routers.conversation import _render_editor_surface
+
+        html = _render_editor_surface("/test/file.md", "# Hello")
+        assert "novel-mount" in html
+        assert "# Hello" in html or "Hello" in html

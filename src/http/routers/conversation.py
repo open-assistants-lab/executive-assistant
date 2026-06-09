@@ -1,7 +1,9 @@
 import json
 import re
+from pathlib import Path
 from typing import Any
 
+import mistune
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -28,11 +30,57 @@ _CANVAS_FENCE = re.compile(
     re.DOTALL,
 )
 
-CANVAS_SCHEMAS: dict[str, list[str]] = {
+_CANVAS_SCHEMAS: dict[str, list[str]] = {
     "skill-form": ["name", "description", "content"],
     "subagent-form": ["name", "description", "model", "system_prompt"],
     "canvas": [],
+    "editor": ["filePath", "content"],
 }
+
+# ── Editor fence block parser ──────────────────────────────────────────────
+
+_EDITOR_FENCE = re.compile(
+    r"```html:editor\s*\nfilePath:\s*(.+?)\n---\n(.*?)```",
+    re.DOTALL,
+)
+
+_EDITOR_TEMPLATE_PATH = Path(__file__).parent.parent / "static" / "editor.html"
+_EDITOR_TEMPLATE: str | None = None
+
+
+def _load_editor_template() -> str:
+    global _EDITOR_TEMPLATE
+    if _EDITOR_TEMPLATE is None:
+        with open(_EDITOR_TEMPLATE_PATH) as f:
+            _EDITOR_TEMPLATE = f.read()
+    return _EDITOR_TEMPLATE
+
+
+def _render_editor_surface(file_path: str, content: str) -> str:
+    template = _load_editor_template()
+    escaped_path = json.dumps(file_path)
+    escaped_content = json.dumps(mistune.html(content))
+    html = template.replace("__FILE_PATH__", escaped_path)
+    html = html.replace("__INITIAL_HTML__", escaped_content)
+    return html
+
+
+def _extract_editor(text: str) -> list[dict]:
+    surfaces: list[dict] = []
+    for i, match in enumerate(_EDITOR_FENCE.finditer(text)):
+        file_path = match.group(1).strip()
+        content = match.group(2).strip()
+        if not content or not file_path:
+            continue
+        html = _render_editor_surface(file_path, content)
+        surfaces.append({
+            "surface_id": f"editor-{i}",
+            "action": "create",
+            "html": html,
+            "surface_type": "editor",
+            "file_path": file_path,
+        })
+    return surfaces
 
 
 def _extract_canvas(text: str, surface_id_prefix: str = "canvas") -> list[dict]:
@@ -51,9 +99,16 @@ def _extract_canvas(text: str, surface_id_prefix: str = "canvas") -> list[dict]:
     return surfaces
 
 
+def _extract_surfaces(text: str) -> list[dict]:
+    """Extract all surface blocks (canvas, skill-form, subagent-form, editor)."""
+    return _extract_canvas(text) + _extract_editor(text)
+
+
 def _strip_canvas_fences(text: str) -> str:
-    """Remove ```html:canvas/skill-form/subagent-form ... ``` fence blocks from text."""
-    return _CANVAS_FENCE.sub("", text).strip()
+    """Remove ```html:canvas/skill-form/subagent-form/editor ... ``` fence blocks from text."""
+    text = _CANVAS_FENCE.sub("", text)
+    text = _EDITOR_FENCE.sub("", text)
+    return text.strip()
 
 
 def _persist_tool_messages(conversation, tool_events: list[dict], workspace_id: str) -> None:
@@ -362,7 +417,7 @@ async def message_stream(req: MessageRequest, _: None = Depends(require_auth)):
             if not response:
                 response = "Task completed."
 
-            canvas_blocks = _extract_canvas(response)
+            canvas_blocks = _extract_surfaces(response)
             for surface in canvas_blocks:
                 yield f"data: {json.dumps({'type': 'canvas_update', 'data': surface})}\n\n"
             response = _strip_canvas_fences(response)

@@ -31,7 +31,7 @@ def memory_profile(
     """
     core = _get_core(user_id, workspace_id)
     cutoff = (datetime.now(UTC) - timedelta(days=7)).isoformat()
-    results = core.get_observations(ts_after=cutoff, limit=50, metadata={"workspace_id": workspace_id})
+    results = core.get_observations(ts_after=cutoff, limit=50, session_id=workspace_id)
 
     if not results:
         return "No observations available. Try message_search to find specific facts from conversation history."
@@ -76,7 +76,7 @@ def memory_reflection(
         workspace_id: Workspace ID (defaults to current workspace)
     """
     core = _get_core(user_id, workspace_id)
-    results = core.reflections(query=query, limit=limit, metadata={"workspace_id": workspace_id})
+    results = core.reflections(query=query, limit=limit)
 
     if not results:
         return f"No reflections found for: {query}"

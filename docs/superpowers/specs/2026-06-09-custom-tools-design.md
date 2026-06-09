@@ -100,6 +100,8 @@ install:
 | `annotations` | No | `ToolDefinition.annotations` | ToolAnnotations fields. `read_only` defaults true, `destructive` defaults false. |
 | `output_schema` | No | `ToolDefinition.output_schema` | JSON Schema describing the tool's output structure. |
 | `install` | No | Not in ToolDefinition | Installation instructions used when tool is not found via `which`. |
+| `os` | No | Not in ToolDefinition | OS the tool was created on (auto-detected). Used for portability hints. |
+| `python_version` | No | Not in ToolDefinition | Python version if the tool uses Python (auto-detected). |
 
 ### Directory structure
 
@@ -109,13 +111,61 @@ ea_root/
 ├── Tools/
 │   ├── pdf_extract_text/
 │   │   └── TOOL.md
-│   └── video_convert/
-│       └── TOOL.md
+│   ├── video_convert/
+│   │   └── TOOL.md
+│   └── analyze_data/
+│       ├── TOOL.md
+│       ├── script.py          # Python implementation (optional)
+│       └── requirements.txt   # pip dependencies (optional)
 └── Workspaces/{workspace_id}/
     └── Tools/
         └── project_tool/
             └── TOOL.md    # workspace overrides user by name
 ```
+
+### Python-based tools
+
+For tools that need more than a simple shell pipeline, the tool can use a **Python script** stored alongside the `TOOL.md`. The project uses **`uv`** as its Python toolchain (`uv run`, `uv add`) — all Python tool execution and dependency management should use `uv`.
+
+```yaml
+name: analyze_data
+description: Analyze a CSV file and return summary statistics. Uses pandas.
+command: uv run "{{tool_dir}}/script.py" "{{input}}" "{{output}}"
+parameters:
+  type: object
+  properties:
+    input:
+      type: string
+      description: Path to the CSV file
+    output:
+      type: string
+      description: Path for the JSON results file
+  required:
+    - input
+    - output
+install:
+  - uv add pandas
+```
+
+The `script.py` lives in the same directory (`{ea_root}/Tools/analyze_data/script.py`). The `{{tool_dir}}` placeholder is auto-resolved to the tool's directory at load time.
+
+**Dependency management:**
+- `pyproject.toml` or `requirements.txt` in the same directory lists dependencies
+- Install via `uv add <package>` rather than `pip install <package>`
+- `uv` is pre-installed and on PATH (the EA itself runs under `uv`)
+- If `uv run` finds no venv, it auto-creates one
+
+**Python version:**
+- Use `uv run python3` (which respects `.python-version` if present)
+- Defaults to Python 3.13 in this environment (as per `pyproject.toml: requires-python >=3.11,<3.14`)
+
+**CLI Toolkit skill Phase 5 workflow for Python tools:**
+1. Check `uv` availability: `which uv`, `uv --version`
+2. Install required libraries: `uv add pandas`
+3. Write `script.py` to `{ea_root}/Tools/{name}/`
+4. Write `TOOL.md` with `command` using `uv run "{{tool_dir}}/script.py"`
+5. Test: run the tool on a sample input
+6. `tool_reload()` to register
 
 ### HybridDB tool index
 
@@ -331,15 +381,15 @@ On context compaction (summarization), the recency set is preserved so tools don
 
 A new seed skill `cli-toolkit` (`src/skills_seed/cli-toolkit/SKILL.md`) guides the agent through the full lifecycle:
 
-**Phase 1 — Discover** — Identify the right CLI tool using LLM knowledge, web search, or package manager search (`brew search`, `pip search`, `npm search`).
+**Phase 1 — Discover** — Identify the right CLI tool using LLM knowledge, web search, or package manager search (`brew search`, `pip search`, `npm search`). Check `uname -s` and `uname -m` first to know the OS — macOS uses `brew`, Linux uses `apt`/`dnf`, Windows uses `winget`/`scoop`.
 
-**Phase 2 — Install** — Check availability with `which <tool>`. If missing, install via appropriate package manager. Verify with `--version`.
+**Phase 2 — Install** — Check availability with `which <tool>`. If missing, install via appropriate package manager based on detected OS. Verify with `--version`.
 
 **Phase 3 — Learn** — Run `tool --help` to understand flags, subcommands, and expected arguments.
 
 **Phase 4 — Execute** — Run the command via `shell_execute`, check exit code, validate output. Retry up to 3 times with different flags on failure. If all 3 attempts fail, surface the error to the user.
 
-**Phase 5 — Register** — Write a `TOOL.md` file to `{ea_root}/Tools/{name}/TOOL.md`. Choose a descriptive name and keyword-rich description for search discoverability. Then call `tool_reload()` to make it immediately available in the search index.
+**Phase 5 — Register** — Write a `TOOL.md` file to `{ea_root}/Tools/{name}/TOOL.md`. Choose a descriptive name and keyword-rich description for search discoverability. Include `os` (from `uname -s`) and if Python-based, `python_version` (from `python3 --version`) in the frontmatter so the tool is portable and debuggable. Then call `tool_reload()` to make it immediately available in the search index.
 
 ### Tool naming and descriptions
 

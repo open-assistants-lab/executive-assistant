@@ -32,6 +32,7 @@ dependencies = [
     "agentprofile",
     "hybriddb>=0.4.2",
     "connectkit==0.1.4",
+    "mistune>=3.2.1",
 ]
 
 [tool.uv.sources]

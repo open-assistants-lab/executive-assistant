@@ -26,6 +26,9 @@ instead of routing to the Canvas tab.
     ```html:subagent-form
     <html>...</html>
     ```
+    ```html:editor
+    <file path and markdown content>
+    ```
     ```html:canvas
     <html>...</html>
     ```
@@ -59,6 +62,35 @@ Must contain `<form>` fields with these `name` attributes:
 | `description`    | text   | yes      |
 | `model`          | select | no       |
 | `system_prompt`  | textarea | yes    |
+
+### `html:editor` — Inline rich text editor
+Lets the user create or edit a file interactively. The editor renders
+a WYSIWYG toolbar (bold, italic, heading, lists, code blocks) inside
+the Canvas tab. User edits content and clicks Save/Cancel.
+
+**Format:**
+````
+```html:editor
+filePath: /absolute/path/to/file.md
+---
+
+Initial markdown content here.
+```
+````
+
+**Required fields in the opening line:**
+| field      | description |
+|------------|-------------|
+| `filePath` | Absolute path to the file being created/edited |
+
+Everything after `---` is initial markdown content pre-loaded into
+the editor.
+
+**User actions:**
+| action   | agent receives |
+|----------|---------------|
+| `save`   | `[Canvas submit] editor: {filePath}... {markdown content}` — use `files_write` to persist |
+| `cancel` | `[Canvas] User cancelled the editor.` — no action needed |
 
 ## Theming with CSS Custom Properties
 

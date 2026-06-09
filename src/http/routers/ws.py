@@ -21,7 +21,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from src.app_logging import get_logger
 from src.config.settings import get_settings
 from src.http.auth import verify_key
-from src.http.routers.conversation import _extract_canvas, _strip_canvas_fences
+from src.http.routers.conversation import _extract_surfaces, _strip_canvas_fences
 from src.http.ws_protocol import (
     ApproveMessage,
     AuthMessage,
@@ -153,7 +153,7 @@ async def _run_agent_stream(
                     "".join(ai_content_parts) if ai_content_parts else "Task completed."
                 )
 
-                canvas_blocks = _extract_canvas(response)
+                canvas_blocks = _extract_surfaces(response)
                 for surface in canvas_blocks:
                     await _handle_canvas_update(
                         websocket,

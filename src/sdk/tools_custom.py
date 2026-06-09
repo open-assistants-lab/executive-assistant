@@ -72,11 +72,13 @@ def _parse_tool_file(tool_path: Path) -> ToolDefinition | None:
         open_world=annotations_raw.get("open_world", False) if annotations_raw else False,
     )
 
-    def make_function(tmpl: str, install_cmds: list[str] | None) -> Any:
+    def make_function(tmpl: str, install_cmds: list[str] | None, tool_dir: Path | None = None) -> Any:
         import subprocess as _subprocess
 
         def fn(**kwargs: Any) -> str:
             rendered = tmpl
+            if tool_dir:
+                rendered = rendered.replace("{{tool_dir}}", shlex.quote(str(tool_dir)))
             for k, v in kwargs.items():
                 rendered = rendered.replace("{{" + k + "}}", shlex.quote(str(v)))
 
@@ -122,7 +124,7 @@ def _parse_tool_file(tool_path: Path) -> ToolDefinition | None:
         parameters=parameters,
         annotations=annotations,
         output_schema=output_schema,
-        function=make_function(command_template, install),
+        function=make_function(command_template, install, tool_dir=tool_path.parent),
     )
 
 

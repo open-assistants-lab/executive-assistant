@@ -11,6 +11,8 @@ This skill guides you through the full lifecycle of using a CLI tool in the Exec
 
 ### Phase 1 — Discover
 
+**Always check the OS first:** Run `uname -s` and `uname -m` to know the platform — this determines which commands and package managers to use.
+
 Identify the right CLI tool. Use these strategies in order:
 
 1. **LLM knowledge** — You already know the most common tools: `ffmpeg` (media), `pandoc` (documents), `jq` (JSON), `imagemagick` (images), `pdftotext` (PDF), `yt-dlp` (video download), etc.
@@ -23,11 +25,11 @@ Propose 2-3 candidates if uncertain, with brief pros/cons.
 ### Phase 2 — Install
 
 1. Check availability: `which <tool>`
-2. If not found, install via the right package manager:
+2. If not found, install via the right package manager based on OS (detected in Phase 1):
    - macOS: `brew install <tool>` (check `which brew` first)
-   - Python tools: `pip install <tool>`
+   - Linux: `apt-get install <tool>` or `dnf install <tool>`
+   - Python tools: `uv add <tool>` or `pip install <tool>`
    - Node tools: `npm install -g <tool>` or `npx <tool>`
-   - System: `apt-get install <tool>` (Linux)
 3. Verify: `which <tool>` and `<tool> --version`
 
 ### Phase 3 — Learn
@@ -79,6 +81,19 @@ The `{{param}}` placeholders in `command` become the tool parameters. The descri
 5. Call `tool_search("extract text from pdf")` to verify it appears
 
 6. The tool is now available by name for the rest of the conversation and future sessions.
+
+**Important:** Always include the OS detection result (`uname -s`, `uname -m`) in the TOOL.md as `os` and if applicable `python_version` fields. This makes the tool portable and helps debug platform-specific issues:
+
+```
+files_write(path="{ea_root}/Tools/{name}/TOOL.md", content="""---
+name: pdf_extract_text
+description: Extract text from PDF files using ocrmypdf + pdftotext
+command: ocrmypdf "{{input}}" /tmp/_ocr_output.pdf && pdftotext /tmp/_ocr_output.pdf "{{output}}"
+os: Darwin arm64
+python_version: "3.13"
+---
+""")
+```
 
 ## Notes
 

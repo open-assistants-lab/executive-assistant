@@ -18,9 +18,12 @@ def _rebuild_custom_function(td: ToolDefinition, reconstruct: dict) -> ToolDefin
     """Rebuild the function for a custom (TOOL.md) tool from reconstruct metadata."""
     command_template = reconstruct.get("command", "")
     install_cmds = reconstruct.get("install", [])
+    tool_dir_str = reconstruct.get("tool_dir", "")
 
     def fn(**kwargs: Any) -> str:
         rendered = command_template
+        if tool_dir_str:
+            rendered = rendered.replace("{{tool_dir}}", shlex.quote(tool_dir_str))
         for k, v in kwargs.items():
             rendered = rendered.replace("{{" + k + "}}", shlex.quote(str(v)))
 
