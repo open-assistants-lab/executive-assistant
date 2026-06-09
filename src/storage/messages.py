@@ -112,8 +112,11 @@ class MessageStore:
                     DROP TABLE messages;
                     ALTER TABLE messages_new RENAME TO messages;
                     DELETE FROM _schema WHERE table_name = 'messages';
-                    DELETE FROM _journal WHERE app_table = 'messages';
                 """)
+                # _journal may not exist on fresh DBs
+                tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")]
+                if '_journal' in tables:
+                    conn.execute("DELETE FROM _journal WHERE app_table = 'messages'")
             conn.close()
         except Exception:
             if conn is not None:
