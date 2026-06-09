@@ -94,7 +94,8 @@ class OllamaCloud(LLMProvider):
                 try:
                     args = json.loads(args)
                 except json.JSONDecodeError:
-                    args = {}
+                    from src.sdk.validation import repair_tool_call
+                    args = repair_tool_call(args)
             parsed_tcs.append(
                 ToolCall(
                     id=tc.get("id", f"call_{uuid4().hex[:8]}"),
