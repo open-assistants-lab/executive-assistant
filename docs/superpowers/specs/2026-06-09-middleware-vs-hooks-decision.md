@@ -65,8 +65,39 @@ This gives:
 
 Estimated effort: 2–3 days when the admin use case arrives.
 
-## Related
+## Checkpointing — Deferred
 
-- EA Middleware base class: `src/sdk/middleware.py`
-- Existing implementations: `SummarizationMiddleware`, `ProgressMiddleware`, `InstructionMiddleware`
-- Cross-product plugin format: MCP (already supported via `MCPToolBridge`)
+### Decision
+
+**Do not adopt checkpointing (Claude Code `/rewind` or LangGraph `thread.get_state`).**
+
+### Rationale
+
+| Product | What's checkpointed | Why it's needed |
+|---------|-------------------|----------------|
+| Claude Code | File state before each edit | Rollback broken code changes |
+| LangGraph | Graph execution state per step | Resume paused graph mid-execution |
+| EA | Nothing today | Neither use case applies |
+
+EA is a **chat assistant** — it reads email, manages tasks, searches the web. Unlike
+Claude Code, there are no file edits to roll back. Unlike LangGraph, there is no graph
+execution to pause and resume.
+
+The two things checkpointing would enable:
+
+1. **"Undo that last turn"** — rewinding the conversation to before a bad response.
+   The summarization middleware already compresses context. If a user wants to ignore
+   the last exchange, they can just type a new message. The old messages remain in
+   SQLite history but don't affect ongoing context.
+
+2. **Rolling back tool effects** — unsending an email or restoring a deleted contact.
+   This is fundamentally impossible without service-side support (Google doesn't have
+   "undo email via API for free").
+
+### When to revisit
+
+If users explicitly ask for "undo conversation turn" or if EA starts making automated
+filesystem changes (like Claude Code's file edits), checkpointing becomes relevant.
+Estimated effort at that point: 3–5 days.
+
+## Related
