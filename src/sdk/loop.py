@@ -782,9 +782,10 @@ class AgentLoop:
         cost_tracker = CostTracker()
         all_tool_calls: list[dict[str, Any]] = []
 
+        token = _current_agent_loop.set(self)
+
         await self._run_hooks("abefore_agent", state)
 
-        token = _current_agent_loop.set(self)
         try:
             if self.trace_provider:
                 async with self.trace_provider.start_span(SpanType.AGENT, "agent_run"):

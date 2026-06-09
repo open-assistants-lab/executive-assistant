@@ -89,6 +89,7 @@ class MessageStore:
         db_path = base_path / "app.db"
         if not db_path.exists():
             return
+        conn = None
         try:
             conn = sqlite3.connect(str(db_path))
             info = conn.execute("PRAGMA table_info('messages')").fetchone()
@@ -110,10 +111,13 @@ class MessageStore:
                         FROM messages;
                     DROP TABLE messages;
                     ALTER TABLE messages_new RENAME TO messages;
+                    DELETE FROM _schema WHERE table_name = 'messages';
+                    DELETE FROM _journal WHERE app_table = 'messages';
                 """)
             conn.close()
         except Exception:
-            pass
+            if conn is not None:
+                conn.close()
 
     def add_message(self, role: str, content: str, metadata: dict | None = None) -> str:
         result = self._core.ingest(role, content or "(empty)", metadata=metadata)
