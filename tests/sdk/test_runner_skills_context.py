@@ -145,8 +145,6 @@ def test_reset_sdk_loop_removes_all_model_specific_workspace_loops(monkeypatch):
     runner._loop_cache["u:other:default"] = object()
     runner._loop_cache["other:ws:default"] = object()
 
-    monkeypatch.setattr("src.storage.memory.clear_memory_store_cache", lambda: None)
-
     runner.reset_sdk_loop("u", "ws")
 
     assert set(runner._loop_cache) == {"u:other:default", "other:ws:default"}
@@ -158,8 +156,6 @@ def test_reset_user_sdk_loops_removes_all_workspaces_for_user(monkeypatch):
     runner._loop_cache["u:ws:openai:gpt-4.1"] = object()
     runner._loop_cache["u:other:default"] = object()
     runner._loop_cache["other:ws:default"] = object()
-
-    monkeypatch.setattr("src.storage.memory.clear_memory_store_cache", lambda: None)
 
     runner.reset_user_sdk_loops("u")
 

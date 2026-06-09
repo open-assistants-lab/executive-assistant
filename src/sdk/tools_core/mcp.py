@@ -58,28 +58,40 @@ async def _mcp_reload(user_id: str = "") -> str:
     result = await manager.reload()
 
     try:
-        from src.sdk.runner import _loop_cache
+        from src.sdk.runner import get_user_loop
         from src.sdk.tools_core.mcp_bridge import MCPToolBridge
 
-        loop = _loop_cache.get(user_id)
-        if loop:
-            bridge = getattr(loop, "_mcp_bridge", None)
-            if bridge is None:
-                bridge = MCPToolBridge(user_id=user_id)
-                loop._mcp_bridge = bridge
+        loop = get_user_loop(user_id)
+        if loop is None:
+            return f"{result} (no active conversation — tools will be picked up next conversation)"
 
-            old_names = list(bridge._tool_to_server.keys())
-            for name in old_names:
-                loop.unregister_tool(name)
-            bridge._tool_to_server = {}
+        old_names = {
+            t.name for t in loop._registry.list_tools()
+            if t.name.startswith("mcp__")
+        }
 
-            mcp_count = await bridge.discover()
-            for td in bridge.get_tool_definitions():
-                loop.register_tool(td)
+        bridge = getattr(loop, "_mcp_bridge", None)
+        if bridge is None:
+            bridge = MCPToolBridge(user_id=user_id)
+            loop._mcp_bridge = bridge
 
-            return f"{result} ({mcp_count} MCP tools registered)"
+        for name in old_names:
+            loop.unregister_tool(name)
+        bridge._tool_to_server = {}
+
+        mcp_count = await bridge.discover()
+        new_names: set[str] = set()
+        for td in bridge.get_tool_definitions():
+            loop.register_tool(td)
+            new_names.add(td.name)
+
+        removed = old_names - new_names
+        parts = [f"{result} ({mcp_count} MCP tools registered)"]
+        if removed:
+            parts.append(f"removed {len(removed)} stale tools")
+        return " — ".join(parts)
     except Exception as e:
-        logger.warning(f"mcp_reload.bridge_error: {e}")
+        logger.warning("mcp_reload.bridge_error", {"error": str(e)}, user_id=user_id)
 
     return result
 

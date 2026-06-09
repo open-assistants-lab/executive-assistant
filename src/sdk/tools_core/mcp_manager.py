@@ -171,8 +171,8 @@ class MCPManager:
 
     def _config_changed(self) -> bool:
         current_mtime = get_config_mtime(self.user_id)
-        if current_mtime != self._config_mtime:
-            return True
+        if current_mtime == self._config_mtime:
+            return False
 
         config = load_mcp_config(self.user_id)
         if config and self._compute_config_hash(config) != self._config_hash:
@@ -188,11 +188,13 @@ class MCPManager:
         async with self._lock:
             await self._ensure_started()
 
-            if self._config_changed():
-                await self._restart_all()
+        # Release lock for config check + restart (prevents deadlock with _stop_all)
+        if self._config_changed():
+            await self._restart_all()
 
-            self._last_used = time.time()
+        self._last_used = time.time()
 
+        async with self._lock:
             if not self._connections:
                 return []
 
@@ -242,8 +244,12 @@ class MCPManager:
                 await self._start_server(server_name, server_config)
 
     async def _stop_all(self) -> None:
-        for server_name in list(self._connections.keys()):
-            await self._stop_server(server_name)
+        async with self._lock:
+            names = list(self._connections.keys())
+        for name in names:
+            await self._stop_server(name)
+        async with self._lock:
+            self._connections.clear()
 
     async def _stop_server(self, server_name: str) -> None:
         if server_name in self._connections:

@@ -38,6 +38,20 @@ logger = get_logger()
 _loop_cache: dict[str, AgentLoop] = {}
 _loop_lock = asyncio.Lock()
 
+_user_loops: dict[str, AgentLoop] = {}
+
+
+def register_user_loop(user_id: str, loop: AgentLoop) -> None:
+    _user_loops[user_id] = loop
+
+
+def unregister_user_loop(user_id: str) -> None:
+    _user_loops.pop(user_id, None)
+
+
+def get_user_loop(user_id: str) -> AgentLoop | None:
+    return _user_loops.get(user_id)
+
 
 def _loop_cache_key(
     user_id: str,
@@ -487,8 +501,12 @@ async def run_sdk_agent(
         Final message list from the agent.
     """
     loop = await get_sdk_loop(user_id, workspace_id, model=model, provider_keys=provider_keys)
-    result = await loop.run(messages)
-    return result
+    register_user_loop(user_id, loop)
+    try:
+        result = await loop.run(messages)
+        return result
+    finally:
+        unregister_user_loop(user_id)
 
 
 async def run_sdk_agent_stream(
@@ -499,6 +517,7 @@ async def run_sdk_agent_stream(
     provider_keys: dict[str, str] | None = None,
 ) -> Any:
     loop = await get_sdk_loop(user_id, workspace_id, model=model, provider_keys=provider_keys)
+    register_user_loop(user_id, loop)
 
     try:
         async for chunk in loop.run_stream(messages):
@@ -506,6 +525,8 @@ async def run_sdk_agent_stream(
     except Exception as e:
         logger.error("sdk_runner.stream_error", {"error": str(e)}, user_id=user_id)
         yield StreamChunk.error(message=str(e))
+    finally:
+        unregister_user_loop(user_id)
 
 
 def reset_sdk_loop(user_id: str = "default_user", workspace_id: str = "personal") -> None:
