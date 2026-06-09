@@ -6,8 +6,7 @@ from typing import Any
 
 import yaml
 
-from src.sdk.tools import ToolAnnotations, ToolDefinition, ToolResult
-from src.sdk.tools_core.shell import shell_execute
+from src.sdk.tools import ToolAnnotations, ToolDefinition
 
 CORE_TOOL_NAMES: set[str] = {
     "shell_execute",
@@ -97,10 +96,22 @@ def _parse_tool_file(tool_path: Path) -> ToolDefinition | None:
                     )
                 return f"Tool '{tool_name}' not found on PATH."
 
-            result_obj = shell_execute.invoke({"command": rendered})
-            if isinstance(result_obj, ToolResult):
-                return result_obj.content
-            return str(result_obj)
+            try:
+                result = _subprocess.run(
+                    rendered,
+                    shell=True,
+                    capture_output=True,
+                    timeout=120,
+                    text=True,
+                )
+                output = result.stdout + result.stderr
+                if result.returncode != 0:
+                    return f"Command failed (exit {result.returncode}):\n{output[:2000]}"
+                return output[:5000] or "(no output)"
+            except _subprocess.TimeoutExpired:
+                return "Command timed out after 120 seconds."
+            except Exception as e:
+                return f"Command error: {e}"
 
         fn.__name__ = name
         return fn

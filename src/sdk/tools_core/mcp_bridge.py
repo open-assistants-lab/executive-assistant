@@ -168,6 +168,10 @@ class MCPToolBridge:
     def get_tool_definitions(self) -> list[ToolDefinition]:
         return self._registry.list_tools()
 
+    def get_tool_definition(self, name: str) -> ToolDefinition | None:
+        """Get a single tool definition by namespaced name (mcp__{server}__{tool})."""
+        return self._registry.get(name)
+
     def get_tool_names(self) -> list[str]:
         return self._registry.list_names()
 

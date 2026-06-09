@@ -288,20 +288,42 @@ class AgentLoop:
         if td is None:
             return None
         reconstruct = self._tool_index.get_reconstruct(tc.name)
-        tool_type = "unknown"
-        db_rows = self._tool_index.db.query("tools", where="name = ?", params=(tc.name,))
-        if db_rows:
-            tool_type = db_rows[0].get("tool_type", "unknown")
+        tool_type = self._tool_index.get_tool_type(tc.name) or "unknown"
 
         if tool_type == "custom":
             from src.sdk.tool_index import _rebuild_custom_function
             td = _rebuild_custom_function(td, reconstruct)
-        elif tool_type in ("mcp", "connector"):
-            return ToolResult(
-                content=f"{tool_type.capitalize()} tool '{tc.name}' is not currently loaded. "
-                        f"Run the appropriate reload command and try again.",
-                is_error=True,
-            )
+        elif tool_type == "mcp":
+            mcp_bridge = getattr(self, "_mcp_bridge", None)
+            if mcp_bridge is None:
+                return ToolResult(content="MCP bridge not available. Restart the session.", is_error=True)
+            resolved = mcp_bridge.get_tool_definition(tc.name)
+            if resolved is None:
+                parts = tc.name.split("__", 2)
+                server = parts[1] if len(parts) == 3 else "unknown"
+                return ToolResult(
+                    content=f"MCP server '{server}' not connected. Run mcp_reload() to reconnect.",
+                    is_error=True,
+                )
+            td = resolved
+        elif tool_type == "connector":
+            connectkit_bridge = getattr(self, "_connectkit_bridge", None)
+            if connectkit_bridge is None:
+                return ToolResult(content="Connector bridge not available. Restart the session.", is_error=True)
+            all_defs = connectkit_bridge.get_tool_definitions()
+            found = None
+            for d in all_defs:
+                if d.get("name") == tc.name:
+                    found = d
+                    break
+            if found is None:
+                return ToolResult(content=f"Connector tool '{tc.name}' session expired. Reconnect the service and try again.", is_error=True)
+            from src.sdk.runner import _connector_dicts_to_defs
+            resolved_list = _connector_dicts_to_defs([found])
+            if resolved_list:
+                td = resolved_list[0]
+            else:
+                return ToolResult(content=f"Failed to load connector tool '{tc.name}'.", is_error=True)
 
         self._registry.register(td)
         self._recently_used.add(tc.name)

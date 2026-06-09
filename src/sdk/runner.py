@@ -349,13 +349,10 @@ async def create_sdk_loop(user_id: str, workspace_id: str = "personal", model: s
     from src.sdk.tools_custom import CORE_TOOL_NAMES, is_core_tool
 
     core_tool_defs: list[ToolDefinition] = []
-    searchable_tool_defs: list[ToolDefinition] = []
 
     for td in all_tools:
         if is_core_tool(td.name) or td.name in CORE_TOOL_NAMES:
             core_tool_defs.append(td)
-        else:
-            searchable_tool_defs.append(td)
 
     # Always include tool_search and tool_reload
     core_tool_defs.append(tool_search)
@@ -369,10 +366,17 @@ async def create_sdk_loop(user_id: str, workspace_id: str = "personal", model: s
     idx = get_or_create_index(
         user_tools_dir, workspace_tools_dir, mcp_config,
         user_id=user_id, workspace_id=workspace_id,
+        connectkit_bridge=connectkit_bridge,
     )
 
     if idx.count() == 0:
-        from src.sdk.tools_custom import get_custom_tools, find_tool_file, load_tool_meta
+        # Index native tools
+        for td in tools:
+            if not is_core_tool(td.name):
+                idx.index_tool(td, tool_type="native", namespace="native")
+
+        # Index custom (TOOL.md) tools
+        from src.sdk.tools_custom import find_tool_file, get_custom_tools, load_tool_meta
         for td in get_custom_tools(user_id=user_id, workspace_id=workspace_id):
             if not is_core_tool(td.name):
                 tool_file = find_tool_file(td.name, user_tools_dir, workspace_tools_dir)
@@ -386,6 +390,23 @@ async def create_sdk_loop(user_id: str, workspace_id: str = "personal", model: s
                         }
                 idx.index_tool(td, tool_type="custom", namespace="custom",
                                reconstruct=reconstruct_data)
+
+        # Index MCP tools
+        for td in mcp_tools:
+            if not is_core_tool(td.name):
+                parts = td.name.split("__", 2)
+                server_name = parts[1] if len(parts) == 3 else ""
+                reconstruct = {"server_name": server_name, "mcp_tool_name": td.name}
+                idx.index_tool(td, tool_type="mcp", namespace=f"mcp__{server_name}",
+                               reconstruct=reconstruct)
+
+        # Index connector tools
+        for td in connectkit_tool_defs:
+            if not is_core_tool(td.name):
+                namespace = td.name.split("__")[0] if "__" in td.name else "connector"
+                reconstruct = {"namespace": namespace, "tool_name": td.name}
+                idx.index_tool(td, tool_type="connector", namespace=namespace,
+                               reconstruct=reconstruct)
 
     summary_config = settings.memory.summarization
 
@@ -431,10 +452,10 @@ async def create_sdk_loop(user_id: str, workspace_id: str = "personal", model: s
     )
 
     loop._tool_index = idx
-    if searchable_tool_defs:
-        total_tools = idx.count() + len(core_tool_defs)
+    total_in_index = idx.count()
+    if total_in_index > 0:
         tool_hint = (
-            f"\n\nYou have access to {total_tools} additional tools across all categories. "
+            f"\n\nYou have access to {total_in_index} additional tools across all categories. "
             "Use tool_search(description='what you need') to find and load a specific tool."
         )
         loop.system_prompt += tool_hint

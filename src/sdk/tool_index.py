@@ -9,8 +9,7 @@ from typing import Any
 
 from hybriddb import HybridDB
 
-from src.sdk.tools import ToolDefinition, ToolResult
-from src.sdk.tools_core.shell import shell_execute
+from src.sdk.tools import ToolDefinition
 
 _RECONSTRUCT_EMPTY = "{}"
 
@@ -37,10 +36,22 @@ def _rebuild_custom_function(td: ToolDefinition, reconstruct: dict) -> ToolDefin
                     )
                 return f"Tool '{tool_name}' not found on PATH."
 
-        result_obj = shell_execute.invoke({"command": rendered})
-        if isinstance(result_obj, ToolResult):
-            return result_obj.content
-        return str(result_obj)
+        try:
+            result = subprocess.run(
+                rendered,
+                shell=True,
+                capture_output=True,
+                timeout=120,
+                text=True,
+            )
+            output = result.stdout + result.stderr
+            if result.returncode != 0:
+                return f"Command failed (exit {result.returncode}):\n{output[:2000]}"
+            return output[:5000] or "(no output)"
+        except subprocess.TimeoutExpired:
+            return "Command timed out after 120 seconds."
+        except Exception as e:
+            return f"Command error: {e}"
 
     td.function = fn
     return td
@@ -122,6 +133,12 @@ class ToolIndex:
             return {}
         return json.loads(raw)
 
+    def get_tool_type(self, name: str) -> str | None:
+        rows = self.db.query("tools", where="name = ?", params=(name,))
+        if not rows:
+            return None
+        return rows[0].get("tool_type")
+
     def list_all_names(self) -> list[str]:
         rows = self.db.query("tools")
         return [r["name"] for r in rows]
@@ -140,7 +157,12 @@ class ToolIndex:
         pass
 
 
-def compute_source_hashes(tools_dir: Path, workspace_tools_dir: Path | None, mcp_config: Path) -> dict[str, str]:
+def compute_source_hashes(
+    tools_dir: Path,
+    workspace_tools_dir: Path | None,
+    mcp_config: Path,
+    connectkit_bridge: Any | None = None,
+) -> dict[str, str]:
     """Hash all tool sources for change detection."""
     hashes: dict[str, str] = {}
 
@@ -166,6 +188,13 @@ def compute_source_hashes(tools_dir: Path, workspace_tools_dir: Path | None, mcp
     ck_config = (tools_dir.parent if tools_dir.exists() else Path()) / ".connectkit.json"
     if ck_config.exists():
         hashes["connector:config"] = hashlib.sha256(ck_config.read_bytes()).hexdigest()
+
+    if connectkit_bridge:
+        try:
+            connected = sorted(connectkit_bridge.connected_services())
+            hashes["connector:state"] = hashlib.sha256(json.dumps(connected).encode()).hexdigest()
+        except Exception:
+            pass
 
     return hashes
 
@@ -204,6 +233,7 @@ def get_or_create_index(
     user_id: str = "default_user",
     workspace_id: str = "personal",
     index_dir: Path | None = None,
+    connectkit_bridge: Any | None = None,
 ) -> ToolIndex:
     """Get or create a ToolIndex. Rebuilds if source hashes changed.
 
@@ -216,7 +246,7 @@ def get_or_create_index(
     index_dir = index_dir or (paths.user_tools_dir() / ".index")
     hashes_path = index_dir / ".index_hashes.json"
 
-    current_hashes = compute_source_hashes(tools_dir, workspace_tools_dir, mcp_config)
+    current_hashes = compute_source_hashes(tools_dir, workspace_tools_dir, mcp_config, connectkit_bridge)
     needs_reindex = check_needs_reindex(hashes_path, current_hashes)
 
     idx = ToolIndex(index_dir)

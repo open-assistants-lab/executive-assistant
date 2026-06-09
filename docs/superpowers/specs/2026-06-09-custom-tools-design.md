@@ -23,6 +23,17 @@ A cross-cutting **tool search** system that keeps a small core inline and discov
 | **MCP tool** | — | `{ea_root}/.mcp.json` servers | MCPManager starts servers | `mcp` SDK objects | `mcp__{server}__{tool}` |
 | **Connector tool** | — | connectkit OAuth vault | ConnectKitBridge reads YAML | CLI args or spawned MCP | `{namespace}__{tool}` |
 
+### Tool type handling
+
+All four tool types share the same infrastructure — HybridDB index, `tool_search`, lazy-load, `tool_reload`, recency tracking. They differ only in how their function is reconstructed at load time:
+
+| Type | Source | Function backend | Reconstructed by |
+|------|--------|-----------------|-----------------|
+| `native` | `get_native_tools()` | Hardcoded Python callable | Re-import from native tools by name |
+| `custom` | `{ea_root}/Tools/*/TOOL.md` | `subprocess.run(shell=True)` with rendered command | `_rebuild_custom_function()` from `reconstruct.command` |
+| `mcp` | MCPManager from `.mcp.json` | Closure over `session.call_tool()` | `loop._mcp_bridge.get_tool_definition(name)` re-resolves from live session |
+| `connector` | ConnectKitBridge from vault | CLI subprocess with OAuth token injection or MCP session call | `loop._connectkit_bridge.get_tool_definition(namespace, name)` re-resolves from live bridge |
+
 ### Tool loading strategy
 
 Three tiers, applied uniformly across all tool types:
@@ -166,17 +177,22 @@ class ToolIndex:
         return [r["name"] for r in rows]
 ```
 
-**Reconstruction on lazy-load:** When the loop detects a tool is not inline:
-1. Load `definition_json` from index via `get_definition(name)`
-2. Load `reconstruct` metadata
-3. Rebuild function based on `tool_type`:
-   - `"custom"`: `lambda **kw: shell_execute(render(command, kw))`
-   - `"mcp"`: resolve `server_name` + `mcp_tool_name` through `MCPManager` (must have an active session). If the session is dead (idle timeout, crash), return an error message: `"MCP server '{server}' not connected. Run mcp_reload() to reconnect."`
-   - `"connector"`: resolve through `ConnectKitBridge`
-   - `"native"`: look up from `get_native_tools()` by name
-4. Register the rebuilt `ToolDefinition` inline for subsequent turns
+**Reconstruction on lazy-load:** When the loop detects a tool is not inline, `_try_lazy_load()` is called:
 
-**Note on MCP tools:** `tool_reload` re-indexes from the **current state** of MCPManager (already-connected sessions). To reconnect servers after `.mcp.json` changes, call `mcp_reload()` first, then `tool_reload()`.
+1. Load `definition_json` from index via `get_definition(name)`
+2. Load `reconstruct` metadata  
+3. Rebuild function based on `tool_type`:
+   - `"custom"`: rebuild with `_rebuild_custom_function()` — renders command template from `reconstruct`, runs via `subprocess.run(shell=True)`
+   - `"mcp"`: resolve `server_name` + `mcp_tool_name` through `loop._mcp_bridge.get_tool_definition(name)`. If the session is dead, return error: `"MCP server '{server}' not connected. Run mcp_reload() to reconnect."`
+   - `"connector"`: resolve through `loop._connectkit_bridge.get_tool_definition(namespace, tool_name)`. The bridge re-looks up the tool from its current runtime state (CLI or MCP backend). Returns error if the connector session has expired: `"Connector tool '{name}' session expired. Reconnect the service and try again."`
+   - `"native"`: look up from `get_native_tools()` by name
+4. Register the rebuilt `ToolDefinition` inline (`self._registry.register(td)`)
+5. Add to recency set (`self._recently_used.add(name)`)
+6. Execute the tool call against the now-registered definition
+
+**Note on MCP tools:** `tool_reload` re-indexes MCP tools from the **current state** of MCPManager (already-connected sessions). To reconnect servers after `.mcp.json` changes, call `mcp_reload()` first, then `tool_reload()`. `mcp_reload()` is a separate core tool that reconnects MCP servers and updates the loop's `_mcp_bridge`; `tool_reload()` only reads from whatever bridge state exists.
+
+**Note on connector tools:** Connector tools are indexed at loop creation from `ConnectKitBridge.discover()`. The `reconstruct` metadata stores `namespace` and `tool_name` so the function can be rebuilt from the live bridge on lazy-load. On connect/disconnect, `reset_user_sdk_loops()` clears the loop cache and `tool_reload()` re-indexes connector tools from the bridge's current state.
 
 HybridDB provides:
 - **FTS5** for keyword matching on `name` + `description`
@@ -189,10 +205,15 @@ HybridDB provides:
 
 1. **Load all sources** — native tools, custom tools (`Tools/*/TOOL.md`), MCP tools (MCPToolBridge), connector tools (ConnectKitBridge)
 2. **Apply scope filtering** — `ItemScopeDB` filters all tool types uniformly
-3. **Build HybridDB index** — index all tools by name + description
+3. **Build HybridDB index** — index all tools by name + description:
+   - **Native tools**: indexed as `tool_type="native"`, reconstruct metadata empty (lookup by name from `get_native_tools()`)
+   - **Custom tools**: indexed as `tool_type="custom"`, reconstruct stores `command` template + `install` cmds
+   - **MCP tools**: indexed as `tool_type="mcp"`, reconstruct stores `server_name` + `mcp_tool_name` for re-resolution through `MCPToolBridge`
+   - **Connector tools**: indexed as `tool_type="connector"`, reconstruct stores `namespace` + `tool_name` for re-resolution through `ConnectKitBridge`
 4. **Select core set** — 16 essential tools loaded inline (`shell_execute`, `files_read`, `files_write`, `files_edit`, `message_search`, `memory_search`, `time_get`, `web_search`, `web_scrape`, `todos_list`, `email_list`, `contacts_list`, `skills_load`, `subagent_delegate`, `mcp_reload`, `tool_reload`)
 5. **Register `tool_search`** — always registered (core set always < total tools ~100+)
 6. **Pass to AgentLoop** — only core + tool_search, everything else searchable
+7. **Attach bridges** — `loop._connectkit_bridge` and `loop._mcp_bridge` are stored for lazy-load reconstruction
 
 ### `tool_search` tool
 
@@ -250,6 +271,8 @@ This enables the CLI Toolkit skill's **Phase 5 — Register** to work in the sam
 
 `tool_reload` also handles **deletion** of tools mid-conversation — it compares the current index contents against on-disk sources and removes entries for deleted `TOOL.md` files.
 
+**Connector tools in `tool_reload`:** If the loop has a `_connectkit_bridge`, `tool_reload` also re-indexes connector tools by calling `connectkit_bridge.get_tool_definitions()` and indexing each as `tool_type="connector"` with reconstruct metadata storing `namespace` + `tool_name`. This ensures connector changes (new auth, new spec) are reflected without a full loop restart.
+
 ### Index change detection
 
 The HybridDB index at `{ea_root}/Tools/.index/` persists between sessions. On loop start, `runner.py` checks whether re-indexing is needed:
@@ -257,7 +280,7 @@ The HybridDB index at `{ea_root}/Tools/.index/` persists between sessions. On lo
 ```python
 import hashlib
 
-def _compute_source_hashes(tools_dir: Path, workspace_tools_dir: Path | None, mcp_config: Path) -> dict[str, str]:
+def _compute_source_hashes(tools_dir: Path, workspace_tools_dir: Path | None, mcp_config: Path, connectkit_bridge: Any | None = None) -> dict[str, str]:
     """Hash all tool sources for change detection."""
     hashes = {}
     # User-level custom tools
@@ -279,18 +302,21 @@ def _compute_source_hashes(tools_dir: Path, workspace_tools_dir: Path | None, mc
     # MCP tools
     if mcp_config.exists():
         hashes["mcp:config"] = hashlib.sha256(mcp_config.read_bytes()).hexdigest()
-    # Connector tools
+    # Connector tools: spec file + connected state
     ck_config = (tools_dir.parent if tools_dir.exists() else Path()) / ".connectkit.json"
     if ck_config.exists():
         hashes["connector:config"] = hashlib.sha256(ck_config.read_bytes()).hexdigest()
+    if connectkit_bridge:
+        connected = sorted(connectkit_bridge.connected_services())
+        hashes["connector:state"] = hashlib.sha256(json.dumps(connected).encode()).hexdigest()
     return hashes
 ```
 
 Sources checked:
-- **Custom tools**: mtime + content hash of each `TOOL.md`, presence/absence of tool dirs
-- **MCP tools**: mtime + content hash of `.mcp.json`
+- **Custom tools**: content hash of each `TOOL.md`, presence/absence of tool dirs
+- **MCP tools**: content hash of `.mcp.json`
 - **Native tools**: assumed static (Python code doesn't change at runtime)
-- **Connector tools**: mtime of connectkit spec files
+- **Connector tools**: content hash of `.connectkit.json` spec + sorted set of connected service names (catches OAuth changes without file modification)
 
 If hashes match → load existing HybridDB (instant).
 If any hash changed → rebuild index fully, persist new hashes to `{ea_root}/Tools/.index/.index_hashes.json`.
@@ -330,11 +356,11 @@ Tool names and descriptions are the primary search surface in HybridDB FTS5:
 ### Implementation plan
 
 1. `src/storage/paths.py` — add `user_tools_dir()` and `workspace_tools_dir()`
-2. `src/sdk/tools_custom.py` — `CustomToolRegistry` parses `TOOL.md`, builds `ToolDefinition` with shell-execute wrapper
+2. `src/sdk/tools_custom.py` — `CustomToolRegistry` parses `TOOL.md`, builds `ToolDefinition` with `subprocess.run(shell=True)` wrapper
 3. `src/sdk/tool_index.py` — `ToolIndex` wrapping HybridDB for all-tool search, with change detection
 4. `src/sdk/tools_core/tool_search.py` — `tool_search` synthetic core tool
-5. `src/sdk/tools_core/tool_reload.py` — `tool_reload` synthetic core tool that rescans sources and rebuilds index
-6. `src/sdk/loop.py` — add recency tracking (`recently_used` set), lazy-load from index on unknown tool calls
-7. `src/sdk/runner.py` — build/load index, select core set, register `tool_search` + `tool_reload`, wire recency into loop
+5. `src/sdk/tools_core/tool_reload.py` — `tool_reload` core tool that rescans all sources (custom TOOL.md + MCP bridge + connector bridge) and rebuilds index
+6. `src/sdk/loop.py` — add recency tracking (`_recently_used` set), lazy-load `_try_lazy_load()` from index with reconstruct for all 4 tool types
+7. `src/sdk/runner.py` — index ALL tool sources (native, custom, MCP, connector) into HybridDB; attach bridges to loop; include connector auth state in change detection hashes
 8. `src/skills_seed/cli-toolkit/SKILL.md` — the discover/install/learn/execute/register workflow
-9. Tests in `tests/sdk/test_tool_search.py`, `tests/sdk/test_custom_tools.py`
+9. Tests in `tests/sdk/test_tool_search.py`, `tests/sdk/test_custom_tools.py`, `tests/sdk/test_tool_lazy_load.py`

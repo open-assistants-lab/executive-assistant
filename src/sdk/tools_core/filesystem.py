@@ -39,18 +39,23 @@ def _resolve_path(path: str | None, user_id: str, workspace_id: str = "personal"
     if get_settings().filesystem.workspace_root:
         if path.startswith("/"):
             resolved = Path(path).resolve()
-            ea_root = paths.ea_root.resolve()
+            ea_root = paths.root.resolve()
             if resolved.is_relative_to(ea_root) or str(resolved) == str(ea_root):
                 return resolved
             raise ValueError(f"Absolute path outside EA root: {path}")
         return (root_path / path).resolve()
 
     if path.startswith("/"):
-        raise ValueError(f"Use relative paths only. Path: {path}")
+        resolved = Path(path).resolve()
+        ea_root = paths.root.resolve()
+        if resolved.is_relative_to(ea_root) or str(resolved) == str(ea_root):
+            return resolved
+        raise ValueError(f"Absolute path outside EA root: {path}")
 
     is_skills_path = str(paths.user_skills_dir()) in path or path.startswith(
         "data/private/skills/"
     )
+    is_tools_path = str(paths.user_tools_dir()) in path
     if is_skills_path:
         expected_prefix = str(paths.user_skills_dir()) + "/"
         if not (str(Path.cwd() / path).resolve()).startswith(
@@ -58,6 +63,15 @@ def _resolve_path(path: str | None, user_id: str, workspace_id: str = "personal"
         ) and not path.startswith(expected_prefix):
             raise ValueError(f"Can only write to your own skills directory: {expected_prefix}")
         resolved = (Path.cwd() / path).resolve()
+    elif str(paths.user_subagents_dir()) in path:
+        resolved = Path(path).resolve()
+        if not resolved.is_relative_to(paths.user_subagents_dir()):
+            raise ValueError(f"Path outside subagents directory: {path}")
+        resolved = resolved
+    elif is_tools_path:
+        resolved = Path(path).resolve()
+        if not resolved.is_relative_to(paths.user_tools_dir()):
+            raise ValueError(f"Path outside tools directory: {path}")
     else:
         resolved = (root_path / path).resolve()
         if not resolved.is_relative_to(root_path):

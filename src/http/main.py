@@ -49,14 +49,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         from src.config import get_settings
         settings = get_settings()
         if getattr(settings.companion, "enabled", False):
-            from src.sdk.companion_scheduler import (
-                CompanionScheduler,
-                _companion_schedulers,
-            )
-            scheduler = CompanionScheduler("default_user")
-            await scheduler.start()
-            _companion_schedulers["default_user"] = scheduler
-            get_logger().info("companion.started", {}, user_id="system")
+            pass  # Companion scheduler disabled
 
         # Start connectkit token refresh background task
         _token_refresh_task: asyncio.Task | None = None
@@ -82,14 +75,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     print("HTTP server ready (SDK runtime)")
     yield
 
-    # Stop companion schedulers
+    # Only companion cleanup: token refresh task
     try:
         from src.app_logging import get_logger
-        from src.sdk.companion_scheduler import _companion_schedulers
-
-        for scheduler in _companion_schedulers.values():
-            await scheduler.stop()
-        _companion_schedulers.clear()
 
         if _token_refresh_task is not None:
             _token_refresh_task.cancel()

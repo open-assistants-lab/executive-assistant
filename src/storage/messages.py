@@ -69,7 +69,7 @@ class MessageStore:
             path=str(base_path),
             enable_observations=True,
             enable_reflections=True,
-            observation_kwargs={"session_id": ""},
+            observation_kwargs={"session_id": workspace_id},
         )
 
         try:
@@ -332,7 +332,19 @@ class MessageStore:
             return self._core.count()
         ts_after = f"{start_date.isoformat()}T00:00:00" if start_date else None
         ts_before = f"{end_date.isoformat()}T23:59:59" if end_date else None
-        return len(self._core.fetch_all(ts_after=ts_after, ts_before=ts_before))
+        try:
+            with self._core.db._connect() as cur:
+                query = "SELECT COUNT(*) FROM messages WHERE 1=1"
+                params: list[str] = []
+                if ts_after:
+                    query += " AND ts >= ?"
+                    params.append(ts_after)
+                if ts_before:
+                    query += " AND ts <= ?"
+                    params.append(ts_before)
+                return cur.execute(query, params).fetchone()[0]
+        except Exception:
+            return len(self._core.fetch_all(ts_after=ts_after, ts_before=ts_before))
 
     def delete_messages_for_workspace(self, workspace_id: str) -> int:
         """Delete all messages for a workspace.

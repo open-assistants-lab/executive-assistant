@@ -221,14 +221,13 @@ async def handle_message(req: MessageRequest, _: None = Depends(require_auth)) -
                 tool_contents = []
                 for m in result_messages:
                     if m.role == "tool" and m.content:
-                        tool_contents.append(
-                            m.content if isinstance(m.content, str) else str(m.content)
+                        content = m.content if isinstance(m.content, str) else str(m.content)
+                        tool_contents.append(content)
+                        conversation.add_message(
+                            "tool",
+                            content,
+                            metadata={"tool_name": m.name or "unknown", "workspace_id": workspace_id},
                         )
-                conversation.add_message(
-                    "tool",
-                    str(m.content),
-                    metadata={"tool_name": m.name or "unknown", "workspace_id": workspace_id},
-                )
 
                 response = ""
                 last_ai = None

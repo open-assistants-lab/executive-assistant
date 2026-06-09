@@ -255,6 +255,7 @@ class SummarizationMiddleware(Middleware):
             *recent_messages,
         ]
         state.messages = new_messages
+        self._last_summary_msg_count = len(new_messages)
 
         if self._on_summarize is not None:
             try:

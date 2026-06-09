@@ -7,7 +7,8 @@ Date: 2026-06-09
 ```
 Provider (LLM response)
   → raw_args: str
-    → loop.py:1001-1003 or ollama.py:95 (streaming vs non-streaming)
+    → Streaming: loop.py:1001-1003
+    → Non-streaming: ollama.py:95
       → json.loads(raw_args)
         → success: parsed dict
         → JSONDecodeError: repair_tool_call(raw_args)
@@ -17,8 +18,8 @@ Provider (LLM response)
 
 Defined in `src/sdk/validation.py:82`.
 
-| Step | Function | Input | When it fires |
-|------|----------|-------|---------------|
+| Step | Function | Input example | What it fixes |
+|------|----------|---------------|---------------|
 | 1 | `json.loads()` direct | Raw args | Always (valid JSON passes through) |
 | 2 | `_fix_trailing_commas` | `{...},` | Models that emit trailing commas before closing |
 | 3 | `_fix_single_quotes` | `{'key': 'value'}` | Models that emit Python-style dicts instead of JSON |

@@ -4,10 +4,12 @@ from pathlib import Path
 
 from src.sdk.loop import get_current_agent_loop
 from src.sdk.tool_index import (
+    ToolIndex,
     compute_source_hashes,
     save_source_hashes,
 )
 from src.sdk.tools import tool
+from src.sdk.tools_custom import is_core_tool
 
 
 def _scan_custom_tool_names(tools_dir: Path) -> set[str]:
@@ -22,12 +24,11 @@ def _scan_custom_tool_names(tools_dir: Path) -> set[str]:
 
 @tool
 def tool_reload() -> str:
-    """Reload and re-index all custom tools from disk. Use after creating, editing, or deleting a TOOL.md file.
+    """Reload and re-index all tools from current sources. Use after creating, editing, or deleting a TOOL.md file,
+    or after connecting/disconnecting a connector service.
 
-    This applies to:
-      - Custom tools (TOOL.md files in Tools/ directory)
-      - MCP tools (.mcp.json changes)
-      - Connector tools
+    MCP servers must be reconnected via `mcp_reload()` first — this only re-indexes
+    whatever MCP tools are already registered in the bridge.
 
     Native tools (built-in) are always available and don't need reloading.
 
@@ -35,8 +36,15 @@ def tool_reload() -> str:
         Summary of tools added, removed, or changed
     """
     loop = get_current_agent_loop()
-    if loop is None or not hasattr(loop, "_tool_index") or loop._tool_index is None:
-        return "No tool index available."
+    if loop is None:
+        return "No active agent session."
+
+    if not hasattr(loop, "_tool_index") or loop._tool_index is None:
+        from src.storage.paths import get_paths
+        paths = get_paths(user_id=loop.user_id or "default_user", workspace_id=loop.workspace_id or "personal")
+        index_dir = paths.user_tools_dir() / ".index"
+        index_dir.mkdir(parents=True, exist_ok=True)
+        loop._tool_index = ToolIndex(index_dir)
 
     from src.storage.paths import get_paths
 
@@ -47,36 +55,81 @@ def tool_reload() -> str:
     index_dir = user_tools_dir / ".index"
     hashes_path = index_dir / ".index_hashes.json"
 
-    from src.sdk.tools_custom import get_custom_tools, is_core_tool
+    connectkit_bridge = getattr(loop, "_connectkit_bridge", None)
 
-    prev_names = set(loop._tool_index.list_all_names())
+    try:
+        prev_names = set(loop._tool_index.list_all_names())
+        loop._tool_index.clear()
 
-    loop._tool_index.clear()
-    all_custom = get_custom_tools(user_id=loop.user_id or "default_user", workspace_id=loop.workspace_id or "personal")
-    for td in all_custom:
-        if not is_core_tool(td.name):
-            loop._tool_index.index_tool(td, tool_type="custom", namespace="custom", reconstruct={"command": td.description})
+        # Index custom (TOOL.md) tools
+        from src.sdk.tools_custom import find_tool_file, get_custom_tools, load_tool_meta
 
-    current_hashes = compute_source_hashes(user_tools_dir, workspace_tools_dir, mcp_config)
-    save_source_hashes(hashes_path, current_hashes)
+        custom_count = 0
+        for td in get_custom_tools(user_id=loop.user_id or "default_user", workspace_id=loop.workspace_id or "personal"):
+            if not is_core_tool(td.name):
+                tool_file = find_tool_file(td.name, user_tools_dir, workspace_tools_dir)
+                reconstruct_data = {"command": "", "install": []}
+                if tool_file:
+                    meta = load_tool_meta(tool_file)
+                    if meta:
+                        reconstruct_data = {
+                            "command": meta.get("command", ""),
+                            "install": meta.get("install", []),
+                        }
+                loop._tool_index.index_tool(td, tool_type="custom", namespace="custom", reconstruct=reconstruct_data)
+                custom_count += 1
 
-    new_names = set(loop._tool_index.list_all_names())
-    added = new_names - prev_names
-    removed = prev_names - new_names
+        # Index MCP tools from the bridge
+        mcp_bridge = getattr(loop, "_mcp_bridge", None)
+        mcp_count = 0
+        if mcp_bridge:
+            for td in mcp_bridge.get_tool_definitions():
+                if not is_core_tool(td.name):
+                    parts = td.name.split("__", 2)
+                    server_name = parts[1] if len(parts) == 3 else ""
+                    reconstruct = {"server_name": server_name, "mcp_tool_name": td.name}
+                    loop._tool_index.index_tool(td, tool_type="mcp", namespace=f"mcp__{server_name}", reconstruct=reconstruct)
+                    mcp_count += 1
 
-    if hasattr(loop, "_recently_used") and loop._recently_used:
-        for name in removed:
-            loop._recently_used.discard(name)
+        # Index connector tools from the bridge
+        connector_count = 0
+        if connectkit_bridge:
+            from src.sdk.runner import _connector_dicts_to_defs
+            all_tool_dicts = connectkit_bridge.get_tool_definitions()
+            converted = _connector_dicts_to_defs(all_tool_dicts)
+            for td in converted:
+                if not is_core_tool(td.name):
+                    namespace = td.name.split("__")[0] if "__" in td.name else "connector"
+                    reconstruct = {"namespace": namespace, "tool_name": td.name}
+                    loop._tool_index.index_tool(td, tool_type="connector", namespace=namespace, reconstruct=reconstruct)
+                    connector_count += 1
+
+        current_hashes = compute_source_hashes(
+            user_tools_dir, workspace_tools_dir, mcp_config,
+            connectkit_bridge=connectkit_bridge,
+        )
+        save_source_hashes(hashes_path, current_hashes)
+
+        new_names = set(loop._tool_index.list_all_names())
+        added = new_names - prev_names
+        removed = prev_names - new_names
+        updated = new_names & prev_names  # tools that still exist but may have changed
+
+        # Evict stale inline copies — lazy-load will re-resolve from fresh index on next call
+        if hasattr(loop, "_registry") and loop._registry:
+            for name in removed | updated:
+                if loop._registry.has(name):
+                    loop._registry.remove(name)
+                if hasattr(loop, "_recently_used") and loop._recently_used:
+                    loop._recently_used.discard(name)
+
+        lines = [f"Index rebuilt ({custom_count} custom, {mcp_count} MCP, {connector_count} connector)."]
         if added:
-            pass
-
-    lines = []
-    lines.append(f"Index rebuilt. {len(new_names)} custom tools indexed.")
-    if added:
-        lines.append(f"  Added: {', '.join(sorted(added))}")
-    if removed:
-        lines.append(f"  Removed: {', '.join(sorted(removed))}")
-    if not added and not removed:
-        lines.append("  No changes detected.")
-
-    return "\n".join(lines)
+            lines.append(f"  Added: {', '.join(sorted(added))}")
+        if removed:
+            lines.append(f"  Removed: {', '.join(sorted(removed))}")
+        if not added and not removed:
+            lines.append("  No changes detected.")
+        return "\n".join(lines)
+    except Exception as e:
+        return f"Error rebuilding tool index: {e}"

@@ -77,7 +77,7 @@ def _list_workspace_ids(user_id: str) -> list[str]:
     return workspace_ids
 
 
-def _fetch_session_ids(store: Any, msg_ids: list[int]) -> dict[int, str]:
+def _fetch_session_ids(store: Any, msg_ids: list[str]) -> dict[str, str]:
     """Batch-lookup session_ids from message metadata.
 
     Extracts session_id from the metadata JSON column.
@@ -85,7 +85,7 @@ def _fetch_session_ids(store: Any, msg_ids: list[int]) -> dict[int, str]:
     """
     import json as _json
 
-    result: dict[int, str] = {}
+    result: dict[str, str] = {}
     if not msg_ids:
         return result
 
@@ -370,7 +370,7 @@ def message_count(
     all_results: list[SearchResult] = []
 
     for q in queries:
-        results = conversation.search_hybrid(q, limit=search_limit)
+        results = conversation.search_hybrid(q, limit=search_limit, metadata={"workspace_id": workspace_id})
         for r in results:
             if r.id not in seen_ids:
                 seen_ids.add(r.id)

@@ -5,13 +5,14 @@ from src.sdk.tools import tool
 
 
 @tool
-def tool_search(description: str) -> str:
+def tool_search(description: str, user_id: str = "default_user") -> str:
     """Search for a tool by describing what you need. Returns 3-5 matching tool names with descriptions.
 
     After finding the right tool, call it directly by name — it will be loaded for subsequent turns.
 
     Args:
         description: Describe the capability you need in detail. Use specific keywords about what the tool should do.
+        user_id: User identifier (automatically provided)
 
     Returns:
         Name and truncated description of matching tools
