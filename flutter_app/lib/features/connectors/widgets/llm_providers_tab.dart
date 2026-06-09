@@ -106,7 +106,9 @@ class _LlmProvidersTabState extends ConsumerState<LlmProvidersTab> {
                         final pid = p['id'] as String;
                         final name = p['name'] as String? ?? pid;
                         final models =
-                            List<String>.from(p['models'] ?? []);
+                            (p['models'] as List?)
+                                ?.map((m) => (id: m.toString(), name: m.toString()))
+                                .toList() ?? [];
                         final hasKey =
                             (settings.providerKeys.containsKey(pid) &&
                                     settings

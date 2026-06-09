@@ -1,8 +1,8 @@
-# Migrate EA Observation/Reflection to CoreMem Pipelines
+# Migrate EA Observation/Reflection to OSS CoreMem Pipelines
 
 **Date:** 2026-06-09
 **Status:** Draft
-**Motivation:** EA vendors two custom observation/reflection files (`src/storage/memory.py`, `src/sdk/middleware_observation.py`, `src/sdk/tools_core/observation.py`) that duplicate CoreMem's `ObserverPipeline` and `ReflectorPipeline` with worse defaults, no alignment gate, no classification, no dedup, and no hybrid reflector trigger.
+**Motivation:** EA vendors three custom files (`src/storage/memory.py`, `src/sdk/middleware_observation.py`, `src/sdk/tools_core/observation.py`) that duplicate CoreMem's `ObserverPipeline` and `ReflectorPipeline` with worse defaults, no alignment gate, no classification, no dedup, and no hybrid reflector trigger. CoreMem `>=0.7.1` is already a dependency — EA just doesn't use its pipelines.
 
 ---
 
@@ -29,7 +29,7 @@ memory_profile / memory_reflection tools
 **3 files to delete:**
 - `src/storage/memory.py` (MemoryStore, `get_memory_store`, `clear_memory_store_cache`)
 - `src/sdk/tools_core/observation.py` (run_observer, run_reflector, prompts)
-- `src/sdk/middleware_observation.py` (ObservationMiddleware)
+- `src/sdk/middleware_observation.py` (ObservationMiddleware — rewritten)
 
 ---
 
@@ -38,41 +38,41 @@ memory_profile / memory_reflection tools
 ```
 MessageStore (MemoryCore @ conversation/)
   ├── messages table
-  ├── observations table (CoreMem _OBSERVATIONS_SCHEMA)
+  ├── observations table (CoreMem _OBSERVATIONS_SCHEMA — 25 cols)
   ├── observation_events table
   ├── observation_conflicts table
-  └── reflections table (CoreMem _REFLECTIONS_SCHEMA)
+  └── reflections table (CoreMem _REFLECTIONS_SCHEMA — 8 cols)
 
 No separate MemoryStore. No separate DB for memory.
 
 ObservationMiddleware — rewritten to use:
-  └── coremem.observer.ObserverPipeline
+  └── coremem.observer.ObserverPipeline (via MemoryCore._observer_pipeline)
         ├── token_threshold=100 (instead of 8000)
         ├── min_turns=1 (instead of 3)
         ├── 5 parallel LFs (entities, actions, preferences, temporal, sentiment)
-        ├── alignment-gated source quotes
-        ├── optional classification + durability filter
-        └── semantic dedup + merge
+        ├── alignment-gated source quotes (EXACT/FUZZY/NONE)
+        ├── classification + durability filter (12 memory_types)
+        └── semantic dedup + merge (duplicate/refine/supersede/contradict)
 
 ReflectorMiddleware — rewritten to use:
-  └── coremem.reflector.ReflectorPipeline
+  └── coremem.reflector.ReflectorPipeline (via MemoryCore._reflector_pipeline)
         ├── interval_hours=24 (unchanged)
         ├── trigger_every_n_observations=50 (new — hybrid OR trigger)
         ├── min_observations=10 (unchanged)
         ├── priority sampling at >200 obs
-        └── cosine similarity dedup quality gate
+        └── cosine similarity dedup quality gate (requires embedding_fn)
 
 memory_profile / memory_reflection tools
-  └── read from MemoryCore via MessageStore._core
+  └── read from MemoryCore via MessageStore
 ```
 
 ---
 
 ## 3. Schema Changes
 
-### 3.1 New tables (auto-created by MemoryCore)
+### 3.1 New tables (auto-created by MemoryCore with `enable_observations=True`)
 
-Observations (`_OBSERVATIONS_SCHEMA` — 21 columns):
+Observations (`_OBSERVATIONS_SCHEMA` — 25 columns):
 
 | Column | Type | Notes |
 |--------|------|-------|
@@ -102,7 +102,7 @@ Observations (`_OBSERVATIONS_SCHEMA` — 21 columns):
 | `reflected` | INTEGER | 0 or 1 |
 | `embedding` | TEXT | JSON float array |
 
-Reflections (`_REFLECTIONS_SCHEMA` — 7 columns):
+Reflections (`_REFLECTIONS_SCHEMA` — 8 columns):
 
 | Column | Type | Notes |
 |--------|------|-------|
@@ -125,17 +125,28 @@ Plus `observation_events` and `observation_conflicts` tables.
 | `relative_date` | `referenced_date` (already exists) |
 | `source_message_range` | `source_message_ids` + `source_quote` |
 | `confidence` (reflections, 0.6) | `score` (reflections, 1.0) |
-| `decay_rate` (reflections, 0.05) | CoreMem's built-in `apply_decay` (half-life model) |
+| `decay_rate` (reflections, 0.05) | CoreMem's `apply_decay` (flat 0.9 multiplier, half-life model) |
 | `access_count` / `last_accessed_at` | Not needed — CoreMem doesn't boost on access |
 | `updated_at` | Not needed — observations are append-only with supersede |
 
 ### 3.3 Data migration
 
-Existing `memory/app.db` needs to be migrated into `conversation/app.db`:
+Existing `data/users/{user_id}/memory/app.db` needs to be migrated into `data/users/{user_id}/conversation/app.db`:
 
-1. Copy observations: `INSERT INTO conversation.observations SELECT ... FROM memory.observations` with schema adaptation (emoji priority → importance, drop decay-only columns)
-2. Copy reflections: same with `memory_type`/`domain` mapping
-3. After migration, delete `memory/app.db` (or keep for rollback)
+1. **Copy observations** — raw SQL `INSERT INTO conversation.observations SELECT ... FROM memory.observations` with:
+   - `priority` emoji → `importance` float: `🟢→0.3, 🟡→0.5, 🔴→0.8`
+   - `source_message_range` → `source_message_ids` (parse range string to JSON array)
+   - Preserve existing `id` values (CoreMem uses `str(uuid.uuid4())[:12]`, EA uses `uuid.uuid4().hex[:12]` — different format)
+   - Set new columns to defaults: `kind='fact'`, `durability='durable'`, `status='candidate'`, `reflected=0`, `entities='[]'`, `confidence=0.800`
+
+2. **Copy reflections** — raw SQL `INSERT INTO conversation.reflections SELECT ... FROM memory.reflections` with:
+   - `confidence` → `score` (same value)
+   - `linked_observation_ids` — ensure JSON array format (EA stores both string and JSON)
+   - Preserve existing `id` values (CoreMem's `insert_reflections()` ignores `item.get("id")` — must use raw SQL)
+   - Set new columns to defaults: `user_id=''`, `session_id=''`, `embedding=''`
+
+3. **Mark migrated** — write a sentinel file or DB flag so migration runs once
+4. **Keep old DB** for rollback — do not delete `memory/app.db`
 
 ---
 
@@ -144,43 +155,33 @@ Existing `memory/app.db` needs to be migrated into `conversation/app.db`:
 ### 4.1 MessageStore changes (`src/storage/messages.py`)
 
 - `MemoryCore` constructor gets `enable_observations=True`, `enable_reflections=True`
-- Add a migration step `_migrate_memory_store(base_path)` that copies data from `data/users/{user_id}/memory/app.db` into `data/users/{user_id}/conversation/app.db` (run once)
-- Expose `MemoryCore.observations()` / `.reflections()` / `.get_pending_reflections()` / `.extract_observations()` / `.reflect()` for tools and middleware
-- The `observer_pipeline` and `reflector_pipeline` fields need to be accessible (or the middleware creates them)
+- Add `_migrate_memory_store()` that copies data from old `memory/app.db` into `conversation/app.db` (run once, gated by sentinel)
+- **Expose `core` as a public property** — middleware and tools need access to `MemoryCore.observations()`, `.reflections()`, `.get_pending_reflections()`, `.apply_decay()`
+- **Middleware uses MemoryCore's internal pipelines** — `MemoryCore` already creates `_observer_pipeline` and `_reflector_pipeline` when `enable_observations=True`. The middleware accesses these via `core._observer_pipeline` / `core._reflector_pipeline` instead of creating separate instances. No duplicate pipelines.
 
 ### 4.2 ObservationMiddleware rewritten (`src/sdk/middleware_observation.py`)
 
 ```python
 class ObservationMiddleware(Middleware):
-    def __init__(self, user_id, workspace_id, session_id, ...):
-        # Get MessageStore's MemoryCore
+    def __init__(self, user_id, workspace_id, ...):
         store = get_message_store(user_id, workspace_id)
-        core = store._core  # MemoryCore with enable_observations=True
+        core = store.core  # MemoryCore with enable_observations=True
 
-        self._observer = ObserverPipeline(
-            memory=core,
-            session_id=session_id,
-            user_id=user_id,
-            token_threshold=100,
-            min_turns=1,
-            enable_classification=True,
-            enable_dedup=True,
-        )
-        self._reflector = ReflectorPipeline(
-            memory=core,
-            user_id=user_id,
-            interval_hours=24,
-            min_observations=10,
-            trigger_every_n_observations=50,
-        )
+        # Use MemoryCore's internal pipelines — no duplicate instances
+        self._observer = core._observer_pipeline
+        self._reflector = core._reflector_pipeline
 
     def after_agent(self, state):
-        # Fire-and-forget observer
         asyncio.create_task(self._observer.extract())
-        # Fire-and-forget reflector (hybrid trigger)
         asyncio.create_task(self._reflector.maybe_run())
         return None
 ```
+
+**Key design decisions:**
+- `session_id=""` — EA doesn't use session IDs. `MemoryCore.ingest()` defaults to `session_id=""`, so `ObserverPipeline.fetch(session_id="")` matches all messages. Set via `observation_kwargs={"session_id": ""}` on `MemoryCore`.
+- Provider model — CoreMem's `ObserverPipeline` uses `create_provider("deepseek:deepseek-v4-flash")` (its own factory), NOT EA's `create_model_from_config()`. If EA uses a different model, pass `observation_model` and `reflect_model` to `MemoryCore` constructor.
+- `embedding_fn` — If not provided, the cosine similarity quality gate in `ReflectorPipeline` is skipped. To enable it, pass via `reflect_kwargs={"embedding_fn": ...}` on `MemoryCore`.
+- `apply_decay()` — CoreMem's `MemoryCore.apply_decay()` exists (flat 0.9 multiplier, half-life model). EA's middleware called it before the reflector. After migration, the middleware does NOT call it — CoreMem's `ReflectorPipeline` handles its own decay internally. The behavior differs from EA's per-reflection `decay_rate` with weekly check, but this is CoreMem's design.
 
 ### 4.3 Delete `src/storage/memory.py`
 
@@ -194,28 +195,101 @@ class ObservationMiddleware(Middleware):
 
 ### 4.5 Memory tools updated (`src/sdk/tools_core/memory.py`)
 
-- `memory_profile` reads from `MessageStore._core.observations(query=None, limit=50)` instead of `MemoryStore.get_recent_observations()`
-- `memory_reflection` reads from `MessageStore._core.reflections(query=query, limit=limit)` instead of `MemoryStore.search_reflections()`
-- Remove `store.boost_reflection()` calls — CoreMem doesn't boost on access
+```python
+def _get_core(user_id, workspace_id):
+    from src.storage.messages import get_message_store
+    return get_message_store(user_id, workspace_id).core
+
+@tool
+def memory_profile(user_id="default_user", workspace_id="personal"):
+    """Return observations about the user — may be empty if Observer hasn't run.
+
+    Returns recent observations collected by the Observer. If no observations
+    are available, use message_search to find specific facts from conversation
+    history instead.
+
+    Use when the user asks "what do you know about me?" or the agent needs
+    to refresh its understanding of the user's context.
+
+    Args:
+        user_id: User identifier
+        workspace_id: Workspace ID (defaults to current workspace)
+    """
+    core = _get_core(user_id, workspace_id)
+    cutoff = (datetime.now(UTC) - timedelta(days=7)).isoformat()
+    results = core.get_observations(ts_after=cutoff, limit=50)
+    if not results:
+        return "No observations available. Try message_search to find specific facts from conversation history."
+    parts = ["## Working Memory (Recent Observations)\n"]
+    for obs in results:
+        importance = float(obs.get("importance", 0.3))
+        ts = str(obs.get("observation_ts", ""))[:10]
+        content = str(obs.get("content", ""))
+        parts.append(f"[{importance:.0%}] {ts} {content}")
+    return "\n".join(parts)
+
+@tool
+def memory_reflection(query, method="hybrid", limit=5, user_id="default_user", workspace_id="personal"):
+    """Search synthesized reflections — patterns and insights about the user.
+
+    Reflections are higher-order patterns discovered by the Reflector from
+    analyzing observations across time. May be empty if the Reflector hasn't
+    run yet (requires 10+ observations and 24h interval or 50 unreflected facts).
+
+    Use when looking for themes, trends, or synthesized understanding about
+    the user. For specific fact recall, use message_search instead.
+
+    Args:
+        query: What to search for (e.g., "career", "relationships", "habits")
+        method: Search method (fts, semantic, or hybrid) — default: hybrid
+        limit: Maximum results (default: 5)
+        user_id: User identifier
+        workspace_id: Workspace ID (defaults to current workspace)
+    """
+    core = _get_core(user_id, workspace_id)
+    results = core.reflections(query=query, limit=limit)
+    if not results:
+        return f"No reflections found for: {query}"
+    parts = [f"## Reflections for '{query}'\n"]
+    for i, refl in enumerate(results, 1):
+        score = float(refl.get("score", 1.0))
+        domain = str(refl.get("domain", ""))
+        content = str(refl.get("content", ""))
+        parts.append(f"{i}. [{domain}] {content} (confidence: {score:.0%})")
+    return "\n".join(parts)
+```
+
+**Changes from current:**
+- `method` parameter becomes a no-op — CoreMem always uses hybrid search. Keep for backward compat but document as ignored.
+- `boost_reflection()` removed — CoreMem doesn't boost on access.
+- `confidence` → `score` in display.
+- `days` filter computed manually via `ts_after` — CoreMem's `get_observations()` doesn't have a `days` parameter.
+- No emoji priority — use `importance` as a percentage label `[80%]` instead.
 
 ### 4.6 HTTP router updated (`src/http/routers/memories.py`)
 
-- Replace `get_memory_store(user_id, workspace_id)` with `get_message_store(user_id, workspace_id)._core`
-- Map CoreMem observation columns to response schema
+- Replace `get_memory_store(user_id, workspace_id)` with `get_message_store(user_id, workspace_id).core`
+- `list_observations`: `core.get_observations(ts_after=cutoff, limit=limit)` instead of `store.get_recent_observations(days=days, limit=limit)`
+- `list_reflections`: `core.get_reflections(limit=limit)` instead of `store.get_reflections(limit=limit)`
+- `search_reflections`: `core.search_reflections(query, limit=limit)` instead of `store.search_reflections(query, method, limit)`. Remove `boost_reflection()` call.
+- `search_observations`: `core.search_observations(query, limit=limit)` instead of `store.search_observations(query, limit=limit)`
+- `clear_memories`: Replace `clear_memory_store_cache()` with `core.clear()` + raw SQL deletes for observations/reflections — deletes all messages, observations, and reflections for the user. Workspace-level add/read/update/delete for observations and reflections is handled via the existing HTTP endpoints. Note: `MemoryCore.clear()` only deletes messages; observations/reflections need explicit `DELETE FROM observations` and `DELETE FROM reflections`.
 
 ### 4.7 Coordinator updated (`src/sdk/coordinator.py`)
 
-- `ObservationMiddleware` construction adjusted for new signature (needs `session_id`)
+- `ObservationMiddleware` construction at line 465 — no signature change needed (still `user_id`, `workspace_id`)
 
 ### 4.8 Runner updated (`src/sdk/runner.py`)
 
-- Construction site of `ObservationMiddleware` adjusted
+- `ObservationMiddleware` construction at line 365 — no signature change needed
 
 ### 4.9 Test updates
 
-- `tests/sdk/test_observations.py` (if it exists) updated for new schema
-- `tests/sdk/test_reflections.py` (if it exists) updated for new schema
-- Remove tests for deleted `storage/memory.py` code
+- `tests/sdk/test_memory.py` — update patches from `src.storage.memory.get_memory_store` to `src.storage.messages.get_message_store`
+- `tests/sdk/test_workspace_isolation.py` — `MemoryStore` test at line 75 needs to be rewritten for `MessageStore` + `MemoryCore`
+- `tests/perf/perf_instrument.py` — instruments `MemoryStore.__init__` (line 168). Update to instrument `MessageStore` or `MemoryCore` instead.
+- `tests/benchmarks/longmemeval/eval.py` — imports `run_observer` from `tools_core.observation.py` (line 523). Update to use `ObserverPipeline` or remove.
+- `tests/sdk/test_tool_contracts.py` — `memory_profile` and `memory_reflection` tests at lines 292-301 — update patches.
 
 ---
 
@@ -226,12 +300,16 @@ class ObservationMiddleware(Middleware):
 | DELETE | `src/storage/memory.py` (244 lines) | Entirely replaced by MemoryCore |
 | DELETE | `src/sdk/tools_core/observation.py` (187 lines) | Replaced by ObserverPipeline |
 | REWRITE | `src/sdk/middleware_observation.py` (164 → ~80 lines) | Create pipeline, trigger `.extract()`/`.maybe_run()` |
-| MODIFY | `src/storage/messages.py` | Enable observations on MemoryCore + migration |
-| MODIFY | `src/sdk/tools_core/memory.py` (~95 lines) | Switch to core.observations()/reflections() |
-| MODIFY | `src/http/routers/memories.py` | Replace get_memory_store → MessageStore._core |
-| MODIFY | `src/sdk/coordinator.py` | Adjust ObservationMiddleware construction |
-| MODIFY | `src/sdk/runner.py` | Adjust ObservationMiddleware construction |
-| MODIFY | Tests | Update for new schema and pipeline behavior |
+| MODIFY | `src/storage/messages.py` | Enable observations on MemoryCore + migration + public `core` property |
+| MODIFY | `src/sdk/tools_core/memory.py` (~95 lines) | Switch to `core.observations()`/`reflections()`, emoji mapping |
+| MODIFY | `src/http/routers/memories.py` | Replace `get_memory_store` → `MessageStore.core` |
+| MODIFY | `src/sdk/coordinator.py` | No signature change needed |
+| MODIFY | `src/sdk/runner.py` | No signature change needed |
+| MODIFY | `tests/sdk/test_memory.py` | Update patches |
+| MODIFY | `tests/sdk/test_workspace_isolation.py` | Rewrite MemoryStore test |
+| MODIFY | `tests/perf/perf_instrument.py` | Update instrument target |
+| MODIFY | `tests/benchmarks/longmemeval/eval.py` | Update observer import |
+| MODIFY | `tests/sdk/test_tool_contracts.py` | Update patches |
 
 ---
 
@@ -239,11 +317,15 @@ class ObservationMiddleware(Middleware):
 
 | Risk | Likelihood | Mitigation |
 |------|-----------|------------|
-| Schema migration fails for existing users | Low | Keep old DB file, add rollback flag |
-| CoreMem ObserverPipeline blocks on long runs | Low | It uses asyncio.gather with return_exceptions |
-| Different observation format breaks tools | Medium | CoreMem observations have more fields; tools that read them must handle both |
-| `importance` vs emoji priority breaks formatting | Low | Convert: 0.7+ → 🟢, 0.4-0.7 → 🟡, <0.4 → 🟢 in display code |
+| Schema migration fails for existing users | Low | Keep old DB file, add rollback sentinel |
+| CoreMem ObserverPipeline blocks on long runs | Low | Uses `asyncio.gather` with `return_exceptions=True` |
+| Different observation format breaks tools | Medium | CoreMem observations have more fields; display code must handle both |
+| `importance` vs emoji priority breaks formatting | Low | Use `importance` as percentage label `[80%]` instead of emoji |
 | `score` vs `confidence` breaks reflection output | Low | Show as percentage either way |
+| **Provider mismatch** — CoreMem uses its own factory | Medium | `ObserverPipeline` uses `create_provider("deepseek:deepseek-v4-flash")`, not EA's `create_model_from_config()`. If EA uses a different model, observations use a different provider. Mitigation: pass `observation_model` and `reflect_model` to `MemoryCore` constructor. |
+| **Workspace scoping lost** — `MessageStore` is per-user | Medium | EA's `MemoryStore` is per-workspace. After migration, observations are shared across workspaces. Mitigation: add `workspace_id` filtering to `MemoryCore` observation queries, or accept shared observations as a simplification. |
+| **`session_id=""` matches all messages** | Low | EA doesn't use session IDs. `MemoryCore.ingest()` defaults to `session_id=""`. ObserverPipeline fetches all messages. Correct behavior. |
+| **`embedding_fn` not provided** — quality gate skipped | Low | Cosine similarity dedup in ReflectorPipeline is skipped. Observations still deduped by ObserverPipeline's Phase 5. |
 
 ---
 
@@ -257,7 +339,7 @@ class ObservationMiddleware(Middleware):
 | Source quote verification | None | 3-tier alignment gate (EXACT/FUZZY/NONE) |
 | Classification | None | 12 memory_types + durability + sensitivity |
 | Reflector trigger | 24h only | 24h OR 50 unreflected facts |
-| Reflector quality gate | None | Cosine similarity dedup |
+| Reflector quality gate | None | Cosine similarity dedup (if `embedding_fn` provided) |
 | Duplicate observation code | 595 lines | 0 lines (deleted) |
 | Data DBs per user | 2 (messages + memory) | 1 (messages only) |
 
@@ -265,11 +347,21 @@ class ObservationMiddleware(Middleware):
 
 ## 8. Implementation Order
 
-1. **Schema migration** — Add `_migrate_memory_store()` to `MessageStore.__init__`, copy data from old `memory/app.db` to `conversation/app.db`
-2. **Enable observations on MemoryCore** — `enable_observations=True, enable_reflections=True` in `MessageStore`
-3. **Rewrite ObservationMiddleware** — Use `ObserverPipeline` + `ReflectorPipeline`
-4. **Update memory tools** — Switch from `MemoryStore` to `MemoryCore`
-5. **Delete old files** — `storage/memory.py`, `tools_core/observation.py`, `old_middleware_observation.py`
-6. **Fix callers** — `coordinator.py`, `runner.py`, `memories.py` router
-7. **Update tests**
-8. **Run validation** — Ensure `memory_profile` and `memory_reflection` tools work end-to-end
+1. **Schema migration** — Add `_migrate_memory_store()` to `MessageStore.__init__`, copy data from old `memory/app.db` to `conversation/app.db` using raw SQL to preserve IDs
+2. **Enable observations on MemoryCore** — `enable_observations=True, enable_reflections=True` in `MessageStore`, expose `core` as public property
+3. **Rewrite ObservationMiddleware** — Use `ObserverPipeline` + `ReflectorPipeline` with `session_id=""`, call `apply_decay()` before reflector
+4. **Update memory tools** — Switch from `MemoryStore` to `MemoryCore`, add emoji→importance mapping, remove `boost_reflection()`
+5. **Update HTTP router** — Replace `get_memory_store` with `MessageStore.core`
+6. **Delete old files** — `storage/memory.py`, `tools_core/observation.py`
+7. **Fix remaining callers** — `coordinator.py`, `runner.py`, `perf_instrument.py`, `longmemeval/eval.py`
+8. **Update tests**
+9. **Run validation** — Ensure `memory_profile` and `memory_reflection` tools work end-to-end
+
+---
+
+## 9. Open Questions
+
+1. **Provider model** — Should `ObserverPipeline` use EA's configured model (via `create_model_from_config()`) or CoreMem's default `"deepseek:deepseek-v4-flash"`? Currently `MemoryCore.__init__` accepts `observation_model` and `reflect_model` params but `MessageStore` doesn't pass them.
+2. **Workspace scoping** — Should observations be per-workspace (current behavior) or shared across workspaces (simpler)? If per-workspace, need to add `workspace_id` column to observations or filter by metadata.
+3. **`embedding_fn` source** — Where should the embedding function come from for `ReflectorPipeline`'s cosine similarity gate? ChromaDB's internal embedding function? A separate model call?
+4. **`method` parameter on `memory_reflection`** — CoreMem always uses hybrid search. Should we keep the parameter as a no-op for backward compat, or remove it?
