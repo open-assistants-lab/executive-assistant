@@ -195,6 +195,9 @@ class OllamaCloud(LLMProvider):
                 )
 
         if data.get("done", False):
+            if thinking:
+                chunks.append(StreamChunk.reasoning_delta(content=thinking))
+                chunks.append(StreamChunk.reasoning(content=thinking))
             if content:
                 chunks.append(StreamChunk.text_delta(content=content))
                 chunks.append(StreamChunk.ai_token(content=content))

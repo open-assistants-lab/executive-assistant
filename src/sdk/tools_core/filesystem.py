@@ -40,7 +40,7 @@ def _resolve_path(path: str | None, user_id: str, workspace_id: str = "personal"
         if path.startswith("/"):
             resolved = Path(path).resolve()
             ea_root = paths.ea_root.resolve()
-            if str(resolved).startswith(str(ea_root)):
+            if resolved.is_relative_to(ea_root) or str(resolved) == str(ea_root):
                 return resolved
             raise ValueError(f"Absolute path outside EA root: {path}")
         return (root_path / path).resolve()

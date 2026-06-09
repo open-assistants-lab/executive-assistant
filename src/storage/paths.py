@@ -135,6 +135,11 @@ class DataPaths:
         p.mkdir(parents=True, exist_ok=True)
         return p
 
+    def user_tools_dir(self) -> Path:
+        p = self.root / "Tools"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
     def user_prompt_path(self) -> Path:
         return self.root / "AGENTS.md"
 
@@ -201,6 +206,11 @@ class DataPaths:
 
     def workspace_subagents_dir(self) -> Path:
         p = self.root / "Workspaces" / self.workspace_id / "Subagents"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    def workspace_tools_dir(self) -> Path:
+        p = self.root / "Workspaces" / self.workspace_id / "Tools"
         p.mkdir(parents=True, exist_ok=True)
         return p
 

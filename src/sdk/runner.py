@@ -340,6 +340,53 @@ async def create_sdk_loop(user_id: str, workspace_id: str = "personal", model: s
 
     logger.info("sdk_runner.tools_loaded", {"count": len(all_tools)}, user_id=user_id)
 
+    # Build tool index and separate core from searchable tools
+    from src.sdk.tool_index import get_or_create_index
+    from src.sdk.tools_core.tool_reload import tool_reload
+
+    # Register tool_search and tool_reload as core tools
+    from src.sdk.tools_core.tool_search import tool_search
+    from src.sdk.tools_custom import CORE_TOOL_NAMES, is_core_tool
+
+    core_tool_defs: list[ToolDefinition] = []
+    searchable_tool_defs: list[ToolDefinition] = []
+
+    for td in all_tools:
+        if is_core_tool(td.name) or td.name in CORE_TOOL_NAMES:
+            core_tool_defs.append(td)
+        else:
+            searchable_tool_defs.append(td)
+
+    # Always include tool_search and tool_reload
+    core_tool_defs.append(tool_search)
+    core_tool_defs.append(tool_reload)
+
+    paths = _get_paths(user_id, workspace_id=workspace_id)
+    user_tools_dir = paths.user_tools_dir()
+    workspace_tools_dir = paths.workspace_tools_dir() if workspace_id else None
+    mcp_config = paths.user_mcp_config()
+
+    idx = get_or_create_index(
+        user_tools_dir, workspace_tools_dir, mcp_config,
+        user_id=user_id, workspace_id=workspace_id,
+    )
+
+    if idx.count() == 0:
+        from src.sdk.tools_custom import get_custom_tools, find_tool_file, load_tool_meta
+        for td in get_custom_tools(user_id=user_id, workspace_id=workspace_id):
+            if not is_core_tool(td.name):
+                tool_file = find_tool_file(td.name, user_tools_dir, workspace_tools_dir)
+                reconstruct_data = {"command": "", "install": []}
+                if tool_file:
+                    meta = load_tool_meta(tool_file)
+                    if meta:
+                        reconstruct_data = {
+                            "command": meta.get("command", ""),
+                            "install": meta.get("install", []),
+                        }
+                idx.index_tool(td, tool_type="custom", namespace="custom",
+                               reconstruct=reconstruct_data)
+
     summary_config = settings.memory.summarization
 
     middlewares: list[Any] = []
@@ -376,12 +423,21 @@ async def create_sdk_loop(user_id: str, workspace_id: str = "personal", model: s
 
     loop = AgentLoop(
         provider=provider,
-        tools=all_tools,
+        tools=core_tool_defs,
         system_prompt=_get_system_prompt(user_id, workspace_id),
         middlewares=middlewares,
         user_id=user_id,
         workspace_id=workspace_id,
     )
+
+    loop._tool_index = idx
+    if searchable_tool_defs:
+        total_tools = idx.count() + len(core_tool_defs)
+        tool_hint = (
+            f"\n\nYou have access to {total_tools} additional tools across all categories. "
+            "Use tool_search(description='what you need') to find and load a specific tool."
+        )
+        loop.system_prompt += tool_hint
 
     if mcp_bridge:
         loop._mcp_bridge = mcp_bridge

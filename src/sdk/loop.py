@@ -183,6 +183,9 @@ class AgentLoop:
             for t in tools:
                 self._registry.register(t)
 
+        self._tool_index: Any | None = None
+        self._recently_used: set[str] = set()
+
         self._handoff_tool_names: set[str] = set()
         for h in self.handoffs:
             self._handoff_tool_names.add(h.tool_name)
@@ -256,8 +259,12 @@ class AgentLoop:
         """Execute a tool call, returning a ToolResult with structured content."""
         tool_def = self._registry.get(tc.name)
         if tool_def is None:
+            result = await self._try_lazy_load(tc)
+            if result is not None:
+                return result
             return ToolResult(content=f"Unknown tool: {tc.name}", is_error=True)
 
+        self._recently_used.add(tc.name)
         tc = self._with_runtime_context(tc)
 
         try:
@@ -271,6 +278,42 @@ class AgentLoop:
             return ToolResult.from_raw(result)
         except Exception as e:
             logger.error(f"tool_execution_error tool={tc.name}: {e}")
+            return ToolResult(content=str(e), is_error=True)
+
+    async def _try_lazy_load(self, tc: ToolCall) -> ToolResult | None:
+        """Try to lazy-load a tool from the index and reconstruct its function."""
+        if self._tool_index is None:
+            return None
+        td = self._tool_index.get_definition(tc.name)
+        if td is None:
+            return None
+        reconstruct = self._tool_index.get_reconstruct(tc.name)
+        tool_type = "unknown"
+        db_rows = self._tool_index.db.query("tools", where="name = ?", params=(tc.name,))
+        if db_rows:
+            tool_type = db_rows[0].get("tool_type", "unknown")
+
+        if tool_type == "custom":
+            from src.sdk.tool_index import _rebuild_custom_function
+            td = _rebuild_custom_function(td, reconstruct)
+        elif tool_type in ("mcp", "connector"):
+            return ToolResult(
+                content=f"{tool_type.capitalize()} tool '{tc.name}' is not currently loaded. "
+                        f"Run the appropriate reload command and try again.",
+                is_error=True,
+            )
+
+        self._registry.register(td)
+        self._recently_used.add(tc.name)
+        tc = self._with_runtime_context(tc)
+
+        try:
+            if td._coroutine:
+                result = await td.ainvoke(tc.arguments)
+            else:
+                result = td.invoke(tc.arguments)
+            return ToolResult.from_raw(result)
+        except Exception as e:
             return ToolResult(content=str(e), is_error=True)
 
     def _with_runtime_context(self, tc: ToolCall) -> ToolCall:

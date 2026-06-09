@@ -34,60 +34,49 @@ logger = get_logger()
 _loop: asyncio.AbstractEventLoop | None = None
 _loop_lock = threading.Lock()
 _TIMEOUT_SECONDS = 300
-_LOOP_ERROR_COUNT = 0
-_MAX_LOOP_ERRORS = 3
+
+
+def _recreate_loop() -> None:
+    global _loop
+    if _loop and not _loop.is_closed():
+        _loop.call_soon_threadsafe(_loop.stop)
+    _loop = asyncio.new_event_loop()
+    thread = threading.Thread(target=_loop.run_forever, daemon=True)
+    thread.start()
 
 
 def _get_loop() -> asyncio.AbstractEventLoop:
-    global _loop, _LOOP_ERROR_COUNT
+    global _loop
     with _loop_lock:
         if _loop is None or _loop.is_closed():
-            _loop = asyncio.new_event_loop()
-            thread = threading.Thread(target=_loop.run_forever, daemon=True)
-            thread.start()
-            _LOOP_ERROR_COUNT = 0
+            _recreate_loop()
         return _loop
 
 
 def _run_async(coro: Any) -> Any:
-    global _LOOP_ERROR_COUNT
-
     try:
         loop = _get_loop()
         future = asyncio.run_coroutine_threadsafe(coro, loop)
         return future.result(timeout=_TIMEOUT_SECONDS)
     except TimeoutError:
         with _loop_lock:
-            _LOOP_ERROR_COUNT += 1
-            current_count = _LOOP_ERROR_COUNT
+            _recreate_loop()
         logger.warning(
             "subagent.bridge_timeout",
-            {"timeout_s": _TIMEOUT_SECONDS, "error_count": current_count},
+            {"timeout_s": _TIMEOUT_SECONDS},
             user_id="system",
         )
-        if current_count >= _MAX_LOOP_ERRORS:
-            with _loop_lock:
-                if _loop and not _loop.is_closed():
-                    _loop.call_soon_threadsafe(_loop.stop)
-                _loop = None
         raise TimeoutError(
             f"Subagent tool call timed out after {_TIMEOUT_SECONDS}s"
         )
     except Exception as e:
         with _loop_lock:
-            _LOOP_ERROR_COUNT += 1
-            current_count = _LOOP_ERROR_COUNT
+            _recreate_loop()
         logger.error(
             "subagent.bridge_error",
-            {"error": str(e), "error_type": type(e).__name__,
-             "error_count": current_count},
+            {"error": str(e), "error_type": type(e).__name__},
             user_id="system",
         )
-        if current_count >= _MAX_LOOP_ERRORS:
-            with _loop_lock:
-                if _loop and not _loop.is_closed():
-                    _loop.call_soon_threadsafe(_loop.stop)
-                _loop = None
         raise
 
 
