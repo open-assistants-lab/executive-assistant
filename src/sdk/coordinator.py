@@ -13,7 +13,6 @@ import json
 import shutil
 from typing import Any
 
-import yaml
 from agentprofile.models import AgentProfile
 from agentprofile.parser import dumps_profile
 
@@ -183,14 +182,6 @@ class SubagentCoordinator:
                 json.dumps(profile.output_schema_def, indent=2)
             )
 
-        # Write legacy config.yaml for backward compat
-        config_data = profile.model_dump(exclude_none=True)
-        config_data.pop("disallowed_tools", None)
-        config_path = agent_path / "config.yaml"
-        config_path.write_text(
-            yaml.dump(config_data, default_flow_style=False)
-        )
-
         logger.info(
             "subagent.created",
             {"name": profile.name, "model": profile.model},
@@ -220,10 +211,6 @@ class SubagentCoordinator:
             (agent_path / "output-schema.json").write_text(
                 json.dumps(updated.output_schema_def, indent=2)
             )
-
-        # Write legacy config.yaml for backward compat
-        config_path = agent_path / "config.yaml"
-        config_path.write_text(yaml.dump(updated.model_dump(exclude_none=True), default_flow_style=False))
 
         logger.info(
             "subagent.updated",
@@ -531,7 +518,7 @@ class SubagentCoordinator:
         defs: list[AgentProfile] = []
         if self.base_path.exists():
             for d in self.base_path.iterdir():
-                if d.is_dir() and (d / "config.yaml").exists():
+                if d.is_dir() and (d / "PROFILE.md").exists():
                     profile = self.load_def(d.name)
                     if profile:
                         defs.append(profile)
@@ -543,7 +530,7 @@ class SubagentCoordinator:
 
         if self.base_path.exists():
             for d in self.base_path.iterdir():
-                if d.is_dir() and (d / "config.yaml").exists():
+                if d.is_dir() and (d / "PROFILE.md").exists():
                     profile = self.load_def(d.name)
                     if profile:
                         scoped.append((profile, "user"))
@@ -571,25 +558,13 @@ class SubagentCoordinator:
         return filtered
 
     def load_def(self, name: str) -> AgentProfile | None:
-        # Prefer PROFILE.md, fall back to config.yaml
         profile_path = self.base_path / name / "PROFILE.md"
-        config_path = self.base_path / name / "config.yaml"
-
         if profile_path.exists():
             try:
                 from agentprofile.parser import load_profile as _load_ap
                 return _load_ap(str(profile_path))
             except Exception as e:
                 logger.error("subagent.load_failed", {"name": name, "error": str(e), "error_type": type(e).__name__}, user_id=self.user_id)
-
-        if config_path.exists():
-            try:
-                data = yaml.safe_load(config_path.read_text()) or {}
-                data.pop("disallowed_tools", None)
-                return AgentProfile(**data)
-            except Exception as e:
-                logger.error("subagent.load_failed", {"name": name, "error": str(e), "error_type": type(e).__name__}, user_id=self.user_id)
-
         return None
 
     def is_valid(self, name: str) -> bool:

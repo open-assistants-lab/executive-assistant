@@ -52,9 +52,15 @@ def get_user_loop(user_id: str) -> AgentLoop | None:
     return _user_loops.get(user_id)
 ```
 
-Set `register_user_loop(user_id, loop)` at `run_single()` / `run_stream()` entry (line 290 after loop creation), and `unregister_user_loop(user_id)` at exit (finally block).
+This only tracks the **main conversation loop** per user. Subagents create their own loops
+and are not registered — they are short-lived and `mcp_reload` for subagents is handled
+at their next invocation automatically (new loop = fresh bridge).
 
-In `_mcp_reload`, use `get_user_loop(user_id)` to obtain the loop and call `loop.register_tool(tool_def)` / `loop.unregister_tool(tool_name)`.
+Set `register_user_loop(user_id, loop)` at `run_single()` / `run_stream()` entry (line 290
+after loop creation), and `unregister_user_loop(user_id)` at exit (finally block).
+
+In `_mcp_reload`, use `get_user_loop(user_id)` to obtain the loop and call
+`loop.register_tool(tool_def)` / `loop.unregister_tool(tool_name)`.
 
 ### Call flow (after fix)
 
@@ -63,13 +69,24 @@ User edits .mcp.json
   → Agent calls mcp_reload(user_id)
     → _mcp_reload(user_id)
       → loop = get_user_loop(user_id)
-      → old_bridge = loop.tool_registry.get("mcp__*")
+      → if loop is None:
+          manager = MCPManager(config_path)
+          manager.restart_all()
+          return {"restarted": True, "tools": None,
+                  "note": "No active conversation — tools will be picked up next conversation"}
+      → old_names = {t.name for t in loop.tool_registry.list()
+                      if t.name.startswith("mcp__")}
       → manager = MCPManager(config_path)
       → manager.restart_all()
       → new_bridge = MCPToolBridge(manager)
       → new_tools = new_bridge.get_tools()
-      → for tool in new_tools: loop.register_tool(tool)
-      → return {"restarted": True, "tools": len(new_tools)}
+      → new_names = {t.name for t in new_tools}
+      → for name in old_names - new_names:
+          loop.unregister_tool(name)
+      → for t in new_tools:
+          loop.register_tool(t)
+      → return {"restarted": True, "tools": len(new_tools),
+                "removed": list(old_names - new_names)}
 ```
 
 ## Race Condition: MCPManager Idle Monitor
@@ -84,8 +101,13 @@ The idle monitor timer calls `_stop_all()` without acquiring `self._lock`, while
 ```python
 async def _stop_all(self) -> None:
     async with self._lock:
-        for name, conn in self._connections.items():
+        names = list(self._connections.keys())
+    for name in names:
+        async with self._lock:
+            conn = self._connections.get(name)
+        if conn is not None:
             await conn.stop()
+    async with self._lock:
         self._connections.clear()
 ```
 

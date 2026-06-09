@@ -984,9 +984,9 @@ class TestSubagentCoordinator:
         assert loaded.description == "Web researcher"
 
     @pytest.mark.asyncio
-    async def test_create_persists_yaml(self, mock_paths):
-        import yaml
+    async def test_create_persists_profile(self, mock_paths):
         from agentprofile.models import AgentProfile
+        from agentprofile.parser import load_profile
 
         from src.sdk.coordinator import SubagentCoordinator
 
@@ -994,11 +994,11 @@ class TestSubagentCoordinator:
         profile = AgentProfile(name="writer", description="Report writer", tools=["time_get"])
         await coord.create(profile)
 
-        config_path = mock_paths.workspace_subagents_dir() / "writer" / "config.yaml"
-        assert config_path.exists()
-        data = yaml.safe_load(config_path.read_text())
-        assert data["name"] == "writer"
-        assert data["tools"] == ["time_get"]
+        profile_path = mock_paths.workspace_subagents_dir() / "writer" / "PROFILE.md"
+        assert profile_path.exists()
+        loaded = load_profile(str(profile_path))
+        assert loaded.name == "writer"
+        assert loaded.tools == ["time_get"]
 
     @pytest.mark.asyncio
     async def test_update(self, mock_paths):
