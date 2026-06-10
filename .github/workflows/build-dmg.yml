@@ -8,7 +8,7 @@ on:
 jobs:
   build:
     name: Build and Release DMG
-    runs-on: macos-14
+    runs-on: macos-latest
 
     env:
       APP_NAME: Executive Assistant
