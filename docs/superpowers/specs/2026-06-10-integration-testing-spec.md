@@ -35,12 +35,18 @@ Assertions on stream events, tool calls, message history, side effects
 class FakeProvider(LLMProvider):
     """Returns predetermined responses. No LLM call made."""
 
-    def __init__(self, responses: list[dict]):
-        self._responses = responses  # consumed in order
+    def __init__(self, responses: list[dict] | None = None):
+        self._responses = list(responses) if responses else []
+        self._default = {"content": "OK"}
         self._history: list[Message] = []
 
+    def _next(self) -> dict:
+        if self._responses:
+            return self._responses.pop(0)
+        return self._default
+
     async def chat(self, messages, **kwargs) -> Message:
-        resp = self._responses.pop(0)
+        resp = self._next()
         self._history.extend(messages)
         if "tool_calls" in resp:
             return Message.assistant(
@@ -50,13 +56,19 @@ class FakeProvider(LLMProvider):
         return Message.assistant(content=resp.get("content", ""))
 
     async def stream_chat(self, messages, **kwargs):
-        resp = self._responses.pop(0)
+        resp = self._next()
         self._history.extend(messages)
-        # Stream tool call events
+        # Reasoning events (optional)
+        if resp.get("reasoning"):
+            yield StreamChunk.reasoning_start()
+            yield StreamChunk.reasoning_delta(content=resp["reasoning"])
+            yield StreamChunk.reasoning_end()
+        # Tool call events — each call_id must be unique
         for tc in resp.get("tool_calls", []):
-            yield StreamChunk.tool_input_start(tool=tc["name"], call_id=tc.get("id", "call_1"))
-            yield StreamChunk.tool_input_delta(call_id=tc.get("id", "call_1"), content=json.dumps(tc["arguments"]))
-            yield StreamChunk.tool_input_end(call_id=tc.get("id", "call_1"), tool=tc["name"])
+            cid = tc.get("id", f"call_{id(tc)}")
+            yield StreamChunk.tool_input_start(tool=tc["name"], call_id=cid)
+            yield StreamChunk.tool_input_delta(call_id=cid, content=json.dumps(tc["arguments"]))
+            yield StreamChunk.tool_input_end(call_id=cid, tool=tc["name"])
         if resp.get("content"):
             yield StreamChunk.text_start()
             yield StreamChunk.text_delta(content=resp["content"])
@@ -122,21 +134,21 @@ internal logic (which is tested separately via unit tests).
 
 | Test | FakeProvider setup | What it verifies |
 |------|-------------------|-------------------|
-| MemoryMiddleware | 2-turn conversation | After second turn, first turn's messages are in SQLite |
-| SummarizationMiddleware | 40+ short-message conversation, response just over threshold | After summarization fires, summary message exists in history |
-| ProgressMiddleware | Sequential tool calls | Progress reported at each poll point (subagent context) |
+| MemoryMiddleware | `run()` → `run()` with same loop | After second turn, first turn's messages are in SQLite via `tmp_path/app.db` |
+| SummarizationMiddleware | Pre-seed 40+ messages into `loop.state.messages` before `run()` | After summarization fires, summary message exists in `state.messages` |
+| ProgressMiddleware | Sequential tool calls via `run()` | Progress reported at each poll point (subagent context) |
 | InstructionMiddleware | Cancel signal set before LLM call | Agent loop stops, cancel acknowledged |
-| ObservationMiddleware | 2-turn conversation with user personal info | Observation extracted, stored in CoreMem |
+| ObservationMiddleware | Two `run()` calls, second includes user personal info | Observation extracted, stored in `tmp_path/app.db` observations table |
 
 ### Error Handling Tests
 
 | Test | Prompt | What it verifies |
 |------|--------|------------------|
-| Provider error | FakeProvider raises `ProviderError` | Error event emitted, agent doesn't crash |
-| Tool execution error | FakeProvider returns tool_call for files_list, files_list raises | Error captured, agent reports failure |
-| Invalid tool args | FakeProvider returns tool_call with missing required arg | Tool tool_call fails with validation error |
-| System prompt injection | system_prompt + abefore_model that modifies it | Agent receives modified instructions |
-| Concurrent calls | Two turns sent rapidly | Sequential processing, no state corruption |
+| Provider error | FakeProvider raises `RuntimeError("API error")` | Error event emitted, agent doesn't crash |
+| Tool execution error | FakeProvider returns tool_call for `files_list` on non-existent path | Error captured, agent reports failure |
+| Invalid tool args | FakeProvider returns tool_call with missing required arg | Tool call fails with validation error |
+| System prompt injection | system_prompt + `abefore_model` middleware that appends instructions | Agent receives modified instructions, visible in `loop.state.messages` |
+| Sequential turns | Two back-to-back `run()` calls on same loop | State is clean, second turn doesn't inherit stale data |
 
 ## Files
 
@@ -155,9 +167,8 @@ tests/integration/
 ```python
 @pytest.fixture
 def fake_provider():
-    """Returns a FakeProvider with an infinite default response."""
-    fp = FakeProvider(default=[{"content": "I'll help you with that."}])
-    return fp
+    """Returns a FakeProvider with a safe default response."""
+    return FakeProvider()
 
 @pytest.fixture
 def loop(fake_provider, tmp_path):
@@ -172,7 +183,7 @@ def loop(fake_provider, tmp_path):
             ProgressMiddleware(),
             InstructionMiddleware(),
         ],
-        run_config=RunConfig(max_llm_calls=3),
+        run_config=RunConfig(max_llm_calls=10),
     )
     return loop
 ```
@@ -180,20 +191,21 @@ def loop(fake_provider, tmp_path):
 ### Test structure
 
 ```python
-@pytest.mark.parametrize("tool_name,response,assert_fn", [
+@pytest.mark.parametrize("tool_name,response,content_check", [
     ("web_search", {"tool_calls": [{"name": "web_search", "arguments": {"query": "AI news"}}]},
-     lambda results: "AI" in results or len(results) > 10),
+     lambda c: len(c) > 10),
     ("files_list", {"tool_calls": [{"name": "files_list", "arguments": {"path": "."}}]},
-     lambda results: ".txt" in results or len(results) > 0),
+     lambda c: len(c) > 0),
 ])
-async def test_tool_execution(tool_name, response, assert_fn, loop):
+async def test_tool_execution(tool_name, response, content_check, loop, tmp_path):
     """Verifies each tool can be called and returns valid results."""
-    loop.provider.responses = [response, {"content": "Done."}]
+    loop.provider._responses = [response, {"content": "Done."}]
     result = await loop.run([Message.user(f"run {tool_name}")])
-    # Verify tool was called
-    assert any(tc.name == tool_name for tc in result.tool_calls)
+    # Verify tool was called — check state.messages for the assistant message with tool_calls
+    tool_msgs = [m for m in loop.state.messages if m.role == "assistant" and m.tool_calls]
+    assert any(tc.name == tool_name for msg in tool_msgs for tc in (msg.tool_calls or []))
     # Verify result is sensible
-    assert assert_fn(result.content)
+    assert content_check(result.content or "")
 ```
 
 ## CI Integration
