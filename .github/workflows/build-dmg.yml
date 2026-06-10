@@ -54,7 +54,6 @@ jobs:
       - name: Build Python backend
         run: |
           uv sync
-          uv pip install pyinstaller
           uv run pyinstaller --clean flutter_app/backend.spec
 
       - name: Build Flutter macOS app

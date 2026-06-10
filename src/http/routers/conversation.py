@@ -311,7 +311,7 @@ async def handle_message(req: MessageRequest, _: None = Depends(require_auth)) -
                 if not response:
                     response = "Task completed."
 
-        canvas_blocks = _extract_canvas(response)
+        canvas_blocks = _extract_surfaces(response)
         response = _strip_canvas_fences(response)
 
         tool_calls_list = None

@@ -143,3 +143,57 @@ class TestEditorParser:
         html = _render_editor_surface("/test/file.md", "# Hello")
         assert "novel-mount" in html
         assert "# Hello" in html or "Hello" in html
+
+
+class TestEditorIntegration:
+    """Integration tests for editor surfaces through the HTTP endpoint."""
+
+    def test_rest_endpoint_includes_editor_surfaces(self, client, monkeypatch):
+        """REST /message verbose_data includes editor surfaces when agent emits html:editor fence."""
+        editor_text = '```html:editor\nfilePath: /test/file.md\n---\n\n# Hello World\n```'
+
+        async def fake_run(*args, **kwargs):
+            from src.sdk.messages import Message
+            return [Message.assistant(editor_text + "Done.")]
+
+        import src.http.routers.conversation as conv_mod
+        monkeypatch.setattr(conv_mod, "run_sdk_agent", fake_run)
+
+        r = client.post("/message", json={
+            "message": "edit my file",
+            "verbose": False,
+        })
+        assert r.status_code == 200
+        data = r.json()
+        assert data["response"] == "Done."
+        assert "canvas_blocks" in data.get("verbose_data", {})
+        blocks = data["verbose_data"]["canvas_blocks"]
+        assert len(blocks) == 1
+        assert blocks[0]["surface_type"] == "editor"
+        assert blocks[0]["file_path"] == "/test/file.md"
+
+    def test_rest_endpoint_includes_both_surface_types(self, client, monkeypatch):
+        """REST /message includes both canvas and editor surfaces."""
+        text = (
+            '```html:canvas\n<div>dashboard</div>\n```\n'
+            '```html:editor\nfilePath: /f.md\n---\n\ncontent\n```\n'
+            'Done.'
+        )
+
+        async def fake_run(*args, **kwargs):
+            from src.sdk.messages import Message
+            return [Message.assistant(text)]
+
+        import src.http.routers.conversation as conv_mod
+        monkeypatch.setattr(conv_mod, "run_sdk_agent", fake_run)
+
+        r = client.post("/message", json={
+            "message": "create dashboard and editor",
+            "verbose": False,
+        })
+        assert r.status_code == 200
+        data = r.json()
+        blocks = data["verbose_data"]["canvas_blocks"]
+        assert len(blocks) == 2
+        assert blocks[0]["surface_type"] == "canvas"
+        assert blocks[1]["surface_type"] == "editor"
