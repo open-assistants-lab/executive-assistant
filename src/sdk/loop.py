@@ -1227,18 +1227,22 @@ class AgentLoop:
 
     async def run_single(self, messages: list[Message]) -> Message:
         """Single LLM call — no tool loop. For summarization, extraction, etc."""
-        prepared = list(messages)
-        if self.system_prompt:
-            if not prepared or prepared[0].role != "system":
-                prepared.insert(0, Message.system(self.system_prompt))
+        token = _current_agent_loop.set(self)
+        try:
+            prepared = list(messages)
+            if self.system_prompt:
+                if not prepared or prepared[0].role != "system":
+                    prepared.insert(0, Message.system(self.system_prompt))
 
-        response = await self.provider.chat(
-            prepared, tools=None, model=None, provider_options=self.run_config.provider_options
-        )
+            response = await self.provider.chat(
+                prepared, tools=None, model=None, provider_options=self.run_config.provider_options
+            )
 
-        if not isinstance(response.content, str):
-            content = str(response.content)
-        else:
-            content = response.content
+            if not isinstance(response.content, str):
+                content = str(response.content)
+            else:
+                content = response.content
 
-        return Message.assistant(content=content)
+            return Message.assistant(content=content)
+        finally:
+            _current_agent_loop.reset(token)

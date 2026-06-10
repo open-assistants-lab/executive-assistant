@@ -101,7 +101,11 @@ class TestEditorParser:
         assert result == []
 
     def test_extract_editor_interleaved_with_canvas(self):
-        from src.http.routers.conversation import _extract_editor, _extract_surfaces, _extract_canvas
+        from src.http.routers.conversation import (
+            _extract_canvas,
+            _extract_editor,
+            _extract_surfaces,
+        )
 
         text = (
             '```html:canvas\n<div>hello</div>\n```\n'
