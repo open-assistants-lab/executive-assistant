@@ -11,6 +11,7 @@ import asyncio
 import contextlib
 import json
 import shutil
+from collections.abc import Callable
 from typing import Any
 
 from agentprofile.models import AgentProfile
@@ -20,8 +21,7 @@ from src.app_logging import get_logger
 from src.config import get_settings
 from src.sdk.agent_validation import _is_denied_memory_tool, validate_agent_def
 from src.sdk.messages import Message
-from src.sdk.middleware_instruction import InstructionMiddleware
-from src.sdk.middleware_progress import ProgressMiddleware
+from src.sdk.subagent_context import SubagentCancelledError, SubagentContext
 from src.sdk.subagent_models import (
     SubagentResult,
     TaskCancelledError,
@@ -34,6 +34,8 @@ from src.storage import paths as _paths
 get_paths = _paths.get_paths
 
 logger = get_logger()
+
+_active: dict[str, SubagentContext] = {}
 
 # Constants for subagent tool filtering
 MANDATORY_SUBAGENT_TOOLS = {"message_search"}
@@ -239,15 +241,20 @@ class SubagentCoordinator:
         task_id = await db.insert_task(agent_name, task, profile, parent_id)
         await db.set_running(task_id)
 
+        ctx = SubagentContext()
+        _active[task_id] = ctx
+
         try:
             result = await asyncio.wait_for(
-                self._run_loop(task_id, profile, task, db),
+                self._run_loop(task_id, profile, task, db, ctx),
                 timeout=profile.timeout_seconds,
             )
             completed = await db.set_completed(task_id, result)
             if not completed:
                 await self._set_cancelled_if_requested(task_id, db)
         except TaskCancelledError:
+            await db.set_cancelled(task_id)
+        except SubagentCancelledError:
             await db.set_cancelled(task_id)
         except TimeoutError:
             failed = await db.set_failed(task_id, f"timeout after {profile.timeout_seconds}s")
@@ -257,6 +264,8 @@ class SubagentCoordinator:
             failed = await db.set_failed(task_id, f"{type(e).__name__}: {e}")
             if not failed:
                 await self._set_cancelled_if_requested(task_id, db)
+        finally:
+            _active.pop(task_id, None)
 
         return task_id
 
@@ -294,9 +303,18 @@ class SubagentCoordinator:
         db = await self._get_db()
         task_id = await db.insert_task(agent_name, task, profile, parent_id)
 
+        ctx = SubagentContext(on_progress=self._make_progress_cb(task_id))
+        task_row = await db.get_task(task_id)
+        if task_row and task_row.get("cancel_requested"):
+            ctx.cancel_event.set()
+        _active[task_id] = ctx
+        task_row = await db.get_task(task_id)
+        if task_row and task_row.get("cancel_requested"):
+            ctx.cancel_event.set()
+
         try:
             result: SubagentResult = await asyncio.wait_for(
-                self._run_loop(task_id, profile, task, db),
+                self._run_loop(task_id, profile, task, db, ctx),
                 timeout=effective_timeout,
             )
             completed = await db.set_completed(task_id, result)
@@ -304,6 +322,9 @@ class SubagentCoordinator:
                 await self._set_cancelled_if_requested(task_id, db)
             return result.output
         except TaskCancelledError:
+            await db.set_cancelled(task_id)
+            return "Cancelled: subagent was cancelled during execution."
+        except SubagentCancelledError:
             await db.set_cancelled(task_id)
             return "Cancelled: subagent was cancelled during execution."
         except TimeoutError:
@@ -316,6 +337,8 @@ class SubagentCoordinator:
             if not failed:
                 await self._set_cancelled_if_requested(task_id, db)
             return f"Error: {type(e).__name__}: {e}"
+        finally:
+            _active.pop(task_id, None)
 
     async def start(
         self,
@@ -333,7 +356,17 @@ class SubagentCoordinator:
 
         db = await self._get_db()
         task_id = await db.insert_task(agent_name, task, profile, parent_id)
-        background_task = asyncio.create_task(self._run_job(task_id))
+
+        ctx = SubagentContext(on_progress=self._make_progress_cb(task_id))
+        task_row = await db.get_task(task_id)
+        if task_row and task_row.get("cancel_requested"):
+            ctx.cancel_event.set()
+        _active[task_id] = ctx
+        task_row = await db.get_task(task_id)
+        if task_row and task_row.get("cancel_requested"):
+            ctx.cancel_event.set()
+
+        background_task = asyncio.create_task(self._run_job(task_id, ctx))
         self._background_tasks.add(background_task)
         background_task.add_done_callback(self._on_background_task_done)
         return task_id
@@ -358,7 +391,7 @@ class SubagentCoordinator:
             await asyncio.sleep(5)
             await db.heartbeat(task_id, worker_id)
 
-    async def _run_job(self, task_id: str) -> None:
+    async def _run_job(self, task_id: str, ctx: SubagentContext | None = None) -> None:
         db = await self._get_db()
         worker_id = f"{self.user_id}:{self.workspace_id}:{id(self)}"
         claimed = await db.claim_task(task_id, worker_id)
@@ -375,7 +408,7 @@ class SubagentCoordinator:
 
         try:
             result = await asyncio.wait_for(
-                self._run_loop(task_id, profile, task, db),
+                self._run_loop(task_id, profile, task, db, ctx or SubagentContext()),
                 timeout=profile.timeout_seconds,
             )
             latest = await db.get_task(task_id)
@@ -415,6 +448,7 @@ class SubagentCoordinator:
         profile: AgentProfile,
         task: str,
         db: WorkQueueDB,
+        ctx: SubagentContext | None = None,
     ) -> SubagentResult:
         from src.sdk.loop import AgentLoop, RunConfig
         from src.sdk.middleware_summarization import SummarizationMiddleware
@@ -432,11 +466,8 @@ class SubagentCoordinator:
             provider_options=profile.provider_options or None,
         )
 
-        progress_mw = ProgressMiddleware(task_id, db)
-        instruction_mw = InstructionMiddleware(task_id, db)
         summarization_mw = SummarizationMiddleware()
-
-        middlewares = [progress_mw, instruction_mw, summarization_mw]
+        middlewares = [summarization_mw]
 
         loop = AgentLoop(
             provider=provider,
@@ -447,6 +478,7 @@ class SubagentCoordinator:
             user_id=self.user_id,
             workspace_id=self.workspace_id,
         )
+        loop.subagent_ctx = ctx or SubagentContext()
 
         messages = [Message.user(task)]
         result_messages = await loop.run(messages)
@@ -487,11 +519,30 @@ class SubagentCoordinator:
             llm_calls=llm_calls,
         )
 
+    def _make_progress_cb(self, task_id: str) -> Callable:
+        async def _cb(step: int, phase: str, message: str) -> None:
+            try:
+                db = await self._get_db()
+                await db.update_progress(task_id, {
+                    "steps_completed": step,
+                    "phase": phase,
+                    "message": message,
+                })
+            except Exception:
+                pass
+        return _cb
+
     async def cancel(self, task_id: str) -> bool:
+        ctx = _active.get(task_id)
+        if ctx:
+            ctx.cancel_event.set()
         db = await self._get_db()
         return await db.request_cancel(task_id)
 
     async def instruct(self, task_id: str, message: str) -> bool:
+        ctx = _active.get(task_id)
+        if ctx:
+            await ctx.instructions.put(message)
         db = await self._get_db()
         return await db.add_instruction(task_id, message)
 

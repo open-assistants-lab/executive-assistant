@@ -41,6 +41,7 @@ from src.sdk.messages import Message, StreamChunk, ToolCall, Usage
 from src.sdk.middleware import Middleware
 from src.sdk.providers.base import LLMProvider, ModelCost, ProviderContextOverflowError
 from src.sdk.state import AgentState
+from src.sdk.subagent_context import SubagentCancelledError, SubagentContext
 from src.sdk.subagent_models import TaskCancelledError
 from src.sdk.tools import ToolDefinition, ToolRegistry, ToolResult
 from src.sdk.tracing import SpanType, TraceProvider
@@ -177,6 +178,7 @@ class AgentLoop:
         self.run_config = run_config or RunConfig(max_iterations=max_iterations)
         self.user_id = user_id
         self.workspace_id = workspace_id
+        self.subagent_ctx: SubagentContext | None = None
 
         self._registry = ToolRegistry()
         if tools:
@@ -384,6 +386,10 @@ class AgentLoop:
         else:
             result = await self._execute_tool(tc)
 
+        self._record_subagent_tool(tc)
+        if (ctx := self.subagent_ctx) and ctx.on_progress:
+            await ctx.on_progress(ctx._step, "executing", f"Called {tc.name}")
+
         result_content = result.content
         if result.is_error:
             result_content = json.dumps({"error": result_content})
@@ -434,6 +440,10 @@ class AgentLoop:
                     span.set_meta("is_error", result.is_error)
             else:
                 result = await self._execute_tool(tc_with_args)
+
+            self._record_subagent_tool(tc)
+            if (ctx := self.subagent_ctx) and ctx.on_progress:
+                await ctx.on_progress(ctx._step, "executing", f"Called {tc.name}")
 
             result_content = result.content
             if result.is_error:
@@ -501,6 +511,10 @@ class AgentLoop:
         else:
             result = await self._execute_tool(tc)
 
+        self._record_subagent_tool(tc)
+        if (ctx := self.subagent_ctx) and ctx.on_progress:
+            await ctx.on_progress(ctx._step, "executing", f"Called {tc.name}")
+
         result_content = result.content
         if result.is_error:
             result_content = json.dumps({"error": result_content})
@@ -552,6 +566,10 @@ class AgentLoop:
                     span.set_meta("is_error", result.is_error)
             else:
                 result = await self._execute_tool(tc_with_args)
+
+            self._record_subagent_tool(tc)
+            if (ctx := self.subagent_ctx) and ctx.on_progress:
+                await ctx.on_progress(ctx._step, "executing", f"Called {tc.name}")
 
             result_content = result.content
             if result.is_error:
@@ -681,6 +699,24 @@ class AgentLoop:
                 return mw
         return None
 
+    async def _check_subagent_before_llm(self, state: AgentState) -> None:
+        if not (ctx := self.subagent_ctx):
+            return
+        if ctx.cancel_event.is_set():
+            raise SubagentCancelledError(ctx._task_id)
+        while not ctx.instructions.empty():
+            msg = await ctx.instructions.get()
+            state.add_message(Message.system(f"[Supervisor Update] {msg}"))
+        if ctx.doom_detected:
+            raise SubagentCancelledError(ctx._task_id, "doom loop detected")
+        if ctx.on_progress:
+            await ctx.on_progress(ctx._step, "thinking", "generating response")
+
+    def _record_subagent_tool(self, tc: ToolCall) -> None:
+        if not (ctx := self.subagent_ctx):
+            return
+        ctx.record_tool_call(tc.name, json.dumps(tc.arguments, sort_keys=True))
+
     async def run(self, messages: list[Message]) -> list[Message]:
         """Run the agent loop to completion. Returns final message list."""
         token = _current_agent_loop.set(self)
@@ -704,124 +740,130 @@ class AgentLoop:
             await self._run_hooks("aafter_agent", state)
             return state.messages
 
-        for iteration in range(self.run_config.max_iterations):
-            limit_reason = cost_tracker.exceeds_limits(self.run_config)
-            if limit_reason:
-                state.add_message(Message.assistant(content=f"Run limit reached: {limit_reason}"))
-                break
+        try:
+            for iteration in range(self.run_config.max_iterations):
+                limit_reason = cost_tracker.exceeds_limits(self.run_config)
+                if limit_reason:
+                    state.add_message(Message.assistant(content=f"Run limit reached: {limit_reason}"))
+                    break
 
-            overflow_retries = 0
-            llm_success = False
-            while overflow_retries < 3 and not llm_success:
-                await self._run_hooks("abefore_model", state)
+                overflow_retries = 0
+                llm_success = False
+                while overflow_retries < 3 and not llm_success:
+                    await self._check_subagent_before_llm(state)
+                    await self._run_hooks("abefore_model", state)
 
-                prepared = self._prepare_messages(state)
-                tools = self._registry.list_tools() or None
+                    prepared = self._prepare_messages(state)
+                    tools = self._registry.list_tools() or None
 
-                try:
-                    if self.trace_provider:
-                        async with self.trace_provider.start_span(
-                            SpanType.LLM_CALL, f"llm_call_{iteration}"
-                        ) as span:
+                    try:
+                        if self.trace_provider:
+                            async with self.trace_provider.start_span(
+                                SpanType.LLM_CALL, f"llm_call_{iteration}"
+                            ) as span:
+                                response = await self.provider.chat(
+                                    prepared,
+                                    tools=tools,
+                                    model=None,
+                                    provider_options=self.run_config.provider_options,
+                                )
+                                span.set_meta("has_tool_calls", bool(response.tool_calls))
+                                if response.usage:
+                                    span.set_meta("input_tokens", response.usage.input_tokens)
+                                    span.set_meta("output_tokens", response.usage.output_tokens)
+                                cost_tracker.add_usage(
+                                    input_tokens=response.usage.input_tokens if response.usage else 0,
+                                    output_tokens=response.usage.output_tokens if response.usage else 0,
+                                    reasoning_tokens=response.usage.reasoning_tokens
+                                    if response.usage
+                                    else 0,
+                                )
+                        else:
                             response = await self.provider.chat(
                                 prepared,
                                 tools=tools,
                                 model=None,
                                 provider_options=self.run_config.provider_options,
                             )
-                            span.set_meta("has_tool_calls", bool(response.tool_calls))
-                            if response.usage:
-                                span.set_meta("input_tokens", response.usage.input_tokens)
-                                span.set_meta("output_tokens", response.usage.output_tokens)
                             cost_tracker.add_usage(
                                 input_tokens=response.usage.input_tokens if response.usage else 0,
                                 output_tokens=response.usage.output_tokens if response.usage else 0,
-                                reasoning_tokens=response.usage.reasoning_tokens
-                                if response.usage
-                                else 0,
+                                reasoning_tokens=response.usage.reasoning_tokens if response.usage else 0,
                             )
-                    else:
-                        response = await self.provider.chat(
-                            prepared,
-                            tools=tools,
-                            model=None,
-                            provider_options=self.run_config.provider_options,
+                        llm_success = True
+                    except ProviderContextOverflowError:
+                        overflow_retries += 1
+                        logger.warning(f"context_overflow iteration={iteration} retry={overflow_retries}")
+
+                        from src.sdk.middleware_summarization import SummarizationMiddleware
+
+                        summary_mw = self.find_middleware(SummarizationMiddleware)
+                        if summary_mw is not None:
+                            success = await summary_mw.force_summarize(state)
+                            if success:
+                                continue
+
+                        state.add_message(
+                            Message.assistant(content="Context too large after summarization attempt.")
                         )
-                        cost_tracker.add_usage(
-                            input_tokens=response.usage.input_tokens if response.usage else 0,
-                            output_tokens=response.usage.output_tokens if response.usage else 0,
-                            reasoning_tokens=response.usage.reasoning_tokens if response.usage else 0,
-                        )
-                    llm_success = True
-                except ProviderContextOverflowError:
-                    overflow_retries += 1
-                    logger.warning(f"context_overflow iteration={iteration} retry={overflow_retries}")
+                        break
 
-                    from src.sdk.middleware_summarization import SummarizationMiddleware
+                    except Exception as e:
+                        logger.error(f"llm_error iteration={iteration}: {e}")
+                        state.add_message(Message.assistant(content=f"Error: {e}"))
+                        break
 
-                    summary_mw = self.find_middleware(SummarizationMiddleware)
-                    if summary_mw is not None:
-                        success = await summary_mw.force_summarize(state)
-                        if success:
-                            continue
-
-                    state.add_message(
-                        Message.assistant(content="Context too large after summarization attempt.")
-                    )
+                if not llm_success:
                     break
 
-                except Exception as e:
-                    logger.error(f"llm_error iteration={iteration}: {e}")
-                    state.add_message(Message.assistant(content=f"Error: {e}"))
+                state.add_message(response)
+
+                await self._run_hooks("aafter_model", state)
+
+                if not response.tool_calls:
+                    output_text = response.content if isinstance(response.content, str) else ""
+                    try:
+                        await self._check_output_guardrails(output_text, state)
+                    except GuardrailTripwire as e:
+                        state.add_message(
+                            Message.assistant(content=f"Output blocked: {e.result.message}")
+                        )
                     break
 
-            if not llm_success:
-                break
+                effective_tool_calls = [self._with_runtime_context(tc) for tc in response.tool_calls]
 
-            state.add_message(response)
+                # Classify tool calls: parallel-safe, sequential, interrupts
+                parallel_safe, sequential, interrupts = self._classify_tool_calls(effective_tool_calls)
 
-            await self._run_hooks("aafter_model", state)
-
-            if not response.tool_calls:
-                output_text = response.content if isinstance(response.content, str) else ""
-                try:
-                    await self._check_output_guardrails(output_text, state)
-                except GuardrailTripwire as e:
+                # Handle interrupts: add interrupt tool_result messages (not executed)
+                for tc in interrupts:
                     state.add_message(
-                        Message.assistant(content=f"Output blocked: {e.result.message}")
+                        Message.tool_result(
+                            tool_call_id=tc.id,
+                            content=json.dumps(
+                                {
+                                    "interrupt": True,
+                                    "tool": tc.name,
+                                    "args": tc.arguments,
+                                    "message": f"Tool call '{tc.name}' requires approval",
+                                    "allowed_actions": ["approve", "reject", "edit"],
+                                }
+                            ),
+                            name=tc.name,
+                        )
                     )
-                break
 
-            effective_tool_calls = [self._with_runtime_context(tc) for tc in response.tool_calls]
+                # Execute parallel-safe tools concurrently
+                if parallel_safe:
+                    await self._execute_tool_batch(parallel_safe, state)
 
-            # Classify tool calls: parallel-safe, sequential, interrupts
-            parallel_safe, sequential, interrupts = self._classify_tool_calls(effective_tool_calls)
+                # Execute sequential (destructive) tools one-at-a-time
+                for tc in sequential:
+                    await self._execute_single_tool(tc, state)
 
-            # Handle interrupts: add interrupt tool_result messages (not executed)
-            for tc in interrupts:
-                state.add_message(
-                    Message.tool_result(
-                        tool_call_id=tc.id,
-                        content=json.dumps(
-                            {
-                                "interrupt": True,
-                                "tool": tc.name,
-                                "args": tc.arguments,
-                                "message": f"Tool call '{tc.name}' requires approval",
-                                "allowed_actions": ["approve", "reject", "edit"],
-                            }
-                        ),
-                        name=tc.name,
-                    )
-                )
-
-            # Execute parallel-safe tools concurrently
-            if parallel_safe:
-                await self._execute_tool_batch(parallel_safe, state)
-
-            # Execute sequential (destructive) tools one-at-a-time
-            for tc in sequential:
-                await self._execute_single_tool(tc, state)
+        except SubagentCancelledError:
+            await self._run_hooks("aafter_agent", state)
+            raise
 
         await self._run_hooks("aafter_agent", state)
         return state.messages
@@ -877,38 +919,82 @@ class AgentLoop:
 
         overflow_retries = 0
 
-        for iteration in range(self.run_config.max_iterations):
-            limit_reason = cost_tracker.exceeds_limits(self.run_config)
-            if limit_reason:
-                yield StreamChunk.error(message=f"Run limit reached: {limit_reason}")
-                break
-
-            await self._run_hooks("abefore_model", state)
-
-            prepared = self._prepare_messages(state)
-            tools = self._registry.list_tools() or None
-
-            stream_content_parts: list[str] = []
-            stream_tool_calls: list[ToolCall] = []
-            stream_tool_calls_map: dict[int, dict] = {}
-            stream_reasoning_parts: list[str] = []
-            in_text_block = False
-            in_reasoning_block = False
-            stream_usage = Usage()
-
-            if guardrail_task is not None:
-                try:
-                    await guardrail_task
-                except GuardrailTripwire as e:
-                    yield StreamChunk.error(message=f"Input blocked: {e.result.message}")
+        try:
+            for iteration in range(self.run_config.max_iterations):
+                limit_reason = cost_tracker.exceeds_limits(self.run_config)
+                if limit_reason:
+                    yield StreamChunk.error(message=f"Run limit reached: {limit_reason}")
                     break
-                guardrail_task = None
 
-            try:
-                if self.trace_provider:
-                    async with self.trace_provider.start_span(
-                        SpanType.LLM_CALL, f"llm_call_{iteration}"
-                    ) as llm_span:
+                await self._check_subagent_before_llm(state)
+                await self._run_hooks("abefore_model", state)
+
+                prepared = self._prepare_messages(state)
+                tools = self._registry.list_tools() or None
+
+                stream_content_parts: list[str] = []
+                stream_tool_calls: list[ToolCall] = []
+                stream_tool_calls_map: dict[int, dict] = {}
+                stream_reasoning_parts: list[str] = []
+                in_text_block = False
+                in_reasoning_block = False
+                stream_usage = Usage()
+
+                if guardrail_task is not None:
+                    try:
+                        await guardrail_task
+                    except GuardrailTripwire as e:
+                        yield StreamChunk.error(message=f"Input blocked: {e.result.message}")
+                        break
+                    guardrail_task = None
+
+                try:
+                    if self.trace_provider:
+                        async with self.trace_provider.start_span(
+                            SpanType.LLM_CALL, f"llm_call_{iteration}"
+                        ) as llm_span:
+                            async for chunk in self.provider.chat_stream(
+                                prepared,
+                                tools=tools,
+                                model=None,
+                                provider_options=self.run_config.provider_options,
+                            ):
+                                if chunk.type == "usage" and chunk.usage:
+                                    stream_usage.input_tokens += chunk.usage.input_tokens
+                                    stream_usage.output_tokens += chunk.usage.output_tokens
+                                    stream_usage.reasoning_tokens += chunk.usage.reasoning_tokens
+                                    stream_usage.cache_read_tokens += chunk.usage.cache_read_tokens
+                                    stream_usage.cache_creation_tokens += (
+                                        chunk.usage.cache_creation_tokens
+                                    )
+                                    continue
+                                async for event in self._process_stream_chunk(
+                                    chunk,
+                                    stream_content_parts,
+                                    stream_tool_calls_map,
+                                    stream_reasoning_parts,
+                                    in_text_block,
+                                    in_reasoning_block,
+                                ):
+                                    yield event
+                                    if event.type == "text_start":
+                                        in_text_block = True
+                                    elif event.type == "text_end":
+                                        in_text_block = False
+                                    elif event.type == "reasoning_start":
+                                        in_reasoning_block = True
+                                    elif event.type == "reasoning_end":
+                                        in_reasoning_block = False
+
+                            cost_tracker.add_usage(
+                                input_tokens=stream_usage.input_tokens,
+                                output_tokens=stream_usage.output_tokens,
+                                reasoning_tokens=stream_usage.reasoning_tokens,
+                            )
+                            llm_span.set_meta("tool_calls_count", len(stream_tool_calls_map))
+                            llm_span.set_meta("input_tokens", stream_usage.input_tokens)
+                            llm_span.set_meta("output_tokens", stream_usage.output_tokens)
+                    else:
                         async for chunk in self.provider.chat_stream(
                             prepared,
                             tools=tools,
@@ -920,9 +1006,7 @@ class AgentLoop:
                                 stream_usage.output_tokens += chunk.usage.output_tokens
                                 stream_usage.reasoning_tokens += chunk.usage.reasoning_tokens
                                 stream_usage.cache_read_tokens += chunk.usage.cache_read_tokens
-                                stream_usage.cache_creation_tokens += (
-                                    chunk.usage.cache_creation_tokens
-                                )
+                                stream_usage.cache_creation_tokens += chunk.usage.cache_creation_tokens
                                 continue
                             async for event in self._process_stream_chunk(
                                 chunk,
@@ -947,178 +1031,142 @@ class AgentLoop:
                             output_tokens=stream_usage.output_tokens,
                             reasoning_tokens=stream_usage.reasoning_tokens,
                         )
-                        llm_span.set_meta("tool_calls_count", len(stream_tool_calls_map))
-                        llm_span.set_meta("input_tokens", stream_usage.input_tokens)
-                        llm_span.set_meta("output_tokens", stream_usage.output_tokens)
-                else:
-                    async for chunk in self.provider.chat_stream(
-                        prepared,
-                        tools=tools,
-                        model=None,
-                        provider_options=self.run_config.provider_options,
-                    ):
-                        if chunk.type == "usage" and chunk.usage:
-                            stream_usage.input_tokens += chunk.usage.input_tokens
-                            stream_usage.output_tokens += chunk.usage.output_tokens
-                            stream_usage.reasoning_tokens += chunk.usage.reasoning_tokens
-                            stream_usage.cache_read_tokens += chunk.usage.cache_read_tokens
-                            stream_usage.cache_creation_tokens += chunk.usage.cache_creation_tokens
-                            continue
-                        async for event in self._process_stream_chunk(
-                            chunk,
-                            stream_content_parts,
-                            stream_tool_calls_map,
-                            stream_reasoning_parts,
-                            in_text_block,
-                            in_reasoning_block,
-                        ):
-                            yield event
-                            if event.type == "text_start":
-                                in_text_block = True
-                            elif event.type == "text_end":
-                                in_text_block = False
-                            elif event.type == "reasoning_start":
-                                in_reasoning_block = True
-                            elif event.type == "reasoning_end":
-                                in_reasoning_block = False
 
-                    cost_tracker.add_usage(
-                        input_tokens=stream_usage.input_tokens,
-                        output_tokens=stream_usage.output_tokens,
-                        reasoning_tokens=stream_usage.reasoning_tokens,
+                except ProviderContextOverflowError:
+                    overflow_retries += 1
+                    logger.warning(f"stream_context_overflow iteration={iteration} retry={overflow_retries}")
+                    yield StreamChunk.text_delta(
+                        content=f"\n[Context overflow — compacting... retry {overflow_retries}/3]\n"
                     )
 
-            except ProviderContextOverflowError:
-                overflow_retries += 1
-                logger.warning(f"stream_context_overflow iteration={iteration} retry={overflow_retries}")
-                yield StreamChunk.text_delta(
-                    content=f"\n[Context overflow — compacting... retry {overflow_retries}/3]\n"
+                    from src.sdk.middleware_summarization import SummarizationMiddleware
+
+                    summary_mw = self.find_middleware(SummarizationMiddleware)
+                    if summary_mw is not None:
+                        success = await summary_mw.force_summarize(state)
+                        if success:
+                            if overflow_retries < 3:
+                                continue
+
+                    yield StreamChunk.error(message="Context too large after summarization attempt.")
+                    break
+                except Exception as e:
+                    logger.error(f"llm_stream_error iteration={iteration}: {e}")
+                    yield StreamChunk.error(message=str(e))
+                    break
+
+                if in_text_block:
+                    yield StreamChunk.text_end()
+                if in_reasoning_block:
+                    yield StreamChunk.reasoning_end()
+
+                for tc_data in stream_tool_calls_map.values():
+                    args = tc_data.get("arguments", {})
+                    if isinstance(args, str):
+                        try:
+                            args = json.loads(args) if args else {}
+                        except json.JSONDecodeError:
+                            args = repair_tool_call(args)
+                    stream_tool_calls.append(
+                        ToolCall(
+                            id=tc_data["id"],
+                            name=tc_data["name"],
+                            arguments=args,
+                        )
+                    )
+
+                assistant_content = "".join(stream_content_parts)
+                reasoning_content = "".join(stream_reasoning_parts) or None
+                assistant_msg = Message.assistant(
+                    content=assistant_content,
+                    tool_calls=stream_tool_calls,
+                    reasoning=reasoning_content,
                 )
 
-                from src.sdk.middleware_summarization import SummarizationMiddleware
+                # When the model uses interleaved reasoning (deepseek, kimi, etc.),
+                # ensure the streaming pipeline correctly captures it. If reasoning
+                # wasn't accumulated from stream events, fall back to the provider's
+                # last known reasoning.
+                if stream_tool_calls and not reasoning_content:
+                    provider_reasoning = getattr(self.provider, "_last_reasoning", None)
+                    if provider_reasoning:
+                        assistant_msg.reasoning = provider_reasoning
 
-                summary_mw = self.find_middleware(SummarizationMiddleware)
-                if summary_mw is not None:
-                    success = await summary_mw.force_summarize(state)
-                    if success:
-                        if overflow_retries < 3:
-                            continue
+                state.add_message(assistant_msg)
 
-                yield StreamChunk.error(message="Context too large after summarization attempt.")
-                break
-            except Exception as e:
-                logger.error(f"llm_stream_error iteration={iteration}: {e}")
-                yield StreamChunk.error(message=str(e))
-                break
+                await self._run_hooks("aafter_model", state)
 
-            if in_text_block:
-                yield StreamChunk.text_end()
-            if in_reasoning_block:
-                yield StreamChunk.reasoning_end()
-
-            for tc_data in stream_tool_calls_map.values():
-                args = tc_data.get("arguments", {})
-                if isinstance(args, str):
+                if not stream_tool_calls:
+                    output_text = assistant_content
                     try:
-                        args = json.loads(args) if args else {}
-                    except json.JSONDecodeError:
-                        args = repair_tool_call(args)
-                stream_tool_calls.append(
-                    ToolCall(
-                        id=tc_data["id"],
-                        name=tc_data["name"],
-                        arguments=args,
+                        await self._check_output_guardrails(output_text, state)
+                    except GuardrailTripwire as e:
+                        yield StreamChunk.error(message=f"Output blocked: {e.result.message}")
+                    break
+
+                # Deduplicate identical tool calls within a single LLM response.
+                # Reasoning models (MiniMax M2.5, etc.) sometimes emit duplicate
+                # tool_use blocks. Keep only the first occurrence per unique (name, args) pair.
+                seen_keys: set[tuple[str, str]] = set()
+                deduped_calls: list[ToolCall] = []
+                for tc in stream_tool_calls:
+                    key = (tc.name, json.dumps(tc.arguments, sort_keys=True))
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        deduped_calls.append(tc)
+                if len(deduped_calls) < len(stream_tool_calls):
+                    logger.debug(
+                        "sdk.deduped_tool_calls removed %d duplicates",
+                        len(stream_tool_calls) - len(deduped_calls),
                     )
-                )
+                stream_tool_calls = [self._with_runtime_context(tc) for tc in deduped_calls]
 
-            assistant_content = "".join(stream_content_parts)
-            reasoning_content = "".join(stream_reasoning_parts) or None
-            assistant_msg = Message.assistant(
-                content=assistant_content,
-                tool_calls=stream_tool_calls,
-                reasoning=reasoning_content,
-            )
+                # Record tool calls AFTER dedup so only unique names are reported
+                all_tool_calls.extend([{"name": tc.name, "call_id": tc.id} for tc in stream_tool_calls])
 
-            # When the model uses interleaved reasoning (deepseek, kimi, etc.),
-            # ensure the streaming pipeline correctly captures it. If reasoning
-            # wasn't accumulated from stream events, fall back to the provider's
-            # last known reasoning.
-            if stream_tool_calls and not reasoning_content:
-                provider_reasoning = getattr(self.provider, "_last_reasoning", None)
-                if provider_reasoning:
-                    assistant_msg.reasoning = provider_reasoning
+                # Classify tool calls: parallel-safe, sequential, interrupts
+                parallel_safe, sequential, interrupts = self._classify_tool_calls(stream_tool_calls)
 
-            state.add_message(assistant_msg)
-
-            await self._run_hooks("aafter_model", state)
-
-            if not stream_tool_calls:
-                output_text = assistant_content
-                try:
-                    await self._check_output_guardrails(output_text, state)
-                except GuardrailTripwire as e:
-                    yield StreamChunk.error(message=f"Output blocked: {e.result.message}")
-                break
-
-            # Deduplicate identical tool calls within a single LLM response.
-            # Reasoning models (MiniMax M2.5, etc.) sometimes emit duplicate
-            # tool_use blocks. Keep only the first occurrence per unique (name, args) pair.
-            seen_keys: set[tuple[str, str]] = set()
-            deduped_calls: list[ToolCall] = []
-            for tc in stream_tool_calls:
-                key = (tc.name, json.dumps(tc.arguments, sort_keys=True))
-                if key not in seen_keys:
-                    seen_keys.add(key)
-                    deduped_calls.append(tc)
-            if len(deduped_calls) < len(stream_tool_calls):
-                logger.debug(
-                    "sdk.deduped_tool_calls removed %d duplicates",
-                    len(stream_tool_calls) - len(deduped_calls),
-                )
-            stream_tool_calls = [self._with_runtime_context(tc) for tc in deduped_calls]
-
-            # Record tool calls AFTER dedup so only unique names are reported
-            all_tool_calls.extend([{"name": tc.name, "call_id": tc.id} for tc in stream_tool_calls])
-
-            # Classify tool calls: parallel-safe, sequential, interrupts
-            parallel_safe, sequential, interrupts = self._classify_tool_calls(stream_tool_calls)
-
-            # Handle interrupts: yield interrupt events, add tool_result messages
-            for tc in interrupts:
-                yield StreamChunk.interrupt(tool=tc.name, call_id=tc.id, args=tc.arguments)
-                interrupt_result = json.dumps(
-                    {
-                        "interrupt": True,
-                        "tool": tc.name,
-                        "args": tc.arguments,
-                        "message": f"Tool '{tc.name}' requires user approval. When approved, retry the exact same {tc.name} call.",
-                        "retry_on_approve": True,
-                        "allowed_actions": ["approve", "reject", "edit"],
-                    }
-                )
-                state.add_message(
-                    Message.tool_result(
-                        tool_call_id=tc.id,
-                        content=interrupt_result,
-                        name=tc.name,
+                # Handle interrupts: yield interrupt events, add tool_result messages
+                for tc in interrupts:
+                    yield StreamChunk.interrupt(tool=tc.name, call_id=tc.id, args=tc.arguments)
+                    interrupt_result = json.dumps(
+                        {
+                            "interrupt": True,
+                            "tool": tc.name,
+                            "args": tc.arguments,
+                            "message": f"Tool '{tc.name}' requires user approval. When approved, retry the exact same {tc.name} call.",
+                            "retry_on_approve": True,
+                            "allowed_actions": ["approve", "reject", "edit"],
+                        }
                     )
-                )
-                yield StreamChunk.tool_result_event(
-                    tool=tc.name, call_id=tc.id, result_preview=interrupt_result[:2000]
-                )
-                yield StreamChunk.tool_end(
-                    tool=tc.name, call_id=tc.id, result_preview=interrupt_result[:2000]
-                )
+                    state.add_message(
+                        Message.tool_result(
+                            tool_call_id=tc.id,
+                            content=interrupt_result,
+                            name=tc.name,
+                        )
+                    )
+                    yield StreamChunk.tool_result_event(
+                        tool=tc.name, call_id=tc.id, result_preview=interrupt_result[:2000]
+                    )
+                    yield StreamChunk.tool_end(
+                        tool=tc.name, call_id=tc.id, result_preview=interrupt_result[:2000]
+                    )
 
-            # Execute parallel-safe tools concurrently, emit events as they complete
-            if parallel_safe:
-                async for event in self._execute_tool_batch_streaming(parallel_safe, state):
-                    yield event
+                # Execute parallel-safe tools concurrently, emit events as they complete
+                if parallel_safe:
+                    async for event in self._execute_tool_batch_streaming(parallel_safe, state):
+                        yield event
 
-            # Execute sequential (destructive) tools one-at-a-time
-            for tc in sequential:
-                async for event in self._execute_single_tool_streaming(tc, state):
-                    yield event
+                # Execute sequential (destructive) tools one-at-a-time
+                for tc in sequential:
+                    async for event in self._execute_single_tool_streaming(tc, state):
+                        yield event
+
+        except SubagentCancelledError:
+            await self._run_hooks("aafter_agent", state)
+            raise
 
         await self._run_hooks("aafter_agent", state)
 

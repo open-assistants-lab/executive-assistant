@@ -487,106 +487,136 @@ class TestWorkQueueDB:
         assert config_data["max_llm_calls"] == 10
 
 
-# -- ProgressMiddleware Tests --
+# -- SubagentContext Tests --
 
 
-class TestProgressMiddleware:
-    @pytest.mark.asyncio
-    async def test_updates_progress_on_tool_result(self, db, profile):
-        from src.sdk.messages import Message
-        from src.sdk.middleware_progress import ProgressMiddleware
-        from src.sdk.state import AgentState
-
-        task_id = await db.insert_task("test_agent", "t", profile)
-
-        mw = ProgressMiddleware(task_id, db)
-        state = AgentState(messages=[
-            Message.user("do it"),
-            Message.assistant(content=""),
-            Message.tool_result(tool_call_id="tc1", content="result", name="time_get"),
-        ])
-
-        await mw.abefore_model(state)
-
-        row = await db.get_task(task_id)
-        progress = json.loads(row["progress"])
-        assert progress["steps_completed"] == 1
-        assert progress["phase"] == "executing"
-        assert "time_get" in progress["message"]
+class TestSubagentContext:
+    """Tests for SubagentContext — replaces ProgressMiddleware + InstructionMiddleware."""
 
     @pytest.mark.asyncio
-    async def test_no_update_without_tool_results(self, db, profile):
-        from src.sdk.messages import Message
-        from src.sdk.middleware_progress import ProgressMiddleware
-        from src.sdk.state import AgentState
+    async def test_record_tool_call_returns_step(self):
+        from src.sdk.subagent_context import SubagentContext
 
-        task_id = await db.insert_task("test_agent", "t", profile)
-
-        mw = ProgressMiddleware(task_id, db)
-        state = AgentState(messages=[Message.user("hello")])
-
-        result = await mw.abefore_model(state)
-        assert result is None
-
-        row = await db.get_task(task_id)
-        progress = json.loads(row["progress"])
-        assert progress == {}
-
-
-# -- InstructionMiddleware Tests --
-
-
-class TestInstructionMiddleware:
-    @pytest.mark.asyncio
-    async def test_injects_instructions(self, db, profile):
-        from src.sdk.messages import Message
-        from src.sdk.middleware_instruction import InstructionMiddleware
-        from src.sdk.state import AgentState
-
-        task_id = await db.insert_task("test_agent", "t", profile)
-        await db.add_instruction(task_id, "Focus on the top 3")
-
-        mw = InstructionMiddleware(task_id, db)
-        state = AgentState(messages=[Message.user("do it")])
-
-        await mw.abefore_model(state)
-
-        system_msgs = [m for m in state.messages if m.role == "system"]
-        assert len(system_msgs) == 1
-        assert "[Supervisor Update]" in system_msgs[0].content
-        assert "Focus on the top 3" in system_msgs[0].content
+        ctx = SubagentContext()
+        step = ctx.record_tool_call("time_get", '{"tz": "UTC"}')
+        assert step == 1
+        step = ctx.record_tool_call("files_read", '{"path": "/a.txt"}')
+        assert step == 2
 
     @pytest.mark.asyncio
-    async def test_raises_on_cancel(self, db, profile):
-        from src.sdk.messages import Message
-        from src.sdk.middleware_instruction import InstructionMiddleware
-        from src.sdk.state import AgentState
-        from src.sdk.subagent_models import TaskCancelledError
+    async def test_doom_detected_with_same_calls(self):
+        from src.sdk.subagent_context import SubagentContext
 
-        task_id = await db.insert_task("test_agent", "t", profile)
-        await db.request_cancel(task_id)
+        ctx = SubagentContext()
+        assert ctx.doom_detected is False
 
-        mw = InstructionMiddleware(task_id, db)
-        state = AgentState(messages=[Message.user("do it")])
+        for _ in range(3):
+            ctx.record_tool_call("time_get", '{"tz": "UTC"}')
 
-        with pytest.raises(TaskCancelledError):
-            await mw.abefore_model(state)
+        assert ctx.doom_detected is True
 
     @pytest.mark.asyncio
-    async def test_no_injection_without_instructions(self, db, profile):
-        from src.sdk.messages import Message
-        from src.sdk.middleware_instruction import InstructionMiddleware
-        from src.sdk.state import AgentState
+    async def test_no_doom_with_different_args(self):
+        from src.sdk.subagent_context import SubagentContext
 
-        task_id = await db.insert_task("test_agent", "t", profile)
+        ctx = SubagentContext()
+        ctx.record_tool_call("files_read", '{"path": "/a.txt"}')
+        ctx.record_tool_call("files_read", '{"path": "/b.txt"}')
+        ctx.record_tool_call("files_read", '{"path": "/c.txt"}')
 
-        mw = InstructionMiddleware(task_id, db)
-        state = AgentState(messages=[Message.user("hello")])
+        assert ctx.doom_detected is False
 
-        result = await mw.abefore_model(state)
-        assert result is None
-        system_msgs = [m for m in state.messages if m.role == "system"]
-        assert len(system_msgs) == 0
+    @pytest.mark.asyncio
+    async def test_no_doom_with_different_tools(self):
+        from src.sdk.subagent_context import SubagentContext
+
+        ctx = SubagentContext()
+        ctx.record_tool_call("time_get", "{}")
+        ctx.record_tool_call("files_read", '{"path": "/a.txt"}')
+        ctx.record_tool_call("shell_execute", '{"command": "ls"}')
+
+        assert ctx.doom_detected is False
+
+    @pytest.mark.asyncio
+    async def test_doom_clears_after_new_tool(self):
+        from src.sdk.subagent_context import SubagentContext
+
+        ctx = SubagentContext()
+        for _ in range(3):
+            ctx.record_tool_call("time_get", '{"tz": "UTC"}')
+        assert ctx.doom_detected is True
+
+        ctx.record_tool_call("files_read", '{"path": "/a.txt"}')
+        assert ctx.doom_detected is False
+
+    @pytest.mark.asyncio
+    async def test_cancel_event_not_set_by_default(self):
+        from src.sdk.subagent_context import SubagentContext
+
+        ctx = SubagentContext()
+        assert ctx.cancel_event.is_set() is False
+
+    @pytest.mark.asyncio
+    async def test_cancel_event_sets(self):
+        from src.sdk.subagent_context import SubagentContext
+
+        ctx = SubagentContext()
+        ctx.cancel_event.set()
+        assert ctx.cancel_event.is_set() is True
+
+    @pytest.mark.asyncio
+    async def test_instructions_queue_drain(self):
+        from src.sdk.subagent_context import SubagentContext
+
+        ctx = SubagentContext()
+        assert ctx.instructions.empty()
+
+        await ctx.instructions.put("Focus on the top 3")
+        await ctx.instructions.put("Use Python only")
+
+        msgs = []
+        while not ctx.instructions.empty():
+            msgs.append(await ctx.instructions.get())
+
+        assert len(msgs) == 2
+        assert msgs[0] == "Focus on the top 3"
+        assert msgs[1] == "Use Python only"
+
+    @pytest.mark.asyncio
+    async def test_on_progress_callback(self):
+        from src.sdk.subagent_context import SubagentContext
+
+        calls: list[tuple[int, str, str]] = []
+
+        async def mock_cb(step: int, phase: str, msg: str) -> None:
+            calls.append((step, phase, msg))
+
+        ctx = SubagentContext(on_progress=mock_cb)
+        ctx.record_tool_call("time_get", '{"tz": "UTC"}')
+        await ctx.on_progress(1, "executing", "Called time_get")
+
+        assert len(calls) == 1
+        assert calls[0] == (1, "executing", "Called time_get")
+
+
+# -- SubagentCancelledError Tests --
+
+
+class TestSubagentCancelledError:
+    def test_exception_message(self):
+        from src.sdk.subagent_context import SubagentCancelledError
+
+        exc = SubagentCancelledError("task-123")
+        assert exc.task_id == "task-123"
+        assert "task-123" in str(exc)
+        assert "cancelled by supervisor" in str(exc)
+
+    def test_exception_with_custom_reason(self):
+        from src.sdk.subagent_context import SubagentCancelledError
+
+        exc = SubagentCancelledError("task-456", "doom loop detected")
+        assert exc.task_id == "task-456"
+        assert "doom loop detected" in str(exc)
 
 
 # -- Coordinator Tests --
@@ -784,7 +814,7 @@ class TestSubagentCoordinator:
         started = asyncio.Event()
         finish = asyncio.Event()
 
-        async def fake_run_job(task_id: str):
+        async def fake_run_job(task_id: str, ctx=None):
             started.set()
             await finish.wait()
 
@@ -810,7 +840,7 @@ class TestSubagentCoordinator:
         started = asyncio.Event()
         finish = asyncio.Event()
 
-        async def fake_run_job(task_id: str):
+        async def fake_run_job(task_id: str, ctx=None):
             started.set()
             await finish.wait()
 
@@ -832,7 +862,7 @@ class TestSubagentCoordinator:
         coordinator = SubagentCoordinator("test_user")
         await coordinator.create(profile)
 
-        async def fake_run_job(task_id: str):
+        async def fake_run_job(task_id: str, ctx=None):
             return None
 
         monkeypatch.setattr(coordinator, "_run_job", fake_run_job)
@@ -854,12 +884,12 @@ class TestSubagentCoordinator:
         db = await coordinator._get_db()
         task_id = await db.insert_task("test_agent", "do work", profile)
 
-        async def fake_run_loop(task_id: str, frozen_agent_def, task: str, db):
+        async def fake_run_loop(task_id_: str, frozen_agent_def, task: str, db, ctx=None):
             return SubagentResult(
                 name=frozen_agent_def.name,
                 task=task,
                 success=True,
-                output=f"completed {task_id}",
+                output=f"completed {task_id_}",
             )
 
         monkeypatch.setattr(coordinator, "_run_loop", fake_run_loop)
@@ -883,7 +913,7 @@ class TestSubagentCoordinator:
         db = await coordinator._get_db()
         task_id = await db.insert_task("test_agent", "do work", profile)
 
-        async def fake_run_loop(task_id: str, frozen_agent_def, task: str, db):
+        async def fake_run_loop(task_id_: str, frozen_agent_def, task: str, db, ctx=None):
             return SubagentResult(
                 name=frozen_agent_def.name,
                 task=task,
@@ -918,7 +948,7 @@ class TestSubagentCoordinator:
         db = await coordinator._get_db()
         task_id = await db.insert_task("test_agent", "do work", profile)
 
-        async def fake_run_loop(task_id: str, frozen_agent_def, task: str, db):
+        async def fake_run_loop(task_id_: str, frozen_agent_def, task: str, db, ctx=None):
             raise RuntimeError("boom")
 
         original_set_failed = db.set_failed
@@ -948,7 +978,7 @@ class TestSubagentCoordinator:
         db = await coordinator._get_db()
         task_id = await db.insert_task("test_agent", "do work", profile)
 
-        async def fake_run_loop(task_id: str, frozen_agent_def, task: str, db):
+        async def fake_run_loop(task_id_: str, frozen_agent_def, task: str, db, ctx=None):
             raise TimeoutError
 
         original_set_failed = db.set_failed
@@ -1186,30 +1216,15 @@ class TestSubagentLifecycle:
 
     @pytest.mark.asyncio
     async def test_doom_loop_detection(self, db, profile):
-        """Simulate doom loop detection in ProgressMiddleware."""
-        from src.sdk.messages import Message
-        from src.sdk.middleware_progress import ProgressMiddleware
-        from src.sdk.state import AgentState
+        """SubagentContext doom loop detection via record_tool_call."""
+        from src.sdk.subagent_context import SubagentContext
 
-        task_id = await db.insert_task("test_agent", "t", profile)
+        ctx = SubagentContext()
+        for _ in range(4):
+            ctx.record_tool_call("time_get", '{"tz": "UTC"}')
 
-        mw = ProgressMiddleware(task_id, db)
-
-        for i in range(4):
-            state = AgentState(messages=[
-                Message.user("do it"),
-                Message.assistant(content=""),
-                Message.tool_result(tool_call_id=f"tc{i}", content='{"args": "same"}', name="time_get"),
-            ])
-            await mw.abefore_model(state)
-
-        row = await db.get_task(task_id)
-        progress = json.loads(row["progress"])
-        assert progress.get("stuck") is True
-
-        instructions = json.loads(row["instructions"])
-        assert len(instructions) > 0
-        assert "Doom loop" in instructions[0]["message"]
+        assert ctx.doom_detected is True
+        assert ctx._step == 4
 
     @pytest.mark.asyncio
     async def test_cancel_then_check_status(self, db, profile):
@@ -1296,109 +1311,40 @@ class TestStaleJobRecovery:
 
 
 class TestDoomLoopDetection:
-    """Verify doom loop detection uses tool call args, not result content."""
+    """Verify doom loop detection uses tool call args via SubagentContext."""
 
     @pytest.mark.asyncio
     async def test_doom_loop_detects_same_tool_with_same_args(self):
-        from unittest import mock
+        from src.sdk.subagent_context import SubagentContext
 
-        from src.sdk.messages import Message, ToolCall
-        from src.sdk.middleware_progress import DOOM_THRESHOLD, ProgressMiddleware
-        from src.sdk.state import AgentState
+        ctx = SubagentContext()
+        args_json = '{"path": "/a.txt"}'
+        for _ in range(3):
+            ctx.record_tool_call("files_read", args_json)
 
-        mock_db = mock.AsyncMock()
-        mw = ProgressMiddleware("task-1", mock_db)
-
-        state = AgentState()
-        args = {"path": "/a.txt"}
-        for i in range(DOOM_THRESHOLD):
-            state.add_message(Message.assistant(
-                tool_calls=[ToolCall(id=f"tc{i}", name="files_read", arguments=args)]
-            ))
-            state.add_message(Message.tool_result(
-                tool_call_id=f"tc{i}", content="file contents", name="files_read"
-            ))
-            await mw.abefore_model(state)
-
-        assert len(mw._last_tool_calls) == DOOM_THRESHOLD
-        assert len(set(mw._last_tool_calls)) == 1
+        assert ctx._step == 3
+        assert ctx.doom_detected is True
 
     @pytest.mark.asyncio
     async def test_doom_loop_distinguishes_same_tool_with_different_args(self):
-        from unittest import mock
+        from src.sdk.subagent_context import SubagentContext
 
-        from src.sdk.messages import Message, ToolCall
-        from src.sdk.middleware_progress import ProgressMiddleware
-        from src.sdk.state import AgentState
+        ctx = SubagentContext()
 
-        mock_db = mock.AsyncMock()
-        mw = ProgressMiddleware("task-2", mock_db)
+        ctx.record_tool_call("files_read", '{"path": "/a.txt"}')
+        ctx.record_tool_call("files_read", '{"path": "/b.txt"}')
+        ctx.record_tool_call("files_read", '{"path": "/c.txt"}')
 
-        state = AgentState()
-
-        state.add_message(Message.assistant(
-            tool_calls=[ToolCall(id="tc0", name="files_read", arguments={"path": "/a.txt"})]
-        ))
-        state.add_message(Message.tool_result(
-            tool_call_id="tc0", content="content A", name="files_read"
-        ))
-        await mw.abefore_model(state)
-
-        state.add_message(Message.assistant(
-            tool_calls=[ToolCall(id="tc1", name="files_read", arguments={"path": "/b.txt"})]
-        ))
-        state.add_message(Message.tool_result(
-            tool_call_id="tc1", content="content B", name="files_read"
-        ))
-        await mw.abefore_model(state)
-
-        state.add_message(Message.assistant(
-            tool_calls=[ToolCall(id="tc2", name="files_read", arguments={"path": "/c.txt"})]
-        ))
-        state.add_message(Message.tool_result(
-            tool_call_id="tc2", content="content C", name="files_read"
-        ))
-        result = await mw.abefore_model(state)
-
-        assert result is None
-        assert len(set(mw._last_tool_calls)) == 3
+        assert ctx.doom_detected is False
 
     @pytest.mark.asyncio
     async def test_doom_loop_distinguishes_string_returning_tools(self):
-        from unittest import mock
+        from src.sdk.subagent_context import SubagentContext
 
-        from src.sdk.messages import Message, ToolCall
-        from src.sdk.middleware_progress import ProgressMiddleware
-        from src.sdk.state import AgentState
+        ctx = SubagentContext()
 
-        mock_db = mock.AsyncMock()
-        mw = ProgressMiddleware("task-3", mock_db)
+        ctx.record_tool_call("shell_execute", '{"command": "ls"}')
+        ctx.record_tool_call("shell_execute", '{"command": "pwd"}')
+        ctx.record_tool_call("shell_execute", '{"command": "date"}')
 
-        state = AgentState()
-
-        state.add_message(Message.assistant(
-            tool_calls=[ToolCall(id="tc0", name="shell_execute", arguments={"command": "ls"})]
-        ))
-        state.add_message(Message.tool_result(
-            tool_call_id="tc0", content="file1\\nfile2", name="shell_execute"
-        ))
-        await mw.abefore_model(state)
-
-        state.add_message(Message.assistant(
-            tool_calls=[ToolCall(id="tc1", name="shell_execute", arguments={"command": "pwd"})]
-        ))
-        state.add_message(Message.tool_result(
-            tool_call_id="tc1", content="/home/user", name="shell_execute"
-        ))
-        await mw.abefore_model(state)
-
-        state.add_message(Message.assistant(
-            tool_calls=[ToolCall(id="tc2", name="shell_execute", arguments={"command": "date"})]
-        ))
-        state.add_message(Message.tool_result(
-            tool_call_id="tc2", content="Mon May 19", name="shell_execute"
-        ))
-        result = await mw.abefore_model(state)
-
-        assert result is None
-        assert len(set(mw._last_tool_calls)) == 3
+        assert ctx.doom_detected is False

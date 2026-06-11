@@ -11,8 +11,8 @@ Public API:
     AgentLoop, Interrupt, RunConfig, CostTracker, Usage - agent loop
     Middleware - middleware base class
     SummarizationMiddleware - conversation summarization (SDK-native)
-    ProgressMiddleware - subagent progress tracking + doom loop detection
-    InstructionMiddleware - subagent course-correction + cancel signal handling
+    SubagentContext - in-memory subagent signaling (replaces ProgressMiddleware + InstructionMiddleware)
+    SubagentCancelledError - raised by AgentLoop on subagent cancel
     HookManager, HookConfig, HookResult, HookDecision - shell hooks
     InputGuardrail, OutputGuardrail, ToolGuardrail, GuardrailResult, GuardrailTripwire - guardrails
     Handoff, HandoffInput - handoffs
@@ -41,14 +41,13 @@ from src.sdk.handoffs import Handoff, HandoffInput
 from src.sdk.loop import AgentLoop, CostTracker, Interrupt, RunConfig
 from src.sdk.messages import Message, StreamChunk, ToolCall, Usage
 from src.sdk.middleware import Middleware
-from src.sdk.middleware_instruction import InstructionMiddleware
-from src.sdk.middleware_progress import ProgressMiddleware
 from src.sdk.middleware_summarization import SummarizationMiddleware
 from src.sdk.providers.base import LLMProvider, ModelCost, ModelInfo
 from src.sdk.providers.factory import create_model_from_config, create_provider
 from src.sdk.providers.ollama import OllamaCloud
 from src.sdk.registry import get_model_info, get_provider, list_models, list_providers, refresh
 from src.sdk.state import AgentState
+from src.sdk.subagent_context import SubagentCancelledError, SubagentContext
 from src.sdk.subagent_models import (
     CostLimitExceededError,
     MaxCallsExceededError,
@@ -95,8 +94,8 @@ __all__ = [
     "RunConfig",
     "CostTracker",
     "Middleware",
-    "InstructionMiddleware",
-    "ProgressMiddleware",
+    "SubagentContext",
+    "SubagentCancelledError",
     "SummarizationMiddleware",
     "HookManager",
     "HookConfig",
