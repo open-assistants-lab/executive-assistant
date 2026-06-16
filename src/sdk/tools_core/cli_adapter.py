@@ -108,7 +108,7 @@ class CLIToolAdapter:
         self,
         args: list[str],
         timeout: int = 120,
-    ) -> dict[str, Any] | list | None:
+    ) -> dict[str, Any] | list[Any] | None:
         """Run a CLI command expecting JSON output.
 
         Returns parsed JSON dict/list or None on failure.
@@ -119,7 +119,8 @@ class CLIToolAdapter:
             return None
 
         try:
-            return json.loads(output)
+            data: dict[str, Any] | list[Any] | None = json.loads(output)
+            return data
         except json.JSONDecodeError:
             # Some CLIs output text before JSON (e.g., progress bars)
             # Try to find JSON start
@@ -127,7 +128,8 @@ class CLIToolAdapter:
                 idx = output.find(start_char)
                 if idx >= 0:
                     try:
-                        return json.loads(output[idx:])
+                        inner_data: dict[str, Any] | list[Any] | None = json.loads(output[idx:])
+                        return inner_data
                     except json.JSONDecodeError:
                         continue
             return None

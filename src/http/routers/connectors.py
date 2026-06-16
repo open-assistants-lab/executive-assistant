@@ -4,6 +4,8 @@ Connector catalog API — lists available SaaS connectors and their setup detail
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from src.app_logging import get_logger
@@ -12,12 +14,13 @@ logger = get_logger()
 router = APIRouter(prefix="/connectors", tags=["connectors"])
 
 
-def _get_catalog(user_id: str) -> list[dict]:
+def _get_catalog(user_id: str) -> list[dict[str, Any]]:
     try:
         from connectkit.bridge import ConnectKitBridge
 
         bridge = ConnectKitBridge(user_id=user_id)
-        return bridge.list_available()
+        result: list[dict[str, Any]] = bridge.list_available()
+        return result
     except ImportError:
         return []
     except Exception as e:
@@ -26,12 +29,12 @@ def _get_catalog(user_id: str) -> list[dict]:
 
 
 @router.get("/catalog")
-async def list_connectors(user_id: str = Query(...)):
+async def list_connectors(user_id: str = Query(...)) -> list[dict[str, Any]]:
     return _get_catalog(user_id)
 
 
 @router.get("/catalog/{service}")
-async def get_connector(service: str, user_id: str = Query(...)):
+async def get_connector(service: str, user_id: str = Query(...)) -> dict[str, Any]:
     catalog = _get_catalog(user_id)
     match = next((c for c in catalog if c["name"] == service), None)
     if not match:
@@ -44,7 +47,7 @@ async def connect_service(
     request: Request,
     service: str = Query(...),
     user_id: str = Query(...),
-):
+) -> dict[str, Any]:
     """Store user-provided credentials for a service.
 
     Accepts JSON body with name-value pairs matching the connector's required_fields.
@@ -62,7 +65,7 @@ async def connect_service(
         if not spec:
             raise HTTPException(404, f"Connector not found: {service}")
 
-        token_data: dict = {}
+        token_data: dict[str, Any] = {}
         for f in spec.get("required_fields", []):
             name = f["name"]
             if name in body:
@@ -98,7 +101,7 @@ async def connect_service(
 async def disconnect_service(
     service: str = Query(...),
     user_id: str = Query(...),
-):
+) -> dict[str, Any]:
     """Remove stored credentials for a connected service."""
     try:
         from connectkit.bridge import ConnectKitBridge

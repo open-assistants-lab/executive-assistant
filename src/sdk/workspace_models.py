@@ -12,6 +12,7 @@ import shutil
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -33,7 +34,7 @@ class Workspace:
         now = datetime.now(UTC).isoformat()
         return cls(id=ws_id, name=clean_name, created_at=now, updated_at=now)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "name": self.name,
@@ -45,7 +46,7 @@ class Workspace:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> Workspace:
+    def from_dict(cls, d: dict[str, Any]) -> Workspace:
         return cls(
             id=d.get("id", ""),
             name=d.get("name", ""),

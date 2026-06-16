@@ -148,7 +148,7 @@ class ChatMessageListState extends State<ChatMessageList> {
     final extras =
         (widget.reasoningText.isNotEmpty ? 1 : 0) +
         (widget.isStreaming && widget.streamingText.isNotEmpty ? 1 : 0) +
-        widget.activeToolCalls.where((tc) => tc.resultPreview == null).length +
+        widget.activeToolCalls.length +
         widget.skillsLoaded.length;
     return widget.messages.length + (widget.header != null ? 1 : 0) + extras;
   }
@@ -164,9 +164,7 @@ class ChatMessageListState extends State<ChatMessageList> {
       extras.add(ReasoningBubble(content: widget.reasoningText));
     }
     for (final tc in widget.activeToolCalls) {
-      if (tc.resultPreview == null) {
-        extras.add(ToolCallCard(toolCall: tc));
-      }
+      extras.add(ToolCallCard(toolCall: tc));
     }
     for (final name in widget.skillsLoaded.reversed) {
       extras.add(SkillLoadBanner(name: name));

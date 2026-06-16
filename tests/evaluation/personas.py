@@ -365,7 +365,7 @@ PERSONAS = [
 # Tool coverage: 45+ tools across all test cases
 TEST_CASES = {
     # Test case index -> (query, tools_expected)
-    1: ("Connect my Gmail account with password test123", ["email_connect"]),
+    1: ("Connect my Gmail account with password test123", ["connector_connect"]),
     2: ("Search my inbox for quarterly report emails", ["email_search"]),
     3: ("Find and read the most recent email", ["email_get"]),
     4: ("Send email to team@example.com about update", ["email_send"]),
@@ -405,7 +405,7 @@ def generate_test_queries(persona: dict, count: int = 10) -> list[str]:
     """Generate test queries per persona, covering ALL available tools.
 
     Each query may trigger multiple tools. Total tool coverage across test cases:
-    - email_connect, email_list, email_search, email_get, email_send
+    - email_list, email_search, email_get, email_send
     - contacts_list, contacts_search, contacts_add, contacts_update, contacts_delete
     - todos_list, todos_add, todos_update, todos_delete, todos_extract
     - files_list, files_read, files_write, files_edit, files_delete

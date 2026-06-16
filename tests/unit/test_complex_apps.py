@@ -1,7 +1,6 @@
 """Tests for complex multi-table app use cases."""
 
 import shutil
-from pathlib import Path
 
 import pytest
 
@@ -170,7 +169,7 @@ class TestComplexUseCases:
         )
 
         # Insert line item
-        lid = storage.insert(
+        storage.insert(
             "pos",
             "line_items",
             {"order_id": oid, "product_id": pid, "quantity": 2, "unit_price": 3.50, "total": 7.00},
@@ -309,7 +308,7 @@ class TestComplexUseCases:
                 "hourly_rate": "REAL",
             },
         }
-        schema = storage.create_app("project", tables)
+        storage.create_app("project", tables)
 
         # Insert team member
         mid = storage.insert(
@@ -394,7 +393,7 @@ class TestComplexUseCases:
             },
             "categories": {"name": "TEXT", "description": "TEXT"},
         }
-        schema = storage.create_app("library", tables)
+        storage.create_app("library", tables)
 
         # Insert category
         cat_id = storage.insert(
@@ -402,7 +401,7 @@ class TestComplexUseCases:
         )
 
         # Insert book
-        book_id = storage.insert(
+        storage.insert(
             "library",
             "books",
             {
@@ -417,7 +416,7 @@ class TestComplexUseCases:
         )
 
         # Insert member
-        mem_id = storage.insert(
+        storage.insert(
             "library",
             "members",
             {
@@ -465,7 +464,7 @@ class TestComplexUseCases:
                 "notes": "TEXT",
             },
         }
-        schema = storage.create_app("restaurant", tables)
+        storage.create_app("restaurant", tables)
 
         # Insert table
         tid = storage.insert(
@@ -538,7 +537,7 @@ class TestComplexUseCases:
                 "notes": "TEXT",
             },
         }
-        schema = storage.create_app("hotel", tables)
+        storage.create_app("hotel", tables)
 
         # Insert room
         rid = storage.insert(
@@ -611,7 +610,7 @@ class TestComplexUseCases:
                 "location": "TEXT",
             },
         }
-        schema = storage.create_app("manufacturing", tables)
+        storage.create_app("manufacturing", tables)
 
         # Insert machine
         mid = storage.insert(
@@ -626,7 +625,7 @@ class TestComplexUseCases:
         )
 
         # Insert material
-        mat_id = storage.insert(
+        storage.insert(
             "manufacturing",
             "materials",
             {
@@ -691,7 +690,7 @@ class TestComplexUseCases:
                 "notes": "TEXT",
             },
         }
-        schema = storage.create_app("healthcare", tables)
+        storage.create_app("healthcare", tables)
 
         # Insert doctor
         did = storage.insert(
@@ -762,7 +761,7 @@ class TestComplexUseCases:
                 "weight": "REAL",
             },
         }
-        schema = storage.create_app("education", tables)
+        storage.create_app("education", tables)
 
         # Insert student
         sid = storage.insert(
@@ -829,7 +828,7 @@ class TestComplexUseCases:
                 "notes": "TEXT",
             },
         }
-        schema = storage.create_app("asset", tables)
+        storage.create_app("asset", tables)
 
         # Insert location
         lid = storage.insert(

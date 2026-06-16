@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/error_messages.dart';
 import '../../../providers/agent_provider.dart';
 
 class SettingsState {
@@ -139,7 +140,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       final valid = data['valid'] == true;
       return (valid: valid, error: data['error'] as String?);
     } catch (e) {
-      return (valid: false, error: 'Could not reach backend: $e');
+      return (valid: false, error: humanReadableError('Could not reach backend: $e'));
     }
   }
 

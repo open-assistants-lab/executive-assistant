@@ -36,7 +36,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     observers: [EaRouteObserver()],
-    initialLocation: '/chat',
+    initialLocation: '/onboarding',
     redirect: (context, state) {
       if (onboardingComplete == null) return null; // still loading
 
@@ -46,8 +46,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (!onboardingComplete && !isOnboarding) {
         return '/onboarding';
       }
-      if (onboardingComplete && isOnboarding) {
-        return '/chat';
+      if (onboardingComplete && (isOnboarding || path == '/chat')) {
+        return '/workspace';
       }
       return null;
     },

@@ -70,8 +70,10 @@ def _check_available() -> str | None:
 
 @tool
 def browser_open(url: str, session: str | None = None) -> str:
-    """Open a URL in the browser.
+    """INTERACTIVE: Open a page in a visual browser (not for simple lookups).
 
+    For INFORMATION retrieval (weather, news, facts, docs), use web_search instead.
+    This tool requires the agent-browser CLI to be installed.
     Navigates the browser to the specified URL. Creates or reuses a session.
     After opening, use browser_snapshot to see the page elements.
 

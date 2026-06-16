@@ -17,7 +17,7 @@ _coremem_cache: dict[str, Any] = {}
 
 # ── message core factory ──────────────────────────────────────────────────────
 
-def _get_message_core(user_id: str, workspace_id: str = "personal"):
+def _get_message_core(user_id: str, workspace_id: str = "personal") -> Any:
     """Get or create a cached MemoryCore instance for the given user/workspace.
 
     Uses the SAME HybridDB path as MessageStore so messages imported
@@ -77,7 +77,7 @@ def _list_workspace_ids(user_id: str) -> list[str]:
     return workspace_ids
 
 
-def _fetch_session_ids(store: Any, msg_ids: list[str]) -> dict[str, str]:
+def _fetch_session_ids(conversation: Any, msg_ids: list[str]) -> dict[str, str]:
     """Batch-lookup session_ids from message metadata.
 
     Extracts session_id from the metadata JSON column.
@@ -90,7 +90,7 @@ def _fetch_session_ids(store: Any, msg_ids: list[str]) -> dict[str, str]:
         return result
 
     try:
-        conn = store.db._connect()
+        conn = conversation._connect()
         try:
             placeholders = ",".join("?" * len(msg_ids))
             rows = conn.execute(
@@ -117,10 +117,7 @@ def _fetch_session_ids(store: Any, msg_ids: list[str]) -> dict[str, str]:
     return result
 
 
-def _group_results_by_session(
-    results: list[SearchResult],
-    session_ids: dict[int, str],
-) -> list[tuple[str, int, list[SearchResult]]]:
+def _group_results_by_session(results: list[SearchResult], session_ids: dict[str, str]) -> list[tuple[str, int, list[SearchResult]]]:
     """Group search results by session.
 
     Returns ordered groups: [(session_id, message_count, results), ...]
@@ -366,7 +363,7 @@ def message_count(
     search_limit = 100
 
     queries = expand_queries(query, llm_provider=_try_create_llm_provider())
-    seen_ids: set[int] = set()
+    seen_ids: set[str] = set()
     all_results: list[SearchResult] = []
 
     for q in queries:
@@ -378,7 +375,7 @@ def message_count(
 
     # Fetch session metadata
     msg_ids = [r.id for r in all_results]
-    session_ids = _fetch_session_ids(conversation, msg_ids)
+    session_ids: dict[str, str] = _fetch_session_ids(conversation, msg_ids)
 
     # Group by session
     session_groups = _group_results_by_session(all_results, session_ids)

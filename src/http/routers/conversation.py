@@ -1,5 +1,6 @@
 import json
 import re
+from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
 
@@ -18,7 +19,7 @@ from src.sdk.runner import (
 )
 from src.storage.messages import get_message_store
 
-_pending_approvals: dict[str, dict] = {}
+_pending_approvals: dict[str, dict[str, Any]] = {}
 
 router = APIRouter(tags=["conversation"])
 logger = get_logger()
@@ -65,8 +66,8 @@ def _render_editor_surface(file_path: str, content: str) -> str:
     return html
 
 
-def _extract_editor(text: str) -> list[dict]:
-    surfaces: list[dict] = []
+def _extract_editor(text: str) -> list[dict[str, Any]]:
+    surfaces: list[dict[str, Any]] = []
     for i, match in enumerate(_EDITOR_FENCE.finditer(text)):
         file_path = match.group(1).strip()
         content = match.group(2).strip()
@@ -83,8 +84,8 @@ def _extract_editor(text: str) -> list[dict]:
     return surfaces
 
 
-def _extract_canvas(text: str, surface_id_prefix: str = "canvas") -> list[dict]:
-    surfaces: list[dict] = []
+def _extract_canvas(text: str, surface_id_prefix: str = "canvas") -> list[dict[str, Any]]:
+    surfaces: list[dict[str, Any]] = []
     for i, match in enumerate(_CANVAS_FENCE.finditer(text)):
         surface_type = match.group(1)
         html = match.group(2).strip()
@@ -99,7 +100,7 @@ def _extract_canvas(text: str, surface_id_prefix: str = "canvas") -> list[dict]:
     return surfaces
 
 
-def _extract_surfaces(text: str) -> list[dict]:
+def _extract_surfaces(text: str) -> list[dict[str, Any]]:
     """Extract all surface blocks (canvas, skill-form, subagent-form, editor)."""
     return _extract_canvas(text) + _extract_editor(text)
 
@@ -111,7 +112,7 @@ def _strip_canvas_fences(text: str) -> str:
     return text.strip()
 
 
-def _persist_tool_messages(conversation, tool_events: list[dict], workspace_id: str) -> None:
+def _persist_tool_messages(conversation: Any, tool_events: list[dict[str, Any]], workspace_id: str) -> None:
     for event in tool_events:
         output = event.get("output")
         if event.get("stage") != "end" or not output:
@@ -128,7 +129,7 @@ def _persist_tool_messages(conversation, tool_events: list[dict], workspace_id: 
 
 
 @router.get("/conversation")
-async def get_conversation(user_id: str = "default_user", limit: int = 100, workspace_id: str = "personal"):
+async def get_conversation(user_id: str = "default_user", limit: int = 100, workspace_id: str = "personal") -> dict[str, Any]:
     """Get conversation history filtered by workspace."""
     conversation = get_message_store(user_id, workspace_id)
     messages = conversation.get_recent_messages_for_workspace(workspace_id, limit)
@@ -146,7 +147,7 @@ async def get_conversation(user_id: str = "default_user", limit: int = 100, work
     }
 
 
-def _filter_by_workspace(messages: list, workspace_id: str) -> list:
+def _filter_by_workspace(messages: list[Any], workspace_id: str) -> list[Any]:
     """Filter messages to only those matching the given workspace_id."""
     if not workspace_id:
         return messages
@@ -162,7 +163,7 @@ def _filter_by_workspace(messages: list, workspace_id: str) -> list:
 
 
 @router.delete("/conversation")
-async def clear_conversation(user_id: str = "default_user", workspace_id: str = "personal"):
+async def clear_conversation(user_id: str = "default_user", workspace_id: str = "personal") -> dict[str, Any]:
     """Clear conversation history."""
     conversation = get_message_store(user_id, workspace_id)
     conversation.delete_messages_for_workspace(workspace_id)
@@ -198,8 +199,8 @@ async def handle_message(req: MessageRequest, _: None = Depends(require_auth)) -
         sdk_messages = _messages_from_conversation(recent_messages)
 
         logger = get_logger()
-        verbose_data: dict | None = None
-        tool_events: list[dict] = []
+        verbose_data: dict[str, Any] | None = None
+        tool_events: list[dict[str, Any]] = []
         ai_content_parts: list[str] = []
 
         with timer(
@@ -355,7 +356,7 @@ async def handle_message(req: MessageRequest, _: None = Depends(require_auth)) -
 
 
 @router.post("/message/stream")
-async def message_stream(req: MessageRequest, _: None = Depends(require_auth)):
+async def message_stream(req: MessageRequest, _: None = Depends(require_auth)) -> StreamingResponse:
     """Send a message and stream response using SSE (SDK-powered)."""
     try:
         user_id = req.user_id or "default_user"
@@ -370,10 +371,10 @@ async def message_stream(req: MessageRequest, _: None = Depends(require_auth)):
 
         logger = get_logger()
 
-        async def generate():
+        async def generate() -> AsyncGenerator[str, None]:
             ai_content_parts: list[str] = []
-            tool_metadata_list: list[dict] = []
-            tool_results: list[dict] = []
+            tool_metadata_list: list[dict[str, Any]] = []
+            tool_results: list[dict[str, Any]] = []
 
             async for chunk in run_sdk_agent_stream(
                 user_id=user_id,
@@ -444,11 +445,11 @@ async def message_stream(req: MessageRequest, _: None = Depends(require_auth)):
 class ConversationImportRequest(BaseModel):
     user_id: str = "default_user"
     workspace_id: str = "personal"
-    messages: list[dict]  # [{"role": "user", "content": "..."}, ...]
+    messages: list[dict[str, Any]]  # [{"role": "user", "content": "..."}, ...]
 
 
 @router.post("/conversation/import")
-async def import_conversation(req: ConversationImportRequest, _: None = Depends(require_auth)):
+async def import_conversation(req: ConversationImportRequest, _: None = Depends(require_auth)) -> dict[str, Any]:
     """Bulk-import conversation history without triggering the agent loop.
 
     Used by evaluation frameworks (LongMemEval) to pre-load session data

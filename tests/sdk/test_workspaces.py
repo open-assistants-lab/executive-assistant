@@ -1,12 +1,8 @@
 """Tests for workspace model, storage, and scoping."""
-import json
-import os
 import tempfile
 from pathlib import Path
 
-import pytest
-
-from src.sdk.workspace_models import Workspace, WORKSPACE_DEFAULT
+from src.sdk.workspace_models import WORKSPACE_DEFAULT, Workspace
 
 
 class TestWorkspaceModel:
@@ -91,16 +87,15 @@ class TestWorkspaceStorage:
 
     def test_save_and_load_workspace(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            import yaml
-            from src.sdk.workspace_models import save_workspace, load_workspace
-            
+            from src.sdk.workspace_models import load_workspace, save_workspace
+
             ws = Workspace(
                 id="test", name="Test", description="d",
                 prompt="c", created_at="a", updated_at="b",
                 model_override="ollama:minimax-m2.7",
             )
             save_workspace(ws, base_path=Path(tmpdir))
-            
+
             loaded = load_workspace("test", base_path=Path(tmpdir))
             assert loaded is not None
             assert loaded.id == "test"
@@ -114,13 +109,13 @@ class TestWorkspaceStorage:
 
     def test_list_workspaces(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            from src.sdk.workspace_models import save_workspace, list_workspaces
-            
+            from src.sdk.workspace_models import list_workspaces, save_workspace
+
             ws1 = Workspace.from_name("Project A")
             ws2 = Workspace.from_name("Project B")
             save_workspace(ws1, base_path=Path(tmpdir))
             save_workspace(ws2, base_path=Path(tmpdir))
-            
+
             workspaces = list_workspaces(base_path=Path(tmpdir))
             names = [w.name for w in workspaces]
             assert "Project A" in names
@@ -129,12 +124,12 @@ class TestWorkspaceStorage:
 
     def test_delete_workspace(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            from src.sdk.workspace_models import save_workspace, delete_workspace, load_workspace
-            
+            from src.sdk.workspace_models import delete_workspace, load_workspace, save_workspace
+
             ws = Workspace.from_name("DeleteMe")
             save_workspace(ws, base_path=Path(tmpdir))
             assert load_workspace("deleteme", base_path=Path(tmpdir)) is not None
-            
+
             delete_workspace("deleteme", base_path=Path(tmpdir))
             assert load_workspace("deleteme", base_path=Path(tmpdir)) is None
 
@@ -241,7 +236,9 @@ class TestWorkspaceTools:
 
     def test_workspace_switch_updates_current(self):
         from src.sdk.tools_core.workspace import (
-            workspace_create, workspace_switch, _get_current_workspace,
+            _get_current_workspace,
+            workspace_create,
+            workspace_switch,
         )
         with tempfile.TemporaryDirectory() as tmpdir:
             import unittest.mock as mock
@@ -252,7 +249,9 @@ class TestWorkspaceTools:
 
     def test_workspace_current_shows_info(self):
         from src.sdk.tools_core.workspace import (
-            workspace_create, workspace_switch, workspace_current,
+            workspace_create,
+            workspace_current,
+            workspace_switch,
         )
         with tempfile.TemporaryDirectory() as tmpdir:
             import unittest.mock as mock
@@ -264,7 +263,9 @@ class TestWorkspaceTools:
 
     def test_workspace_delete_removes(self):
         from src.sdk.tools_core.workspace import (
-            workspace_create, workspace_delete, workspace_list,
+            workspace_create,
+            workspace_delete,
+            workspace_list,
         )
         with tempfile.TemporaryDirectory() as tmpdir:
             import unittest.mock as mock

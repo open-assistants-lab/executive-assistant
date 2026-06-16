@@ -470,7 +470,7 @@ wheels = [
 
 [[package]]
 name = "coremem"
-version = "0.7.1"
+version = "0.9.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "chromadb" },
@@ -479,8 +479,9 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "sentence-transformers" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/85/18/67919fcccb3925d769db75a5866522e9dfff97756b53d8bb727b7416c37a/coremem-0.9.1.tar.gz", hash = "sha256:03a2442e1ffdaee4819682f8844392641f959a29c1defcc8c96982be85134f9a", size = 82458555, upload-time = "2026-06-15T01:47:00.931Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/15/34/ca7f12e4ff485fd9b0155f4c23a3c714700cd13cd8e81931cb90455c852f/coremem-0.7.1-py3-none-any.whl", hash = "sha256:2539b09ed6e2cdd7b69de7f56485d0d9212ae5c401983b26719f1f90b5cb9d38", size = 46775, upload-time = "2026-06-07T17:11:53.324Z" },
+    { url = "https://files.pythonhosted.org/packages/b8/0b/7113eca0b27409d55328ccd0c450203e8f68cb718607542be743cec48100/coremem-0.9.1-py3-none-any.whl", hash = "sha256:58672b718c917636d01ea7a5240549923d1818b74c1b7b7d22f53920d7410428", size = 50452, upload-time = "2026-06-15T01:47:25.607Z" },
 ]
 
 [[package]]
@@ -745,6 +746,7 @@ http = [
 [package.dev-dependencies]
 dev = [
     { name = "pyinstaller" },
+    { name = "types-pyyaml" },
 ]
 
 [package.metadata]
@@ -755,14 +757,14 @@ requires-dist = [
     { name = "apscheduler", specifier = ">=3.11.2" },
     { name = "chromadb", specifier = ">=1.5.0" },
     { name = "connectkit", specifier = "==0.1.4" },
-    { name = "coremem", specifier = ">=0.7.1" },
+    { name = "coremem", specifier = ">=0.9.1" },
     { name = "cryptography", specifier = ">=41.0.0" },
     { name = "duckdb", specifier = ">=1.0.0" },
     { name = "fastapi", specifier = ">=0.129.0" },
     { name = "fastapi", marker = "extra == 'http'", specifier = ">=0.129.0" },
     { name = "html2text", specifier = ">=2025.4.15" },
     { name = "httpx", specifier = ">=0.28.0" },
-    { name = "hybriddb", specifier = ">=0.4.2" },
+    { name = "hybriddb", specifier = ">=0.4.5" },
     { name = "imap-tools", specifier = ">=1.0.0" },
     { name = "mcp", specifier = ">=1.0.0" },
     { name = "mistune", specifier = ">=3.2.1" },
@@ -798,7 +800,10 @@ requires-dist = [
 provides-extras = ["http", "graph", "dev", "benchmark"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pyinstaller", specifier = ">=6.20.0" }]
+dev = [
+    { name = "pyinstaller", specifier = ">=6.20.0" },
+    { name = "types-pyyaml", specifier = ">=6.0.12.20260518" },
+]
 
 [[package]]
 name = "fastapi"
@@ -1135,14 +1140,14 @@ wheels = [
 
 [[package]]
 name = "hybriddb"
-version = "0.4.2"
+version = "0.4.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "chromadb" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a4/d4/0b2b6d4bc1c27ee14079af8ef0014a881ee7524da73e92f43e1e478010ed/hybriddb-0.4.2.tar.gz", hash = "sha256:14840dca047d7f93ad97361d62252e75a43a522fa7ae5d03fee8a779f9d59fb7", size = 248977, upload-time = "2026-05-31T08:36:51.443Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6e/59/7822714f0749b66fa5f0d8d4b7a293093e4013b583d440dded6fa378d410/hybriddb-0.4.5.tar.gz", hash = "sha256:1dce44aeca41cb8cba37cdd0ef995555f634225d9b5240ff348a6556bc154520", size = 256207, upload-time = "2026-06-14T16:26:35.628Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ca/49/741987b825c5beadf1fc3fbb2988ef8326b2baa6b6e24cd6163300b31f58/hybriddb-0.4.2-py3-none-any.whl", hash = "sha256:337d111263e0f4338701c8aef6ed4a50f020d5fca1c8e43e2887f5a51269cb4e", size = 38788, upload-time = "2026-05-31T08:36:52.595Z" },
+    { url = "https://files.pythonhosted.org/packages/d9/e7/5fdb069cb5bec0f2fe66776bd36dd4935674ad10dc30a14fabb035f8c992/hybriddb-0.4.5-py3-none-any.whl", hash = "sha256:24730c5a09c029a9c1fdfd5bff009e21c022157733a5ef4b294072fe7e038b49", size = 40000, upload-time = "2026-06-14T16:26:34.05Z" },
 ]
 
 [[package]]
@@ -3480,6 +3485,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/a7/a7/e6aecc4b4eb59598829a3b5076a93aff291b4fdaa2ded25efc4e1f4d219c/typer_slim-0.24.0.tar.gz", hash = "sha256:f0ed36127183f52ae6ced2ecb2521789995992c521a46083bfcdbb652d22ad34", size = 4776, upload-time = "2026-02-16T22:08:51.2Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a7/24/5480c20380dfd18cf33d14784096dca45a24eae6102e91d49a718d3b6855/typer_slim-0.24.0-py3-none-any.whl", hash = "sha256:d5d7ee1ee2834d5020c7c616ed5e0d0f29b9a4b1dd283bdebae198ec09778d0e", size = 3394, upload-time = "2026-02-16T22:08:49.92Z" },
+]
+
+[[package]]
+name = "types-pyyaml"
+version = "6.0.12.20260518"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b8/83/4a1afc3fbfcf5b8d46fc390cd95ed6b0dc9010a265f4e9f46314efffa37a/types_pyyaml-6.0.12.20260518.tar.gz", hash = "sha256:d917f83fb38462550338c1297faedd860b3ec83912b96b1e3d73255f7473e466", size = 17850, upload-time = "2026-05-18T06:01:58.675Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/06/a2/c01db32be2ae7d6a1689972f3c492b149ee4e164b12fdfd9f64b50888215/types_pyyaml-6.0.12.20260518-py3-none-any.whl", hash = "sha256:d2150f75a231c9fe9c7463bd29487d93e60bac90400287351384bc2284eba7cd", size = 20312, upload-time = "2026-05-18T06:01:57.368Z" },
 ]
 
 [[package]]

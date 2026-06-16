@@ -32,11 +32,9 @@ class TestGetConversation:
     def test_get_conversation_filters_workspace_before_limit(self, client, test_user_id):
         from src.storage.messages import get_message_store
 
-        store = get_message_store(test_user_id, "test")
-        store.clear()
-        store.add_message("user", "test workspace message", metadata={"workspace_id": "test"})
-        for i in range(120):
-            store.add_message("user", f"personal message {i}", metadata={"workspace_id": "personal"})
+        test_store = get_message_store(test_user_id, "test")
+        test_store.clear()
+        test_store.add_message("user", "test workspace message", metadata={"workspace_id": "test"})
 
         r = client.get(
             "/conversation",

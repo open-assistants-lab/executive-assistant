@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from connectkit.meta_tools import TOOL_SPECS
 from connectkit.sdk_adapter import ToolSpec
 
@@ -24,7 +26,7 @@ def _bind_gateway(tool_spec: ToolSpec) -> ToolSpec:
     gateway_url = _get_gateway_url()
     orig = tool_spec.async_function
 
-    async def bound_connect(**kwargs):
+    async def bound_connect(**kwargs: Any) -> Any:
         kwargs["gateway_url"] = gateway_url
         return await orig(**kwargs)
 
@@ -45,11 +47,11 @@ def _spec_to_tool_def(spec: ToolSpec) -> ToolDefinition:
         fn = spec.function
         if fn:
 
-            def _make_wrapper(f):
+            def _make_wrapper(f: Any) -> Any:
                 import asyncio
                 from functools import partial
 
-                async def wrapper(**kwargs):
+                async def wrapper(**kwargs: Any) -> Any:
                     return await asyncio.to_thread(partial(f, **kwargs))
                 return wrapper
 

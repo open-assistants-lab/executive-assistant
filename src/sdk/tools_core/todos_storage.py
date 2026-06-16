@@ -19,7 +19,7 @@ def get_db_path(user_id: str) -> str:
     return str(get_paths(uid).todos_db())
 
 
-def get_engine(user_id: str):
+def get_engine(user_id: str) -> Any:
     """Get SQLAlchemy engine with schema initialized."""
     db_path = get_db_path(user_id)
     from sqlalchemy import create_engine
@@ -29,7 +29,7 @@ def get_engine(user_id: str):
     return engine
 
 
-def _init_db(engine) -> None:
+def _init_db(engine: Any) -> None:
     """Initialize database schema."""
     with engine.connect() as conn:
         conn.execute(

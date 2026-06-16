@@ -1,22 +1,24 @@
+from typing import Any
+
 from fastapi import APIRouter
 
 router = APIRouter(tags=["health"])
 
 
 @router.get("/health")
-async def health():
+async def health() -> dict[str, Any]:
     """Health check."""
     return {"status": "healthy"}
 
 
 @router.get("/health/ready")
-async def ready():
+async def ready() -> dict[str, Any]:
     """Readiness check."""
     return {"status": "ready"}
 
 
 @router.get("/models")
-async def list_models_endpoint():
+async def list_models_endpoint() -> dict[str, Any]:
     """List available providers and models from models.dev cache."""
     from src.sdk.registry import list_models
 
@@ -26,7 +28,7 @@ async def list_models_endpoint():
 
     # Group by provider, deduplicating by model ID
     from src.sdk.registry import get_provider
-    providers: dict[str, dict] = {}
+    providers: dict[str, dict[str, Any]] = {}
     seen_models: set[str] = set()
     for m in models:
         full_id = f"{m.provider_id}:{m.id}"

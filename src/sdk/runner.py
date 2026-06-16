@@ -20,7 +20,7 @@ import asyncio
 import hashlib
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from src.app_logging import get_logger
 from src.config import get_settings
@@ -198,7 +198,7 @@ def _get_skills_context(user_id: str, workspace_id: str = "personal") -> str:
             return ""
 
         # Sort by load count descending (most-used first), then alphabetically as tiebreaker
-        def _sort_key(s: dict) -> tuple:
+        def _sort_key(s: Any) -> tuple[Any, ...]:
             name = s.get("name", "")
             count = registry.get_load_count(name)
             return (-count, name)
@@ -275,7 +275,7 @@ async def create_sdk_loop(user_id: str, workspace_id: str = "personal", model: s
     _seed_default_workspace()
     t0 = time.monotonic()
     settings = get_settings()
-    model_str = model or getattr(settings.agent, "model", "ollama:minimax-m2.5")
+    model_str: str = cast(str, model or getattr(settings.agent, "model", "ollama:minimax-m2.5"))
 
     provider = create_model_from_config(model_str, provider_keys=provider_keys)
     t1 = time.monotonic()
@@ -302,7 +302,7 @@ async def create_sdk_loop(user_id: str, workspace_id: str = "personal", model: s
     ]
     t2 = time.monotonic()
 
-    mcp_tools: list = []
+    mcp_tools: list[Any] = []
     mcp_bridge = None
     try:
         from src.sdk.tools_core.mcp_bridge import MCPToolBridge
@@ -315,7 +315,7 @@ async def create_sdk_loop(user_id: str, workspace_id: str = "personal", model: s
     except Exception as e:
         logger.warning("sdk_runner.mcp_failed", {"error": str(e)}, user_id=user_id)
 
-    connector_tools: list = []
+    connector_tools: list[Any] = []
     connectkit_bridge = None
     try:
         from connectkit.bridge import ConnectKitBridge
@@ -459,13 +459,13 @@ async def create_sdk_loop(user_id: str, workspace_id: str = "personal", model: s
             f"\n\nYou have access to {total_in_index} additional tools across all categories. "
             "Use tool_search(description='what you need') to find and load a specific tool."
         )
-        loop.system_prompt += tool_hint
+        loop.system_prompt = (loop.system_prompt or "") + tool_hint
 
     if mcp_bridge:
-        loop._mcp_bridge = mcp_bridge
+        loop._mcp_bridge = mcp_bridge  # type: ignore[attr-defined]
 
     if connectkit_bridge:
-        loop._connectkit_bridge = connectkit_bridge
+        loop._connectkit_bridge = connectkit_bridge  # type: ignore[attr-defined]
 
     t5 = time.monotonic()
     logger.info(
@@ -496,7 +496,7 @@ async def get_sdk_loop(user_id: str, workspace_id: str = "personal", model: str 
         return _loop_cache[cache_key]
 
 
-def _connector_dicts_to_defs(dicts: list[dict]) -> list[ToolDefinition]:
+def _connector_dicts_to_defs(dicts: list[dict[str, Any]]) -> list[ToolDefinition]:
     """Convert connectkit tool dicts to SDK ToolDefinition objects.
 
     Connector adapters produce plain dicts (to avoid depending on the EA SDK).
@@ -545,9 +545,8 @@ def _messages_from_conversation(messages: list[Any]) -> list[Message]:
         elif role == "tool":
             meta = getattr(m, "metadata", {}) or {}
             tool_name = meta.get("tool_name") or meta.get("tool") or "unknown"
-            tool_text = str(content or "")[:500]
-            if tool_text:
-                sdk_messages.append(Message.system(f"[Tool: {tool_name}] {tool_text}"))
+            tool_call_id = meta.get("tool_call_id") or meta.get("call_id") or ""
+            sdk_messages.append(Message.tool_result(tool_call_id, content=str(content or ""), name=tool_name))
             pending_reasoning = None
         elif role == "reasoning":
             pending_reasoning = content or None

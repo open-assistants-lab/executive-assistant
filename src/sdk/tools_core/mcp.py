@@ -73,7 +73,7 @@ async def _mcp_reload(user_id: str = "") -> str:
         bridge = getattr(loop, "_mcp_bridge", None)
         if bridge is None:
             bridge = MCPToolBridge(user_id=user_id)
-            loop._mcp_bridge = bridge
+            loop._mcp_bridge = bridge  # type: ignore[attr-defined]
 
         for name in old_names:
             loop.unregister_tool(name)

@@ -14,8 +14,8 @@ import 'services/test_instrumentation.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
-  await loadScrollPositionsFromPrefs();
   WidgetsFlutterBinding.ensureInitialized();
+  await loadScrollPositionsFromPrefs();
   await initCrashReporting();
 
   final prefs = await SharedPreferences.getInstance();
@@ -26,16 +26,11 @@ void main() async {
   }
   resolvedUserId = userId;
 
-  runZonedGuarded(() {
-    runApp(
-      InstrumentedApp(
-        child: const ProviderScope(child: ExecutiveAssistantApp()),
-      ),
-    );
-  }, (error, stack) {
-    TestInstrumentation().onZoneError(error, stack);
-    reportError(error, stack);
-  });
+  runApp(
+    InstrumentedApp(
+      child: const ProviderScope(child: ExecutiveAssistantApp()),
+    ),
+  );
 }
 
 class ExecutiveAssistantApp extends ConsumerWidget {

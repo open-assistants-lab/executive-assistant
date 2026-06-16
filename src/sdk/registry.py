@@ -24,6 +24,7 @@ import logging
 import os
 import time
 from pathlib import Path
+from typing import Any, cast
 from urllib.request import Request, urlopen
 
 from src.sdk.providers.base import ModelCost, ModelInfo
@@ -43,7 +44,7 @@ _PROVIDER_TYPE_MAP: dict[str, str] = {
 }
 
 _models_cache: dict[str, ModelInfo] | None = None
-_providers_cache: dict[str, dict] | None = None
+_providers_cache: dict[str, dict[str, Any]] | None = None
 _last_fetch_time: float = 0.0
 
 
@@ -53,8 +54,8 @@ def _resolve_provider_type(npm: str, api: str | None) -> str:
     return "openai-compatible"
 
 
-def _transform_model(model_id: str, model_data: dict, provider_id: str) -> ModelInfo:
-    cost_data = model_data.get("cost", {})
+def _transform_model(model_id: str, model_data: dict[str, Any], provider_id: str) -> ModelInfo:
+    cost_data: dict[str, Any] = model_data.get("cost", {})
     cost = ModelCost(
         input=cost_data.get("input", 0.0),
         output=cost_data.get("output", 0.0),
@@ -100,9 +101,9 @@ def _transform_model(model_id: str, model_data: dict, provider_id: str) -> Model
     )
 
 
-def _transform_api_data(data: dict) -> tuple[dict[str, ModelInfo], dict[str, dict]]:
+def _transform_api_data(data: dict[str, Any]) -> tuple[dict[str, ModelInfo], dict[str, dict[str, Any]]]:
     models: dict[str, ModelInfo] = {}
-    providers: dict[str, dict] = {}
+    providers: dict[str, dict[str, Any]] = {}
 
     for provider_id, provider_data in data.items():
         if not isinstance(provider_data, dict):
@@ -164,12 +165,12 @@ def _get_cache_ttl() -> int:
         return _DEFAULT_CACHE_TTL
 
 
-def _load_from_cache() -> dict | None:
+def _load_from_cache() -> dict[str, Any] | None:
     cache_path = _get_cache_path()
     if not cache_path.exists():
         return None
     try:
-        data = json.loads(cache_path.read_text())
+        data: dict[str, Any] = cast(dict[str, Any], json.loads(cache_path.read_text()))
         if time.time() - data.get("_fetched_at", 0) < _get_cache_ttl():
             return data
         return None
@@ -177,7 +178,7 @@ def _load_from_cache() -> dict | None:
         return None
 
 
-def _save_to_cache(data: dict) -> None:
+def _save_to_cache(data: dict[str, Any]) -> None:
     cache_path = _get_cache_path()
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -186,12 +187,12 @@ def _save_to_cache(data: dict) -> None:
         logger.warning("registry: failed to save cache to %s", cache_path)
 
 
-def _fetch_api() -> dict | None:
+def _fetch_api() -> dict[str, Any] | None:
     url = _get_api_url()
     try:
         request = Request(url, headers={"User-Agent": "executive-assistant/1.0"})
         with urlopen(request, timeout=10) as resp:
-            data = json.loads(resp.read())
+            data: dict[str, Any] = cast(dict[str, Any], json.loads(resp.read()))
         data["_fetched_at"] = time.time()
         _save_to_cache(data)
         return data
@@ -200,7 +201,7 @@ def _fetch_api() -> dict | None:
         return None
 
 
-def _load_builtin() -> dict:
+def _load_builtin() -> dict[str, Any]:
     return {
         "_fetched_at": 0,
         "openai": {
@@ -376,13 +377,13 @@ def list_models(
     return models
 
 
-def get_provider(provider_id: str) -> dict | None:
+def get_provider(provider_id: str) -> dict[str, Any] | None:
     _ensure_loaded()
     assert _providers_cache is not None
     return _providers_cache.get(provider_id)
 
 
-def list_providers() -> list[dict]:
+def list_providers() -> list[dict[str, Any]]:
     _ensure_loaded()
     assert _providers_cache is not None
     return list(_providers_cache.values())

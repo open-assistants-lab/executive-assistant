@@ -52,7 +52,7 @@ class GeminiProvider(LLMProvider):
             )
         return self._http_client
 
-    def _messages_to_contents(self, messages: list[Message]) -> list[dict]:
+    def _messages_to_contents(self, messages: list[Message]) -> list[dict[str, Any]]:
         contents = []
         for m in messages:
             role = "user" if m.role in ("user", "system") else "model"
@@ -76,7 +76,7 @@ class GeminiProvider(LLMProvider):
                     }
                 )
                 continue
-            parts: list[dict] = []
+            parts: list[dict[str, Any]] = []
             if m.content and isinstance(m.content, str) and m.content.strip():
                 parts.append({"text": m.content})
             for tc in m.tool_calls:
@@ -89,7 +89,7 @@ class GeminiProvider(LLMProvider):
                 contents.append({"role": role, "parts": parts})
         return contents
 
-    def _tools_to_gemini(self, tools: list[ToolDefinition]) -> list[dict]:
+    def _tools_to_gemini(self, tools: list[ToolDefinition]) -> list[dict[str, Any]]:
         result = []
         for t in tools:
             params = t.parameters if t.parameters else {"type": "object", "properties": {}}
@@ -136,7 +136,7 @@ class GeminiProvider(LLMProvider):
         tools: list[ToolDefinition] | None,
         provider_options: dict[str, dict[str, Any]] | None = None,
         **kwargs: Any,
-    ) -> dict:
+    ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "contents": self._messages_to_contents(messages),
         }
@@ -147,7 +147,7 @@ class GeminiProvider(LLMProvider):
         payload.update(provider_opts)
         return payload
 
-    def _parse_response(self, data: dict) -> Message:
+    def _parse_response(self, data: dict[str, Any]) -> Message:
         candidates = data.get("candidates", [])
         if not candidates:
             return Message.assistant(content="")
@@ -200,7 +200,7 @@ class GeminiProvider(LLMProvider):
         client = self._get_client()
         url = self._url(model, stream=True)
 
-        current_tool_calls: dict[int, dict] = {}
+        current_tool_calls: dict[int, dict[str, Any]] = {}
 
         async with client.stream("POST", url, json=payload) as response:
             try:
@@ -226,7 +226,7 @@ class GeminiProvider(LLMProvider):
                             yield event
 
     def _parse_stream_chunk(
-        self, data: dict, current_tool_calls: dict[int, dict]
+        self, data: dict[str, Any], current_tool_calls: dict[int, dict[str, Any]]
     ) -> list[StreamChunk]:
         """Parse Gemini streaming chunk with proper tool call accumulation.
 

@@ -9,7 +9,6 @@ error handling). We wrap it with our SDK Message types.
 
 from __future__ import annotations
 
-import json
 from collections.abc import AsyncIterator
 from typing import Any
 from uuid import uuid4
@@ -86,49 +85,6 @@ class OpenAIProvider(LLMProvider):
         provider_options: dict[str, dict[str, Any]] | None = None,
         **kwargs: Any,
     ) -> AsyncIterator[StreamChunk]:
-        # deepseek streaming has known issues with reasoning_content round-trip.
-        # Use non-streaming chat() and synthesize stream events from response.
-        base_url = str(self._client.base_url) if hasattr(self._client, 'base_url') else ""
-        if "deepseek" in base_url:
-            chat_kwargs = {k: v for k, v in kwargs.items() if k != "stream"}
-            response = await self.chat(messages, tools, model, provider_options, **chat_kwargs)
-
-            # Store reasoning for the AgentLoop to pick up if streaming
-            # pipeline drops it (known issue with multi-turn tool calls)
-            if response.reasoning:
-                self._last_reasoning = response.reasoning
-
-            if response.reasoning:
-                for msg in reversed(messages):
-                    if msg.role == "assistant" and msg.tool_calls:
-                        msg.reasoning = msg.reasoning or response.reasoning
-                        break
-
-            # Synthesize reasoning events
-            if response.reasoning:
-                yield StreamChunk.reasoning_start()
-                yield StreamChunk.reasoning(content=response.reasoning)
-                yield StreamChunk.reasoning_end()
-
-            # Synthesize text events
-            if response.content:
-                yield StreamChunk.text_start()
-                yield StreamChunk.text_delta(content=response.content)
-                yield StreamChunk.text_end()
-
-            # Synthesize tool call events
-            if response.tool_calls:
-                for tc in response.tool_calls:
-                    args_str = json.dumps(tc.arguments) if tc.arguments else "{}"
-                    yield StreamChunk.tool_input_start(tool=tc.name, call_id=tc.id)
-                    yield StreamChunk.tool_input_delta(call_id=tc.id, content=args_str)
-                    yield StreamChunk.tool_input_end(tool=tc.name, call_id=tc.id)
-
-            if response.usage:
-                yield StreamChunk.usage_event(response.usage)
-            yield StreamChunk.done()
-            return
-
         model = model or self.model
         openai_msgs = [m.to_openai() for m in messages]
         tool_schemas = [t.to_openai_format() for t in tools] if tools else None
@@ -144,7 +100,7 @@ class OpenAIProvider(LLMProvider):
         params.update(kwargs)
         params.update(provider_opts)
 
-        current_tool_calls: dict[int, dict] = {}
+        current_tool_calls: dict[int, dict[str, Any]] = {}
 
         try:
             stream = await self._client.chat.completions.create(**params)
@@ -197,7 +153,7 @@ class OpenAIProvider(LLMProvider):
         return Message.assistant(content=content, tool_calls=tool_calls, usage=usage, reasoning=reasoning)
 
     def _parse_stream_chunk(
-        self, chunk: Any, current_tool_calls: dict[int, dict]
+        self, chunk: Any, current_tool_calls: dict[int, dict[str, Any]]
     ) -> list[StreamChunk]:
         events: list[StreamChunk] = []
 

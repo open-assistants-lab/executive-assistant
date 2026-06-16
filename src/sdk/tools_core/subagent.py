@@ -50,6 +50,7 @@ def _get_loop() -> asyncio.AbstractEventLoop:
     with _loop_lock:
         if _loop is None or _loop.is_closed():
             _recreate_loop()
+        assert _loop is not None
         return _loop
 
 

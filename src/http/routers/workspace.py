@@ -1,6 +1,8 @@
 import asyncio
 import json
+from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Body
 from fastapi.responses import StreamingResponse
@@ -11,7 +13,7 @@ router = APIRouter(tags=["workspace"])
 
 
 @router.get("/workspace/json")
-async def list_workspace_json(user_id: str = "default_user", workspace_id: str = "personal"):
+async def list_workspace_json(user_id: str = "default_user", workspace_id: str = "personal") -> dict[str, Any]:
     """List files in workspace as structured JSON."""
     from src.storage.paths import DataPaths
     paths = DataPaths(user_id=user_id, workspace_id=workspace_id)
@@ -31,7 +33,7 @@ async def list_workspace_json(user_id: str = "default_user", workspace_id: str =
 
 
 @router.get("/workspace/read/{path:path}")
-async def read_workspace_file(path: str, user_id: str = "default_user", workspace_id: str = "personal"):
+async def read_workspace_file(path: str, user_id: str = "default_user", workspace_id: str = "personal") -> dict[str, Any]:
     from src.http.workspace_cache import get_file_cache
     from src.sdk.tools_core.filesystem import files_read
 
@@ -48,7 +50,7 @@ async def read_workspace_file(path: str, user_id: str = "default_user", workspac
 
 
 @router.get("/workspace/{path:path}")
-async def list_workspace_files(path: str = "", user_id: str = "default_user", workspace_id: str = "personal"):
+async def list_workspace_files(path: str = "", user_id: str = "default_user", workspace_id: str = "personal") -> dict[str, Any]:
     """List files in workspace."""
     from src.sdk.tools_core.filesystem import files_list
 
@@ -61,8 +63,8 @@ async def write_workspace_file(
     path: str,
     user_id: str = "default_user",
     workspace_id: str = "personal",
-    request: dict | None = Body(default=None),
-):
+    request: dict[str, Any] | None = Body(default=None),
+) -> dict[str, Any]:
     """Write file to workspace."""
     if request is None:
         return {"error": "content is required"}
@@ -78,7 +80,7 @@ async def write_workspace_file(
 
 
 @router.delete("/workspace/{path:path}")
-async def delete_workspace_file(path: str, user_id: str = "default_user", workspace_id: str = "personal"):
+async def delete_workspace_file(path: str, user_id: str = "default_user", workspace_id: str = "personal") -> dict[str, Any]:
     """Delete file from workspace."""
     from src.sdk.tools_core.filesystem import files_delete
 
@@ -87,7 +89,7 @@ async def delete_workspace_file(path: str, user_id: str = "default_user", worksp
 
 
 @router.get("/sync/status")
-async def get_sync_status(user_id: str = "default_user", workspace_id: str = "personal"):
+async def get_sync_status(user_id: str = "default_user", workspace_id: str = "personal") -> dict[str, Any]:
     from src.http.workspace_cache import get_file_cache
 
     cache = get_file_cache(user_id, workspace_id)
@@ -95,7 +97,7 @@ async def get_sync_status(user_id: str = "default_user", workspace_id: str = "pe
 
 
 @router.post("/sync/pin/{path:path}")
-async def pin_file(path: str, user_id: str = "default_user", workspace_id: str = "personal"):
+async def pin_file(path: str, user_id: str = "default_user", workspace_id: str = "personal") -> dict[str, Any]:
     from src.http.workspace_cache import get_file_cache
 
     cache = get_file_cache(user_id, workspace_id)
@@ -104,7 +106,7 @@ async def pin_file(path: str, user_id: str = "default_user", workspace_id: str =
 
 
 @router.delete("/sync/pin/{path:path}")
-async def unpin_file(path: str, user_id: str = "default_user", workspace_id: str = "personal"):
+async def unpin_file(path: str, user_id: str = "default_user", workspace_id: str = "personal") -> dict[str, Any]:
     from src.http.workspace_cache import get_file_cache
 
     cache = get_file_cache(user_id, workspace_id)
@@ -113,7 +115,7 @@ async def unpin_file(path: str, user_id: str = "default_user", workspace_id: str
 
 
 @router.post("/sync/download/{path:path}")
-async def mark_downloaded(path: str, user_id: str = "default_user", workspace_id: str = "personal"):
+async def mark_downloaded(path: str, user_id: str = "default_user", workspace_id: str = "personal") -> dict[str, Any]:
     from src.http.workspace_cache import get_file_cache
 
     cache = get_file_cache(user_id, workspace_id)
@@ -122,17 +124,17 @@ async def mark_downloaded(path: str, user_id: str = "default_user", workspace_id
 
 
 @router.get("/sync/stream")
-async def sync_stream(user_id: str = "default_user", workspace_id: str = "personal"):
+async def sync_stream(user_id: str = "default_user", workspace_id: str = "personal") -> StreamingResponse:
     """SSE stream for real-time file change notifications."""
 
-    async def event_generator():
+    async def event_generator() -> AsyncGenerator[str, None]:
         paths = get_paths(user_id, workspace_id=workspace_id)
         workspace_path = paths.workspace_files_dir()
 
         skills_path = get_paths(user_id).user_skills_dir()
         subagents_path = get_paths(user_id).subagents_dir()
 
-        last_state = {
+        last_state: dict[str, Any] = {
             "workspace": {},
             "skills": {},
             "subagents": {},
@@ -140,7 +142,7 @@ async def sync_stream(user_id: str = "default_user", workspace_id: str = "person
 
         while True:
             try:
-                current_state = {
+                current_state: dict[str, Any] = {
                     "workspace": {},
                     "skills": {},
                     "subagents": {},

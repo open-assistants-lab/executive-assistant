@@ -8,6 +8,7 @@ import '../../models/provider_model.dart';
 import '../../providers/agent_provider.dart';
 import '../../theme/app_theme.dart';
 import '../connectors/widgets/provider_card.dart';
+import '../workspace/learn_checklist_provider.dart';
 import 'providers/settings_provider.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -201,6 +202,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           );
                         }),
 
+                      const SizedBox(height: 24),
+                      _sectionHeader('Tutorial', tokens),
+                      _tile(
+                        'Reset Tutorial Cards',
+                        'Show the learn checklist again',
+                        Symbols.restart_alt,
+                        tokens: tokens,
+                        onTap: () {
+                          ref.read(learnChecklistProvider.notifier).reset();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Tutorial cards reset — they will reappear on reload.'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                      ),
                       const SizedBox(height: 24),
                       _sectionHeader('About', tokens),
                       _tile('Version', '0.1.0', Symbols.info, tokens: tokens),

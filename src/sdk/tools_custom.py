@@ -53,9 +53,9 @@ def _parse_tool_file(tool_path: Path) -> ToolDefinition | None:
     name: str = meta["name"]
     description: str = meta["description"]
     command_template: str | None = meta.get("command")
-    parameters: dict | None = meta.get("parameters")
-    annotations_raw: dict | None = meta.get("annotations")
-    output_schema: dict | None = meta.get("output_schema")
+    parameters: dict[str, Any] | None = meta.get("parameters")
+    annotations_raw: dict[str, Any] | None = meta.get("annotations")
+    output_schema: dict[str, Any] | None = meta.get("output_schema")
     install: list[str] | None = meta.get("install")
 
     if not command_template:
@@ -128,7 +128,7 @@ def _parse_tool_file(tool_path: Path) -> ToolDefinition | None:
     )
 
 
-def _extract_params_from_command(command: str) -> dict:
+def _extract_params_from_command(command: str) -> dict[str, Any]:
     """Extract JSON Schema from {{param}} placeholders in a command template."""
     import re
 
@@ -192,7 +192,7 @@ def find_tool_file(name: str, user_dir: Path, workspace_dir: Path | None) -> Pat
     return None
 
 
-def load_tool_meta(tool_file: Path) -> dict | None:
+def load_tool_meta(tool_file: Path) -> dict[str, Any] | None:
     content = tool_file.read_text(encoding="utf-8")
     if not content.startswith("---"):
         return None
@@ -201,6 +201,7 @@ def load_tool_meta(tool_file: Path) -> dict | None:
         return None
     import yaml
     try:
-        return yaml.safe_load(parts[1].strip())
+        meta: dict[str, Any] | None = yaml.safe_load(parts[1].strip())
+        return meta
     except yaml.YAMLError:
         return None

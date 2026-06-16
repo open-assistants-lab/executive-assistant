@@ -27,11 +27,11 @@ def _get_results_db_path() -> Path:
     return get_paths().jobs_results_db_path()
 
 
-_jobstores: dict = {}
+_jobstores: dict[str, Any] = {}
 _scheduler: BackgroundScheduler | None = None
 
 
-def _init_results_db():
+def _init_results_db() -> None:
     """Initialize results database."""
     results_path = _get_results_db_path()
     results_path.parent.mkdir(parents=True, exist_ok=True)
@@ -59,9 +59,9 @@ def _save_job_result(
     subagent_name: str,
     task: str,
     status: str,
-    result: dict | None = None,
+    result: dict[str, Any] | None = None,
     error: str | None = None,
-):
+) -> None:
     """Save job result to database. Preserves created_at on updates."""
     conn = sqlite3.connect(_get_results_db_path())
     existing = conn.execute(
@@ -135,7 +135,7 @@ def get_job_status(job_id: str) -> dict[str, Any] | None:
     }
 
 
-def _get_jobstores() -> dict:
+def _get_jobstores() -> dict[str, Any]:
     """Get jobstores dict with SQLite persistence."""
     global _jobstores
     if not _jobstores:
@@ -157,14 +157,14 @@ def get_scheduler() -> BackgroundScheduler:
             misfire_grace_time=300,
         )
 
-        def job_missed(event):
+        def job_missed(event: Any) -> None:
             logger.warning(
                 "subagent.job_missed",
                 {"job_id": event.job_id, "scheduled_run_time": str(event.scheduled_run_time)},
                 user_id="system",
             )
 
-        def job_executed(event):
+        def job_executed(event: Any) -> None:
             if event.exception:
                 logger.error(
                     "subagent.job_failed",

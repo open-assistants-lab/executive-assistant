@@ -2,18 +2,16 @@
 """Run trigger evaluation for a skill description."""
 
 import argparse
+import importlib.util
 import json
 import os
 import sys
 from pathlib import Path
 
-# Change to project root (5 levels up: scripts -> skill-creator -> skills_seed -> src -> project_root)
+# Change to project root (5 levels up: scripts -> skill-creator -> skills_seed -> src -> project_root)  # noqa: E402
 project_root = Path(__file__).resolve().parent.parent.parent.parent.parent
 os.chdir(project_root)
 sys.path.insert(0, str(project_root))
-
-# Import from scripts relative path
-import importlib.util
 
 spec = importlib.util.spec_from_file_location(
     "utils", project_root / "src/skills_seed/skill-creator/scripts/utils.py"

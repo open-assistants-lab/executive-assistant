@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import random
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -970,7 +969,7 @@ def print_report(results: list[TurnResult]) -> None:
     else:
         for cat, count in sorted(fail_by_cat.items(), key=lambda x: -x[1]):
             print(f"  {cat:<20s}: {count} failures")
-        print(f"\n  Sample failures (first 20):")
+        print("\n  Sample failures (first 20):")
         for r in failures[:20]:
             print(
                 f"  [{r.interaction_id:3d}] {r.category:<16s} | "

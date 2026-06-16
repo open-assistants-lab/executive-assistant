@@ -19,7 +19,7 @@ def get_db_path(user_id: str) -> str:
     return str(get_paths(uid).email_db())
 
 
-def get_engine(user_id: str):
+def get_engine(user_id: str) -> Any:
     """Get SQLAlchemy engine with schema initialized."""
     db_path = get_db_path(user_id)
     engine = create_engine(f"sqlite:///{db_path}")
@@ -27,7 +27,7 @@ def get_engine(user_id: str):
     return engine
 
 
-def init_db(engine) -> None:
+def init_db(engine: Any) -> None:
     """Initialize database schema."""
     with engine.connect() as conn:
         conn.execute(
@@ -113,7 +113,7 @@ def load_accounts(user_id: str) -> dict[str, Any]:
         return accounts
 
 
-def save_account(user_id: str, account_id: str, account: dict) -> None:
+def save_account(user_id: str, account_id: str, account: dict[str, Any]) -> None:
     """Save account to database."""
     engine = get_engine(user_id)
 
@@ -165,7 +165,7 @@ def get_account_id_by_name(account_name: str, user_id: str) -> str | None:
     return None
 
 
-def get_imap_connection(account_id: str, user_id: str):
+def get_imap_connection(account_id: str, user_id: str) -> Any:
     """Get IMAP connection for account."""
     accounts = load_accounts(user_id)
     account = accounts.get(account_id)
@@ -196,7 +196,7 @@ def parse_email_date(date_str: str) -> int:
         return int(datetime.now(UTC).timestamp())
 
 
-def email_to_dict(msg) -> dict[str, Any]:
+def email_to_dict(msg: Any) -> dict[str, Any]:
     """Convert imap_tools message to dict."""
     attachments = []
     if msg.attachments:

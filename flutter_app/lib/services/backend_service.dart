@@ -52,6 +52,8 @@ class BackendService {
       final response = await request.close();
       client.close();
 
+      if (_stopped) return;
+
       if (response.statusCode == 200) {
         if (_currentStatus != BackendStatus.running) {
           _currentStatus = BackendStatus.running;
@@ -60,6 +62,7 @@ class BackendService {
         _healthController.add(true);
       }
     } catch (_) {
+      if (_stopped) return;
       if (_currentStatus == BackendStatus.running) {
         _currentStatus = BackendStatus.crashed;
         _statusController.add(BackendStatus.crashed);

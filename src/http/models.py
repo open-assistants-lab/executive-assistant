@@ -17,7 +17,7 @@ class MessageRequest(BaseModel):
 class MessageResponse(BaseModel):
     response: str
     error: str | None = None
-    verbose_data: dict | None = None
+    verbose_data: dict[str, Any] | None = None
     tool_calls: list[dict[str, Any]] | None = Field(default=None)
 
 

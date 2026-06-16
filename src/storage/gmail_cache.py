@@ -12,7 +12,7 @@ import json
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from hybriddb import HybridDB, SearchMode
 
@@ -42,7 +42,7 @@ class EmailResult:
     ts: int
     labels: list[str]
     headers: dict[str, str]
-    attachments: list[dict] = field(default_factory=list)
+    attachments: list[dict[str, Any]] = field(default_factory=list)
     _score: float = 0.0
 
 
@@ -116,7 +116,7 @@ class GmailCache:
 
     # -- CRUD --
 
-    def upsert(self, email: dict) -> int | None:
+    def upsert(self, email: dict[str, Any]) -> int | None:
         """Insert or update an email by Gmail message_id. Returns row id."""
         msg_id = email.get("message_id")
         if not msg_id:
@@ -140,13 +140,13 @@ class GmailCache:
         }
 
         if existing:
-            row_id = existing[0]["id"]
+            row_id = cast(int, existing[0]["id"])
             self.db.update(TABLE, row_id, row)
             return row_id
         else:
-            return self.db.insert(TABLE, row)
+            return cast(int, self.db.insert(TABLE, row))
 
-    def upsert_batch(self, emails: list[dict]) -> int:
+    def upsert_batch(self, emails: list[dict[str, Any]]) -> int:
         """Insert or update multiple emails. Returns count upserted."""
         count = 0
         for email in emails:
@@ -167,7 +167,7 @@ class GmailCache:
         return [self._row_to_result(r) for r in rows]
 
     def count(self) -> int:
-        return self.db.count(TABLE)
+        return cast(int, self.db.count(TABLE))
 
     # -- Search --
 
@@ -286,14 +286,14 @@ class GmailCache:
         for r in all_rows:
             self.db.delete(TABLE, r["id"])
 
-    def stats(self) -> dict:
+    def stats(self) -> dict[str, Any]:
         return {
             "total": self.db.count(TABLE),
             "health": self.db.health(TABLE),
             "journal": self.db.journal_status(TABLE),
         }
 
-    def _row_to_result(self, row: dict) -> EmailResult:
+    def _row_to_result(self, row: dict[str, Any]) -> EmailResult:
         score = row.get("_score", 0.0)
         return EmailResult(
             id=row["id"],
@@ -336,7 +336,7 @@ def sync_emails(
     query: str | None = None,
     fetch_body: bool = True,
     progress: bool = True,
-) -> dict:
+) -> dict[str, Any]:
     """Sync emails from Gmail API into the cache.
 
     Uses the gws CLI (must be installed and authenticated).
@@ -347,7 +347,7 @@ def sync_emails(
     cache = get_gmail_cache(user_id)
 
     # -- Step 1: Paginate through all matching message IDs --
-    all_messages: list[dict] = []
+    all_messages: list[dict[str, Any]] = []
     page_token: str | None = None
     pages = 0
 
@@ -386,7 +386,7 @@ def sync_emails(
     fetched = 0
     upserted = 0
     errors = 0
-    batch: list[dict] = []
+    batch: list[dict[str, Any]] = []
 
     for i, msg in enumerate(all_messages):
         msg_id = msg["id"]
@@ -423,7 +423,7 @@ def _fetch_one_email(
     message_id: str,
     thread_id: str,
     fetch_body: bool = True,
-) -> dict | None:
+) -> dict[str, Any] | None:
     """Fetch a single email's metadata (and optionally body) via gws."""
     meta_headers = ["From", "To", "Date", "Subject", "List-Unsubscribe", "List-Unsubscribe-Post"]
 
@@ -485,7 +485,7 @@ def _fetch_one_email(
     }
 
 
-def _extract_body(payload: dict) -> str:
+def _extract_body(payload: dict[str, Any]) -> str:
     """Extract plain text body from a Gmail message payload."""
     if payload.get("mimeType") == "text/plain":
         data = payload.get("body", {}).get("data", "")
@@ -537,11 +537,11 @@ def _strip_html(html: str) -> str:
     return text.strip()
 
 
-def _extract_attachments(payload: dict) -> list[dict]:
+def _extract_attachments(payload: dict[str, Any]) -> list[dict[str, Any]]:
     """Extract attachment metadata from a Gmail message payload."""
-    attachments: list[dict] = []
+    attachments: list[dict[str, Any]] = []
 
-    def walk(part):
+    def walk(part: dict[str, Any]) -> None:
         filename = part.get("filename", "").strip()
         if filename:
             body_info = part.get("body", {})
@@ -587,8 +587,8 @@ def _run_gws(
     resource: str,
     sub_resource: str,
     method: str,
-    params: dict,
-) -> dict | None:
+    params: dict[str, Any],
+) -> dict[str, Any] | None:
     """Run a gws CLI command and return JSON output."""
     cmd = [
         "gws",
@@ -614,7 +614,7 @@ def _run_gws(
             return None
 
         # stderr contains "Using keyring backend: ...", stdout is JSON
-        return json.loads(result.stdout)
+        return cast(dict[str, Any], json.loads(result.stdout))
     except subprocess.TimeoutExpired:
         logger.error("gws_timeout", {"reason": "subprocess timeout"})
         return None

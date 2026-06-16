@@ -8,6 +8,7 @@ which the agent loop catches and handles gracefully.
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -23,7 +24,7 @@ class InputGuardrail(BaseModel):
     """Guardrail that checks user input before the LLM call."""
 
     name: str
-    check: Callable  # async (input: str, state: AgentState) -> GuardrailResult
+    check: Callable[..., Any]  # async (input: str, state: AgentState) -> GuardrailResult
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -32,7 +33,7 @@ class OutputGuardrail(BaseModel):
     """Guardrail that checks LLM output after generation."""
 
     name: str
-    check: Callable  # async (output: str, state: AgentState) -> GuardrailResult
+    check: Callable[..., Any]  # async (output: str, state: AgentState) -> GuardrailResult
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -41,10 +42,10 @@ class ToolGuardrail(BaseModel):
     """Guardrail that checks tool call arguments and/or results."""
 
     name: str
-    check_input: Callable | None = (
+    check_input: Callable[..., Any] | None = (
         None  # async (tool_name: str, args: dict) -> GuardrailResult | None
     )
-    check_output: Callable | None = (
+    check_output: Callable[..., Any] | None = (
         None  # async (tool_name: str, result: str) -> GuardrailResult | None
     )
 

@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """WebSocket stress test: 100 sequential interactions."""
-import asyncio, json, time, sys
+import asyncio
+import json
+import sys
+import time
+
 import websockets
 
 URI = "ws://localhost:8080/ws/conversation?user_id=default_user&workspace_id=personal"
@@ -40,7 +44,7 @@ async def single_interaction(ws, msg: str, idx: int) -> tuple[int, bool, float, 
                     text = "".join(response_parts).strip()
                     truncated = text[:80] + ("..." if len(text) > 80 else "")
                     return (idx, True, elapsed, truncated)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 elapsed = time.monotonic() - start
                 return (idx, False, elapsed, "TIMEOUT")
     except Exception as e:

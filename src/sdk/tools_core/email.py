@@ -3,6 +3,7 @@
 import asyncio
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import text
 
@@ -422,7 +423,7 @@ def email_search(
 email_search.annotations = ToolAnnotations(title="Search Emails", read_only=True)
 
 
-def _get_email_by_id(email_id: str, account_id: str, user_id: str) -> dict | None:
+def _get_email_by_id(email_id: str, account_id: str, user_id: str) -> dict[str, Any] | None:
     engine = get_engine(user_id)
     with engine.connect() as conn:
         result = conn.execute(
@@ -445,7 +446,7 @@ def _send_via_smtp(
     body: str,
     cc: list[str] | None = None,
     user_id: str = "",
-) -> dict:
+) -> dict[str, Any]:
     accounts = load_accounts(user_id)
     account_id = get_account_id_by_name(account_name, user_id)
     if not account_id:
@@ -582,7 +583,7 @@ def email_send(
         if result["success"]:
             if reply_to:
                 return f"✅ Reply sent to {', '.join(to_list)}"
-            return result["message"]
+            return str(result["message"])
         else:
             return f"Error: {result['error']}"
 
@@ -623,7 +624,7 @@ def email_sync(
 
     from src.sdk.tools_core.email_sync import _sync_emails as _do_sync
 
-    async def _sync():
+    async def _sync() -> int:
         limit = (
             SETTINGS.email_sync.backfill_limit if mode == "full" else SETTINGS.email_sync.batch_size
         )

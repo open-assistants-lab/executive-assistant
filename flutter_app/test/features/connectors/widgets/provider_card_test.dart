@@ -91,6 +91,7 @@ void main() {
       await tester.enterText(find.byType(TextField), 'sk-test');
       await tester.pumpAndSettle();
       final testBtn = find.widgetWithText(OutlinedButton, 'Test');
+      expect(tester.widget<OutlinedButton>(testBtn).onPressed, isNotNull);
       // Button should be tappable (not null)
       await tester.tap(testBtn);
       await tester.pump();
@@ -108,12 +109,14 @@ void main() {
 
     testWidgets('shows model list when models exist', (tester) async {
       SharedPreferences.setMockInitialValues({});
-      await tester.pumpWidget(buildCard(
-        models: [
-          (id: 'gpt-4', name: 'GPT-4'),
-          (id: 'gpt-3.5', name: 'GPT-3.5'),
-        ],
-      ));
+      await tester.pumpWidget(
+        buildCard(
+          models: [
+            (id: 'gpt-4', name: 'GPT-4'),
+            (id: 'gpt-3.5', name: 'GPT-3.5'),
+          ],
+        ),
+      );
       await tester.tap(find.text('OpenAI'));
       await tester.pump();
       expect(find.text('GPT-4'), findsOneWidget);

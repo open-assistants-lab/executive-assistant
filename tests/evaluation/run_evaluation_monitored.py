@@ -242,7 +242,7 @@ async def run_full_evaluation():
             all_results.append(results)
 
             completed_interactions += results["total"]
-            persona_time = time.time() - persona_start
+            time.time() - persona_start
 
             avg_response_time = results["avg_response_time"]
             success_rate = results["success_rate"]

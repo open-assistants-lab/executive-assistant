@@ -266,25 +266,12 @@ class TestContactsSearch:
 
 
 class TestContactsStorageFunctions:
-    """Tests for contacts storage functions."""
+    """Tests for contacts storage functions (AgentsDB-based)."""
 
-    def test_get_db_path(self):
-        """Test getting database path."""
-        from src.sdk.tools_core.contacts_storage import get_db_path
+    def test_parse_name_from_email(self):
+        """Test parsing name from email."""
+        from src.sdk.tools_core.contacts_storage import parse_name_from_email
 
-        path = get_db_path("test_user")
-        assert path.endswith("contacts.db")
-
-    def test_get_db_path_invalid_user(self):
-        """Test get_db_path handles default-like user IDs."""
-        from src.sdk.tools_core.contacts_storage import get_db_path
-
-        path = get_db_path("default")
-        assert path.endswith("contacts.db")
-
-    def test_get_db_path_empty_user(self):
-        """Test get_db_path handles empty user (defaults to default_user)."""
-        from src.sdk.tools_core.contacts_storage import get_db_path
-
-        path = get_db_path("")
-        assert path.endswith("contacts.db")
+        first, last = parse_name_from_email("john.doe@gmail.com")
+        assert first == "John"
+        assert last == "Doe"

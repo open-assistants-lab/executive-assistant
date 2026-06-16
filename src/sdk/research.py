@@ -13,6 +13,9 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
+
+from src.sdk.subagent_models import SubagentResult
 
 
 @dataclass
@@ -58,7 +61,7 @@ class PromptTarget(ResearchTarget):
         eval_task: str = "",
         user_id: str = "default_user",
         workspace_id: str = "personal",
-        tools: list | None = None,
+        tools: list[Any] | None = None,
     ):
         self.prompt_path = prompt_path
         self.eval_task = eval_task
@@ -113,7 +116,7 @@ class SkillTarget(ResearchTarget):
         self,
         skill_name: str,
         skill_path: Path,
-        eval_queries: list[dict] | None = None,
+        eval_queries: list[dict[str, Any]] | None = None,
         user_id: str = "default_user",
         workspace_id: str = "personal",
     ):
@@ -168,7 +171,7 @@ class SubagentTarget(ResearchTarget):
             from src.sdk.coordinator import SubagentCoordinator
 
             coord = SubagentCoordinator(self.user_id, self.workspace_id)
-            result = await coord.delegate(self.agent_def_path.stem, self.eval_task)
+            result: SubagentResult = await coord.delegate(self.agent_def_path.stem, self.eval_task)  # type: ignore[assignment]
             if result.success:
                 return 1.0
             return 0.2

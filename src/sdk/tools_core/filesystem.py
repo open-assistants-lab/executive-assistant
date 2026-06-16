@@ -58,7 +58,7 @@ def _resolve_path(path: str | None, user_id: str, workspace_id: str = "personal"
     is_tools_path = str(paths.user_tools_dir()) in path
     if is_skills_path:
         expected_prefix = str(paths.user_skills_dir()) + "/"
-        if not (str(Path.cwd() / path).resolve()).startswith(
+        if not (str((Path.cwd() / path).resolve())).startswith(
             expected_prefix
         ) and not path.startswith(expected_prefix):
             raise ValueError(f"Can only write to your own skills directory: {expected_prefix}")

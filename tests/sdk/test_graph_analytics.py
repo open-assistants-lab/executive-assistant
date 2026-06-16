@@ -9,7 +9,6 @@ import shutil
 import tempfile
 
 import pytest
-
 from hybriddb import HybridDB, SearchMode
 from hybriddb.embedding import EMBEDDING_DIM
 

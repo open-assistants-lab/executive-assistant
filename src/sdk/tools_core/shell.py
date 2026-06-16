@@ -3,6 +3,7 @@
 import re
 import subprocess
 from pathlib import Path
+from typing import Any
 
 from src.app_logging import get_logger
 from src.config import get_settings
@@ -35,7 +36,8 @@ SHELL_INJECTION_PATTERNS = re.compile(
 )
 
 
-def _get_shell_config():
+def _get_shell_config() -> Any:
+    """Return shell tool configuration from settings."""
     settings = get_settings()
     shell_config = getattr(settings, "shell_tool", None)
     if shell_config:

@@ -1,5 +1,7 @@
 """Companion HTTP endpoints for managing the companion scheduler and notifications."""
 
+from typing import Any
+
 from fastapi import APIRouter, HTTPException, Query
 
 from src.app_logging import get_logger
@@ -15,7 +17,7 @@ async def list_notifications(
     user_id: str = Query("default_user"),
     limit: int = Query(50, ge=1, le=200),
     include_dismissed: bool = Query(False),
-):
+) -> dict[str, Any]:
     db = CompanionNotificationDB(user_id)
     try:
         notifs = await db.list(limit=limit, include_dismissed=include_dismissed)
@@ -28,7 +30,7 @@ async def list_notifications(
 async def dismiss_notification(
     notif_id: str,
     user_id: str = Query("default_user"),
-):
+) -> dict[str, Any]:
     db = CompanionNotificationDB(user_id)
     try:
         ok = await db.dismiss(notif_id)
@@ -40,21 +42,21 @@ async def dismiss_notification(
 
 
 @router.post("/pause")
-async def pause_companion(user_id: str = Query("default_user")):
+async def pause_companion(user_id: str = Query("default_user")) -> dict[str, Any]:
     scheduler = get_companion_scheduler(user_id)
     await scheduler.pause()
     return {"status": "paused"}
 
 
 @router.post("/resume")
-async def resume_companion(user_id: str = Query("default_user")):
+async def resume_companion(user_id: str = Query("default_user")) -> dict[str, Any]:
     scheduler = get_companion_scheduler(user_id)
     await scheduler.resume()
     return {"status": "resumed"}
 
 
 @router.get("/status")
-async def companion_status(user_id: str = Query("default_user")):
+async def companion_status(user_id: str = Query("default_user")) -> dict[str, Any]:
     scheduler = get_companion_scheduler(user_id)
     return {
         "running": scheduler.is_running,
@@ -64,7 +66,7 @@ async def companion_status(user_id: str = Query("default_user")):
 
 
 @router.get("/memory")
-async def list_companion_memory(user_id: str = Query("default_user")):
+async def list_companion_memory(user_id: str = Query("default_user")) -> dict[str, Any]:
     db = CompanionMemoryDB(user_id)
     try:
         facts = await db.list_all()
@@ -77,7 +79,7 @@ async def list_companion_memory(user_id: str = Query("default_user")):
 async def delete_companion_memory(
     mem_id: int,
     user_id: str = Query("default_user"),
-):
+) -> dict[str, Any]:
     db = CompanionMemoryDB(user_id)
     try:
         ok = await db.delete(mem_id)

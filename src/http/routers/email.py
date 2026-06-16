@@ -6,6 +6,9 @@ GET  /emails/search?q=...  — hybrid search
 POST /emails/sync          — trigger sync from Gmail/Outlook
 """
 
+import asyncio
+from typing import Any
+
 from fastapi import APIRouter
 
 from src.storage.email_db import (
@@ -25,7 +28,7 @@ async def handle_list(
     limit: int = 50,
     offset: int = 0,
     is_read: bool | None = None,
-):
+) -> dict[str, Any]:
     emails = list_emails(user_id, limit=limit, offset=offset, is_read=is_read)
     total = count_emails(user_id)
     unread = count_emails(user_id, is_read=False)
@@ -39,13 +42,13 @@ async def handle_list(
 
 
 @router.get("/search")
-async def handle_search(q: str, user_id: str = "default_user", limit: int = 20):
+async def handle_search(q: str, user_id: str = "default_user", limit: int = 20) -> dict[str, Any]:
     emails = search_emails(user_id, q, limit=limit)
     return {"emails": emails, "query": q}
 
 
 @router.get("/{email_id}")
-async def handle_get(email_id: str, user_id: str = "default_user"):
+async def handle_get(email_id: str, user_id: str = "default_user") -> dict[str, Any]:
     email = get_email(user_id, email_id)
     if not email:
         return {"error": "not_found", "email_id": email_id}
@@ -55,7 +58,7 @@ async def handle_get(email_id: str, user_id: str = "default_user"):
 
 
 @router.post("/sync")
-async def handle_sync(user_id: str = "default_user", provider: str = "gmail"):
+async def handle_sync(user_id: str = "default_user", provider: str = "gmail") -> dict[str, Any]:
     """Trigger a manual email sync. Returns immediately, sync runs in background."""
     import asyncio
 
@@ -76,7 +79,7 @@ async def handle_sync(user_id: str = "default_user", provider: str = "gmail"):
     return {"status": "sync_started", "provider": provider}
 
 
-async def _sync_gmail(user_id: str, settings):
+async def _sync_gmail(user_id: str, settings: Any) -> None:
     """Background Gmail sync via gws CLI."""
     import json
 
@@ -128,17 +131,17 @@ async def _sync_gmail(user_id: str, settings):
         logger.error("gws_sync_error", {"error": str(e)[:200]}, user_id=user_id)
 
 
-async def _sync_outlook(user_id: str, settings):
+async def _sync_outlook(user_id: str, settings: Any) -> None:
     """Background Outlook sync via m365 CLI."""
     # Deferred: requires m365 CLI setup. Same pattern as _sync_gmail.
     pass
 
 
-def _extract_header(msg: dict, name: str) -> str:
+def _extract_header(msg: dict[str, Any], name: str) -> str:
     headers = msg.get("payload", {}).get("headers", [])
     for h in headers:
         if h.get("name", "").lower() == name.lower():
-            return h.get("value", "")
+            return str(h.get("value", ""))
     return ""
 
 

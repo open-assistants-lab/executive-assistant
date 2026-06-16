@@ -9,7 +9,7 @@ registered ToolDefinitions. Native tools take priority over adapted LangChain
 tools of the same name.
 """
 
-from src.sdk.tools import ToolRegistry
+from src.sdk.tools import ToolDefinition, ToolRegistry
 from src.sdk.tools_core.apps import (
     app_column_add,
     app_column_delete,
@@ -224,7 +224,7 @@ def _register_all() -> None:
 _register_all()
 
 
-def get_native_tools() -> list:
+def get_native_tools() -> list[ToolDefinition]:
     """Return all registered SDK-native ToolDefinitions."""
     return _registry.list_tools()
 

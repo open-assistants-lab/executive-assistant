@@ -156,6 +156,7 @@ def test_subagent_create_rejects_non_object_provider_options(monkeypatch):
 
 def test_subagent_update_parses_new_fields_and_validates_before_save(monkeypatch):
     from agentprofile.models import AgentProfile
+
     from src.sdk.tools_core import subagent as mod
 
     saved = {}
@@ -209,6 +210,7 @@ def test_subagent_update_parses_new_fields_and_validates_before_save(monkeypatch
 
 def test_subagent_update_rejects_invalid_provider_options_json(monkeypatch):
     from agentprofile.models import AgentProfile
+
     from src.sdk.tools_core import subagent as mod
 
     class FakeCoordinator:
@@ -231,6 +233,7 @@ def test_subagent_update_rejects_invalid_provider_options_json(monkeypatch):
 
 def test_subagent_update_rejects_invalid_output_schema_json(monkeypatch):
     from agentprofile.models import AgentProfile
+
     from src.sdk.tools_core import subagent as mod
 
     class FakeCoordinator:
@@ -253,6 +256,7 @@ def test_subagent_update_rejects_invalid_output_schema_json(monkeypatch):
 
 def test_subagent_update_rejects_validation_errors_before_save(monkeypatch):
     from agentprofile.models import AgentProfile
+
     from src.sdk.tools_core import subagent as mod
 
     validated = {}

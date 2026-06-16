@@ -32,7 +32,7 @@ EMBEDDING_DIM = 384
 _embedding_model = None
 
 
-def _get_embedding_model():
+def _get_embedding_model() -> Any:
     global _embedding_model
     if _embedding_model is None:
         try:
@@ -54,10 +54,11 @@ def get_embedding(text: str) -> list[float]:
     if model is not None:
         try:
             embedding = model.encode(str(text), show_progress_bar=False)
-            return embedding.tolist()
+            return [float(x) for x in embedding.tolist()]
         except Exception:
             pass
-    return _hash_embedding(text)
+    result: list[float] = _hash_embedding(text)
+    return result
 
 
 @dataclass

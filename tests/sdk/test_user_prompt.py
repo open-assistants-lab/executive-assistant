@@ -4,8 +4,6 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from src.sdk.user_prompt import load_user_prompt, save_user_prompt
 
 

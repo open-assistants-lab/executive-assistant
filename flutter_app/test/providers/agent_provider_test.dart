@@ -5,10 +5,26 @@ import 'package:executive_assistant/models/message.dart';
 import 'package:executive_assistant/services/ws_client.dart';
 import 'package:executive_assistant/services/api_client.dart';
 import 'package:executive_assistant/providers/agent_provider.dart';
+import 'package:executive_assistant/services/backend_service.dart';
 
 class MockWsClient extends Mock implements WsClient {}
 
 class MockApiClient extends Mock implements ApiClient {}
+
+class MockBackendService extends Mock implements BackendService {}
+
+MockBackendService _createMockBackendService() {
+  final svc = MockBackendService();
+  final statusCtrl = StreamController<BackendStatus>.broadcast();
+  when(() => svc.status).thenAnswer((_) => statusCtrl.stream);
+  when(() => svc.health).thenAnswer((_) => Stream<bool>.empty());
+  when(() => svc.start()).thenAnswer((_) async {
+    statusCtrl.add(BackendStatus.running);
+  });
+  when(() => svc.stop()).thenAnswer((_) async {});
+  when(() => svc.dispose()).thenReturn(null);
+  return svc;
+}
 
 void _registerFallbacks() {
   registerFallbackValue(StreamController<WsMessage>.broadcast());
@@ -25,7 +41,7 @@ void main() {
       when(() => ws.status).thenAnswer((_) => Stream.empty());
       when(() => ws.messages).thenAnswer((_) => Stream.empty());
 
-      final notifier = AgentNotifier(ws, api);
+      final notifier = AgentNotifier(ws, api, _createMockBackendService());
       expect(notifier.state.status, ChatStatus.disconnected);
       expect(notifier.state.messages, isEmpty);
       expect(notifier.state.connected, false);
@@ -43,7 +59,7 @@ void main() {
       mockApi = MockApiClient();
       when(() => mockWs.status).thenAnswer((_) => Stream.empty());
       when(() => mockWs.messages).thenAnswer((_) => Stream.empty());
-      notifier = AgentNotifier(mockWs, mockApi);
+      notifier = AgentNotifier(mockWs, mockApi, _createMockBackendService());
     });
 
     tearDown(() {
@@ -52,6 +68,7 @@ void main() {
 
     test('connect invokes wsClient.connect', () {
       when(() => mockWs.connect()).thenReturn(null);
+      clearInteractions(mockWs);
       notifier.connect();
       verify(() => mockWs.connect()).called(1);
     });
@@ -85,7 +102,7 @@ void main() {
       mockApi = MockApiClient();
       when(() => mockWs.status).thenAnswer((_) => Stream.empty());
       when(() => mockWs.messages).thenAnswer((_) => Stream.empty());
-      notifier = AgentNotifier(mockWs, mockApi);
+      notifier = AgentNotifier(mockWs, mockApi, _createMockBackendService());
     });
 
     tearDown(() {
@@ -125,7 +142,7 @@ void main() {
       mockApi = MockApiClient();
       when(() => mockWs.status).thenAnswer((_) => Stream.empty());
       when(() => mockWs.messages).thenAnswer((_) => Stream.empty());
-      notifier = AgentNotifier(mockWs, mockApi);
+      notifier = AgentNotifier(mockWs, mockApi, _createMockBackendService());
     });
 
     tearDown(() {
@@ -169,7 +186,7 @@ void main() {
           workspaceId: any(named: 'workspaceId'),
         ),
       ).thenAnswer((_) async => []);
-      notifier = AgentNotifier(mockWs, mockApi);
+      notifier = AgentNotifier(mockWs, mockApi, _createMockBackendService());
     });
 
     tearDown(() {
@@ -462,11 +479,12 @@ void main() {
 
         expect(notifier.state.messages.map((m) => m.role), [
           'assistant',
+          'assistant',
           'tool',
           'assistant',
         ]);
-        expect(notifier.state.messages[0].content, 'First segment.');
-        expect(notifier.state.messages[2].content, 'Second segment.');
+        expect(notifier.state.messages[1].content, 'First segment.');
+        expect(notifier.state.messages[3].content, 'Second segment.');
       },
     );
 
@@ -540,7 +558,7 @@ void main() {
           workspaceId: any(named: 'workspaceId'),
         ),
       ).thenAnswer((_) async => []);
-      notifier = AgentNotifier(mockWs, mockApi);
+      notifier = AgentNotifier(mockWs, mockApi, _createMockBackendService());
     });
 
     tearDown(() {

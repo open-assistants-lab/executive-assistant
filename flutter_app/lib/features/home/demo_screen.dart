@@ -23,7 +23,10 @@ class _DemoScreenState extends ConsumerState<DemoScreen> {
   @override
   void initState() {
     super.initState();
-    ref.read(agentProvider.notifier).connect();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(agentProvider.notifier).connect();
+    });
   }
 
   void _scrollToBottom() {

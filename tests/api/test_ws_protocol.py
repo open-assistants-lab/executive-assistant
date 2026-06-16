@@ -1,6 +1,5 @@
 """Contract tests for WebSocket protocol messages."""
 
-import pytest
 
 from src.http.ws_protocol import (
     AiTokenMessage,

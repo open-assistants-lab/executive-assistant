@@ -39,7 +39,7 @@ def test_tool_messages_are_preserved_as_context() -> None:
     sdk_messages = _messages_from_conversation(messages)
 
     assert any(
-        m.role == "system" and "[Tool: email_list]" in str(m.content) and "5 unread" in str(m.content)
+        m.role == "tool" and m.name == "email_list" and "5 unread" in str(m.content)
         for m in sdk_messages
     )
 

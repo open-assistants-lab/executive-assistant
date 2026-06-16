@@ -27,7 +27,7 @@ _MCP_MANAGERS: dict[str, "MCPManager"] = {}
 class MCPServerConnection:
     """Holds a connected MCP server with its session and tools."""
 
-    def __init__(self, server_name: str, session, exit_stack: AsyncExitStack):
+    def __init__(self, server_name: str, session: Any, exit_stack: AsyncExitStack) -> None:
         self.server_name = server_name
         self.session = session
         self.exit_stack = exit_stack
@@ -40,14 +40,14 @@ class MCPServerConnection:
 class MCPManager:
     """Manages MCP servers for a user with lazy start and idle timeout."""
 
-    def __init__(self, user_id: str):
+    def __init__(self, user_id: str) -> None:
         self.user_id = user_id
         self._connections: dict[str, MCPServerConnection] = {}
         self._config_mtime: float = 0.0
         self._config_hash: str = ""
         self._lock = asyncio.Lock()
         self._last_used: float = time.time()
-        self._idle_task: asyncio.Task | None = None
+        self._idle_task: asyncio.Task[Any] | None = None
 
     def _get_idle_timeout(self) -> int:
         try:
@@ -67,7 +67,7 @@ class MCPManager:
         if self._idle_task is not None:
             return
 
-        async def _monitor():
+        async def _monitor() -> None:
             while True:
                 await asyncio.sleep(60)
                 if not self._connections:
@@ -109,7 +109,7 @@ class MCPManager:
 
         await self._start_idle_monitor()
 
-    def _compute_config_hash(self, config) -> str:
+    def _compute_config_hash(self, config: Any) -> str:
         data = config.model_dump_json()
         return hashlib.md5(data.encode()).hexdigest()
 
@@ -157,7 +157,7 @@ class MCPManager:
             from mcp import StdioServerParameters
 
             params = StdioServerParameters(
-                command=server_config.command,
+                command=server_config.command or "",
                 args=server_config.args,
                 env=env if env != dict(os.environ) else None,
             )

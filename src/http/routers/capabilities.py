@@ -1,5 +1,7 @@
 """Capabilities API — get/update tool/skill/subagent enable state."""
 
+from typing import Any
+
 from fastapi import APIRouter, Query
 
 from src.sdk.capabilities import (
@@ -12,7 +14,7 @@ from src.storage.paths import _validate_path_id, get_paths
 router = APIRouter(prefix="/capabilities", tags=["capabilities"])
 
 
-def _resolve_caps(user_id: str, workspace_id: str) -> dict:
+def _resolve_caps(user_id: str, workspace_id: str) -> dict[str, Any]:
     paths = get_paths(user_id, workspace_id=workspace_id)
     user_caps = load_capabilities(paths.root)
     ws_caps = load_capabilities(paths.root / "Workspaces" / workspace_id)
@@ -23,7 +25,7 @@ def _resolve_caps(user_id: str, workspace_id: str) -> dict:
 async def get_capabilities(
     user_id: str = Query("default_user"),
     workspace_id: str = Query("personal"),
-):
+) -> dict[str, Any]:
     _validate_path_id(user_id, "user_id")
     _validate_path_id(workspace_id, "workspace_id")
     return _resolve_caps(user_id, workspace_id)
@@ -31,10 +33,10 @@ async def get_capabilities(
 
 @router.put("")
 async def replace_capabilities(
-    body: dict,
+    body: dict[str, Any],
     user_id: str = Query("default_user"),
     workspace_id: str = Query("personal"),
-):
+) -> dict[str, Any]:
     _validate_path_id(user_id, "user_id")
     _validate_path_id(workspace_id, "workspace_id")
 
@@ -51,10 +53,10 @@ async def replace_capabilities(
 
 @router.patch("")
 async def patch_capabilities(
-    body: dict,
+    body: dict[str, Any],
     user_id: str = Query("default_user"),
     workspace_id: str = Query("personal"),
-):
+) -> dict[str, Any]:
     _validate_path_id(user_id, "user_id")
     _validate_path_id(workspace_id, "workspace_id")
 

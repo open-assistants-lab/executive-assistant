@@ -14,16 +14,14 @@ Design:
 
 from __future__ import annotations
 
+from typing import Any
+
 from src.app_logging import get_logger
 from src.sdk.tools import ToolAnnotations, tool
 from src.skills.registry import get_skill_registry
 from src.storage.paths import get_paths
 
 logger = get_logger()
-
-
-def _get_registry(user_id: str, workspace_id: str = "personal"):
-    return get_skill_registry(user_id=user_id, workspace_id=workspace_id)
 
 
 def _is_available(name: str, user_id: str, workspace_id: str) -> tuple[bool, str]:
@@ -44,7 +42,7 @@ def _is_available(name: str, user_id: str, workspace_id: str) -> tuple[bool, str
     return True, ""
 
 
-def _get_registry(user_id: str, workspace_id: str = "personal"):
+def _get_registry(user_id: str, workspace_id: str = "personal") -> Any:
     return get_skill_registry(user_id=user_id, workspace_id=workspace_id)
 
 
@@ -78,8 +76,8 @@ def skills_load(
 
     skill = registry.get_skill(name)
     if not skill:
-        available = [s["name"] for s in registry.get_all_skills()]
-        return f"Skill '{name}' not found. Available skills: {', '.join(available) or 'none'}."
+        available_names = [s["name"] for s in registry.get_all_skills()]
+        return f"Skill '{name}' not found. Available skills: {', '.join(available_names) or 'none'}."
 
     parts = [
         f"<skill_content name=\"{skill.get('name', name)}\">",

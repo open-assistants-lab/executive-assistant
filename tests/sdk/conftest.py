@@ -1,9 +1,32 @@
 """SDK conftest - shared fixtures for SDK tests."""
 
+import os
 import tempfile
 from unittest.mock import MagicMock
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def reset_settings():
+    """Clear cached settings and DEPLOYMENT_* env vars before each SDK test.
+
+    Prevents cross-test pollution from session-scoped fixtures that
+    set DEPLOYMENT_EA_ROOT / DEPLOYMENT_DATA_PATH.
+    """
+    saved = {}
+    for var in ("DEPLOYMENT_EA_ROOT", "DEPLOYMENT_DATA_PATH", "DEPLOYMENT_MODE"):
+        saved[var] = os.environ.pop(var, None)
+    from src.config.settings import reload_settings
+    from src.storage.paths import _paths_cache
+
+    reload_settings()
+    _paths_cache.clear()
+    yield
+    _paths_cache.clear()
+    for var, val in saved.items():
+        if val is not None:
+            os.environ[var] = val
 
 
 @pytest.fixture
@@ -58,3 +81,14 @@ def mock_tool_result():
         return msg
 
     return _make
+
+
+@pytest.fixture(autouse=True)
+async def cleanup_work_queue_cache():
+    """Prevent cross-test work_queue DB cache contamination."""
+    yield
+    from src.sdk.work_queue import _db_cache
+
+    for cached_db in list(_db_cache.values()):
+        await cached_db.close()
+    _db_cache.clear()

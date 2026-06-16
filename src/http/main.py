@@ -3,6 +3,7 @@
 import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
@@ -11,17 +12,16 @@ from fastapi.responses import JSONResponse
 
 from src.http.routers import (
     capabilities_router,
-    # DISABLED: contacts, todos — pending redesign
-    # contacts_router,
     companion_router,
+    contacts_router,
     conversation_router,
     email_router,
     health_router,
     memories_router,
     skills_router,
     subagents_router,
+    todos_router,
     tools_router,
-    # todos_router,
     user_prompt_router,
     workspace_router,
     workspaces_router,
@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             pass  # Companion scheduler disabled
 
         # Start connectkit token refresh background task
-        _token_refresh_task: asyncio.Task | None = None
+        _token_refresh_task: asyncio.Task[Any] | None = None
 
         async def _refresh_loop() -> None:
             while True:
@@ -106,7 +106,7 @@ _PUBLIC_PATHS = {"/health", "/health/ready", "/docs", "/redoc", "/openapi.json"}
 
 
 @app.middleware("http")
-async def api_key_auth_middleware(request: Request, call_next):
+async def api_key_auth_middleware(request: Request, call_next: Any) -> Any:
     """Apply API-key auth consistently across HTTP routes."""
     if request.url.path in _PUBLIC_PATHS:
         return await call_next(request)
@@ -131,10 +131,9 @@ app.include_router(conversation_router)
 app.include_router(email_router)
 app.include_router(memories_router)
 app.include_router(user_prompt_router)
-# DISABLED: contacts, todos, email — pending redesign
-# app.include_router(contacts_router)
-# app.include_router(todos_router)
-# app.include_router(email_router)
+app.include_router(contacts_router)
+app.include_router(todos_router)
+# email_router already included above
 app.include_router(workspace_router)
 app.include_router(workspaces_router)
 app.include_router(skills_router)
@@ -151,7 +150,7 @@ try:
     from connectkit.spec import ConnectorSpec
     from connectkit.utils import ensure_cli_installed
 
-    def _vault_factory(user_id: str):
+    def _vault_factory(user_id: str) -> Any:
         bridge = ConnectKitBridge(user_id)
         return bridge.vault
 
@@ -160,7 +159,7 @@ try:
 
     import os
 
-    def _oauth_config(service: str) -> dict[str, str]:
+    def _oauth_config(service: str) -> dict[str, Any]:
         bridge = ConnectKitBridge("")
         token = bridge.vault.get_token(service) or {}
         result = {
@@ -193,12 +192,13 @@ try:
     app.include_router(oauth_router)
     print(f"Included oauth_router: {[r.path for r in oauth_router.routes]}")
 except Exception:
-    import traceback; traceback.print_exc()
+    import traceback
+    traceback.print_exc()
 
 app.include_router(connectors_router)
 
 
-def run():
+def run() -> None:
     """Run the HTTP server."""
     import uvicorn
 

@@ -474,7 +474,16 @@ class AgentLoop:
                     )
                 )
             else:
-                state.add_message(result)
+                if isinstance(result, BaseException):
+                    state.add_message(
+                        Message.tool_result(
+                            tool_call_id=tc.id,
+                            content=json.dumps({"error": f"Tool execution failed: {result}"}),
+                            name=tc.name,
+                        )
+                    )
+                else:
+                    state.add_message(result)
 
     async def _execute_single_tool_streaming(
         self, tc: ToolCall, state: AgentState
@@ -590,8 +599,7 @@ class AgentLoop:
                 logger.error(f"parallel_tool_error tool={tc.name}: {result}")
                 result_content = json.dumps({"error": f"Tool execution failed: {result}"})
             else:
-                tc_r, result_content = result
-                tc = tc_r
+                tc_r, result_content = result  # type: ignore[misc]
 
             state.add_message(
                 Message.tool_result(
@@ -674,7 +682,7 @@ class AgentLoop:
                 logger.warning(f"output_guardrail_error name={guardrail.name}: {e}")
 
     async def _check_tool_guardrails(
-        self, tc: ToolCall, phase: str, data: dict | str
+        self, tc: ToolCall, phase: str, data: dict[str, Any] | str
     ) -> GuardrailResult | None:
         for guardrail in self.tool_guardrails:
             try:
@@ -934,7 +942,7 @@ class AgentLoop:
 
                 stream_content_parts: list[str] = []
                 stream_tool_calls: list[ToolCall] = []
-                stream_tool_calls_map: dict[int, dict] = {}
+                stream_tool_calls_map: dict[int, dict[str, Any]] = {}
                 stream_reasoning_parts: list[str] = []
                 in_text_block = False
                 in_reasoning_block = False
@@ -1182,7 +1190,7 @@ class AgentLoop:
         self,
         chunk: StreamChunk,
         content_parts: list[str],
-        tool_calls_map: dict[int, dict],
+        tool_calls_map: dict[int, dict[str, Any]],
         reasoning_parts: list[str],
         in_text_block: bool,
         in_reasoning_block: bool,

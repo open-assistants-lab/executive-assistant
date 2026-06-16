@@ -1,13 +1,10 @@
 """Tests for MCPToolBridge — converting MCP tools to SDK ToolDefinitions."""
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
+from unittest.mock import AsyncMock, MagicMock
 
 from src.sdk.loop import AgentLoop
-from src.sdk.messages import Message, ToolCall
-from src.sdk.tools import ToolAnnotations, ToolDefinition, ToolRegistry, ToolResult
+from src.sdk.messages import Message
+from src.sdk.tools import ToolAnnotations, ToolDefinition, ToolResult
 
 
 class TestMCPToolNameFormat:
@@ -326,7 +323,6 @@ class TestMCPToolBridgeRemove:
 
 class TestAgentLoopDynamicRegistration:
     async def test_register_tool(self):
-        from src.sdk.loop import AgentLoop
         from src.sdk.providers.base import LLMProvider, ModelInfo
 
         class SimpleProvider(LLMProvider):
@@ -363,7 +359,6 @@ class TestAgentLoopDynamicRegistration:
         assert loop._registry.has("dynamic_tool")
 
     async def test_unregister_tool(self):
-        from src.sdk.loop import AgentLoop
         from src.sdk.providers.base import LLMProvider, ModelInfo
 
         class SimpleProvider(LLMProvider):
@@ -401,7 +396,6 @@ class TestAgentLoopDynamicRegistration:
         assert not loop._registry.has("temp_tool")
 
     async def test_register_tool_overwrites(self):
-        from src.sdk.loop import AgentLoop
         from src.sdk.providers.base import LLMProvider, ModelInfo
 
         class SimpleProvider(LLMProvider):

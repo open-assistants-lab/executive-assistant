@@ -34,8 +34,8 @@ class Handoff(BaseModel):
     agent_name: str
     tool_name: str = ""
     description: str = ""
-    input_filter: Callable | None = None
-    on_handoff: Callable | None = None
+    input_filter: Callable[[HandoffInput], list[Message]] | None = None
+    on_handoff: Callable[[HandoffInput], None] | None = None
     is_enabled: bool = True
 
     model_config = {"arbitrary_types_allowed": True}
@@ -47,7 +47,7 @@ class Handoff(BaseModel):
         if not self.description:
             self.description = f"Transfer the conversation to the {self.agent_name} agent."
 
-    def to_tool_schema(self) -> dict:
+    def to_tool_schema(self) -> dict[str, Any]:
         """Return an OpenAI-format tool definition for this handoff."""
         return {
             "type": "function",
@@ -68,7 +68,7 @@ class Handoff(BaseModel):
             },
         }
 
-    def to_anthropic_schema(self) -> dict:
+    def to_anthropic_schema(self) -> dict[str, Any]:
         """Return an Anthropic-format tool definition for this handoff."""
         return {
             "name": self.tool_name,

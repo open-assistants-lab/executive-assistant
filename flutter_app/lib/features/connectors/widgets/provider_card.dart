@@ -105,10 +105,7 @@ class _ProviderCardState extends ConsumerState<ProviderCard> {
           ),
           if (_expanded) ...[
             Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 8,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -142,12 +139,12 @@ class _ProviderCardState extends ConsumerState<ProviderCard> {
                           ),
                           style: const TextStyle(fontSize: 13),
                           onChanged: (_) {
-                            if (_testResult != null) {
-                              setState(() {
+                            setState(() {
+                              if (_testResult != null) {
                                 _testResult = null;
                                 _testError = null;
-                              });
-                            }
+                              }
+                            });
                           },
                         ),
                       ),
@@ -155,9 +152,7 @@ class _ProviderCardState extends ConsumerState<ProviderCard> {
                       FilledButton(
                         onPressed: _testing ? null : _saveKey,
                         style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
                         ),
                         child: Text(
                           widget.hasKey ? 'Change' : 'Save',
@@ -182,7 +177,10 @@ class _ProviderCardState extends ConsumerState<ProviderCard> {
                                 ),
                               )
                             : const Icon(Symbols.network_check, size: 14),
-                        label: const Text('Test', style: TextStyle(fontSize: 11)),
+                        label: const Text(
+                          'Test',
+                          style: TextStyle(fontSize: 11),
+                        ),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 10,

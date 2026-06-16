@@ -14,7 +14,7 @@ Uses the SDK AgentLoop for all agent execution.
 import asyncio
 import json
 import uuid
-from typing import Literal
+from typing import Any, Literal
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -53,9 +53,9 @@ async def _run_agent_stream(
     websocket: WebSocket,
     user_id: str,
     sdk_messages: list[Message],
-    conversation,
+    conversation: Any,
     session_id: str = "",
-    pending_ref: list | None = None,
+    pending_ref: list[Any] | None = None,
     workspace_id: str = "personal",
     model: str | None = None,
     provider_keys: dict[str, str] | None = None,
@@ -63,12 +63,12 @@ async def _run_agent_stream(
     """Run the agent streaming loop and handle all chunk types."""
     import uuid as _uuid
 
-    def _with_workspace(payload: dict) -> dict:
+    def _with_workspace(payload: dict[str, Any]) -> dict[str, Any]:
         return {**payload, "workspace_id": workspace_id}
 
     ai_content_parts: list[str] = []
     reasoning_parts: list[str] = []
-    tool_metadata_list: list[dict] = []
+    tool_metadata_list: list[dict[str, Any]] = []
     skill_load_names: dict[str, str] = {}
 
     try:
@@ -149,9 +149,7 @@ async def _run_agent_stream(
                 await websocket.send_json(_with_workspace(chunk.to_ws_message()))
 
             elif chunk.type == "done":
-                response = (
-                    "".join(ai_content_parts) if ai_content_parts else "Task completed."
-                )
+                response = "".join(ai_content_parts)
 
                 canvas_blocks = _extract_surfaces(response)
                 for surface in canvas_blocks:
@@ -241,7 +239,7 @@ async def _handle_canvas_update_from_preview(
     result_preview: str,
     workspace_id: str,
     websocket: WebSocket,
-    tool_responses: dict,
+    tool_responses: dict[str, Any],
 ) -> None:
     """Extract HTML from canvas_paint result and broadcast as canvas_update."""
     html = tool_responses.pop(call_id, result_preview)
@@ -257,7 +255,7 @@ async def _handle_canvas_update_from_preview(
 
 
 @router.websocket("/ws/conversation")
-async def ws_conversation(websocket: WebSocket):
+async def ws_conversation(websocket: WebSocket) -> None:
     """WebSocket endpoint for bidirectional agent conversation.
 
     Protocol:
@@ -324,7 +322,7 @@ async def ws_conversation(websocket: WebSocket):
     verbose = False
     current_model: str | None = None
     current_provider_keys: dict[str, str] | None = None
-    pending_container: list = [None]
+    pending_container: list[Any] = [None]
 
     try:
         while True:
@@ -369,7 +367,7 @@ async def ws_conversation(websocket: WebSocket):
                     pending_container[0] = None
                     conversation = get_message_store(user_id, workspace_id)
                     retry_msgs = _messages_from_conversation(
-                        conversation.get_messages_with_summary(50)
+                        conversation.get_messages_with_summary(50, workspace_id=workspace_id)
                     )
                     retry_msgs.append(Message.user(f"approve: please proceed with {tool_name}"))
                     await _run_agent_stream(
@@ -409,7 +407,7 @@ async def ws_conversation(websocket: WebSocket):
                     pending_container[0] = None
                     conversation = get_message_store(user_id, workspace_id)
                     retry_msgs = _messages_from_conversation(
-                        conversation.get_messages_with_summary(50)
+                        conversation.get_messages_with_summary(50, workspace_id=workspace_id)
                     )
                     retry_msgs.append(Message.user(f"approved: proceed with {tool_name} with edited args: {msg.edited_args}"))
                     await _run_agent_stream(
@@ -460,7 +458,7 @@ async def ws_conversation(websocket: WebSocket):
             conversation.add_message("user", content, metadata={"workspace_id": workspace_id})
             t2 = time.monotonic()
 
-            recent_messages = conversation.get_messages_with_summary(50)
+            recent_messages = conversation.get_messages_with_summary(50, workspace_id=workspace_id)
             t3 = time.monotonic()
 
             sdk_messages = _messages_from_conversation(recent_messages)
@@ -513,7 +511,7 @@ async def ws_conversation(websocket: WebSocket):
                     pending_container[0] = None
                     # Retry with approval context
                     retry_msgs = _messages_from_conversation(
-                        conversation.get_messages_with_summary(50)
+                        conversation.get_messages_with_summary(50, workspace_id=workspace_id)
                     )
                     retry_msgs.append(Message.user(f"approve: please proceed with {tool_name}"))
                     await _run_agent_stream(

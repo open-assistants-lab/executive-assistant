@@ -30,7 +30,7 @@ class FileCache:
 
     def get_status(self, path: str) -> str:
         """Get sync status: 'cloud_only', 'downloaded', 'pinned'"""
-        return self._cache.get(path, {}).get("status", "cloud_only")
+        return str(self._cache.get(path, {}).get("status", "cloud_only"))
 
     def mark_downloaded(self, path: str) -> None:
         self._cache[path] = {
@@ -53,7 +53,7 @@ class FileCache:
 
     def get_all(self, workspace_path: str | None = None) -> dict[str, dict[str, Any]]:
         """Get all sync status with has_update flag."""
-        result = {}
+        result: dict[str, dict[str, Any]] = {}
         workspace_root = get_paths(self.user_id, workspace_id=self.workspace_id).workspace_files_dir()
 
         for path, data in self._cache.items():

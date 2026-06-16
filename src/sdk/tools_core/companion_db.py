@@ -69,8 +69,8 @@ class CompanionNotificationDB:
         if self._db is None:
             self._db = await aiosqlite.connect(self._db_path)
             self._db.row_factory = aiosqlite.Row
-            await self._db.executescript(_NOTIF_SCHEMA)
             await self._db.execute("PRAGMA journal_mode=WAL")
+            await self._db.executescript(_NOTIF_SCHEMA)
             await self._db.commit()
         return self._db
 
@@ -141,7 +141,7 @@ class CompanionNotificationDB:
         recent = await self.list(limit=1)
         if not recent:
             return "never"
-        return recent[0]["created_at"]
+        return str(recent[0]["created_at"])
 
     async def dismissal_streak(self) -> int:
         """Count consecutive dismissed notifications to detect fatigue."""
@@ -172,8 +172,8 @@ class CompanionMemoryDB:
         if self._db is None:
             self._db = await aiosqlite.connect(self._db_path)
             self._db.row_factory = aiosqlite.Row
-            await self._db.executescript(_MEMORY_SCHEMA)
             await self._db.execute("PRAGMA journal_mode=WAL")
+            await self._db.executescript(_MEMORY_SCHEMA)
             await self._db.commit()
         return self._db
 

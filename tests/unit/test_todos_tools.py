@@ -163,11 +163,12 @@ class TestTodosExtract:
 
 
 class TestTodosStorageFunctions:
-    """Tests for todos storage functions."""
+    """Tests for todos storage functions (AgentsDB-based)."""
 
-    def test_get_db_path(self):
-        """Test getting database path."""
-        from src.sdk.tools_core.todos_storage import get_db_path
+    def test_add_todo(self):
+        """Test adding a todo."""
+        from src.sdk.tools_core.todos_storage import add_todo
 
-        path = get_db_path("test_user")
-        assert path.endswith("todos.db")
+        result = add_todo("test_user", "Test todo", status="pending", source="test")
+        assert "id" in result
+        assert result["content"] == "Test todo"

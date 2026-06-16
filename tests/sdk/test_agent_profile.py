@@ -1,5 +1,4 @@
 """Tests for EA-specific AgentProfile validation layer."""
-import pytest
 from unittest.mock import patch
 
 from src.sdk.agent_profile import validate_profile

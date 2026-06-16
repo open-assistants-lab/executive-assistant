@@ -13,17 +13,27 @@ os.environ.setdefault("USER_ID", "test_api_user")
 @pytest.fixture(scope="session", autouse=True)
 def isolated_data_path():
     """Keep API contract tests from reading or deleting local app data."""
+    orig_data_path = os.environ.get("DEPLOYMENT_DATA_PATH")
+    orig_ea_root = os.environ.get("DEPLOYMENT_EA_ROOT")
     with tempfile.TemporaryDirectory() as data_path:
         os.environ["DEPLOYMENT_DATA_PATH"] = data_path
         os.environ["DEPLOYMENT_EA_ROOT"] = str(Path(data_path) / "ea_root")
 
         from src.config import reload_settings
         from src.storage.messages import _stores
+        from src.storage.paths import _paths_cache
 
         reload_settings()
         _stores.clear()
+        _paths_cache.clear()
         yield data_path
         del os.environ["DEPLOYMENT_EA_ROOT"]
+        del os.environ["DEPLOYMENT_DATA_PATH"]
+        if orig_data_path is not None:
+            os.environ["DEPLOYMENT_DATA_PATH"] = orig_data_path
+        if orig_ea_root is not None:
+            os.environ["DEPLOYMENT_EA_ROOT"] = orig_ea_root
+        reload_settings()
 
 
 @pytest.fixture(scope="session")

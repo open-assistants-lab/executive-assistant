@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import threading
 from pathlib import Path
+from typing import Any
 
 from src.sdk.research import ExperimentResult, ResearchLoop
 from src.sdk.tools import ToolAnnotations, ToolDefinition
@@ -27,7 +28,7 @@ def _get_loop() -> asyncio.AbstractEventLoop:
         return _loop
 
 
-def _run_async(coro):
+def _run_async(coro: Any) -> Any:
     loop = _get_loop()
     future = asyncio.run_coroutine_threadsafe(coro, loop)
     return future.result(timeout=300)
@@ -58,6 +59,7 @@ def _research_start(
     """
     target_path = Path(target_ref)
 
+    target: Any
     if target_type == "prompt":
         from src.sdk.research import PromptTarget
 

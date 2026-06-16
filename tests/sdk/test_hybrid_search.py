@@ -3,7 +3,6 @@
 import random
 import shutil
 import time
-from pathlib import Path
 
 import pytest
 
@@ -325,6 +324,7 @@ def cleanup_test_db():
 def storage():
     """Get app storage helper for testing."""
     from hybriddb import SearchMode
+
     from src.sdk.tools_core.apps import AppSchema, TableSchema, _get_db
 
     class _AppStorageCompat:
@@ -443,7 +443,7 @@ class TestHybridSearchPerformance:
 
         app_name = f"library_perf_{uuid.uuid4().hex[:8]}"
         start_time = time.time()
-        schema = storage.create_app(app_name, tables)
+        storage.create_app(app_name, tables)
         create_time = time.time() - start_time
         print(f"\n1. APP CREATION: {create_time * 1000:.2f}ms")
 
@@ -691,8 +691,8 @@ class TestHybridSearchPerformance:
         join_results = storage.query_sql(
             app_name,
             """
-            SELECT b.title, m.name FROM books b 
-            JOIN loans l ON b.id = l.book_id 
+            SELECT b.title, m.name FROM books b
+            JOIN loans l ON b.id = l.book_id
             JOIN members m ON l.member_id = m.id
             """,
         )

@@ -5,7 +5,6 @@ from functools import lru_cache
 from pathlib import Path
 
 import pytest
-
 from hybriddb import HybridDB
 
 from .helpers import FULL, SMOKE, Scale, archive_results
@@ -54,18 +53,26 @@ def db(request, embedding_fn, tmp_path) -> HybridDB:
 
 
 def pytest_sessionfinish(session, exitstatus):
-    json_path = session.config.getoption("--benchmark-json")
+    try:
+        json_path = session.config.getoption("--benchmark-json")
+    except ValueError:
+        return
     if json_path:
         path = getattr(json_path, "name", json_path)
         if path and Path(path).exists():
             archive_results(path)
 
 
-def pytest_benchmark_update_json(config, benchmarks, output_json):
-    """Attach platform metadata to benchmark JSON for cross-machine comparison."""
-    output_json["machine_info"] = {
-        "platform": platform.platform(),
-        "python": platform.python_version(),
-        "processor": platform.processor(),
-        "machine": platform.machine(),
-    }
+try:
+    import pytest_benchmark  # noqa: F401
+
+    def pytest_benchmark_update_json(config, benchmarks, output_json):
+        """Attach platform metadata to benchmark JSON for cross-machine comparison."""
+        output_json["machine_info"] = {
+            "platform": platform.platform(),
+            "python": platform.python_version(),
+            "processor": platform.processor(),
+            "machine": platform.machine(),
+        }
+except ImportError:
+    pass

@@ -11,19 +11,51 @@ import 'package:executive_assistant/providers/agent_provider.dart';
 import 'package:executive_assistant/providers/subagent_provider.dart';
 import 'package:executive_assistant/providers/workspace_provider.dart';
 import 'package:executive_assistant/services/api_client.dart';
+import 'package:executive_assistant/services/backend_service.dart';
 import 'package:executive_assistant/services/ws_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
-import 'package:material_symbols_icons/symbols.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:executive_assistant/theme/app_theme.dart';
+import 'package:http/testing.dart';
+import 'package:mocktail/mocktail.dart';
 
 class MockApiClient extends Mock implements ApiClient {}
 
 class MockWsClient extends Mock implements WsClient {}
+
+class _NoopBackendService extends BackendService {
+  final _statusController = StreamController<BackendStatus>.broadcast();
+
+  @override
+  Stream<BackendStatus> get status => _statusController.stream;
+
+  @override
+  BackendStatus get currentStatus => BackendStatus.stopped;
+
+  @override
+  bool get isRunning => false;
+
+  @override
+  Future<void> start() async {}
+
+  @override
+  void dispose() {
+    _statusController.close();
+  }
+}
+
+Override _noopBackendOverride() => backendServiceProvider.overrideWith((ref) {
+  final service = _NoopBackendService();
+  ref.onDispose(service.dispose);
+  return service;
+});
+
+List<Override> apiClientOverrides(ApiClient api) => [
+  apiClientProvider.overrideWithValue(api),
+  _noopBackendOverride(),
+];
 
 void main() {
   testWidgets('refreshes file list without switching workspace', (
@@ -65,49 +97,50 @@ void main() {
     expect(find.text('new.pdf'), findsOneWidget);
   });
 
-  testWidgets('defaults to files and switches to capabilities from bottom icon tab', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          currentWorkspaceIdProvider.overrideWith((ref) => 'sales'),
-        ],
-        child: MaterialApp(
-          theme: AppTheme.dark,
-          home: Scaffold(
-            body: WorkspacePanel(
-              refreshInterval: const Duration(days: 1),
-              fileLoader: (_) async => [
-                {'name': 'brief.md', 'is_dir': false, 'size': 20},
-              ],
+  testWidgets(
+    'defaults to files and switches to capabilities from bottom icon tab',
+    (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            currentWorkspaceIdProvider.overrideWith((ref) => 'sales'),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark,
+            home: Scaffold(
+              body: WorkspacePanel(
+                refreshInterval: const Duration(days: 1),
+                fileLoader: (_) async => [
+                  {'name': 'brief.md', 'is_dir': false, 'size': 20},
+                ],
+              ),
             ),
           ),
         ),
-      ),
-    );
-    await tester.pump();
+      );
+      await tester.pump();
 
-    expect(find.text('Files'), findsOneWidget);
-    expect(find.text('brief.md'), findsOneWidget);
+      expect(find.text('Files'), findsOneWidget);
+      expect(find.text('brief.md'), findsOneWidget);
 
-    // Tap the Capabilities tab (Symbols.tune)
-    await tester.tap(find.byIcon(Symbols.tune));
-    await tester.pump();
-    await tester.pump();
+      // Tap the Capabilities tab (Symbols.tune)
+      await tester.tap(find.byIcon(Symbols.tune));
+      await tester.pump();
+      await tester.pump();
 
-    // Capabilities tab has a search bar
-    expect(find.text('Search capabilities...'), findsOneWidget);
-    // Sections are present
-    expect(find.text('Tools'), findsOneWidget);
-    expect(find.text('Skills'), findsOneWidget);
-    expect(find.text('Subagents'), findsOneWidget);
-  });
+      // Capabilities tab has a search bar
+      expect(find.text('Search capabilities...'), findsOneWidget);
+      // Sections are present
+      expect(find.text('Tools'), findsOneWidget);
+      expect(find.text('Skills'), findsOneWidget);
+      expect(find.text('Subagents'), findsOneWidget);
+    },
+  );
 
   testWidgets('switches to capabilities tab and shows sections', (
     tester,
   ) async {
-    final container = ProviderContainer();
+    final container = ProviderContainer(overrides: [_noopBackendOverride()]);
     addTearDown(container.dispose);
     container.read(currentWorkspaceIdProvider.notifier).state = 'test12345';
 
@@ -136,9 +169,7 @@ void main() {
     expect(find.text('Subagents'), findsOneWidget);
   });
 
-  testWidgets('capabilities tab shows section headers', (
-    tester,
-  ) async {
+  testWidgets('capabilities tab shows section headers', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
@@ -182,16 +213,17 @@ void main() {
       ],
     );
 
-    final container = ProviderContainer(
-      overrides: [apiClientProvider.overrideWithValue(api)],
-    );
+    final container = ProviderContainer(overrides: apiClientOverrides(api));
     addTearDown(container.dispose);
     container.read(currentWorkspaceIdProvider.notifier).state = 'sales';
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: MaterialApp(theme: AppTheme.dark, home: Scaffold(body: SkillsPanel())),
+        child: MaterialApp(
+          theme: AppTheme.dark,
+          home: Scaffold(body: SkillsPanel()),
+        ),
       ),
     );
     await tester.pump();
@@ -228,16 +260,17 @@ void main() {
       return calls == 1 ? firstCompleter.future : secondCompleter.future;
     });
 
-    final container = ProviderContainer(
-      overrides: [apiClientProvider.overrideWithValue(api)],
-    );
+    final container = ProviderContainer(overrides: apiClientOverrides(api));
     addTearDown(container.dispose);
     container.read(currentWorkspaceIdProvider.notifier).state = 'sales';
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: MaterialApp(theme: AppTheme.dark, home: Scaffold(body: SkillsPanel())),
+        child: MaterialApp(
+          theme: AppTheme.dark,
+          home: Scaffold(body: SkillsPanel()),
+        ),
       ),
     );
     await tester.pump();
@@ -283,16 +316,17 @@ void main() {
       ),
     ).thenAnswer((_) => createCompleter.future);
 
-    final container = ProviderContainer(
-      overrides: [apiClientProvider.overrideWithValue(api)],
-    );
+    final container = ProviderContainer(overrides: apiClientOverrides(api));
     addTearDown(container.dispose);
     container.read(currentWorkspaceIdProvider.notifier).state = 'sales';
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: MaterialApp(theme: AppTheme.dark, home: Scaffold(body: SkillsPanel())),
+        child: MaterialApp(
+          theme: AppTheme.dark,
+          home: Scaffold(body: SkillsPanel()),
+        ),
       ),
     );
     await tester.pump();
@@ -367,7 +401,10 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: MaterialApp(theme: AppTheme.dark, home: Scaffold(body: SkillsPanel())),
+          child: MaterialApp(
+            theme: AppTheme.dark,
+            home: Scaffold(body: SkillsPanel()),
+          ),
         ),
       );
       await tester.pump();
@@ -417,7 +454,10 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: MaterialApp(theme: AppTheme.dark, home: Scaffold(body: SkillsPanel())),
+          child: MaterialApp(
+            theme: AppTheme.dark,
+            home: Scaffold(body: SkillsPanel()),
+          ),
         ),
       );
       await tester.pump();
@@ -478,28 +518,31 @@ void main() {
       ),
     ).thenAnswer((_) async => {});
 
-    final container = ProviderContainer(
-      overrides: [apiClientProvider.overrideWithValue(api)],
-    );
+    final container = ProviderContainer(overrides: apiClientOverrides(api));
     addTearDown(container.dispose);
     container.read(currentWorkspaceIdProvider.notifier).state = 'personal';
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: MaterialApp(theme: AppTheme.dark, home: Scaffold(body: SubagentsPanel())),
+        child: MaterialApp(
+          theme: AppTheme.dark,
+          home: Scaffold(body: SubagentsPanel()),
+        ),
       ),
     );
     await tester.pump();
 
     await tester.tap(find.byIcon(Symbols.add));
     await tester.pumpAndSettle();
-    await tester.drag(find.byType(SingleChildScrollView), const Offset(0, -400));
+    await tester.drag(
+      find.byType(SingleChildScrollView),
+      const Offset(0, -400),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Tools'), findsOneWidget);
-    final checkboxes =
-        tester.widgetList<Checkbox>(find.byType(Checkbox));
+    final checkboxes = tester.widgetList<Checkbox>(find.byType(Checkbox));
     expect(checkboxes.isNotEmpty, true);
     final first = checkboxes.first;
     expect(first.onChanged, isNotNull);
@@ -507,17 +550,15 @@ void main() {
 
   testWidgets('prunes terminal jobs after max threshold', (tester) async {
     final api = MockApiClient();
-    when(() => api.listSubagents(workspaceId: 'test12345')).thenAnswer(
-      (_) async => [],
-    );
-    when(() => api.cancelSubagentJob(
-      any(),
-      workspaceId: any(named: 'workspaceId'),
-    )).thenAnswer((_) async => {});
+    when(
+      () => api.listSubagents(workspaceId: 'test12345'),
+    ).thenAnswer((_) async => []);
+    when(
+      () =>
+          api.cancelSubagentJob(any(), workspaceId: any(named: 'workspaceId')),
+    ).thenAnswer((_) async => {});
 
-    final container = ProviderContainer(
-      overrides: [apiClientProvider.overrideWithValue(api)],
-    );
+    final container = ProviderContainer(overrides: apiClientOverrides(api));
     addTearDown(container.dispose);
     container.read(currentWorkspaceIdProvider.notifier).state = 'test12345';
 
@@ -556,8 +597,9 @@ void main() {
     tester,
   ) async {
     final api = MockApiClient();
-    when(() => api.listSubagents(workspaceId: any(named: 'workspaceId')))
-        .thenAnswer((_) async => []);
+    when(
+      () => api.listSubagents(workspaceId: any(named: 'workspaceId')),
+    ).thenAnswer((_) async => []);
     when(() => api.listToolNames()).thenAnswer((_) async => ['time_get']);
     when(
       () => api.createSubagent(
@@ -575,16 +617,17 @@ void main() {
       ),
     ).thenAnswer((_) async => {});
 
-    final container = ProviderContainer(
-      overrides: [apiClientProvider.overrideWithValue(api)],
-    );
+    final container = ProviderContainer(overrides: apiClientOverrides(api));
     addTearDown(container.dispose);
     container.read(currentWorkspaceIdProvider.notifier).state = 'personal';
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: MaterialApp(theme: AppTheme.dark, home: Scaffold(body: SubagentsPanel())),
+        child: MaterialApp(
+          theme: AppTheme.dark,
+          home: Scaffold(body: SubagentsPanel()),
+        ),
       ),
     );
     await tester.pump();
@@ -606,7 +649,9 @@ void main() {
 
     // Dialog should still be open with error message
     expect(
-      find.text('Name can only contain letters, numbers, hyphens, and underscores'),
+      find.text(
+        'Name can only contain letters, numbers, hyphens, and underscores',
+      ),
       findsOneWidget,
     );
     verifyNever(

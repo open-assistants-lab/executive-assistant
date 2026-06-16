@@ -1,11 +1,12 @@
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from fastapi import APIRouter, Query
 
 router = APIRouter(prefix="/memories", tags=["memories"])
 
 
-def _get_core(user_id: str, workspace_id: str):
+def _get_core(user_id: str, workspace_id: str) -> Any:
     from src.storage.messages import get_message_store
     return get_message_store(user_id, workspace_id).core
 
@@ -16,7 +17,7 @@ async def list_observations(
     workspace_id: str = "personal",
     days: int = 7,
     limit: int = 50,
-):
+) -> dict[str, Any]:
     """List recent observations."""
     core = _get_core(user_id, workspace_id)
     cutoff = (datetime.now(UTC) - timedelta(days=days)).isoformat()
@@ -29,7 +30,7 @@ async def list_reflections(
     user_id: str = "default_user",
     workspace_id: str = "personal",
     limit: int = 20,
-):
+) -> dict[str, Any]:
     """List reflections (patterns and insights)."""
     core = _get_core(user_id, workspace_id)
     results = core.get_reflections(limit=limit)
@@ -43,7 +44,7 @@ async def search_reflections(
     limit: int = 5,
     user_id: str = "default_user",
     workspace_id: str = "personal",
-):
+) -> dict[str, Any]:
     """Search reflections."""
     core = _get_core(user_id, workspace_id)
     results = core.search_reflections(query, limit=limit)
@@ -56,7 +57,7 @@ async def search_observations(
     limit: int = 10,
     user_id: str = "default_user",
     workspace_id: str = "personal",
-):
+) -> dict[str, Any]:
     """Search observations."""
     core = _get_core(user_id, workspace_id)
     results = core.search_observations(query, limit=limit)
@@ -67,7 +68,7 @@ async def search_observations(
 async def clear_memories(
     user_id: str = "default_user",
     workspace_id: str = "personal",
-):
+) -> dict[str, Any]:
     """Delete all messages, observations, and reflections for the user."""
     core = _get_core(user_id, workspace_id)
     core.clear()

@@ -1,5 +1,7 @@
 """Tools API — list tools with metadata, toggle enabled per scope."""
 
+from typing import Any
+
 from fastapi import APIRouter, HTTPException, Query
 
 from src.sdk.item_scopes import ItemScopeDB, ScopeKind
@@ -14,7 +16,7 @@ def _get_scope_db(user_id: str) -> ItemScopeDB:
     return ItemScopeDB(paths.base)
 
 
-def _get_registry() -> list:
+def _get_registry() -> list[Any]:
     """Get the full tool registry from native tools (lazy, cached)."""
     from src.sdk.native_tools import get_native_tools
 
@@ -49,7 +51,7 @@ def _is_enabled(
 async def list_tools(
     user_id: str = Query("default_user"),
     workspace_id: str = Query("personal"),
-):
+) -> dict[str, Any]:
     _validate_path_id(user_id, "user_id")
     _validate_path_id(workspace_id, "workspace_id")
 
@@ -58,7 +60,7 @@ async def list_tools(
     all_scoped = scope_db.get_all_scoped(user_id, "tool")
 
     tools_list = []
-    categories_enabled: dict[str, dict[str, int]] = {}
+    categories_enabled: dict[str, dict[str, Any]] = {}
 
     for tool in registry:
         annotations = (
@@ -108,7 +110,7 @@ async def list_tools(
     return {"tools": tools_list, "categories": categories_enabled}
 
 
-def _tool_default(annotations: dict) -> bool:
+def _tool_default(annotations: dict[str, Any]) -> bool:
     """Derive default enabled state from tool annotations."""
     destructive = annotations.get("destructive", False)
     if destructive:
@@ -121,7 +123,7 @@ async def get_tool(
     name: str,
     user_id: str = Query("default_user"),
     workspace_id: str = Query("personal"),
-):
+) -> dict[str, Any]:
     _validate_path_id(user_id, "user_id")
     _validate_path_id(workspace_id, "workspace_id")
 
@@ -155,10 +157,10 @@ async def get_tool(
 @router.patch("/{name}")
 async def toggle_tool(
     name: str,
-    body: dict,
+    body: dict[str, Any],
     user_id: str = Query("default_user"),
     workspace_id: str = Query("personal"),
-):
+) -> dict[str, Any]:
     """Set a tool's scope.
 
     New body (preferred):
@@ -211,7 +213,7 @@ async def toggle_tool(
         else:
             if workspace_id in wids:
                 wids.remove(workspace_id)
-        new_scope: ScopeKind = "selected" if wids else "none"
+        new_scope = "selected" if wids else "none"
         scope_db.set(user_id, "tool", name, new_scope, wids)
         from src.sdk.runner import reset_sdk_loop
         reset_sdk_loop(user_id, workspace_id)

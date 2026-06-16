@@ -3,13 +3,16 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import '../../core/error_messages.dart';
 import '../../providers/agent_provider.dart';
 import '../../theme/app_theme.dart';
 import '../settings/providers/settings_provider.dart';
 import 'onboarding_provider.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
-  const OnboardingScreen({super.key});
+  final List<Map<String, dynamic>>? initialProviders;
+
+  const OnboardingScreen({super.key, this.initialProviders});
 
   @override
   ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -19,17 +22,28 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   int _step = 0;
   bool _loading = true;
   bool _waitingForBackend = false;
+  bool _backendTimedOut = false;
+  bool _keyVisible = false;
   List<Map<String, dynamic>> _providers = [];
+  final _providerFilterCtrl = TextEditingController();
+  String _providerFilter = '';
   String? _selectedProvider;
   final _keyCtrl = TextEditingController();
   bool _testing = false;
   bool? _testResult;
   String? _testError;
   Timer? _healthTimer;
+  Timer? _timeoutTimer;
 
   @override
   void initState() {
     super.initState();
+    final initialProviders = widget.initialProviders;
+    if (initialProviders != null) {
+      _providers = List<Map<String, dynamic>>.from(initialProviders);
+      _loading = false;
+      return;
+    }
     _loadProviders().then((loaded) {
       if (!loaded && _providers.isEmpty) {
         _startHealthPoll();
@@ -40,7 +54,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   @override
   void dispose() {
     _keyCtrl.dispose();
+    _providerFilterCtrl.dispose();
     _healthTimer?.cancel();
+    _timeoutTimer?.cancel();
     super.dispose();
   }
 
@@ -53,9 +69,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         final resp = await http.get(Uri.parse('http://$host/health'));
         if (resp.statusCode == 200) {
           _healthTimer?.cancel();
+          _timeoutTimer?.cancel();
           _loadProviders();
         }
       } catch (_) {}
+    });
+    _timeoutTimer = Timer(const Duration(seconds: 10), () {
+      if (mounted) setState(() => _backendTimedOut = true);
     });
   }
 
@@ -100,10 +120,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       final resp = await http.post(
         Uri.parse('http://$host/settings/test-key'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'provider': _selectedProvider,
-          'api_key': key,
-        }),
+        body: jsonEncode({'provider': _selectedProvider, 'api_key': key}),
       );
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       if (!mounted) return;
@@ -117,7 +134,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       setState(() {
         _testing = false;
         _testResult = false;
-        _testError = 'Could not reach backend: $e';
+        _testError = humanReadableError('Could not reach backend: $e');
       });
     }
   }
@@ -154,22 +171,68 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const CircularProgressIndicator(),
-                        if (_waitingForBackend) ...[
+                        if (!_backendTimedOut)
+                          const CircularProgressIndicator(),
+                        if (_waitingForBackend && !_backendTimedOut) ...[
                           const SizedBox(height: 16),
                           Text(
                             'Starting up…',
-                            style: tokens.typography.textTheme.bodyMedium?.copyWith(
-                              color: tokens.colors.textSecondary,
-                            ),
+                            style: tokens.typography.textTheme.bodyMedium
+                                ?.copyWith(color: tokens.colors.textSecondary),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             'The backend is starting — this should only take a moment.',
                             textAlign: TextAlign.center,
-                            style: tokens.typography.textTheme.bodySmall?.copyWith(
-                              color: tokens.colors.textTertiary,
-                            ),
+                            style: tokens.typography.textTheme.bodySmall
+                                ?.copyWith(color: tokens.colors.textTertiary),
+                          ),
+                        ],
+                        if (_backendTimedOut) ...[
+                          const SizedBox(height: 16),
+                          Icon(
+                            Symbols.cloud_off,
+                            size: 40,
+                            color: tokens.colors.warning,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Can\'t reach the backend server',
+                            style: tokens.typography.textTheme.titleSmall
+                                ?.copyWith(
+                                  color: tokens.colors.textPrimary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'This app needs a companion server to run.\n'
+                            'Open a terminal and run:\n\n'
+                            '   uv run ea http\n\n'
+                            'Then tap Retry below.',
+                            textAlign: TextAlign.center,
+                            style: tokens.typography.textTheme.bodySmall
+                                ?.copyWith(
+                                  color: tokens.colors.textSecondary,
+                                  height: 1.5,
+                                ),
+                          ),
+                          const SizedBox(height: 20),
+                          FilledButton.icon(
+                            icon: const Icon(Symbols.refresh, size: 18),
+                            label: const Text('Retry'),
+                            onPressed: () {
+                              setState(() {
+                                _loading = true;
+                                _backendTimedOut = false;
+                                _waitingForBackend = false;
+                              });
+                              _loadProviders().then((loaded) {
+                                if (!loaded && _providers.isEmpty) {
+                                  _startHealthPoll();
+                                }
+                              });
+                            },
                           ),
                         ],
                       ],
@@ -180,6 +243,16 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         ),
       ),
     );
+  }
+
+  List<Map<String, dynamic>> get _filteredProviders {
+    final q = _providerFilter.toLowerCase().trim();
+    if (q.isEmpty) return _providers;
+    return _providers.where((p) {
+      final name = (p['name'] as String? ?? '').toLowerCase();
+      final id = (p['id'] as String? ?? '').toLowerCase();
+      return name.contains(q) || id.contains(q);
+    }).toList();
   }
 
   Widget _buildContent(EaTokens tokens) {
@@ -220,19 +293,65 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           ),
         ),
         const SizedBox(height: 8),
+        SizedBox(
+          height: 36,
+          child: TextField(
+            controller: _providerFilterCtrl,
+            onChanged: (v) => setState(() => _providerFilter = v),
+            style: const TextStyle(fontSize: 13),
+            decoration: InputDecoration(
+              hintText: 'Search providers…',
+              prefixIcon: Icon(Symbols.search, size: 16),
+              suffixIcon: _providerFilter.isNotEmpty
+                  ? IconButton(
+                      icon: Icon(Symbols.close, size: 16),
+                      onPressed: () {
+                        _providerFilterCtrl.clear();
+                        setState(() => _providerFilter = '');
+                      },
+                    )
+                  : null,
+              contentPadding: const EdgeInsets.symmetric(
+                vertical: 0,
+                horizontal: 12,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              isDense: true,
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
         Expanded(
           child: _providers.isEmpty
               ? Center(
-                  child: Text(
-                    'No providers available.\nMake sure the backend is running.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: tokens.colors.textTertiary),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'No providers found',
+                        style: tokens.typography.textTheme.titleSmall?.copyWith(
+                          color: tokens.colors.textTertiary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'The backend server doesn\'t have any AI providers configured.\n'
+                        'Add your API keys in Settings or check the server logs.',
+                        textAlign: TextAlign.center,
+                        style: tokens.typography.textTheme.bodySmall?.copyWith(
+                          color: tokens.colors.textTertiary,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
                   ),
                 )
               : ListView.builder(
-                  itemCount: _providers.length,
+                  itemCount: _filteredProviders.length,
                   itemBuilder: (_, i) {
-                    final p = _providers[i];
+                    final p = _filteredProviders[i];
                     final pid = p['id'] as String;
                     final name = p['name'] as String? ?? pid;
                     final selected = _selectedProvider == pid;
@@ -251,10 +370,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                               ? tokens.colors.accent
                               : tokens.colors.textTertiary,
                         ),
-                        title: Text(
-                          name,
-                          style: const TextStyle(fontSize: 14),
-                        ),
+                        title: Text(name, style: const TextStyle(fontSize: 14)),
                         subtitle: Text(
                           '${(p['models'] as List?)?.length ?? 0} models',
                           style: TextStyle(
@@ -324,7 +440,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         const SizedBox(height: 12),
         TextField(
           controller: _keyCtrl,
-          obscureText: true,
+          obscureText: !_keyVisible,
           decoration: InputDecoration(
             hintText: 'Paste your API key here',
             border: const OutlineInputBorder(),
@@ -342,16 +458,22 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                   )
-                : null,
+                : IconButton(
+                    icon: Icon(
+                      _keyVisible ? Symbols.visibility_off : Symbols.visibility,
+                      size: 18,
+                    ),
+                    onPressed: () => setState(() => _keyVisible = !_keyVisible),
+                  ),
           ),
           style: const TextStyle(fontSize: 14),
           onChanged: (_) {
-            if (_testResult != null) {
-              setState(() {
+            setState(() {
+              if (_testResult != null) {
                 _testResult = null;
                 _testError = null;
-              });
-            }
+              }
+            });
           },
         ),
         const SizedBox(height: 12),
@@ -417,9 +539,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Icon(
-          _testResult == true
-              ? Symbols.check_circle
-              : Symbols.settings,
+          _testResult == true ? Symbols.check_circle : Symbols.settings,
           size: 64,
           color: _testResult == true
               ? Colors.green

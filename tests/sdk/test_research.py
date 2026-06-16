@@ -2,15 +2,15 @@
 
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
 from src.sdk.research import (
-    ResearchTarget,
-    ResearchLoop,
     ExperimentResult,
     PromptTarget,
+    ResearchLoop,
+    ResearchTarget,
 )
 
 

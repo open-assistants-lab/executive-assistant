@@ -1,49 +1,29 @@
-"""Contract tests for email endpoints."""
+"""Contract tests for email endpoints.
 
-import pytest
-
-
-class TestEmailAccounts:
-    """Tests for email account endpoints."""
-
-    def test_list_accounts(self, client, test_user_id):
-        r = client.get("/email/accounts", params={"user_id": test_user_id})
-        assert r.status_code == 200
-        data = r.json()
-        assert "accounts" in data
-
-    def test_connect_email_requires_fields(self, client, test_user_id):
-        r = client.post(
-            "/email/accounts",
-            json={"email": "test@example.com", "password": "testpass", "user_id": test_user_id},
-        )
-        assert r.status_code in (200, 400, 422, 500)
-
-    def test_disconnect_email(self, client, test_user_id):
-        r = client.delete("/email/accounts/nonexistent", params={"user_id": test_user_id})
-        assert r.status_code == 200
+GET  /emails              — list emails
+GET  /emails/:id           — single email
+GET  /emails/search?q=...  — search
+POST /emails/sync          — trigger sync
+"""
 
 
-class TestEmailMessages:
-    """Tests for email message endpoints."""
+class TestEmails:
+    """Tests for /emails endpoints."""
 
     def test_list_emails(self, client, test_user_id):
-        r = client.get(
-            "/email/messages",
-            params={"account_name": "default", "limit": 5, "user_id": test_user_id},
-        )
+        r = client.get("/emails", params={"user_id": test_user_id})
         assert r.status_code == 200
+        data = r.json()
+        assert "emails" in data
 
-    def test_get_email(self, client, test_user_id):
-        r = client.get(
-            "/email/messages/nonexistent_id",
-            params={"account_name": "default", "user_id": test_user_id},
-        )
+    def test_get_email_not_found(self, client, test_user_id):
+        r = client.get("/emails/nonexistent", params={"user_id": test_user_id})
         assert r.status_code == 200
+        data = r.json()
+        assert "error" in data or "email_id" in data
 
     def test_search_emails(self, client, test_user_id):
-        r = client.get(
-            "/email/search",
-            params={"query": "test", "account_name": "default", "user_id": test_user_id},
-        )
+        r = client.get("/emails/search", params={"q": "test", "user_id": test_user_id})
         assert r.status_code == 200
+        data = r.json()
+        assert "emails" in data

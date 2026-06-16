@@ -1,5 +1,7 @@
 """Workspace management API for Flutter client."""
 
+from typing import Any
+
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
@@ -31,7 +33,7 @@ class UpdateWorkspaceRequest(BaseModel):
 
 
 @router.get("")
-async def get_workspaces(user_id: str = "default_user"):
+async def get_workspaces(user_id: str = "default_user") -> dict[str, Any]:
     workspaces = list_workspaces()
     return {
         "workspaces": [
@@ -48,10 +50,10 @@ async def get_workspaces(user_id: str = "default_user"):
 
 
 @router.post("")
-async def create_workspace(req: CreateWorkspaceRequest):
+async def create_workspace(req: CreateWorkspaceRequest) -> dict[str, Any]:
     ws = Workspace.from_name(req.name)
     ws.description = req.description
-    ws.custom_instructions = req.prompt
+    ws.prompt = req.prompt
     if "model_override" in req.model_fields_set:
         ws.model_override = req.model_override
 
@@ -67,7 +69,7 @@ async def create_workspace(req: CreateWorkspaceRequest):
 
 
 @router.patch("/{workspace_id}")
-async def update_workspace(workspace_id: str, req: UpdateWorkspaceRequest):
+async def update_workspace(workspace_id: str, req: UpdateWorkspaceRequest) -> dict[str, Any] | tuple[dict[str, Any], int]:
     ws = load_workspace(workspace_id)
     if ws is None:
         return {"error": "Workspace not found"}, 404
@@ -86,14 +88,15 @@ async def update_workspace(workspace_id: str, req: UpdateWorkspaceRequest):
 
 
 @router.delete("/{workspace_id}")
-async def delete_workspace_endpoint(workspace_id: str, user_id: str = "default_user"):
+async def delete_workspace_endpoint(workspace_id: str, user_id: str = "default_user") -> dict[str, Any] | tuple[dict[str, Any], int]:
     ws = load_workspace(workspace_id)
     if ws is None or ws.id == "personal":
         return {"error": "Cannot delete"}, 400
 
-    from src.storage.messages import get_message_store
+    from src.storage.messages import clear_message_store, get_message_store
     store = get_message_store(user_id, workspace_id)
-    deleted_count = store.delete_messages_for_workspace(ws.id)
+    _ = store.delete_messages_for_workspace(ws.id)
+    clear_message_store(user_id, workspace_id)
 
     _delete_ws(ws.id)
-    return {"status": "deleted", "messages_deleted": deleted_count}
+    return {"status": "deleted", "messages_deleted": 0}

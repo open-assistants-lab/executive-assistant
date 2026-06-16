@@ -119,14 +119,14 @@ def _parse_skill_document(skill_file: Path) -> tuple[dict[str, Any], str]:
     return frontmatter, parts[2].strip()
 
 
-def _get_registry(user_id: str, workspace_id: str):
+def _get_registry(user_id: str, workspace_id: str) -> Any:
     try:
         return get_skill_registry(user_id=user_id, workspace_id=workspace_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
-def _to_summary(skill: dict[str, Any], loaded_names: set[str]) -> SkillSummary:
+def _to_summary(skill: dict[str, Any] | Any, loaded_names: set[str]) -> SkillSummary:
     metadata = skill.get("metadata", {})
     return SkillSummary(
         name=skill["name"],
@@ -137,7 +137,7 @@ def _to_summary(skill: dict[str, Any], loaded_names: set[str]) -> SkillSummary:
     )
 
 
-def _to_detail(skill: dict[str, Any], loaded_names: set[str]) -> SkillDetail:
+def _to_detail(skill: dict[str, Any] | Any, loaded_names: set[str]) -> SkillDetail:
     summary = _to_summary(skill, loaded_names)
     frontmatter = {
         "name": skill["name"],
@@ -159,7 +159,7 @@ def _to_detail(skill: dict[str, Any], loaded_names: set[str]) -> SkillDetail:
 
 
 @router.get("", response_model=SkillListResponse)
-async def list_skills(user_id: str = "default_user", workspace_id: str = "personal"):
+async def list_skills(user_id: str = "default_user", workspace_id: str = "personal") -> SkillListResponse:
     _validate_user_id(user_id)
     _validate_workspace_id(workspace_id)
     registry = _get_registry(user_id, workspace_id)
@@ -186,7 +186,7 @@ async def get_skill(
     skill_name: str,
     user_id: str = "default_user",
     workspace_id: str = "personal",
-):
+) -> SkillDetail:
     _validate_user_id(user_id)
     _validate_workspace_id(workspace_id)
     _validate_skill_name(skill_name)
@@ -202,7 +202,7 @@ async def create_skill(
     request: SkillCreateRequest,
     user_id: str = "default_user",
     workspace_id: str = "personal",
-):
+) -> SkillDetail:
     _validate_user_id(user_id)
     _validate_workspace_id(workspace_id)
     _validate_skill_name(request.name)
@@ -234,7 +234,7 @@ async def update_skill(
     request: SkillUpdateRequest,
     user_id: str = "default_user",
     workspace_id: str = "personal",
-):
+) -> SkillDetail:
     _validate_user_id(user_id)
     _validate_workspace_id(workspace_id)
     _validate_skill_name(skill_name)
@@ -266,7 +266,7 @@ async def delete_skill(
     skill_name: str,
     user_id: str = "default_user",
     workspace_id: str = "personal",
-):
+) -> dict[str, Any]:
     _validate_user_id(user_id)
     _validate_workspace_id(workspace_id)
     _validate_skill_name(skill_name)
@@ -285,9 +285,9 @@ async def delete_skill(
 @router.patch("/{skill_name}/scope")
 async def set_skill_scope(
     skill_name: str,
-    body: dict,
+    body: dict[str, Any],
     user_id: str = "default_user",
-):
+) -> dict[str, Any]:
     _validate_user_id(user_id)
     _validate_skill_name(skill_name)
     scope: ScopeKind = body.get("scope", "all")

@@ -306,12 +306,6 @@ class TestMemoryTools:
 
 
 class TestEmailTools:
-    def test_email_accounts(self):
-        from src.sdk.tools_core.email import email_accounts
-
-        result = email_accounts.invoke({"user_id": "test_contract_email"})
-        assert isinstance(str(result), str)
-
     def test_email_list(self):
         from src.sdk.tools_core.email import email_list
 

@@ -18,7 +18,7 @@ class ToolCall(BaseModel):
     name: str
     arguments: dict[str, Any] = Field(default_factory=dict)
 
-    def to_openai(self) -> dict:
+    def to_openai(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "type": "function",
@@ -28,7 +28,7 @@ class ToolCall(BaseModel):
             },
         }
 
-    def to_anthropic(self) -> dict:
+    def to_anthropic(self) -> dict[str, Any]:
         return {
             "type": "tool_use",
             "id": self.id,
@@ -36,7 +36,7 @@ class ToolCall(BaseModel):
             "input": self.arguments,
         }
 
-    def to_ollama(self) -> dict:
+    def to_ollama(self) -> dict[str, Any]:
         return {
             "type": "function",
             "function": {
@@ -46,7 +46,7 @@ class ToolCall(BaseModel):
         }
 
     @classmethod
-    def from_openai(cls, data: dict) -> ToolCall:
+    def from_openai(cls, data: dict[str, Any]) -> ToolCall:
         func = data.get("function", {})
         args = func.get("arguments", "{}")
         if isinstance(args, str):
@@ -54,7 +54,7 @@ class ToolCall(BaseModel):
         return cls(id=data["id"], name=func["name"], arguments=args)
 
     @classmethod
-    def from_anthropic(cls, data: dict) -> ToolCall:
+    def from_anthropic(cls, data: dict[str, Any]) -> ToolCall:
         return cls(id=data["id"], name=data["name"], arguments=data.get("input", {}))
 
 
@@ -115,7 +115,7 @@ class Message(BaseModel):
     def tool_result(cls, tool_call_id: str, content: str, name: str | None = None) -> Message:
         return cls(role="tool", content=content, tool_call_id=tool_call_id, name=name)
 
-    def to_openai(self) -> dict:
+    def to_openai(self) -> dict[str, Any]:
         msg: dict[str, Any] = {"role": self.role, "content": self.content}
         if self.role == "assistant" and self.tool_calls:
             msg["tool_calls"] = [tc.to_openai() for tc in self.tool_calls]
@@ -125,7 +125,7 @@ class Message(BaseModel):
             msg["reasoning_content"] = self.reasoning
         return msg
 
-    def to_ollama(self) -> dict:
+    def to_ollama(self) -> dict[str, Any]:
         """Ollama native /api/chat format.
 
         Key differences from OpenAI format:
@@ -144,7 +144,7 @@ class Message(BaseModel):
         return self.to_openai()
 
     @classmethod
-    def from_openai(cls, data: dict) -> Message:
+    def from_openai(cls, data: dict[str, Any]) -> Message:
         role = data["role"]
         content = data.get("content", "")
         reasoning = data.get("reasoning_content")
@@ -154,13 +154,13 @@ class Message(BaseModel):
         tool_call_id = data.get("tool_call_id")
         return cls(role=role, content=content, tool_calls=tool_calls, tool_call_id=tool_call_id, reasoning=reasoning)
 
-    def to_anthropic(self) -> dict:
+    def to_anthropic(self) -> dict[str, Any]:
         if self.role == "system":
             return {"type": "text", "text": self.content}
         if self.role == "user":
             return {"role": "user", "content": self.content}
         if self.role == "assistant":
-            content: list[dict] = []
+            content: list[dict[str, Any]] = []
             if self.reasoning:
                 content.append({"type": "thinking", "thinking": self.reasoning})
             if self.content:
@@ -182,7 +182,7 @@ class Message(BaseModel):
         return {"role": self.role, "content": self.content}
 
     @classmethod
-    def from_anthropic_block(cls, block: dict) -> Message | None:
+    def from_anthropic_block(cls, block: dict[str, Any]) -> Message | None:
         if block.get("type") == "text":
             return cls.assistant(content=block["text"])
         if block.get("type") == "tool_use":
@@ -244,7 +244,7 @@ class StreamChunk(BaseModel):
     call_id: str | None = None
     args: dict[str, Any] | None = None
     result_preview: str | None = None
-    tool_calls: list[dict] | None = None
+    tool_calls: list[dict[str, Any]] | None = None
     usage: Usage | None = None
 
     @classmethod
@@ -260,7 +260,7 @@ class StreamChunk(BaseModel):
         return cls(type="text_end")
 
     @classmethod
-    def tool_input_start(cls, tool: str, call_id: str, args: dict | None = None) -> StreamChunk:
+    def tool_input_start(cls, tool: str, call_id: str, args: dict[str, Any] | None = None) -> StreamChunk:
         return cls(type="tool_input_start", tool=tool, call_id=call_id, args=args or {})
 
     @classmethod
@@ -292,7 +292,7 @@ class StreamChunk(BaseModel):
         return cls(type="ai_token", content=content)
 
     @classmethod
-    def tool_start(cls, tool: str, call_id: str, args: dict | None = None) -> StreamChunk:
+    def tool_start(cls, tool: str, call_id: str, args: dict[str, Any] | None = None) -> StreamChunk:
         return cls(type="tool_start", tool=tool, call_id=call_id, args=args or {})
 
     @classmethod
@@ -300,7 +300,7 @@ class StreamChunk(BaseModel):
         return cls(type="tool_end", tool=tool, call_id=call_id, result_preview=result_preview)
 
     @classmethod
-    def interrupt(cls, tool: str, call_id: str, args: dict | None = None) -> StreamChunk:
+    def interrupt(cls, tool: str, call_id: str, args: dict[str, Any] | None = None) -> StreamChunk:
         return cls(type="interrupt", tool=tool, call_id=call_id, args=args or {})
 
     @classmethod
@@ -308,7 +308,7 @@ class StreamChunk(BaseModel):
         return cls(type="reasoning", content=content)
 
     @classmethod
-    def done(cls, content: str = "", tool_calls: list[dict] | None = None) -> StreamChunk:
+    def done(cls, content: str = "", tool_calls: list[dict[str, Any]] | None = None) -> StreamChunk:
         return cls(type="done", content=content, tool_calls=tool_calls)
 
     @classmethod
@@ -323,7 +323,7 @@ class StreamChunk(BaseModel):
     def canonical_type(self) -> str:
         return _COMPAT_ALIAS_MAP.get(self.type, self.type)
 
-    def to_ws_message(self) -> dict:
+    def to_ws_message(self) -> dict[str, Any]:
         from src.http.ws_protocol import (
             AiTokenMessage,
             DoneMessage,

@@ -68,7 +68,7 @@ class AnthropicProvider(LLMProvider):
         max_tokens: int | None = None,
         provider_options: dict[str, dict[str, Any]] | None = None,
         **kwargs: Any,
-    ) -> dict:
+    ) -> dict[str, Any]:
         system_content = None
         anthropic_msgs = []
         for m in messages:
@@ -106,7 +106,7 @@ class AnthropicProvider(LLMProvider):
         return payload
 
     @staticmethod
-    def _to_anthropic_tool(td: ToolDefinition) -> dict:
+    def _to_anthropic_tool(td: ToolDefinition) -> dict[str, Any]:
         return {
             "name": td.name,
             "description": td.description,
@@ -137,7 +137,7 @@ class AnthropicProvider(LLMProvider):
         data = response.json()
         return self._parse_response(data)
 
-    def _parse_response(self, data: dict) -> Message:
+    def _parse_response(self, data: dict[str, Any]) -> Message:
         content_blocks = data.get("content", [])
         text_parts = []
         tool_calls = []
@@ -188,7 +188,7 @@ class AnthropicProvider(LLMProvider):
             messages, tools, model, stream=True, provider_options=provider_options, **kwargs
         )
         client = self._get_client()
-        current_tool_calls: dict[int, dict] = {}
+        current_tool_calls: dict[int, dict[str, Any]] = {}
 
         async with client.stream("POST", f"{self.base_url}/v1/messages", json=payload) as response:
             try:
@@ -210,7 +210,7 @@ class AnthropicProvider(LLMProvider):
                     yield event
 
     def _parse_sse_event(
-        self, data: dict, current_tool_calls: dict[int, dict]
+        self, data: dict[str, Any], current_tool_calls: dict[int, dict[str, Any]]
     ) -> list[StreamChunk]:
         events: list[StreamChunk] = []
         event_type = data.get("type", "")

@@ -8,7 +8,7 @@ from src.sdk.tools import ToolAnnotations, tool
 logger = get_logger()
 
 
-def _get_model():
+def _get_model() -> Any:
     from src.config import get_settings
     from src.sdk.providers.factory import create_provider
 
@@ -65,7 +65,7 @@ Respond with valid JSON only, no other text."""
         ]
 
         try:
-            result = asyncio.get_running_loop()
+            _ = asyncio.get_running_loop()
             import concurrent.futures
 
             with concurrent.futures.ThreadPoolExecutor() as executor:

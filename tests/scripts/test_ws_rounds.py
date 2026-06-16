@@ -4,6 +4,9 @@ Usage:
     uv run python tests/scripts/test_ws_rounds.py [--rounds 100] [--port 8000]
 
 Requires the EA HTTP server running on the specified port.
+
+To run as pytest:
+    uv run pytest tests/scripts/test_ws_rounds.py --server-port 8000
 """
 
 import asyncio
@@ -15,7 +18,10 @@ from pathlib import Path
 # Add project root to path for direct script execution
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
+import pytest
 import websockets
+
+pytestmark = pytest.mark.skip(reason="requires running server on port 8000")
 
 
 async def test_ws_rounds(rounds: int = 100, port: int = 8000):
@@ -55,7 +61,7 @@ async def test_ws_rounds(rounds: int = 100, port: int = 8000):
                 avg = sum(round_times) / len(round_times)
                 print(f"  Round {i}/{rounds} done in {elapsed:.1f}s (avg {avg:.1f}s)")
 
-    print(f"\n=== Results ===")
+    print("\n=== Results ===")
     print(f"Rounds completed: {rounds}")
     print(f"Messages sent (user): {total_sent}")
     print(f"Assistant responses: {total_assistant}")
@@ -73,7 +79,7 @@ async def test_ws_rounds(rounds: int = 100, port: int = 8000):
 
     recent = store.get_recent_messages(count=10)
     print(f"Total messages in store: {count}")
-    print(f"Last 10 messages:")
+    print("Last 10 messages:")
     for m in reversed(recent):
         print(f"  [{m.role}] {m.content[:80]}")
 

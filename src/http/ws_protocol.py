@@ -20,7 +20,7 @@ Backward-compatible messages are preserved:
 - AiTokenMessage, ToolStartMessage, ToolEndMessage, ReasoningMessage
 """
 
-from typing import Literal
+from typing import Any, Literal, cast
 
 from pydantic import BaseModel, Field
 
@@ -66,7 +66,7 @@ class EditAndApproveMessage(BaseModel):
 
     type: str = "edit_and_approve"
     call_id: str
-    edited_args: dict
+    edited_args: dict[str, Any]
 
 
 class CancelMessage(BaseModel):
@@ -112,7 +112,7 @@ class ToolInputStartMessage(BaseModel):
     type: str = "tool_input_start"
     tool: str
     call_id: str
-    args: dict = Field(default_factory=dict)
+    args: dict[str, Any] = Field(default_factory=dict)
 
 
 class ToolInputDeltaMessage(BaseModel):
@@ -137,7 +137,7 @@ class ToolCallMessage(BaseModel):
     type: str = "tool_call"
     tool: str
     call_id: str
-    args: dict = Field(default_factory=dict)
+    args: dict[str, Any] = Field(default_factory=dict)
 
 
 class ToolResultMessage(BaseModel):
@@ -188,7 +188,7 @@ class ToolStartMessage(BaseModel):
     type: str = "tool_start"
     tool: str
     call_id: str
-    args: dict = Field(default_factory=dict)
+    args: dict[str, Any] = Field(default_factory=dict)
 
 
 class ToolEndMessage(BaseModel):
@@ -206,7 +206,7 @@ class InterruptMessage(BaseModel):
     type: str = "interrupt"
     call_id: str
     tool: str
-    args: dict = Field(default_factory=dict)
+    args: dict[str, Any] = Field(default_factory=dict)
     allowed_actions: list[str] = Field(default_factory=lambda: ["approve", "reject", "edit"])
 
 
@@ -216,7 +216,7 @@ class MiddlewareMessage(BaseModel):
     type: str = "middleware"
     name: str
     event: str
-    data: dict = Field(default_factory=dict)
+    data: dict[str, Any] = Field(default_factory=dict)
 
 
 class ReasoningMessage(BaseModel):
@@ -235,7 +235,7 @@ class DoneMessage(BaseModel):
     message_id: str = ""
     total_llm_calls: int = 0
     cost_usd: float = 0.0
-    tool_calls: list[dict] = Field(default_factory=list)
+    tool_calls: list[dict[str, Any]] = Field(default_factory=list)
     tools_called: list[str] = []
 
 
@@ -317,7 +317,7 @@ SERVER_MESSAGE_TYPES = {
 
 
 def parse_client_message(
-    data: dict,
+    data: dict[str, Any],
 ) -> (
     UserMessage
     | ApproveMessage
@@ -333,7 +333,16 @@ def parse_client_message(
     if msg_cls is None:
         return None
     try:
-        return msg_cls(**data)
+        return cast(
+            UserMessage
+            | ApproveMessage
+            | RejectMessage
+            | EditAndApproveMessage
+            | CancelMessage
+            | PingMessage
+            | None,
+            msg_cls(**data),
+        )
     except Exception:
         return None
 
@@ -365,7 +374,7 @@ _ServerMessage = (
 
 
 def parse_server_message(
-    data: dict,
+    data: dict[str, Any],
 ) -> _ServerMessage | None:
     """Parse a server message from raw dict. Returns None for unknown types."""
     msg_type = data.get("type", "")
@@ -373,6 +382,6 @@ def parse_server_message(
     if msg_cls is None:
         return None
     try:
-        return msg_cls(**data)
+        return cast(_ServerMessage | None, msg_cls(**data))
     except Exception:
         return None

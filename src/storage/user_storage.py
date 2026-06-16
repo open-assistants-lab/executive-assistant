@@ -15,7 +15,7 @@ class UserStorage:
             user_id: Unique user identifier (also used as thread_id)
         """
         self.user_id = user_id
-        self.base_dir = get_paths(user_id).private
+        self.base_dir = get_paths(user_id).user_dir
         self._ensure_directories()
 
     def _ensure_directories(self) -> None:

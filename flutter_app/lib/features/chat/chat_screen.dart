@@ -22,11 +22,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    _connect();
-  }
-
-  void _connect() {
-    ref.read(agentProvider.notifier).connect();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(agentProvider.notifier).connect();
+    });
   }
 
   void _scrollToBottom() {
@@ -100,7 +99,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           IconButton(
             icon: Icon(statusIcon, color: statusColor, size: 20),
             tooltip: isConnected ? 'Connected' : 'Reconnect',
-            onPressed: _connect,
+            onPressed: () => ref.read(agentProvider.notifier).connect(),
           ),
         ],
       ),
@@ -109,7 +108,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ConnectionBanner(
             connected: isConnected,
             isDisconnected: state.status == ChatStatus.disconnected,
-            onReconnect: _connect,
+            onReconnect: () => ref.read(agentProvider.notifier).connect(),
             backendStatus: state.backendStatus,
           ),
           Expanded(

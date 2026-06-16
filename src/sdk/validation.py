@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any
+from typing import Any, cast
 
 from src.sdk.tools import ToolDefinition
 
 
-def normalize_tool_schema(schema: dict) -> dict:
+def normalize_tool_schema(schema: dict[Any, Any]) -> dict[Any, Any]:
     """Normalize a JSON schema for LLM consumption.
 
     Applies:
@@ -31,10 +31,10 @@ def normalize_tool_schema(schema: dict) -> dict:
             defs.update(schema.pop(key))
 
     result = _normalize_node(schema, defs)
-    return result
+    return cast(dict[Any, Any], result)
 
 
-def _normalize_node(node: Any, defs: dict) -> Any:
+def _normalize_node(node: Any, defs: dict[Any, Any]) -> Any:
     if not isinstance(node, dict):
         return node
 
@@ -79,7 +79,7 @@ def _normalize_node(node: Any, defs: dict) -> Any:
     return result
 
 
-def repair_tool_call(raw_args: str, tool_def: ToolDefinition | None = None) -> dict:
+def repair_tool_call(raw_args: str, tool_def: ToolDefinition | None = None) -> dict[Any, Any]:
     """Attempt to repair malformed JSON from LLM tool call arguments.
 
     Tries in order:
@@ -95,26 +95,26 @@ def repair_tool_call(raw_args: str, tool_def: ToolDefinition | None = None) -> d
     cleaned = raw_args.strip()
 
     try:
-        return json.loads(cleaned)
+        return cast(dict[Any, Any], json.loads(cleaned))
     except (json.JSONDecodeError, TypeError):
         pass
 
     fixed = _fix_trailing_commas(cleaned)
     try:
-        return json.loads(fixed)
+        return cast(dict[Any, Any], json.loads(fixed))
     except (json.JSONDecodeError, TypeError):
         pass
 
     fixed = _fix_single_quotes(cleaned)
     try:
-        return json.loads(fixed)
+        return cast(dict[Any, Any], json.loads(fixed))
     except (json.JSONDecodeError, TypeError):
         pass
 
     extracted = _extract_json_from_fence(cleaned)
     if extracted is not None:
         try:
-            return json.loads(extracted)
+            return cast(dict[Any, Any], json.loads(extracted))
         except (json.JSONDecodeError, TypeError):
             pass
 
@@ -132,7 +132,7 @@ def _fix_single_quotes(s: str) -> str:
 
 
 def _extract_json_from_fence(s: str) -> str | None:
-    patterns = [
+    patterns: list[str] = [
         r"```(?:json)?\s*\n?(.*?)\n?\s*```",
         r"`([^`]+)`",
     ]

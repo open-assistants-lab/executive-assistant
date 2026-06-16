@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../providers/agent_provider.dart';
+import '../../providers/workspace_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/scope_picker.dart';
 import '../tools/tools_provider.dart';
@@ -14,6 +16,23 @@ class CapabilitiesTab extends ConsumerStatefulWidget {
 class _CapabilitiesTabState extends ConsumerState<CapabilitiesTab> {
   final _searchController = TextEditingController();
   String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  void _load() {
+    final host = ref.read(hostProvider);
+    final userId = ref.read(userIdProvider);
+    final wsId = ref.read(currentWorkspaceIdProvider);
+    ref.read(toolsProvider.notifier).loadTools(
+          host: host,
+          userId: userId,
+          workspaceId: wsId,
+        );
+  }
 
   @override
   void dispose() {

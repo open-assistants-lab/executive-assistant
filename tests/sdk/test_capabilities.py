@@ -5,10 +5,10 @@ from pathlib import Path
 import yaml
 
 from src.sdk.capabilities import (
+    _tool_default,
     load_capabilities,
     merge_capabilities,
     tool_enabled,
-    _tool_default,
 )
 
 

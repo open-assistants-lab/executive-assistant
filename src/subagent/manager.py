@@ -6,7 +6,7 @@ Replaces LangChain agent creation with SDK AgentLoop.
 import asyncio
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 
@@ -20,13 +20,13 @@ from src.subagent.validation import validate_subagent_config
 logger = get_logger()
 
 
-def _get_sdk_tools_for_subagent(config: SubagentConfig) -> list:
+def _get_sdk_tools_for_subagent(config: SubagentConfig) -> list[Any]:
     """Get SDK ToolDefinition list for a subagent."""
     from src.sdk.tools import ToolRegistry
 
     registry = ToolRegistry()
 
-    all_native = registry.get_native_tools()
+    all_native = registry.get_native_tools()  # type: ignore[attr-defined]
 
     if not config.tools:
         return list(all_native)
@@ -53,7 +53,7 @@ class SubagentManager:
         skills: list[str] | None = None,
         tools: list[str] | None = None,
         system_prompt: str | None = None,
-        mcp_config: dict | None = None,
+        mcp_config: dict[str, Any] | None = None,
     ) -> tuple[Any | None, dict[str, Any]]:
         """Create a subagent.
 
@@ -181,7 +181,7 @@ You have access to tools and skills as configured.
 
         return result
 
-    async def _invoke_async(self, config: dict, task: str) -> dict[str, Any]:
+    async def _invoke_async(self, config: dict[str, Any], task: str) -> dict[str, Any]:
         """Run subagent with SDK AgentLoop."""
         from src.sdk.loop import AgentLoop
         from src.sdk.messages import Message
@@ -194,7 +194,7 @@ You have access to tools and skills as configured.
         from src.sdk.tools import ToolRegistry
 
         registry = ToolRegistry()
-        all_native = registry.get_native_tools()
+        all_native = registry.get_native_tools()  # type: ignore[attr-defined]
         if tool_names:
             tool_map = {t.name: t for t in all_native}
             sdk_tools = [tool_map[n] for n in tool_names if n in tool_map]
@@ -211,8 +211,9 @@ You have access to tools and skills as configured.
         state = await loop.run(messages)
 
         output = ""
-        if state.messages:
-            for msg in reversed(state.messages):
+        state_messages: list[Message] = state.messages  # type: ignore[attr-defined]
+        if state_messages:
+            for msg in reversed(state_messages):
                 if msg.role == "assistant" and msg.content:
                     content = msg.content
                     if isinstance(content, str) and content.strip():
@@ -264,7 +265,7 @@ You have access to tools and skills as configured.
         """Get subagent progress from planning files."""
         base = get_paths(self.user_id).workspace_dir() / "planning" / task_name
 
-        result = {
+        result: dict[str, Any] = {
             "task_plan": None,
             "progress": None,
             "findings": None,
@@ -336,7 +337,7 @@ You have access to tools and skills as configured.
         system_prompt = f"{custom_prompt}{skills_content}"
         return system_prompt
 
-    def _load_mcp_tools(self, subagent_path: Path) -> list:
+    def _load_mcp_tools(self, subagent_path: Path) -> list[Any]:
         """Load MCP tools from subagent's .mcp.json if exists (sync wrapper)."""
         mcp_path = subagent_path / ".mcp.json"
         if not mcp_path.exists():
@@ -404,7 +405,7 @@ You have access to tools and skills as configured.
         elif name in self._cache:
             del self._cache[name]
 
-    def _get(self, name: str) -> dict | None:
+    def _get(self, name: str) -> dict[str, Any] | None:
         """Get subagent config from cache, reloading if config changed."""
         subagent_path = self.base_path / name
         if not subagent_path.exists():
@@ -418,7 +419,7 @@ You have access to tools and skills as configured.
             cache_key = f"_mtime_{name}"
             cached_mtime = getattr(self, cache_key, 0)
             if config_mtime == cached_mtime:
-                return cached_config
+                return cast(dict[str, Any], cached_config)
 
         config = self._load_config(name)
         system_prompt = self._build_system_prompt(config)

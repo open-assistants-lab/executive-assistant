@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from builtins import set as _set
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -125,7 +126,7 @@ class ItemScopeDB:
 
     def get_available_names(
         self, user_id: str, resource_type: str, workspace_id: str
-    ) -> set[str]:
+    ) -> _set[str]:
         """Return resource names available for a specific workspace.
 
         Includes:
@@ -158,7 +159,7 @@ class ItemScopeDB:
 
     def get_excluded_names(
         self, user_id: str, resource_type: str
-    ) -> set[str]:
+    ) -> _set[str]:
         """Return resource names explicitly set to scope=none."""
         with self._connect() as conn:
             rows = conn.execute(
@@ -187,7 +188,7 @@ class ItemScopeDB:
                 (user_id,),
             ).fetchall()
             for r in rows:
-                wids: list = json.loads(r["workspace_ids"])
+                wids: list[str] = json.loads(r["workspace_ids"])
                 if workspace_id in wids:
                     wids.remove(workspace_id)
                     new_scope: ScopeKind = "selected" if wids else "none"

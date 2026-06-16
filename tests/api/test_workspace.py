@@ -44,21 +44,23 @@ class TestWorkspaceDeletionAndRecreation:
         )
 
     def test_clear_conversation_only_clears_requested_workspace(self, client, test_user_id):
-        personal = get_message_store(test_user_id, "personal")
-        project = get_message_store(test_user_id, "project")
-        personal.add_message("user", "personal message", metadata={"workspace_id": "personal"})
-        project.add_message("user", "project message", metadata={"workspace_id": "project"})
+        ws_keep = "keep_ws"
+        ws_clear = "clear_ws"
+        keep = get_message_store(test_user_id, ws_keep)
+        keep.add_message("user", "keep message", metadata={"workspace_id": ws_keep})
+        clear = get_message_store(test_user_id, ws_clear)
+        clear.add_message("user", "clear message", metadata={"workspace_id": ws_clear})
 
         r = client.delete(
             "/conversation",
-            params={"user_id": test_user_id, "workspace_id": "project"},
+            params={"user_id": test_user_id, "workspace_id": ws_clear},
         )
         assert r.status_code == 200
 
-        r = client.get("/conversation", params={"user_id": test_user_id, "workspace_id": "personal"})
-        assert [m["content"] for m in r.json()["messages"]] == ["personal message"]
+        r = client.get("/conversation", params={"user_id": test_user_id, "workspace_id": ws_keep})
+        assert [m["content"] for m in r.json()["messages"]] == ["keep message"]
 
-        r = client.get("/conversation", params={"user_id": test_user_id, "workspace_id": "project"})
+        r = client.get("/conversation", params={"user_id": test_user_id, "workspace_id": ws_clear})
         assert r.json()["messages"] == []
 
 

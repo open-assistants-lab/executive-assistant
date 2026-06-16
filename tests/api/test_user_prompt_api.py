@@ -4,8 +4,6 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from fastapi.testclient import TestClient
-
 
 def test_get_user_prompt_defaults_empty(client):
     """GET /user/prompt returns empty when no prompt set."""

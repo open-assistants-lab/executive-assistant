@@ -40,9 +40,12 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
     super.initState();
     _loadFiles();
     _refreshTimer = Timer.periodic(widget.refreshInterval, (_) => _loadFiles());
-    ref.read(agentProvider.notifier).onCanvasUpdate = (event) {
-      ref.read(canvasProvider.notifier).onCanvasUpdate(event);
-    };
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(agentProvider.notifier).onCanvasUpdate = (event) {
+        ref.read(canvasProvider.notifier).onCanvasUpdate(event);
+      };
+    });
   }
 
   @override
@@ -114,13 +117,19 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
     });
 
     ref.listen(canvasProvider, (prev, next) {
-      if (next.surfaces.length != (prev?.surfaces.length ?? 0)) {
-        setState(() => _tab = _WorkspacePanelTab.canvas);
+      final addedSurfaces = next.surfaces.length - (prev?.surfaces.length ?? 0);
+      if (addedSurfaces > 0) {
+        final newest = next.surfaces.take(addedSurfaces);
+        final isTutorial = newest.every((s) => s.surfaceId.startsWith('learn_'));
+        if (!isTutorial) {
+          setState(() => _tab = _WorkspacePanelTab.canvas);
+        }
       }
     });
 
     final checklist = ref.watch(learnChecklistProvider);
-    final showChecklist = !checklist.dismissed &&
+    final showChecklist =
+        !checklist.dismissed &&
         checklist.completed.length < checklistItems.length;
 
     return Container(
@@ -149,7 +158,9 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
 
   Widget _buildChecklistBanner() {
     final state = ref.read(learnChecklistProvider);
-    final remaining = checklistItems.where((i) => !state.completed.contains(i.id)).toList();
+    final remaining = checklistItems
+        .where((i) => !state.completed.contains(i.id))
+        .toList();
     final tokens = context.tokens;
 
     return Container(
@@ -177,18 +188,28 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
               const Spacer(),
               Text(
                 '${remaining.length} of ${checklistItems.length}',
-                style: TextStyle(fontSize: 10, color: tokens.colors.textTertiary),
+                style: TextStyle(
+                  fontSize: 10,
+                  color: tokens.colors.textTertiary,
+                ),
               ),
               const SizedBox(width: 6),
               InkWell(
-                onTap: () => ref.read(learnChecklistProvider.notifier).dismiss(),
-                child: Icon(Symbols.close, size: 14, color: tokens.colors.textTertiary),
+                onTap: () {
+                    ref.read(learnChecklistProvider.notifier).dismiss();
+                    ref.read(canvasProvider.notifier).destroyTutorialSurfaces();
+                  },
+                child: Icon(
+                  Symbols.close,
+                  size: 14,
+                  color: tokens.colors.textTertiary,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 8),
           SizedBox(
-            height: 56,
+            height: 80,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: remaining.length,
@@ -222,15 +243,25 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
           height: 52,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: context.tokens.colors.borderSubtle)),
+            border: Border(
+              bottom: BorderSide(color: context.tokens.colors.borderSubtle),
+            ),
           ),
           child: Row(
             children: [
-              Icon(Symbols.folder, size: 18, color: context.tokens.colors.accent),
+              Icon(
+                Symbols.folder,
+                size: 18,
+                color: context.tokens.colors.accent,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Files',
-                style: context.tokens.typography.textTheme.headlineMedium!.copyWith(fontSize: 15, color: context.tokens.colors.textPrimary),
+                style: context.tokens.typography.textTheme.headlineMedium!
+                    .copyWith(
+                      fontSize: 15,
+                      color: context.tokens.colors.textPrimary,
+                    ),
               ),
               const Spacer(),
               if (_loading && _files.isNotEmpty)
@@ -242,12 +273,18 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
               const SizedBox(width: 4),
               Text(
                 '${_files.length}',
-                style: context.tokens.typography.textTheme.bodySmall!.copyWith(color: context.tokens.colors.textTertiary),
+                style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+                  color: context.tokens.colors.textTertiary,
+                ),
               ),
               const SizedBox(width: 4),
               InkWell(
                 onTap: _loadFiles,
-                child: Icon(Symbols.refresh, size: 16, color: context.tokens.colors.textTertiary),
+                child: Icon(
+                  Symbols.refresh,
+                  size: 16,
+                  color: context.tokens.colors.textTertiary,
+                ),
               ),
             ],
           ),
@@ -270,7 +307,9 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
             children: [
               Text(
                 _error!,
-                style: context.tokens.typography.textTheme.bodySmall!.copyWith(color: context.tokens.colors.error),
+                style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+                  color: context.tokens.colors.error,
+                ),
               ),
               const SizedBox(height: 8),
               OutlinedButton(onPressed: _loadFiles, child: const Text('Retry')),
@@ -284,11 +323,17 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Symbols.folder_open, size: 40, color: context.tokens.colors.textTertiary),
+            Icon(
+              Symbols.folder_open,
+              size: 40,
+              color: context.tokens.colors.textTertiary,
+            ),
             const SizedBox(height: 8),
             Text(
               'No files',
-              style: context.tokens.typography.textTheme.bodySmall!.copyWith(color: context.tokens.colors.textTertiary),
+              style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+                color: context.tokens.colors.textTertiary,
+              ),
             ),
           ],
         ),
@@ -307,12 +352,23 @@ class _WorkspacePanelState extends ConsumerState<WorkspacePanel> {
           leading: Icon(
             isDir ? Symbols.folder : Symbols.description,
             size: 18,
-            color: isDir ? context.tokens.colors.warning : context.tokens.colors.textSecondary,
+            color: isDir
+                ? context.tokens.colors.warning
+                : context.tokens.colors.textSecondary,
           ),
-          title: Text(name, style: context.tokens.typography.textTheme.bodyLarge!.copyWith(fontSize: 13, color: context.tokens.colors.textPrimary)),
+          title: Text(
+            name,
+            style: context.tokens.typography.textTheme.bodyLarge!.copyWith(
+              fontSize: 13,
+              color: context.tokens.colors.textPrimary,
+            ),
+          ),
           subtitle: Text(
             isDir ? 'Folder' : _formatSize(size),
-            style: context.tokens.typography.textTheme.bodySmall!.copyWith(fontSize: 11, color: context.tokens.colors.textSecondary),
+            style: context.tokens.typography.textTheme.bodySmall!.copyWith(
+              fontSize: 11,
+              color: context.tokens.colors.textSecondary,
+            ),
           ),
         );
       },
@@ -356,10 +412,7 @@ class _ChecklistChip extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 'Show me',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: tokens.colors.accent,
-                ),
+                style: TextStyle(fontSize: 10, color: tokens.colors.accent),
               ),
             ],
           ),
@@ -382,7 +435,9 @@ class _BottomTabs extends StatelessWidget {
     return Container(
       height: 44,
       decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: context.tokens.colors.borderSubtle)),
+        border: Border(
+          top: BorderSide(color: context.tokens.colors.borderSubtle),
+        ),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -448,7 +503,9 @@ class _BottomTabButton extends StatelessWidget {
           child: Icon(
             selected ? activeIcon : icon,
             size: 19,
-            color: selected ? context.tokens.colors.accent : context.tokens.colors.textSecondary,
+            color: selected
+                ? context.tokens.colors.accent
+                : context.tokens.colors.textSecondary,
           ),
         ),
       ),

@@ -63,16 +63,6 @@ async def db(mock_paths):
     await db.close()
 
 
-@pytest.fixture(autouse=True)
-async def cleanup_work_queue_cache():
-    yield
-    from src.sdk.work_queue import _db_cache
-
-    for cached_db in list(_db_cache.values()):
-        await cached_db.close()
-    _db_cache.clear()
-
-
 @pytest.fixture
 def profile():
     from agentprofile.models import AgentProfile

@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import create_engine, text
 
@@ -20,7 +21,7 @@ def get_db_path(user_id: str) -> str:
     return str(get_paths(uid).contacts_db())
 
 
-def get_engine(user_id: str):
+def get_engine(user_id: str) -> Any:
     """Get SQLAlchemy engine (cached per user)."""
     if user_id in _engines:
         return _engines[user_id]
@@ -31,7 +32,7 @@ def get_engine(user_id: str):
     return engine
 
 
-def _init_db(engine) -> None:
+def _init_db(engine: Any) -> None:
     """Initialize database schema."""
     with engine.connect() as conn:
         conn.execute(
@@ -98,12 +99,12 @@ def parse_contacts_from_email(
     from_name: str | None,
     to_addrs: list[str] | None,
     cc_addrs: list[str] | None,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Parse contacts from email fields."""
     contacts = []
     seen_emails = set()
 
-    def add_contact(email: str, name: str | None = None, is_primary: bool = False):
+    def add_contact(email: str, name: str | None = None, is_primary: bool = False) -> None:
         if not email or email in seen_emails:
             return
         seen_emails.add(email.lower())
@@ -138,7 +139,7 @@ def parse_contacts_from_email(
     return contacts
 
 
-def save_contacts(user_id: str, account_id: str, contacts: list[dict]) -> int:
+def save_contacts(user_id: str, account_id: str, contacts: list[dict[str, Any]]) -> int:
     """Save contacts to database, returns count of new contacts."""
     if not contacts:
         return 0
@@ -211,7 +212,7 @@ def save_contacts(user_id: str, account_id: str, contacts: list[dict]) -> int:
     return new_count
 
 
-def get_contacts(user_id: str, limit: int = 50, offset: int = 0) -> list[dict]:
+def get_contacts(user_id: str, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
     """Get all contacts."""
     engine = get_engine(user_id)
 
@@ -235,7 +236,7 @@ def get_contacts(user_id: str, limit: int = 50, offset: int = 0) -> list[dict]:
 
 def get_contact(
     user_id: str, contact_id: str | None = None, email: str | None = None
-) -> dict | None:
+) -> dict[str, Any] | None:
     """Get single contact by ID or email."""
     engine = get_engine(user_id)
 
@@ -279,7 +280,7 @@ def add_contact(
     name: str | None = None,
     phone: str | None = None,
     company: str | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Add manual contact. Uses INSERT OR IGNORE to prevent TOCTOU race condition."""
     engine = get_engine(user_id)
 
@@ -344,7 +345,7 @@ def update_contact(
     name: str | None = None,
     phone: str | None = None,
     company: str | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Update contact."""
     contact = get_contact(user_id, contact_id=contact_id, email=email)
     if not contact:
@@ -384,7 +385,7 @@ def update_contact(
     return {"success": True}
 
 
-def delete_contact(user_id: str, contact_id: str | None = None, email: str | None = None) -> dict:
+def delete_contact(user_id: str, contact_id: str | None = None, email: str | None = None) -> dict[str, Any]:
     """Delete contact."""
     contact = get_contact(user_id, contact_id=contact_id, email=email)
     if not contact:
@@ -404,7 +405,7 @@ def delete_contact(user_id: str, contact_id: str | None = None, email: str | Non
     return {"success": True}
 
 
-def search_contacts(user_id: str, query: str, limit: int = 20) -> list[dict]:
+def search_contacts(user_id: str, query: str, limit: int = 20) -> list[dict[str, Any]]:
     """Search contacts by name, email, company. Case-insensitive."""
     engine = get_engine(user_id)
     pattern = f"%{query}%"

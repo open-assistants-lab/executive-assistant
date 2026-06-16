@@ -1,11 +1,6 @@
 """Unit tests for MCP module."""
 
-import json
-import tempfile
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
 
 
 class TestMCPConfig:
@@ -125,7 +120,6 @@ class TestMCPManager:
 
     def test_config_changed_no_config(self, tmp_path):
         """Test config changed when no config exists."""
-        from src.storage.paths import DataPaths
 
         with (
             patch("src.sdk.tools_core.mcp_manager.load_mcp_config") as mock_load,

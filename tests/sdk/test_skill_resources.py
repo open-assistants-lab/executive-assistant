@@ -38,7 +38,7 @@ class TestSkillResourceEnumeration:
 
     def test_skills_load_not_found_returns_error(self):
         """skills_load() returns an error for non-existent skills."""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory():
             with patch("src.sdk.tools_core.skills.get_skill_registry") as mock_reg:
                 mock_reg.return_value.get_skill.return_value = None
                 mock_reg.return_value.get_all_skills.return_value = []

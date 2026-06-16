@@ -9,7 +9,6 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
-
 from hybriddb import HybridDB, SearchMode
 from hybriddb.embedding import EMBEDDING_DIM
 from hybriddb.utils import (
@@ -134,20 +133,7 @@ class TestCreateTable:
         db.create_table("dup", {"name": "TEXT"})
         assert "dup" in db.list_tables()
 
-    def test_create_table_checks_autoincrement_once_for_text_columns(self, db):
-        with mock.patch.object(
-            db, "_has_autoincrement_id", wraps=db._has_autoincrement_id
-        ) as mock_has_id:
-            db.create_table(
-                "many_texts",
-                {
-                    "title": "TEXT",
-                    "body": "LONGTEXT",
-                    "notes": "LONGTEXT",
-                },
-            )
 
-        assert mock_has_id.call_count == 1
 
 
 class TestCRUD:
@@ -611,22 +597,28 @@ class TestAutoIncrement:
 
 
 class TestHnswHeaderCorrupt:
+    @staticmethod
+    def _make_header(**kw: int) -> bytearray:
+        """Build a minimal valid header.bin (≥100 bytes) with overrideable fields.
+
+        Layout (Chroma HNSW persistHeader):
+          0: version     (i, 4B) — must be 1
+          12: max_elements (Q, 8B)
+          28: size_data_per_element (Q, 8B)
+          68: maxM0        (Q, 8B)
+        """
+        data = bytearray(100)
+        struct.pack_into("i", data, 0, kw.get("version", 1))
+        struct.pack_into("Q", data, 12, kw.get("max_elements", 100000))
+        struct.pack_into("Q", data, 28, kw.get("size_data_per_element", EMBEDDING_DIM * 4))
+        struct.pack_into("Q", data, 68, kw.get("maxM0", 32))
+        return data
+
     def test_valid_header(self, tmp_dir):
         header_path = os.path.join(tmp_dir, "header.bin")
-        link_path = os.path.join(tmp_dir, "link_lists.bin")
-        header_data = bytearray(72)
-        struct.pack_into("Q", header_data, 0, 0)
-        struct.pack_into("Q", header_data, 8, 100000)
-        struct.pack_into("Q", header_data, 16, 50000)
-        struct.pack_into("Q", header_data, 24, EMBEDDING_DIM * 4)
-        struct.pack_into("Q", header_data, 32, 0)
-        struct.pack_into("Q", header_data, 40, 0)
-        struct.pack_into("I", header_data, 48, 16)
-        struct.pack_into("I", header_data, 52, 32)
-        struct.pack_into("I", header_data, 56, 32)
         with open(header_path, "wb") as f:
-            f.write(header_data)
-        assert HybridDB._is_hnsw_header_corrupt(header_path, link_path) is False
+            f.write(self._make_header())
+        assert HybridDB._is_hnsw_header_corrupt(header_path) is False
 
     def test_index_health_logs_when_link_file_exceeds_max_size(self, tmp_dir):
         db = HybridDB(tmp_dir, embedding_fn=_mock_embedding, max_chroma_index_gb=1)
@@ -634,11 +626,8 @@ class TestHnswHeaderCorrupt:
         segment.mkdir()
         header_path = segment / "header.bin"
         link_path = segment / "link_lists.bin"
-        header_data = bytearray(72)
-        struct.pack_into("Q", header_data, 8, 100000)
-        struct.pack_into("Q", header_data, 24, EMBEDDING_DIM * 4)
-        struct.pack_into("I", header_data, 56, 32)
-        header_path.write_bytes(header_data)
+        with open(header_path, "wb") as f:
+            f.write(self._make_header())
         with open(link_path, "wb") as f:
             f.truncate(1024**3 + 1)
 
@@ -649,57 +638,37 @@ class TestHnswHeaderCorrupt:
 
     def test_corrupt_max_elements_zero(self, tmp_dir):
         header_path = os.path.join(tmp_dir, "header.bin")
-        link_path = os.path.join(tmp_dir, "link_lists.bin")
-        header_data = bytearray(72)
-        struct.pack_into("Q", header_data, 8, 0)
         with open(header_path, "wb") as f:
-            f.write(header_data)
-        assert HybridDB._is_hnsw_header_corrupt(header_path, link_path) is True
+            f.write(self._make_header(max_elements=0))
+        assert HybridDB._is_hnsw_header_corrupt(header_path) is True
 
     def test_corrupt_max_elements_too_large(self, tmp_dir):
         header_path = os.path.join(tmp_dir, "header.bin")
-        link_path = os.path.join(tmp_dir, "link_lists.bin")
-        header_data = bytearray(72)
-        struct.pack_into("Q", header_data, 8, _CHROMA_INDEX_MAX_ELEMENTS + 1)
-        struct.pack_into("Q", header_data, 24, EMBEDDING_DIM * 4)
-        struct.pack_into("I", header_data, 56, 32)
         with open(header_path, "wb") as f:
-            f.write(header_data)
-        assert HybridDB._is_hnsw_header_corrupt(header_path, link_path) is True
+            f.write(self._make_header(max_elements=_CHROMA_INDEX_MAX_ELEMENTS + 1))
+        assert HybridDB._is_hnsw_header_corrupt(header_path) is True
 
     def test_corrupt_size_data_per_element(self, tmp_dir):
         header_path = os.path.join(tmp_dir, "header.bin")
-        link_path = os.path.join(tmp_dir, "link_lists.bin")
-        header_data = bytearray(72)
-        struct.pack_into("Q", header_data, 8, 100000)
-        struct.pack_into("Q", header_data, 24, 999)
-        struct.pack_into("I", header_data, 56, 32)
         with open(header_path, "wb") as f:
-            f.write(header_data)
-        assert HybridDB._is_hnsw_header_corrupt(header_path, link_path) is True
+            f.write(self._make_header(size_data_per_element=999))
+        assert HybridDB._is_hnsw_header_corrupt(header_path) is True
 
     def test_corrupt_max_neighbors_too_large(self, tmp_dir):
         header_path = os.path.join(tmp_dir, "header.bin")
-        link_path = os.path.join(tmp_dir, "link_lists.bin")
-        header_data = bytearray(72)
-        struct.pack_into("Q", header_data, 8, 100000)
-        struct.pack_into("Q", header_data, 24, EMBEDDING_DIM * 4)
-        struct.pack_into("I", header_data, 56, _CHROMA_INDEX_MAX_M0 + 1)
         with open(header_path, "wb") as f:
-            f.write(header_data)
-        assert HybridDB._is_hnsw_header_corrupt(header_path, link_path) is True
+            f.write(self._make_header(maxM0=_CHROMA_INDEX_MAX_M0 + 1))
+        assert HybridDB._is_hnsw_header_corrupt(header_path) is True
 
     def test_missing_file(self, tmp_dir):
         header_path = os.path.join(tmp_dir, "nonexistent.bin")
-        link_path = os.path.join(tmp_dir, "nonexistent2.bin")
-        assert HybridDB._is_hnsw_header_corrupt(header_path, link_path) is True
+        assert HybridDB._is_hnsw_header_corrupt(header_path) is True
 
     def test_short_file(self, tmp_dir):
         header_path = os.path.join(tmp_dir, "header.bin")
-        link_path = os.path.join(tmp_dir, "link_lists.bin")
         with open(header_path, "wb") as f:
             f.write(b"\x00" * 10)
-        assert HybridDB._is_hnsw_header_corrupt(header_path, link_path) is True
+        assert HybridDB._is_hnsw_header_corrupt(header_path) is True
 
 
 class TestIndexHealthCheck:

@@ -43,7 +43,7 @@ OPTIONAL_SKILL_LOAD_TOOL = "skills_load"
 DENIED_SKILL_MANAGEMENT_TOOLS = {"skill_delete", "skill_update"}
 
 
-def _build_tools_for_subagent(profile: AgentProfile) -> list:
+def _build_tools_for_subagent(profile: AgentProfile) -> list[Any]:
     """Build the filtered tool list for a subagent."""
     from src.sdk.native_tools import get_native_tools
 
@@ -102,7 +102,7 @@ def _build_system_prompt(
     return "\n\n".join(parts)
 
 
-def _extract_output(messages: list, max_chars: int = 2000) -> tuple[str, bool]:
+def _extract_output(messages: list[Any], max_chars: int = 2000) -> tuple[str, bool]:
     output = ""
     for msg in reversed(messages):
         if hasattr(msg, "role") and msg.role == "assistant" and msg.content:
@@ -473,7 +473,7 @@ class SubagentCoordinator:
             provider=provider,
             tools=tools,
             system_prompt=system_prompt,
-            middlewares=middlewares,
+            middlewares=middlewares,  # type: ignore[arg-type]
             run_config=run_config,
             user_id=self.user_id,
             workspace_id=self.workspace_id,
@@ -519,7 +519,7 @@ class SubagentCoordinator:
             llm_calls=llm_calls,
         )
 
-    def _make_progress_cb(self, task_id: str) -> Callable:
+    def _make_progress_cb(self, task_id: str) -> Callable[..., Any]:
         async def _cb(step: int, phase: str, message: str) -> None:
             try:
                 db = await self._get_db()

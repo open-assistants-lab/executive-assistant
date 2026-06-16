@@ -4,7 +4,6 @@ import 'package:executive_assistant/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:material_symbols_icons/symbols.dart';
 import 'package:http/http.dart' as http;
 
 void main() {

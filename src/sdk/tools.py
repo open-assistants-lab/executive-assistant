@@ -66,7 +66,7 @@ class ToolDefinition(BaseModel):
     parameters: dict[str, Any] = Field(default_factory=dict)
     annotations: ToolAnnotations = Field(default_factory=ToolAnnotations)
     output_schema: dict[str, Any] | None = None
-    function: Callable | None = Field(default=None, exclude=True)
+    function: Callable[..., Any] | None = Field(default=None, exclude=True)
     _coroutine: Any | None = None
 
     model_config = {"arbitrary_types_allowed": True}
@@ -99,7 +99,7 @@ class ToolDefinition(BaseModel):
             return await self._coroutine(**merged)
         return self.function(**merged)
 
-    def to_openai_format(self) -> dict:
+    def to_openai_format(self) -> dict[str, Any]:
         result: dict[str, Any] = {
             "type": "function",
             "function": {
@@ -114,7 +114,7 @@ class ToolDefinition(BaseModel):
             result["function"]["output_schema"] = self.output_schema
         return result
 
-    def to_anthropic_format(self) -> dict:
+    def to_anthropic_format(self) -> dict[str, Any]:
         result: dict[str, Any] = {
             "name": self.name,
             "description": self.description,
@@ -152,7 +152,7 @@ def _python_type_to_json_schema(tp: Any) -> dict[str, Any]:
     return {"type": "string"}
 
 
-def _extract_tool_schema(func: Callable, name: str | None = None) -> ToolDefinition:
+def _extract_tool_schema(func: Callable[..., Any], name: str | None = None) -> ToolDefinition:
     """Extract ToolDefinition from a function's type hints and docstring."""
     tool_name = name or func.__name__
     doc = inspect.getdoc(func) or ""
@@ -210,7 +210,7 @@ def _extract_tool_schema(func: Callable, name: str | None = None) -> ToolDefinit
     )
 
 
-def tool(func: Callable | None = None, *, name: str | None = None) -> Any:
+def tool(func: Callable[..., Any] | None = None, *, name: str | None = None) -> Any:
     """Decorator that converts a function into a ToolDefinition.
 
     Usage:
@@ -227,7 +227,7 @@ def tool(func: Callable | None = None, *, name: str | None = None) -> Any:
     if func is not None:
         return _extract_tool_schema(func, name)
 
-    def decorator(fn: Callable) -> ToolDefinition:
+    def decorator(fn: Callable[..., Any]) -> ToolDefinition:
         return _extract_tool_schema(fn, name)
 
     return decorator
@@ -243,7 +243,7 @@ class ToolRegistry:
         self._tools: dict[str, ToolDefinition] = {}
 
     def register(
-        self, func_or_tool: Callable | ToolDefinition, *, name: str | None = None
+        self, func_or_tool: Callable[..., Any] | ToolDefinition, *, name: str | None = None
     ) -> ToolDefinition:
         if isinstance(func_or_tool, ToolDefinition):
             td = func_or_tool

@@ -530,25 +530,30 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
   final Map<String, GlobalKey> _messageKeys = {};
   bool _pendingScrollToBottom = false;
   bool _showJumpToBottom = false;
+  bool _atBottom = true;
+  bool _hasAutoScrolled = false;
   int _unreadCount = 0;
   int _lastSeenMessageCount = 0;
 
   @override
   void initState() {
     super.initState();
-    ref.read(agentProvider.notifier).connect();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(agentProvider.notifier).connect();
+    });
     _scrollController.addListener(_onScrollPositionChanged);
     _lastSeenMessageCount = ref.read(agentProvider).messages.length;
   }
 
   void _onScrollPositionChanged() {
     if (!_scrollController.hasClients) return;
-    final atBottom = _scrollController.position.extentBefore < 16;
-    final shouldShow = !atBottom;
+    _atBottom = _scrollController.position.extentBefore < 16;
+    final shouldShow = !_atBottom;
     if (_showJumpToBottom != shouldShow) {
       setState(() => _showJumpToBottom = shouldShow);
     }
-    if (atBottom) {
+    if (_atBottom) {
       _unreadCount = 0;
     }
   }
@@ -604,6 +609,7 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
           _showJumpToBottom = false;
           _unreadCount = 0;
           _lastSeenMessageCount = 0;
+          _hasAutoScrolled = false;
         });
         _pendingScrollToBottom = true;
         _scrollToBottom();
@@ -621,17 +627,19 @@ class _ChatPanelState extends ConsumerState<_ChatPanel> {
           next.messages.isNotEmpty;
       final shouldScrollOnLoad = next.messages.isNotEmpty &&
           prev?.messages.isEmpty == true &&
-          next.status == ChatStatus.idle;
+          next.status == ChatStatus.idle &&
+          !_hasAutoScrolled;
       if (shouldScrollToBottom) {
         _pendingScrollToBottom = false;
         _scrollToBottom();
         return;
       }
       if (shouldScrollOnLoad) {
+        _hasAutoScrolled = true;
         _scrollToBottom();
         return;
       }
-      if (next.status == ChatStatus.streaming) {
+      if (next.status == ChatStatus.streaming && _atBottom) {
         _scrollToBottom();
       }
     });

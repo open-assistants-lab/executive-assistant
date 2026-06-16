@@ -328,19 +328,18 @@ class ApiClient {
       body: jsonEncode({
         'name': name,
         'description': description,
-        if (model != null) 'model': model,
+        'model': ?model,
         'scope': scope,
-        if (tools != null) 'tools': tools,
-        if (skills != null) 'skills': skills,
-        if (systemPrompt != null) 'system_prompt': systemPrompt,
+        'tools': ?tools,
+        'skills': ?skills,
+        'system_prompt': ?systemPrompt,
         'max_llm_calls': maxLlmCalls,
         'cost_limit_usd': costLimitUsd,
         'timeout_seconds': timeoutSeconds,
-        if (providerOptions != null) 'provider_options': providerOptions,
-        if (outputSchema != null) 'output_schema': outputSchema,
-        if (handoffInstructions != null)
-          'handoff_instructions': handoffInstructions,
-        if (artifactPolicy != null) 'artifact_policy': artifactPolicy,
+        'provider_options': ?providerOptions,
+        'output_schema': ?outputSchema,
+        'handoff_instructions': ?handoffInstructions,
+        'artifact_policy': ?artifactPolicy,
       }),
     );
     return _handleResponse(response);
@@ -364,14 +363,14 @@ class ApiClient {
     final response = await _patch(
       Uri.parse(_buildUrl('/subagents/$encodedName', extra)),
       body: jsonEncode({
-        if (description != null) 'description': description,
-        if (model != null) 'model': model,
-        if (tools != null) 'tools': tools,
-        if (skills != null) 'skills': skills,
-        if (systemPrompt != null) 'system_prompt': systemPrompt,
-        if (maxLlmCalls != null) 'max_llm_calls': maxLlmCalls,
-        if (costLimitUsd != null) 'cost_limit_usd': costLimitUsd,
-        if (timeoutSeconds != null) 'timeout_seconds': timeoutSeconds,
+        'description': ?description,
+        'model': ?model,
+        'tools': ?tools,
+        'skills': ?skills,
+        'system_prompt': ?systemPrompt,
+        'max_llm_calls': ?maxLlmCalls,
+        'cost_limit_usd': ?costLimitUsd,
+        'timeout_seconds': ?timeoutSeconds,
       }),
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -407,7 +406,7 @@ class ApiClient {
       Uri.parse(_buildUrl('/subagents/$encodedName/start', extra)),
       body: jsonEncode({
         'task': task,
-        if (parentId != null) 'parent_id': parentId,
+        'parent_id': ?parentId,
       }),
     );
     return _handleResponse(response);

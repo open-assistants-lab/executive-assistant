@@ -19,7 +19,7 @@ SETTINGS = get_settings()
 RATE_LIMIT_COOLDOWN: dict[str, float] = {}
 
 
-def _load_accounts(user_id: str) -> dict:
+def _load_accounts(user_id: str) -> dict[str, Any]:
     """Load accounts from database."""
     engine = _get_engine(user_id)
 
@@ -49,7 +49,7 @@ def _load_accounts(user_id: str) -> dict:
         return accounts
 
 
-def _save_account(user_id: str, account_id: str, account: dict) -> None:
+def _save_account(user_id: str, account_id: str, account: dict[str, Any]) -> None:
     """Save account to database."""
     engine = _get_engine(user_id)
 
@@ -91,7 +91,7 @@ def _parse_email_date(date_str: str) -> int:
         return int(datetime.now(UTC).timestamp())
 
 
-def _email_to_dict(msg) -> dict[str, Any]:
+def _email_to_dict(msg: Any) -> dict[str, Any]:
     """Convert imap_tools message to dict."""
     attachments = []
     if msg.attachments:
@@ -131,7 +131,7 @@ def _email_to_dict(msg) -> dict[str, Any]:
     }
 
 
-def _get_imap_connection(account_id: str, user_id: str):
+def _get_imap_connection(account_id: str, user_id: str) -> Any:
     """Get IMAP connection for account."""
     accounts = _load_accounts(user_id)
     account = accounts.get(account_id)
@@ -209,7 +209,7 @@ def _sync_folder(
                 # First batch: fetch newest emails (no UID filter)
                 # Subsequent batches: fetch emails older than min_uid_seen
                 if min_uid_seen is not None:
-                    criteria = AND(uid_range=UidRange("1", str(min_uid_seen - 1)))
+                    criteria = AND(uid_range=UidRange("1", str(min_uid_seen - 1)))  # type: ignore[call-arg]
                     messages = list(mailbox.fetch(criteria, limit=limit, reverse=True))
                 else:
                     messages = list(mailbox.fetch(limit=limit, reverse=True))
@@ -409,7 +409,7 @@ async def _sync_emails(
 def start_background_sync(user_id: str, account_id: str) -> None:
     """Start background backfill sync (newest -> earliest)."""
 
-    async def _backfill():
+    async def _backfill() -> None:
         limit = SETTINGS.email_sync.backfill_limit or 500
         count = await _sync_emails(user_id, account_id, "INBOX", "full", limit)
         logger.info(
@@ -436,7 +436,7 @@ def start_background_sync(user_id: str, account_id: str) -> None:
 
 
 # Interval sync scheduler
-_scheduler_task: asyncio.Task | None = None
+_scheduler_task: asyncio.Task[None] | None = None
 _running = False
 
 
@@ -569,7 +569,7 @@ def email_sync(
     if not account_id:
         return f"Error: Account '{account_name}' not found."
 
-    async def _sync():
+    async def _sync() -> int:
         limit = (
             SETTINGS.email_sync.backfill_limit if mode == "full" else SETTINGS.email_sync.batch_size
         )

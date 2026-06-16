@@ -7,9 +7,10 @@ at data/users/{user_id}/email/app.db.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 
-def _get_db(user_id: str):
+def _get_db(user_id: str) -> Any:
     """Get or create a HybridDB instance for the user's email store."""
     from hybriddb import HybridDB
 
@@ -43,7 +44,7 @@ def _get_db(user_id: str):
     return db
 
 
-def store_emails(user_id: str, emails: list[dict], account: str = "default") -> int:
+def store_emails(user_id: str, emails: list[dict[str, Any]], account: str = "default") -> int:
     """Store a batch of emails. Returns count stored."""
     db = _get_db(user_id)
     count = 0
@@ -79,7 +80,7 @@ def list_emails(
     offset: int = 0,
     account: str | None = None,
     is_read: bool | None = None,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """List emails with optional filters."""
     db = _get_db(user_id)
     try:
@@ -107,7 +108,7 @@ def list_emails(
     return results
 
 
-def search_emails(user_id: str, query: str, limit: int = 20) -> list[dict]:
+def search_emails(user_id: str, query: str, limit: int = 20) -> list[dict[str, Any]]:
     """Search emails by FTS5 keyword + ChromaDB semantic."""
     from hybriddb import SearchMode
 
@@ -137,7 +138,7 @@ def search_emails(user_id: str, query: str, limit: int = 20) -> list[dict]:
     return results
 
 
-def get_email(user_id: str, email_id: str) -> dict | None:
+def get_email(user_id: str, email_id: str) -> dict[str, Any] | None:
     """Get a single email by ID."""
     db = _get_db(user_id)
     row = db.get("emails", email_id)
@@ -178,7 +179,7 @@ def clear_emails(user_id: str) -> None:
         pass
 
 
-def _row_to_email(row: dict) -> dict:
+def _row_to_email(row: dict[str, Any]) -> dict[str, Any]:
     labels = row.get("labels", "")
     return {
         "id": row.get("id", ""),

@@ -3,14 +3,14 @@
 from pathlib import Path
 
 import yaml
-from pydantic import ConfigDict, Field
-from pydantic_settings import BaseSettings
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class _BaseSettings(BaseSettings):
     """Base settings with common config."""
 
-    model_config = ConfigDict(extra="ignore")
+    model_config = SettingsConfigDict(extra="ignore")
 
 
 class DeploymentConfig(_BaseSettings):
@@ -27,7 +27,7 @@ class DeploymentConfig(_BaseSettings):
         description="Root for user data directory. Empty string means Path.home() / 'Executive Assistant'.",
     )
 
-    model_config = ConfigDict(env_prefix="DEPLOYMENT_")
+    model_config = SettingsConfigDict(env_prefix="DEPLOYMENT_")
 
 
 class AgentConfig(_BaseSettings):
@@ -38,7 +38,7 @@ class AgentConfig(_BaseSettings):
     system_prompt: str = Field(default="You are a helpful executive assistant.")
     pool_size: int = Field(default=3)
 
-    model_config = ConfigDict(env_prefix="AGENT_")
+    model_config = SettingsConfigDict(env_prefix="AGENT_")
 
 
 class MessagesConfig(_BaseSettings):
@@ -54,7 +54,7 @@ class MessagesConfig(_BaseSettings):
         ),
     )
 
-    model_config = ConfigDict(env_prefix="MESSAGES_")
+    model_config = SettingsConfigDict(env_prefix="MESSAGES_")
 
 
 class StoreConfig(_BaseSettings):
@@ -62,7 +62,7 @@ class StoreConfig(_BaseSettings):
 
     enabled: bool = True
 
-    model_config = ConfigDict(env_prefix="STORE_")
+    model_config = SettingsConfigDict(env_prefix="STORE_")
 
 
 class SummarizationConfig(_BaseSettings):
@@ -73,7 +73,7 @@ class SummarizationConfig(_BaseSettings):
     keep_tokens: int = 1000
     model: str = Field(default="ollama:minimax-m2.5")
 
-    model_config = ConfigDict(env_prefix="SUMMARY_")
+    model_config = SettingsConfigDict(env_prefix="SUMMARY_")
 
 
 class MemoryConfig(_BaseSettings):
@@ -94,7 +94,7 @@ class LangfuseConfig(_BaseSettings):
     host: str = "https://cloud.langfuse.com"
     environment: str = ""  # production, development, staging
 
-    model_config = ConfigDict(env_prefix="LANGFUSE_")
+    model_config = SettingsConfigDict(env_prefix="LANGFUSE_")
 
 
 class LoggingConfig(_BaseSettings):
@@ -104,7 +104,7 @@ class LoggingConfig(_BaseSettings):
     level: str = "info"  # debug, info, warning, error
     json_dir: str = ""
 
-    model_config = ConfigDict(env_prefix="LOGGING_")
+    model_config = SettingsConfigDict(env_prefix="LOGGING_")
 
 
 class ObservabilityConfig(_BaseSettings):
@@ -125,7 +125,7 @@ class AuthConfig(_BaseSettings):
     api_key: str = Field(default="")
     solo_bypass: bool = Field(default=True)
 
-    model_config = ConfigDict(env_prefix="EA_")
+    model_config = SettingsConfigDict(env_prefix="EA_")
 
 
 class ApiConfig(_BaseSettings):
@@ -134,13 +134,13 @@ class ApiConfig(_BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
 
-    model_config = ConfigDict(env_prefix="API_")
+    model_config = SettingsConfigDict(env_prefix="API_")
 
 
 class CliConfig(_BaseSettings):
     """CLI configuration."""
 
-    model_config = ConfigDict(env_prefix="CLI_")
+    model_config = SettingsConfigDict(env_prefix="CLI_")
 
 
 class ToolsConfig(_BaseSettings):
@@ -151,13 +151,13 @@ class ToolsConfig(_BaseSettings):
     max_retries: int = 3
     timeout: int = 30
 
-    model_config = ConfigDict(env_prefix="TOOLS_")
+    model_config = SettingsConfigDict(env_prefix="TOOLS_")
 
 
 class SkillsConfig(_BaseSettings):
     """Skills configuration."""
 
-    model_config = ConfigDict(env_prefix="SKILLS_")
+    model_config = SettingsConfigDict(env_prefix="SKILLS_")
 
 
 class FilesystemConfig(_BaseSettings):
@@ -172,7 +172,7 @@ class FilesystemConfig(_BaseSettings):
         "Example: /Users/eddy/shared_workspace",
     )
 
-    model_config = ConfigDict(env_prefix="FILESYSTEM_")
+    model_config = SettingsConfigDict(env_prefix="FILESYSTEM_")
 
 
 class EmailConfig(_BaseSettings):
@@ -184,7 +184,7 @@ class EmailConfig(_BaseSettings):
     m365_client_id: str = Field(default="")
     sync_interval_minutes: int = Field(default=15)
 
-    model_config = ConfigDict(env_prefix="EMAIL_")
+    model_config = SettingsConfigDict(env_prefix="EMAIL_")
 
 
 class ShellToolConfig(_BaseSettings):
@@ -197,7 +197,7 @@ class ShellToolConfig(_BaseSettings):
     timeout_seconds: int = 30
     max_output_kb: int = 100
 
-    model_config = ConfigDict(env_prefix="SHELL_TOOL_")
+    model_config = SettingsConfigDict(env_prefix="SHELL_TOOL_")
 
 
 class EmailSyncConfig(_BaseSettings):
@@ -208,7 +208,7 @@ class EmailSyncConfig(_BaseSettings):
     batch_size: int = 100
     backfill_limit: int = 1000
 
-    model_config = ConfigDict(env_prefix="EMAIL_SYNC_")
+    model_config = SettingsConfigDict(env_prefix="EMAIL_SYNC_")
 
 
 class CompanionConfig(_BaseSettings):
@@ -216,7 +216,7 @@ class CompanionConfig(_BaseSettings):
 
     enabled: bool = False
 
-    model_config = ConfigDict(env_prefix="COMPANION_")
+    model_config = SettingsConfigDict(env_prefix="COMPANION_")
 
 
 class MCPConfig(_BaseSettings):
@@ -225,7 +225,7 @@ class MCPConfig(_BaseSettings):
     enabled: bool = True
     idle_timeout_minutes: int = 30
 
-    model_config = ConfigDict(env_prefix="MCP_")
+    model_config = SettingsConfigDict(env_prefix="MCP_")
 
 
 class AppConfig(_BaseSettings):
@@ -247,7 +247,7 @@ class AppConfig(_BaseSettings):
     email: EmailConfig = Field(default_factory=EmailConfig)
     auth: AuthConfig = Field(default_factory=AuthConfig)
 
-    model_config = ConfigDict(env_file=".env", env_nested_delimiter="__")
+    model_config = SettingsConfigDict(env_file=".env", env_nested_delimiter="__")
 
     @property
     def deployment_mode(self) -> str:

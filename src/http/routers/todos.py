@@ -1,10 +1,12 @@
+from typing import Any
+
 from fastapi import APIRouter
 
 router = APIRouter(prefix="/todos", tags=["todos"])
 
 
 @router.get("")
-async def list_todos(user_id: str = "default_user"):
+async def list_todos(user_id: str = "default_user") -> dict[str, Any]:
     """List all todos."""
     from src.sdk.tools_core.todos import todos_list
 
@@ -17,13 +19,13 @@ async def add_todo(
     content: str,
     priority: int | None = None,
     user_id: str = "default_user",
-):
+) -> dict[str, Any]:
     """Add a new todo."""
     from src.sdk.tools_core.todos import todos_add
 
-    args = {"user_id": user_id, "content": content}
+    args: dict[str, Any] = {"user_id": user_id, "content": content}
     if priority is not None:
-        args["priority"] = str(priority)
+        args["priority"] = priority
     result = todos_add.invoke(args)
     return {"result": str(result)}
 
@@ -35,11 +37,11 @@ async def update_todo(
     status: str | None = None,
     priority: int | None = None,
     user_id: str = "default_user",
-):
+) -> dict[str, Any]:
     """Update a todo."""
     from src.sdk.tools_core.todos import todos_update
 
-    args = {"user_id": user_id, "todo_id": todo_id}
+    args: dict[str, Any] = {"user_id": user_id, "todo_id": todo_id}
     if content is not None:
         args["content"] = content
     if status is not None:
@@ -51,7 +53,7 @@ async def update_todo(
 
 
 @router.delete("/{todo_id}")
-async def delete_todo(todo_id: str, user_id: str = "default_user"):
+async def delete_todo(todo_id: str, user_id: str = "default_user") -> dict[str, Any]:
     """Delete a todo."""
     from src.sdk.tools_core.todos import todos_delete
 

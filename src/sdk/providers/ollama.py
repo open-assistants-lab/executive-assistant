@@ -81,7 +81,7 @@ class OllamaCloud(LLMProvider):
         payload.update(provider_opts)
         return payload
 
-    def _parse_response(self, data: dict) -> Message:
+    def _parse_response(self, data: dict[str, Any]) -> Message:
         msg = data.get("message", {})
         content = msg.get("content", "")
         reasoning = msg.get("thinking", None)
@@ -124,8 +124,8 @@ class OllamaCloud(LLMProvider):
 
     def _parse_chunk(
         self,
-        data: dict,
-        current_tool_calls: dict[int, dict],
+        data: dict[str, Any],
+        current_tool_calls: dict[int, dict[str, Any]],
         provider_options: dict[str, dict[str, Any]] | None = None,
         emitted_starts: set[tuple[str, str]] | None = None,
     ) -> list[StreamChunk]:
@@ -280,7 +280,7 @@ class OllamaCloud(LLMProvider):
             messages, tools, model, stream=True, provider_options=provider_options, **kwargs
         )
         client = self._get_client()
-        current_tool_calls: dict[int, dict] = {}
+        current_tool_calls: dict[int, dict[str, Any]] = {}
         emitted_starts: set[tuple[str, str]] = set()
         async with client.stream("POST", f"{self.base_url}/api/chat", json=payload) as response:
             try:

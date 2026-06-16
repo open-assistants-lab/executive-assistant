@@ -23,7 +23,7 @@ def get_available_tool_names() -> set[str]:
     from src.sdk.tools import ToolRegistry
 
     registry = ToolRegistry()
-    return {t.name for t in registry.get_native_tools()}
+    return {t.name for t in registry.list_tools()}
 
 
 def get_mcp_server_names() -> set[str]:

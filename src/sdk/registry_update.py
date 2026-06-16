@@ -11,24 +11,26 @@ from __future__ import annotations
 import json
 import sys
 import urllib.request
+from typing import Any
 
 GITHUB_API = "https://api.github.com/repos/sst/models.dev/contents"
 
 
-def _fetch_json(url: str) -> dict | list:
+def _fetch_json(url: str) -> dict[str, Any] | list[Any]:
     """Fetch JSON from a URL."""
     req = urllib.request.Request(url, headers={"User-Agent": "ea-registry-update/1.0"})
     with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read().decode())
+        payload: dict[str, Any] | list[Any] = json.loads(resp.read().decode())
+        return payload
 
 
-def _fetch_toml(url: str) -> dict:
+def _fetch_toml(url: str) -> dict[str, Any]:
     """Fetch and parse a simple TOML file (key = value format only)."""
     req = urllib.request.Request(url, headers={"User-Agent": "ea-registry-update/1.0"})
     with urllib.request.urlopen(req, timeout=30) as resp:
         content = resp.read().decode()
-    result: dict = {}
-    current_section = None
+    result: dict[str, Any] = {}
+    current_section: str | None = None
     for line in content.split("\n"):
         line = line.strip()
         if not line or line.startswith("#"):
@@ -53,7 +55,8 @@ def _fetch_toml(url: str) -> dict:
                     value = float(value)
                 except ValueError:
                     pass
-            if current_section:
+            if current_section is not None:
+                assert isinstance(result[current_section], dict)
                 result[current_section][key] = value
             else:
                 result[key] = value
@@ -62,15 +65,15 @@ def _fetch_toml(url: str) -> dict:
 
 def list_providers() -> list[str]:
     """List all provider IDs from models.dev."""
-    data = _fetch_json(f"{GITHUB_API}/providers")
+    data: list[dict[str, Any]] = _fetch_json(f"{GITHUB_API}/providers")  # type: ignore[assignment]
     return sorted([item["name"] for item in data if item["type"] == "dir"])
 
 
-def fetch_provider_models(provider_id: str) -> list[dict]:
+def fetch_provider_models(provider_id: str) -> list[dict[str, Any]]:
     """Fetch all model TOMLs for a provider."""
     models = []
     try:
-        data = _fetch_json(f"{GITHUB_API}/providers/{provider_id}/models")
+        data: list[dict[str, Any]] = _fetch_json(f"{GITHUB_API}/providers/{provider_id}/models")  # type: ignore[assignment]
     except Exception:
         return []
     for item in data:
@@ -133,7 +136,7 @@ def list_models(provider: str | None = None) -> None:
         )
 
 
-def main():
+def main() -> None:
     if len(sys.argv) < 2:
         print("Usage: python -m src.sdk.registry_update [update|list] [--provider ID]")
         sys.exit(1)

@@ -26,7 +26,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    ref.read(agentProvider.notifier).connect();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(agentProvider.notifier).connect();
+    });
   }
 
   void _scrollToBottom() {

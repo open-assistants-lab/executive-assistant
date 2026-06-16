@@ -1,10 +1,12 @@
+from typing import Any
+
 from fastapi import APIRouter
 
 router = APIRouter(prefix="/contacts", tags=["contacts"])
 
 
 @router.get("")
-async def list_contacts(user_id: str = "default_user"):
+async def list_contacts(user_id: str = "default_user") -> dict[str, Any]:
     """List all contacts."""
     from src.sdk.tools_core.contacts import contacts_list
 
@@ -13,7 +15,7 @@ async def list_contacts(user_id: str = "default_user"):
 
 
 @router.get("/search")
-async def search_contacts(query: str, user_id: str = "default_user"):
+async def search_contacts(query: str, user_id: str = "default_user") -> dict[str, Any]:
     """Search contacts."""
     from src.sdk.tools_core.contacts import contacts_search
 
@@ -28,7 +30,7 @@ async def add_contact(
     phone: str | None = None,
     company: str | None = None,
     user_id: str = "default_user",
-):
+) -> dict[str, Any]:
     """Add a new contact."""
     from src.sdk.tools_core.contacts import contacts_add
 
@@ -46,7 +48,7 @@ async def update_contact(
     phone: str | None = None,
     company: str | None = None,
     user_id: str = "default_user",
-):
+) -> dict[str, Any]:
     """Update a contact."""
     from src.sdk.tools_core.contacts import contacts_update
 
@@ -64,7 +66,7 @@ async def update_contact(
 
 
 @router.delete("/{contact_id}")
-async def delete_contact(contact_id: str, user_id: str = "default_user"):
+async def delete_contact(contact_id: str, user_id: str = "default_user") -> dict[str, Any]:
     """Delete a contact."""
     from src.sdk.tools_core.contacts import contacts_delete
 

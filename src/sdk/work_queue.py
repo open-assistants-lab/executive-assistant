@@ -6,6 +6,7 @@ Per-user database at data/private/subagents/work_queue.db.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -66,15 +67,18 @@ class WorkQueueDB:
         self.workspace_id = workspace_id
         self._db: aiosqlite.Connection | None = None
         self._db_path = str(get_paths(user_id).work_queue_db())
+        self._init_lock = asyncio.Lock()
 
     async def _get_db(self) -> aiosqlite.Connection:
         if self._db is None:
-            self._db = await aiosqlite.connect(self._db_path)
-            self._db.row_factory = aiosqlite.Row
-            await self._db.executescript(_SCHEMA)
-            await self._ensure_columns()
-            await self._db.execute("PRAGMA journal_mode=WAL")
-            await self._db.commit()
+            async with self._init_lock:
+                if self._db is None:
+                    self._db = await aiosqlite.connect(self._db_path)
+                    self._db.row_factory = aiosqlite.Row
+                    await self._db.execute("PRAGMA journal_mode=WAL")
+                    await self._db.executescript(_SCHEMA)
+                    await self._ensure_columns()
+                    await self._db.commit()
         return self._db
 
     async def _ensure_columns(self) -> None:

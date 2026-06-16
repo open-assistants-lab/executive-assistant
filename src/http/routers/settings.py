@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from typing import Any, cast
 
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
@@ -40,27 +41,27 @@ def _settings_path(user_id: str) -> Path:
     return Path(f"{root}/users/{user_id}/settings.json")
 
 
-def _read_settings(user_id: str) -> dict:
+def _read_settings(user_id: str) -> dict[str, Any]:
     path = _settings_path(user_id)
     if path.exists():
-        return json.loads(path.read_text())
+        return cast(dict[str, Any], json.loads(path.read_text()))
     return {"provider_keys": {}, "default_model": None}
 
 
-def _write_settings(user_id: str, data: dict) -> None:
+def _write_settings(user_id: str, data: dict[str, Any]) -> None:
     path = _settings_path(user_id)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2))
 
 
 @router.get("")
-async def get_settings(user_id: str = Query("default_user")):
+async def get_settings(user_id: str = Query("default_user")) -> dict[str, Any]:
     """Read current settings (default model, which providers have keys)."""
     data = _read_settings(user_id)
     from src.sdk.registry import list_providers
 
     providers_meta = list_providers()
-    provider_status = {}
+    provider_status: dict[str, Any] = {}
     for p in providers_meta:
         pid = p.get("id", "")
         has_key = pid in data.get("provider_keys", {})
@@ -98,7 +99,7 @@ def _env_key_for_provider(provider_id: str) -> str | None:
 async def update_settings(
     body: UpdateSettingsRequest,
     user_id: str = Query("default_user"),
-):
+) -> dict[str, Any]:
     """Update settings (default_model, etc.)."""
     data = _read_settings(user_id)
     if body.default_model is not None:
@@ -108,7 +109,7 @@ async def update_settings(
 
 
 @router.get("/api-keys")
-async def list_api_keys(user_id: str = Query("default_user")):
+async def list_api_keys(user_id: str = Query("default_user")) -> dict[str, Any]:
     """List which providers have stored API keys (without revealing keys)."""
     data = _read_settings(user_id)
     keys = data.get("provider_keys", {})
@@ -119,7 +120,7 @@ async def list_api_keys(user_id: str = Query("default_user")):
 async def set_api_key(
     body: SetApiKeyRequest,
     user_id: str = Query("default_user"),
-):
+) -> dict[str, Any]:
     """Store an API key for a provider."""
     data = _read_settings(user_id)
     data.setdefault("provider_keys", {})[body.provider] = body.api_key
@@ -128,7 +129,7 @@ async def set_api_key(
 
 
 @router.post("/test-key")
-async def test_api_key(body: TestKeyRequest):
+async def test_api_key(body: TestKeyRequest) -> dict[str, Any]:
     """Test whether an API key is valid for the given provider.
 
     Makes a minimal API call (list models) to verify the key works.
@@ -146,8 +147,12 @@ async def test_api_key(body: TestKeyRequest):
     try:
         meta = get_provider_meta(provider)
         provider_type = meta.get("type", "openai-compatible") if meta else "openai-compatible"
+        base_url = meta.get("base_url", "") if meta else ""
 
-        prov = create_provider(provider_type, api_key=api_key)
+        if base_url and provider_type in ("openai", "openai-compatible") and not base_url.rstrip("/").endswith("/v1"):
+            base_url = base_url.rstrip("/") + "/v1"
+
+        prov = create_provider(provider_type, api_key=api_key, base_url=base_url or None)
         try:
             if hasattr(prov, "_client"):
                 await prov._client.models.list()
@@ -157,7 +162,7 @@ async def test_api_key(body: TestKeyRequest):
             status = getattr(e, "status_code", None) or getattr(
                 getattr(e, "response", None), "status_code", None
             )
-            body = getattr(e, "body", None) or getattr(
+            err_body = getattr(e, "body", None) or getattr(
                 getattr(e, "response", None), "text", str(e)
             )
             if status == 401:
@@ -166,12 +171,12 @@ async def test_api_key(body: TestKeyRequest):
                 return {"valid": False, "error": "API key lacks permission (403 Forbidden)"}
             if status == 429:
                 return {"valid": True, "warning": "Rate limited — key appears valid"}
-            return {"valid": False, "error": str(body)[:200]}
+            return {"valid": False, "error": str(err_body)[:200]}
 
         return {"valid": True}
 
     except Exception as e:
-        logger.warning("test-key failed for %s: %s", provider, e)
+        logger.warning("test-key failed", {"provider": provider, "error": str(e)})
         return {"valid": False, "error": f"Could not test key: {e}"}
 
 
@@ -179,7 +184,7 @@ async def test_api_key(body: TestKeyRequest):
 async def delete_api_key(
     provider: str,
     user_id: str = Query("default_user"),
-):
+) -> dict[str, Any]:
     """Remove a stored API key for a provider."""
     data = _read_settings(user_id)
     data.get("provider_keys", {}).pop(provider, None)

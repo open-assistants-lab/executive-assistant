@@ -83,6 +83,13 @@ class LearnChecklistNotifier extends StateNotifier<LearnChecklistState> {
     _save();
   }
 
+  Future<void> reset() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_dismissedKey);
+    await prefs.remove(_completedKey);
+    state = const LearnChecklistState();
+  }
+
   void complete(String id) {
     final updated = Set<String>.from(state.completed)..add(id);
     state = LearnChecklistState(dismissed: state.dismissed, completed: updated);

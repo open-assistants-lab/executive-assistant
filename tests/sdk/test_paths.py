@@ -222,7 +222,7 @@ def test_deprecated_user_config_dir_warns():
     dp = DataPaths(user_id="tester", ea_root="/tmp/ea-test-root")
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
-        result = dp.user_config_dir()
+        dp.user_config_dir()
         assert len(w) >= 1
         assert "deprecated" in str(w[0].message).lower()
 

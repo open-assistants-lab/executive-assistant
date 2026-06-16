@@ -8,8 +8,9 @@ import asyncio
 import json
 import sqlite3
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
+from typing import Any, cast
 
 from coremem.core import MemoryCore
 from coremem.types import Memory as _CoreMem
@@ -26,7 +27,7 @@ class Message:
     ts: datetime
     role: str
     content: str
-    metadata: dict | None = None
+    metadata: dict[str, Any] | None = None
 
 
 @dataclass
@@ -55,8 +56,11 @@ class MessageStore:
         if base_dir is not None:
             base_path = Path(base_dir)
         else:
-            paths = get_paths(user_id)
-            base_path = paths.conversation_dir()
+            paths = get_paths(user_id, workspace_id=workspace_id)
+            if workspace_id == "personal":
+                base_path = paths.conversation_dir()
+            else:
+                base_path = paths.workspace_conversation_path().parent
         base_path.mkdir(parents=True, exist_ok=True)
 
         # Migrate id column BEFORE MemoryCore initializes HybridDB+FTS triggers
@@ -87,9 +91,9 @@ class MessageStore:
         # Start background observer and reflector workers
         try:
             loop = asyncio.get_running_loop()
-            loop.create_task(self._core.start_pipelines())
-        except RuntimeError:
-            pass  # No event loop — pipelines start on first ingest
+            loop.create_task(self._core.start_pipelines())  # type: ignore[attr-defined]
+        except (RuntimeError, AttributeError):
+            pass  # No event loop or no pipelines — feature not available
 
     @property
     def core(self) -> MemoryCore:
@@ -232,12 +236,12 @@ class MessageStore:
 
         sentinel.touch()
 
-    def add_message(self, role: str, content: str, metadata: dict | None = None) -> str:
+    def add_message(self, role: str, content: str, metadata: dict[str, Any] | None = None) -> str:
         result = self._core.ingest(role, content or "(empty)", metadata=metadata)
         return result or ""
 
     def add_message_with_embedding(
-        self, role: str, content: str, embedding: list[float], metadata: dict | None = None
+        self, role: str, content: str, embedding: list[float], metadata: dict[str, Any] | None = None
     ) -> str:
         result = self._core.ingest(role, content or "(empty)", metadata=metadata, embedding=embedding)
         return result or ""
@@ -246,7 +250,7 @@ class MessageStore:
     def _to_msg(m: _CoreMem) -> Message:
         return Message(
             id=m.id,
-            ts=m.ts,
+            ts=m.ts if m.ts is not None else datetime.now(UTC),
             role=m.role,
             content=m.content,
             metadata=m.metadata,
@@ -257,7 +261,7 @@ class MessageStore:
         return SearchResult(
             id=r.memory.id,
             content=r.memory.content,
-            ts=r.memory.ts,
+            ts=r.memory.ts if r.memory.ts is not None else datetime.now(UTC),
             role=r.memory.role,
             score=r.score,
         )
@@ -274,8 +278,9 @@ class MessageStore:
         results = self._core.search(query, limit=limit)
         return [self._to_sr(r) for r in results]
 
-    def search_hybrid(self, query: str, query_embedding: list[float] | None = None,
-                      limit: int = 10, **kwargs) -> list[SearchResult]:
+    def search_hybrid(
+        self, query: str, query_embedding: list[float] | None = None, limit: int = 10, **kwargs: Any
+    ) -> list[SearchResult]:
         if not query:
             return []
         results = self._core.search_enhanced(query, limit=limit, **kwargs)
@@ -308,20 +313,20 @@ class MessageStore:
         memories = self._core.fetch(limit=count, metadata={"workspace_id": workspace_id})
         return [self._to_msg(m) for m in reversed(memories)]
 
-    def get_messages_with_summary(self, limit: int = 50) -> list[Message]:
+    def get_messages_with_summary(self, limit: int = 50, workspace_id: str | None = None) -> list[Message]:
         if limit <= 0:
             return []
         summaries = self._core.fetch(limit=1, role="summary")
         if not summaries:
-            memories = self._core.fetch(limit=limit)
+            memories = self._core.fetch(limit=limit, metadata={"workspace_id": workspace_id}) if workspace_id else self._core.fetch(limit=limit)
             return [self._to_msg(m) for m in reversed(memories)]
-        non_summaries = self._core.fetch(limit=limit)
+        non_summaries = self._core.fetch(limit=limit, metadata={"workspace_id": workspace_id}) if workspace_id else self._core.fetch(limit=limit)
         non_summaries = [m for m in non_summaries if m.role != "summary"]
         result: list[Message] = [self._to_msg(summaries[0])]
         result += [self._to_msg(m) for m in non_summaries]
         return result[:limit]
 
-    def add_summary_message(self, content: str) -> int:
+    def add_summary_message(self, content: str) -> str:
         return self.add_message("summary", content)
 
     def has_summary(self) -> bool:
@@ -342,7 +347,7 @@ class MessageStore:
                 if ts_before:
                     query += " AND ts <= ?"
                     params.append(ts_before)
-                return cur.execute(query, params).fetchone()[0]
+                return int(cur.execute(query, params).fetchone()[0] or 0)
         except Exception:
             return len(self._core.fetch_all(ts_after=ts_after, ts_before=ts_before))
 
@@ -380,7 +385,7 @@ class MessageStore:
             self._core.db.sync_duckdb_table("messages")
         except Exception:
             pass
-        return count
+        return cast(int, count)
 
     def clear(self) -> None:
         self._core.clear()
@@ -390,7 +395,13 @@ _stores: dict[str, MessageStore] = {}
 
 
 def get_message_store(user_id: str = "default_user", workspace_id: str = "personal") -> MessageStore:
-    key = f"{user_id}:msgstore"
+    key = f"{user_id}:{workspace_id}:msgstore"
     if key not in _stores:
         _stores[key] = MessageStore(user_id, workspace_id=workspace_id)
     return _stores[key]
+
+
+def clear_message_store(user_id: str, workspace_id: str) -> None:
+    """Evict a MessageStore from the cache (e.g. after workspace deletion)."""
+    key = f"{user_id}:{workspace_id}:msgstore"
+    _stores.pop(key, None)

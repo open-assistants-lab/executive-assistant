@@ -17,14 +17,14 @@ class UserPromptRequest(BaseModel):
 
 
 @router.get("/prompt", response_model=UserPromptResponse)
-async def get_user_prompt(user_id: str = "default_user"):
+async def get_user_prompt(user_id: str = "default_user") -> UserPromptResponse:
     """Get the user's custom prompt."""
     prompt = load_user_prompt(user_id)
     return UserPromptResponse(prompt=prompt)
 
 
 @router.put("/prompt", response_model=UserPromptResponse)
-async def set_user_prompt(req: UserPromptRequest, user_id: str = "default_user"):
+async def set_user_prompt(req: UserPromptRequest, user_id: str = "default_user") -> UserPromptResponse:
     """Set the user's custom prompt."""
     save_user_prompt(user_id, req.prompt)
     return UserPromptResponse(prompt=req.prompt)

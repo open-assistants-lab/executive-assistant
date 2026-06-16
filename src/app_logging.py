@@ -5,10 +5,12 @@ import logging as stdlib_logging
 import os
 import time
 import uuid
+from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import datetime
 from enum import IntEnum
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -33,7 +35,7 @@ class Logger:
     # Fields to redact (sensitive data)
     REDACTED_FIELDS = {"api_key", "password", "secret", "token", "key"}
 
-    def __init__(self):
+    def __init__(self) -> None:
         settings = get_settings()
         config = settings.observability.logging
 
@@ -52,7 +54,7 @@ class Logger:
         self.langfuse_handler = None
         self._init_langfuse()
 
-    def _init_langfuse(self):
+    def _init_langfuse(self) -> None:
         """Initialize Langfuse with callback handler."""
         settings = get_settings()
         config = settings.observability.langfuse
@@ -88,9 +90,9 @@ class Logger:
             except Exception as e:
                 self.warning("logger", {"event": "langfuse_init_failed", "error": str(e)})
 
-    def _redact(self, data: dict) -> dict:
+    def _redact(self, data: dict[str, Any]) -> dict[str, Any]:
         """Redact sensitive fields from data."""
-        redacted = {}
+        redacted: dict[str, Any] = {}
         for key, value in data.items():
             if any(field in key.lower() for field in self.REDACTED_FIELDS):
                 redacted[key] = "***REDACTED***"
@@ -105,8 +107,8 @@ class Logger:
         return level >= self.level
 
     def _log(
-        self, level: int, event: str, data: dict, user_id: str = "default_user", channel: str = "cli"
-    ):
+        self, level: int, event: str, data: dict[str, Any], user_id: str = "default_user", channel: str = "cli"
+    ) -> None:
         """Internal log method - handles filtering and formatting."""
         if not self.enabled:
             return
@@ -138,19 +140,19 @@ class Logger:
         today = datetime.now().strftime("%Y-%m-%d")
         return self.json_dir / f"{today}.jsonl"
 
-    def debug(self, event: str, data: dict, user_id: str = "default_user", channel: str = "cli"):
+    def debug(self, event: str, data: dict[str, Any], user_id: str = "default_user", channel: str = "cli") -> None:
         """Log debug level event."""
         self._log(LogLevel.DEBUG, event, data, user_id, channel)
 
-    def info(self, event: str, data: dict, user_id: str = "default_user", channel: str = "cli"):
+    def info(self, event: str, data: dict[str, Any], user_id: str = "default_user", channel: str = "cli") -> None:
         """Log info level event."""
         self._log(LogLevel.INFO, event, data, user_id, channel)
 
-    def warning(self, event: str, data: dict, user_id: str = "default_user", channel: str = "cli"):
+    def warning(self, event: str, data: dict[str, Any], user_id: str = "default_user", channel: str = "cli") -> None:
         """Log warning level event."""
         self._log(LogLevel.WARNING, event, data, user_id, channel)
 
-    def error(self, event: str, data: dict, user_id: str = "default_user", channel: str = "cli"):
+    def error(self, event: str, data: dict[str, Any], user_id: str = "default_user", channel: str = "cli") -> None:
         """Log error level event."""
         self._log(LogLevel.ERROR, event, data, user_id, channel)
 
@@ -158,11 +160,11 @@ class Logger:
     def timer(
         self,
         event: str,
-        data: dict | None = None,
+        data: dict[str, Any] | None = None,
         user_id: str = "default_user",
         channel: str = "cli",
         level: int = LogLevel.INFO,
-    ):
+    ) -> Generator[None, None, None]:
         """Context manager for timing operations."""
         if not self.enabled:
             yield
@@ -206,18 +208,17 @@ def get_logger() -> Logger:
     return _logger
 
 
-def log_event(event: str, data: dict, user_id: str = "default_user", channel: str = "cli"):
+def log_event(event: str, data: dict[str, Any], user_id: str = "default_user", channel: str = "cli") -> None:
     """Log an event."""
     get_logger().info(event, data, user_id, channel)
 
 
-@contextmanager
 def timer(
     event: str,
-    data: dict | None = None,
+    data: dict[str, Any] | None = None,
     user_id: str = "default_user",
     channel: str = "cli",
     level: int = LogLevel.INFO,
-):
+) -> Any:
     """Timer context manager for logging duration."""
-    yield get_logger().timer(event, data, user_id, channel, level)
+    return get_logger().timer(event, data, user_id, channel, level)

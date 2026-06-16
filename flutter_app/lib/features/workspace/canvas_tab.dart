@@ -110,6 +110,20 @@ class CanvasProvider extends StateNotifier<CanvasState> {
     );
   }
 
+  void destroyTutorialSurfaces() {
+    final wsId = state.activeWorkspaceId;
+    final updated = Map<String, List<CanvasSurface>>.from(state._surfacesByWs);
+    final surfaces = List<CanvasSurface>.from(updated[wsId] ?? [])
+      ..removeWhere((s) => s.surfaceId.startsWith('learn_'));
+    updated[wsId] = surfaces;
+    state = CanvasState(
+      surfacesByWs: updated,
+      activeWorkspaceId: state.activeWorkspaceId,
+      lastAction: 'destroy',
+    );
+    _persist();
+  }
+
   void onCanvasUpdate(Map<String, dynamic> event, {String? workspaceId}) {
     final wsId = workspaceId ?? event['workspace_id']?.toString() ?? 'personal';
     final action = event['action'] as String? ?? 'create';

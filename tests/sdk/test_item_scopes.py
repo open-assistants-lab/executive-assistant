@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 import tempfile
-from pathlib import Path
 
-from src.sdk.item_scopes import ItemScopeDB, ItemScope
+from src.sdk.item_scopes import ItemScopeDB
 
 
 def test_set_and_get():

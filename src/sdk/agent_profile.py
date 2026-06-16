@@ -43,7 +43,7 @@ def validate_profile(data: dict[str, Any]) -> list[str]:
 
             sr = get_skill_registry()
             for skill_name in skills:
-                if not sr.has(skill_name):
+                if sr.get_skill(skill_name) is None:
                     errors.append(f"Unknown skill: {skill_name!r}")
         except Exception:
             pass  # skill registry may not be initialized in tests

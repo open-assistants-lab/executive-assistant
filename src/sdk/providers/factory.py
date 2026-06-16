@@ -140,7 +140,7 @@ def _default_base_url(provider_id: str) -> str:
 
     p = get_provider(provider_id)
     if p and p.get("base_url"):
-        return p["base_url"]
+        return str(p["base_url"])
 
     _fallback: dict[str, str] = {
         "groq": "https://api.groq.com/openai/v1",
@@ -160,8 +160,10 @@ def _load_stored_key(provider_type: str, user_id: str = "default_user") -> str |
         root = get_settings().data_path or "data"
         settings_path = Path(f"{root}/users/{user_id}/settings.json")
         if settings_path.exists():
-            stored = json.loads(settings_path.read_text())
-            return stored.get("provider_keys", {}).get(provider_type)
+            stored: dict[str, Any] = json.loads(settings_path.read_text())
+            keys: dict[str, Any] = stored.get("provider_keys", {})
+            value = keys.get(provider_type)
+            return str(value) if value is not None else None
     except Exception:
         pass
     return None

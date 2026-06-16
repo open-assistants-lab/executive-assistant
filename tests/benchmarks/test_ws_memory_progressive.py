@@ -23,7 +23,6 @@ except ImportError:
     print("websockets not installed. Run: uv add websockets")
     raise
 
-from src.storage.messages import get_message_store
 
 WS_URL = "ws://localhost:8080/ws/conversation"
 USER_ID = "ws_progressive_user"
@@ -431,7 +430,7 @@ async def run_all() -> list[TurnResult]:
             if idx % 25 == 0 or not result.validation_passed or result.got_error:
                 elapsed = (time.monotonic() - start_time) / 60
                 status = "OK" if result.validation_passed else "FAIL"
-                tool_str = f" [{', '.join(result.tool_names[:2])}]" if result.tool_names else ""
+                f" [{', '.join(result.tool_names[:2])}]" if result.tool_names else ""
                 print(
                     f"[{idx:3d}/500] {status} | {result.category:<16s} | "
                     f"{result.elapsed_ms:6.0f}ms | {elapsed:.1f}m"

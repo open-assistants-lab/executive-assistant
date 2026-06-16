@@ -14,7 +14,7 @@ from src.sdk.tools import ToolDefinition
 _RECONSTRUCT_EMPTY = "{}"
 
 
-def _rebuild_custom_function(td: ToolDefinition, reconstruct: dict) -> ToolDefinition:
+def _rebuild_custom_function(td: ToolDefinition, reconstruct: dict[str, Any]) -> ToolDefinition:
     """Rebuild the function for a custom (TOOL.md) tool from reconstruct metadata."""
     command_template = reconstruct.get("command", "")
     install_cmds = reconstruct.get("install", [])
@@ -85,7 +85,7 @@ class ToolIndex:
         td: ToolDefinition,
         tool_type: str,
         namespace: str = "",
-        reconstruct: dict | None = None,
+        reconstruct: dict[str, Any] | None = None,
     ) -> None:
         existing = self.db.query("tools", where="name = ?", params=(td.name,))
         row = {
@@ -107,7 +107,7 @@ class ToolIndex:
         tools: list[ToolDefinition],
         tool_type: str,
         namespace: str = "",
-        reconstruct: dict | None = None,
+        reconstruct: dict[str, Any] | None = None,
     ) -> None:
         for td in tools:
             self.index_tool(td, tool_type, namespace, reconstruct)
@@ -127,20 +127,21 @@ class ToolIndex:
             return None
         return ToolDefinition(**json.loads(rows[0]["definition_json"]))
 
-    def get_reconstruct(self, name: str) -> dict:
+    def get_reconstruct(self, name: str) -> dict[str, Any]:
         rows = self.db.query("tools", where="name = ?", params=(name,))
         if not rows:
             return {}
         raw = rows[0].get("reconstruct", _RECONSTRUCT_EMPTY)
         if not raw:
             return {}
-        return json.loads(raw)
+        data: dict[str, Any] = json.loads(raw)
+        return data
 
     def get_tool_type(self, name: str) -> str | None:
         rows = self.db.query("tools", where="name = ?", params=(name,))
         if not rows:
             return None
-        return rows[0].get("tool_type")
+        return str(rows[0].get("tool_type"))
 
     def list_all_names(self) -> list[str]:
         rows = self.db.query("tools")
@@ -207,7 +208,7 @@ def check_needs_reindex(hashes_path: Path, current: dict[str, str]) -> bool:
     if not hashes_path.exists():
         return True
     try:
-        stored = json.loads(hashes_path.read_text())
+        stored: dict[str, str] = json.loads(hashes_path.read_text())
     except (json.JSONDecodeError, OSError):
         return True
     return current != stored

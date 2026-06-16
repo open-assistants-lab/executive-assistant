@@ -85,8 +85,7 @@ def _validate_context_ids(user_id: str, workspace_id: str) -> None:
 @router.get("")
 async def list_subagents(
     user_id: str = Query("default_user"),
-    workspace_id: str = Query("personal"),
-):
+    workspace_id: str = Query("personal"),) -> dict[str, Any]:
     from src.sdk.coordinator import get_coordinator
 
     _validate_context_ids(user_id, workspace_id)
@@ -131,8 +130,7 @@ async def list_subagents(
 async def create_subagent(
     body: SubagentCreateRequest,
     user_id: str = Query("default_user"),
-    workspace_id: str = Query("personal"),
-):
+    workspace_id: str = Query("personal"),) -> dict[str, Any]:
     from src.sdk.agent_validation import validate_agent_def
     from src.sdk.coordinator import get_coordinator
 
@@ -161,15 +159,15 @@ async def create_subagent(
         if output_schema:
             agent_profile.output_schema_def = output_schema
     except ValidationError as e:
-        errors = e.errors()
+        errors: list[dict[str, Any]] = [dict(err) for err in e.errors()]
         for err in errors:
             if "ctx" in err and "error" in err["ctx"]:
                 err["ctx"]["error"] = str(err["ctx"]["error"])
         raise HTTPException(status_code=422, detail=errors) from e
 
-    errors = validate_agent_def(agent_profile, user_id=user_id, workspace_id=workspace_id)
-    if errors:
-        raise HTTPException(status_code=400, detail={"errors": errors})
+    validation_errors = validate_agent_def(agent_profile, user_id=user_id, workspace_id=workspace_id)
+    if validation_errors:
+        raise HTTPException(status_code=400, detail={"errors": validation_errors})
 
     await coordinator.create(agent_profile)
     return {"status": "created", "name": body.name, "workspace_id": workspace_id}
@@ -179,8 +177,7 @@ async def create_subagent(
 async def list_subagent_jobs(
     user_id: str = Query("default_user"),
     workspace_id: str = Query("personal"),
-    status: TaskStatus | None = Query(None),
-):
+    status: TaskStatus | None = Query(None),) -> dict[str, Any]:
     from src.sdk.work_queue import get_work_queue
 
     _validate_context_ids(user_id, workspace_id)
@@ -193,8 +190,7 @@ async def list_subagent_jobs(
 async def get_subagent_job(
     job_id: str,
     user_id: str = Query("default_user"),
-    workspace_id: str = Query("personal"),
-):
+    workspace_id: str = Query("personal"),) -> dict[str, Any]:
     from src.sdk.work_queue import get_work_queue
 
     _validate_context_ids(user_id, workspace_id)
@@ -210,8 +206,7 @@ async def instruct_subagent_job(
     job_id: str,
     body: SubagentInstructionRequest,
     user_id: str = Query("default_user"),
-    workspace_id: str = Query("personal"),
-):
+    workspace_id: str = Query("personal"),) -> dict[str, Any]:
     from src.sdk.coordinator import get_coordinator
     from src.sdk.work_queue import get_work_queue
 
@@ -230,8 +225,7 @@ async def instruct_subagent_job(
 async def cancel_subagent_job(
     job_id: str,
     user_id: str = Query("default_user"),
-    workspace_id: str = Query("personal"),
-):
+    workspace_id: str = Query("personal"),) -> dict[str, Any]:
     from src.sdk.coordinator import get_coordinator
     from src.sdk.work_queue import get_work_queue
 
@@ -251,8 +245,7 @@ async def update_subagent(
     name: str,
     body: SubagentUpdateRequest,
     user_id: str = Query("default_user"),
-    workspace_id: str = Query("personal"),
-):
+    workspace_id: str = Query("personal"),) -> dict[str, Any]:
     from src.sdk.agent_validation import validate_agent_def
     from src.sdk.coordinator import get_coordinator
 
@@ -286,8 +279,7 @@ async def update_subagent(
 async def delete_subagent(
     name: str,
     user_id: str = Query("default_user"),
-    workspace_id: str = Query("personal"),
-):
+    workspace_id: str = Query("personal"),) -> dict[str, Any]:
     from src.sdk.coordinator import get_coordinator
 
     _validate_context_ids(user_id, workspace_id)
@@ -302,8 +294,7 @@ async def start_subagent(
     name: str,
     body: SubagentStartRequest,
     user_id: str = Query("default_user"),
-    workspace_id: str = Query("personal"),
-):
+    workspace_id: str = Query("personal"),) -> dict[str, Any]:
     from src.sdk.coordinator import get_coordinator
 
     _validate_context_ids(user_id, workspace_id)
@@ -318,9 +309,9 @@ async def start_subagent(
 @router.patch("/{name}/scope")
 async def set_subagent_scope(
     name: str,
-    body: dict,
+    body: dict[str, Any],
     user_id: str = Query("default_user"),
-):
+) -> dict[str, Any]:
     """Set scope via item_scopes."""
     scope: ScopeKind = body.get("scope", "all")
     if scope not in ("all", "selected", "none"):

@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(prog="ea", description="Executive Assistant")
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 

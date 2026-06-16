@@ -7,6 +7,7 @@ import 'package:executive_assistant/models/message.dart';
 import 'package:executive_assistant/services/ws_client.dart';
 import 'package:executive_assistant/services/api_client.dart';
 import 'package:executive_assistant/providers/agent_provider.dart';
+import 'package:executive_assistant/services/backend_service.dart';
 import 'package:executive_assistant/theme/app_theme.dart';
 import 'package:executive_assistant/features/chat/chat_screen.dart';
 
@@ -14,11 +15,27 @@ class MockWsClient extends Mock implements WsClient {}
 
 class MockApiClient extends Mock implements ApiClient {}
 
+class MockBackendService extends Mock implements BackendService {}
+
+MockBackendService _createMockBackendService() {
+  final svc = MockBackendService();
+  final statusCtrl = StreamController<BackendStatus>.broadcast();
+  when(() => svc.status).thenAnswer((_) => statusCtrl.stream);
+  when(() => svc.health).thenAnswer((_) => Stream<bool>.empty());
+  when(() => svc.start()).thenAnswer((_) async {
+    statusCtrl.add(BackendStatus.running);
+  });
+  when(() => svc.stop()).thenAnswer((_) async {});
+  when(() => svc.dispose()).thenReturn(null);
+  return svc;
+}
+
 Widget _buildChatScreen(MockWsClient ws, MockApiClient api) {
   return ProviderScope(
     overrides: [
       wsClientProvider.overrideWithValue(ws),
       apiClientProvider.overrideWithValue(api),
+      backendServiceProvider.overrideWith((ref) => _createMockBackendService()),
     ],
     child: MaterialApp(
       theme: AppTheme.dark,

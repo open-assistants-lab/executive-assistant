@@ -86,8 +86,9 @@ def test_memory_stores_have_different_paths():
     assert mem_a != mem_b
 
 
-def test_memory_stores_are_per_user():
-    """MessageStore is per-user, not per-workspace."""
+def test_memory_stores_are_per_user(tmp_path, monkeypatch):
+    """MessageStore instances are per-user per-workspace."""
+    monkeypatch.setenv("DEPLOYMENT_EA_ROOT", str(tmp_path))
     from src.storage.messages import get_message_store
 
     store_a = get_message_store("test_user", workspace_id="ws-a")
@@ -95,8 +96,8 @@ def test_memory_stores_are_per_user():
 
     assert store_a.user_id == "test_user"
     assert store_b.user_id == "test_user"
-    # Same user shares the same MemoryCore regardless of workspace
-    assert store_a.core is store_b.core
+    # Each workspace has its own isolated store
+    assert store_a is not store_b
 
 
 def test_file_paths_per_workspace():
@@ -120,8 +121,9 @@ async def test_subagent_isolation_between_workspaces():
     import tempfile
     from unittest.mock import patch
 
-    from src.sdk.coordinator import SubagentCoordinator
     from agentprofile.models import AgentProfile
+
+    from src.sdk.coordinator import SubagentCoordinator
     from src.storage.paths import DataPaths
 
     with tempfile.TemporaryDirectory() as d:
@@ -162,8 +164,9 @@ async def test_same_name_subagent_in_different_workspaces():
     import tempfile
     from unittest.mock import patch
 
-    from src.sdk.coordinator import SubagentCoordinator
     from agentprofile.models import AgentProfile
+
+    from src.sdk.coordinator import SubagentCoordinator
     from src.storage.paths import DataPaths
 
     with tempfile.TemporaryDirectory() as d:
@@ -217,8 +220,9 @@ async def test_subagent_delete_in_one_workspace_does_not_affect_other():
     import tempfile
     from unittest.mock import patch
 
-    from src.sdk.coordinator import SubagentCoordinator
     from agentprofile.models import AgentProfile
+
+    from src.sdk.coordinator import SubagentCoordinator
     from src.storage.paths import DataPaths
 
     with tempfile.TemporaryDirectory() as d:

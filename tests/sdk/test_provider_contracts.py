@@ -12,9 +12,6 @@ When Phase 2 is done, these tests will run against real provider code.
 For now, they define the contract and will be imported/extended.
 """
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from pydantic import BaseModel
 
 
 class TestLLMProviderInterface:
@@ -25,7 +22,7 @@ class TestLLMProviderInterface:
 
     def test_message_type_contract(self):
         """Our Message type must have: role, content, tool_calls, tool_call_id."""
-        from src.http.ws_protocol import AiTokenMessage, DoneMessage, InterruptMessage
+        from src.http.ws_protocol import AiTokenMessage
 
         msg = AiTokenMessage(content="test")
         data = msg.model_dump()
@@ -316,7 +313,6 @@ class TestProviderFactoryContract:
 
     def test_model_info_from_registry_contract(self):
         """Model info must include: id, name, provider_id, tool_call, reasoning, context_window."""
-        from src.http.ws_protocol import DoneMessage
 
         required_fields = ["id", "name", "provider_id", "tool_call", "reasoning", "context_window"]
         for field in required_fields:
