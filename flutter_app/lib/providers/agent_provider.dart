@@ -648,11 +648,6 @@ class AgentNotifier extends StateNotifier<ChatState> {
 
       final response = msg['response']?.toString() ?? '';
       final finalText = state.streamingText;
-      final content = finalText.isNotEmpty
-          ? finalText
-          : response.isNotEmpty
-          ? response
-          : '(done)';
       final now = DateTime.now();
 
       // Collect tool messages as separate entries, before the assistant response
@@ -672,15 +667,22 @@ class AgentNotifier extends StateNotifier<ChatState> {
       }).toList();
 
       final hasPendingApprovals = state.pendingApprovals.isNotEmpty;
-      final assistantMsg = ChatMessage(
-        id: 'ai_${now.millisecondsSinceEpoch}',
-        role: 'assistant',
-        content: content,
-        timestamp: now,
-      );
+
+      List<ChatMessage> newMessages = [...state.messages, ...toolMessages];
+
+      if (finalText.isNotEmpty || response.isNotEmpty) {
+        final content = finalText.isNotEmpty ? finalText : response;
+        newMessages.add(ChatMessage(
+          id: 'ai_${now.millisecondsSinceEpoch}',
+          role: 'assistant',
+          content: content,
+          timestamp: now,
+        ));
+      }
+
       _setState(
         state.copyWith(
-          messages: [...state.messages, ...toolMessages, assistantMsg],
+          messages: newMessages,
           status: hasPendingApprovals
               ? ChatStatus.awaitingApproval
               : ChatStatus.idle,
